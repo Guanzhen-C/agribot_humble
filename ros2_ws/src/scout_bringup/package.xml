@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>scout_bringup</name>
+  <version>0.0.1</version>
+  <description>ROS 2 bringup package for AgileX Scout.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>scout_base</exec_depend>
+  <exec_depend>scout_control</exec_depend>
+  <exec_depend>scout_description</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>imu_filter_madgwick</exec_depend>
+  <exec_depend>pointcloud_to_laserscan</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

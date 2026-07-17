@@ -1,0 +1,15 @@
+humble-colcon-build:
+  stage: build
+  image: ros:humble
+  before_script:
+    - apt-get update
+    - apt-get install -y libasio-dev python3-colcon-common-extensions python3-rosdep
+  script:
+    - mkdir -p /ros2_ws/src
+    - cp -a "${CI_PROJECT_DIR}" /ros2_ws/src/ugv_sdk
+    - cd /ros2_ws
+    - rosdep install --from-paths src --ignore-src -y --rosdistro humble
+    - source /opt/ros/humble/setup.bash
+    - colcon build --packages-select ugv_sdk --cmake-args -DCMAKE_BUILD_TYPE=Release
+    - colcon test --packages-select ugv_sdk
+    - colcon test-result --verbose

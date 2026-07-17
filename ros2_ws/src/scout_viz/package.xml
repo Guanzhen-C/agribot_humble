@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>scout_viz</name>
+  <version>0.0.1</version>
+  <description>ROS 2 visualization configuration for AgileX Scout.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>scout_description</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

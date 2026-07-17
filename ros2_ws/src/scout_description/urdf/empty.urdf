@@ -1,0 +1,6 @@
+<robot>
+  <!-- This file is a placeholder which is included by default from
+       scout.urdf.xacro. If a robot is being customized and requires
+       additional URDF, set the SCOUT_URDF_EXTRAS environment variable
+       to the full path of the file you would like included. -->
+</robot>

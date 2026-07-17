@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro" />
+
+  <xacro:macro
+    name="vlp16_mount"
+    params="
+      prefix
+      parent_link
+      topic
+      robot_namespace:=/
+      update_rate:=5
+      horizontal_samples:=360
+      vertical_samples:=16
+      min_range:=0.3
+      max_range:=25.0
+      height:=0.12
+      *origin">
+    <link name="${prefix}vlp16_mount_base_link" />
+    <link name="${prefix}vlp16_mount_left_support">
+      <visual>
+        <geometry>
+          <box size="0.012 0.012 ${height}" />
+        </geometry>
+        <material name="white">
+          <color rgba="1 1 1 1" />
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.012 0.012 ${height}" />
+        </geometry>
+      </collision>
+    </link>
+    <link name="${prefix}vlp16_mount_right_support">
+      <visual>
+        <geometry>
+          <box size="0.012 0.012 ${height}" />
+        </geometry>
+        <material name="white">
+          <color rgba="1 1 1 1" />
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.012 0.012 ${height}" />
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="${prefix}vlp16_mount_base_link_joint" type="fixed">
+      <parent link="${parent_link}" />
+      <child link="${prefix}vlp16_mount_base_link" />
+      <xacro:insert_block name="origin" />
+    </joint>
+    <joint name="${prefix}vlp16_mount_left_support_joint" type="fixed">
+      <parent link="${prefix}vlp16_mount_base_link" />
+      <child link="${prefix}vlp16_mount_left_support" />
+      <origin xyz="0 0.04 ${height/2}" rpy="0 0 0" />
+    </joint>
+    <joint name="${prefix}vlp16_mount_right_support_joint" type="fixed">
+      <parent link="${prefix}vlp16_mount_base_link" />
+      <child link="${prefix}vlp16_mount_right_support" />
+      <origin xyz="0 -0.04 ${height/2}" rpy="0 0 0" />
+    </joint>
+
+    <xacro:VLP-16
+      parent="${prefix}vlp16_mount_base_link"
+      name="${prefix}vlp16"
+      topic="${topic}"
+      hz="${update_rate}"
+      lasers="${vertical_samples}"
+      samples="${horizontal_samples}"
+      collision_range="${min_range}"
+      min_range="${min_range}"
+      max_range="${max_range}"
+      gpu="false">
+      <origin xyz="0 0 ${height}" rpy="0 0 0" />
+    </xacro:VLP-16>
+  </xacro:macro>
+</robot>

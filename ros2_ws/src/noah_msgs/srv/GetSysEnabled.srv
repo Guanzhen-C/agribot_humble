@@ -1,0 +1,7 @@
+# 获取系统使能状态
+
+int32   sys_id      #系统ID, 对应errordef的ESystemNodeID
+
+---
+
+bool  result        #结果，true使能， false不使能

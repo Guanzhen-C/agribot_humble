@@ -1,0 +1,16 @@
+geometry_msgs/PoseStamped[] poses
+int8[] status
+int8 changemode 
+
+---
+bool success
+#返回路径信息
+
+int32 WORK_DONE = 0     #工作
+int32 WORK_START =1     #起点
+int32 WORK_END = 2      #一行结束
+int32 WORK_FINISH = 3   #结束
+
+int32 CHANGELIN_ACTION = 0  #直接掉头
+int32 CHANGELIN_FISHTAIL = 1 #誉为掉头
+int32 CHANGELIN_TRACKFISHTAIL = 2 #跟踪鱼尾掉头

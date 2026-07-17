@@ -1,0 +1,152 @@
+<?xml version="1.0"?>
+
+<!-- 
+Reference:
+    [1] https://answers.ros.org/question/246914/four-wheeled-skid-steering-in-gazebo-and-ros-using-gazebo-ros-control/
+    [2] https://answers.ros.org/question/10119/gazebo-controller-for-skid-steering/
+    [3] https://answers.ros.org/question/9640/rotation-error-in-gazebo-simulation/
+    [4] https://www.youtube.com/watch?v=fuRAv6PDwdw 
+-->
+
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+    <gazebo>
+        <plugin name="scout_planar_move" filename="libgazebo_ros_planar_move.so">
+            <ros>
+                <namespace>$(arg robot_namespace)</namespace>
+                <remapping>cmd_vel:=cmd_vel</remapping>
+                <remapping>odom:=odom</remapping>
+            </ros>
+            <update_rate>100.0</update_rate>
+            <publish_rate>50.0</publish_rate>
+            <publish_odom>true</publish_odom>
+            <publish_odom_tf>$(arg publish_odom_tf)</publish_odom_tf>
+            <odometry_frame>odom</odometry_frame>
+            <robot_base_frame>base_link</robot_base_frame>
+            <covariance_x>0.0001</covariance_x>
+            <covariance_y>0.0001</covariance_y>
+            <covariance_yaw>0.01</covariance_yaw>
+        </plugin>
+    </gazebo>
+
+    <gazebo>
+        <plugin name="scout_joint_state_publisher" filename="libgazebo_ros_joint_state_publisher.so">
+            <ros>
+                <namespace>$(arg robot_namespace)</namespace>
+                <remapping>joint_states:=joint_states_gazebo</remapping>
+            </ros>
+            <update_rate>50.0</update_rate>
+            <joint_name>front_left_wheel</joint_name>
+            <joint_name>front_right_wheel</joint_name>
+            <joint_name>rear_left_wheel</joint_name>
+            <joint_name>rear_right_wheel</joint_name>
+        </plugin>
+    </gazebo>
+
+    <!-- kp spring constant, kd damping constant -->
+    <gazebo reference="front_left_wheel_link">
+        <mu1>1.8</mu1>
+        <mu2>1.5</mu2>
+        <kp>1000000000.0</kp>
+        <kd>0.0</kd>
+        <minDepth>0.001</minDepth>
+        <fdir1>1 0 0</fdir1>
+
+    </gazebo>
+    <gazebo reference="front_right_wheel_link">
+        <mu1>1.8</mu1>
+        <mu2>1.5</mu2>
+        <kp>1000000000.0</kp>
+        <kd>0.0</kd>
+        <minDepth>0.001</minDepth>
+        <fdir1>1 0 0</fdir1>
+
+    </gazebo>
+    <gazebo reference="rear_left_wheel_link">
+        <mu1>1.8</mu1>
+        <mu2>1.5</mu2>
+        <kp>1000000000.0</kp>
+        <kd>0.0</kd>
+        <minDepth>0.001</minDepth>
+        <fdir1>1 0 0</fdir1>
+
+    </gazebo>
+    <gazebo reference="rear_right_wheel_link">
+        <mu1>1.8</mu1>
+        <mu2>1.5</mu2>
+        <kp>1000000000.0</kp>
+        <kd>0.0</kd>
+        <minDepth>0.001</minDepth>
+        <fdir1>1 0 0</fdir1>
+        <!--maxContacts value="64"/-->
+    </gazebo>
+    
+    <gazebo reference="imu_link">
+        <sensor name="imu_sensor" type="imu">
+            <always_on>true</always_on>
+            <update_rate>$(arg imu_update_rate)</update_rate>
+            <visualize>false</visualize>
+            <imu>
+                <angular_velocity>
+                    <x><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></x>
+                    <y><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></y>
+                    <z><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></z>
+                </angular_velocity>
+                <linear_acceleration>
+                    <x><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></x>
+                    <y><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></y>
+                    <z><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev></noise></z>
+                </linear_acceleration>
+            </imu>
+            <plugin name="imu_controller" filename="libgazebo_ros_imu_sensor.so">
+                <ros>
+                    <namespace>$(arg robot_namespace)</namespace>
+                    <remapping>~/out:=imu/data</remapping>
+                </ros>
+                <frame_name>imu_link</frame_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <gazebo reference="base_link">
+        <sensor name="gps_sensor" type="gps">
+            <always_on>true</always_on>
+            <update_rate>$(arg gps_update_rate)</update_rate>
+            <visualize>false</visualize>
+            <gps>
+                <position_sensing>
+                    <horizontal>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.0001</stddev>
+                        </noise>
+                    </horizontal>
+                    <vertical>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.0001</stddev>
+                        </noise>
+                    </vertical>
+                </position_sensing>
+            </gps>
+            <plugin name="gps_controller" filename="libgazebo_ros_gps_sensor.so">
+                <ros>
+                    <namespace>$(arg robot_namespace)</namespace>
+                    <remapping>~/out:=navsat/fix</remapping>
+                </ros>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+    <!-- 3D Position Interface for Ground Truth -->
+    <gazebo>
+        <plugin name="p3d" filename="libgazebo_ros_p3d.so">
+        <ros>
+            <namespace>$(arg robot_namespace)</namespace>
+            <remapping>odom:=base_pose_ground_truth</remapping>
+        </ros>
+        <body_name>base_link</body_name>
+        <update_rate>100.0</update_rate>
+        </plugin>
+    </gazebo>
+
+</robot>

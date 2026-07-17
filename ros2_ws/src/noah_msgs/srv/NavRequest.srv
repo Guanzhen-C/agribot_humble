@@ -1,0 +1,18 @@
+#路径导航请求
+
+
+uint8   opration        # 操作类型 
+float32 speed           # 导航速度 m/s
+nav_msgs/Path path      # 导航路径
+
+uint8   OPT_RUNNING = 1
+uint8   OPT_CANCLE  = 2
+
+---
+#返回请求结果
+
+uint8   code
+
+uint8   SUCCESS = 0     #请求被受理 
+uint8   REFUSE  = 1     #被拒绝
+uint8   PARAM_ERR = 2   #参数错误

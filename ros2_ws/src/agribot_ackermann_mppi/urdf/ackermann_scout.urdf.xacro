@@ -1,0 +1,270 @@
+<?xml version="1.0"?>
+
+<robot name="ackermann_scout" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:arg name="robot_namespace" default="/" />
+  <xacro:arg name="laser_enabled" default="true" />
+  <xacro:arg name="laser_xyz" default="0.1206 0.0 0.0" />
+  <xacro:arg name="laser_rpy" default="0.0 0.0 0.0" />
+  <xacro:arg name="sensor_arch_height" default="300" />
+
+  <xacro:include filename="$(find scout_description)/urdf/decorations.urdf.xacro" />
+  <xacro:include filename="$(find scout_description)/urdf/accessories/ydlidar_mount.urdf.xacro" />
+  <xacro:include filename="$(find scout_description)/urdf/accessories/sensor_arch.urdf.xacro" />
+  <xacro:include filename="$(find scout_description)/urdf/accessories/vlp16_mount.urdf.xacro" />
+
+  <xacro:property name="M_PI" value="3.14159"/>
+  <xacro:property name="base_x_size" value="0.9250000" />
+  <xacro:property name="base_y_size" value="0.380000" />
+  <xacro:property name="base_z_size" value="0.210000" />
+  <xacro:property name="wheelbase" value="0.498" />
+  <xacro:property name="track" value="0.58306" />
+  <xacro:property name="wheel_vertical_offset" value="-0.0702" />
+  <xacro:property name="wheel_length" value="1.1653e-01" />
+  <xacro:property name="wheel_radius" value="1.6459e-01" />
+  <xacro:property name="wheel_joint_friction" value="20.0" />
+
+  <xacro:macro name="ackermann_wheel_link" params="wheel_prefix is_right">
+    <link name="${wheel_prefix}_wheel_link">
+      <inertial>
+        <mass value="8" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="0.1171" ixy="0" ixz="0" iyy="0.1361" iyz="0" izz="0.1171" />
+      </inertial>
+      <visual>
+        <xacro:if value="${is_right}">
+          <origin xyz="0 0 0" rpy="${M_PI} 0 0" />
+        </xacro:if>
+        <xacro:unless value="${is_right}">
+          <origin xyz="0 0 0" rpy="0 0 0" />
+        </xacro:unless>
+        <geometry>
+          <mesh filename="package://scout_description/meshes/wheel.dae" />
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${M_PI/2} 0 0" />
+        <geometry>
+          <cylinder length="${wheel_length}" radius="${wheel_radius}" />
+        </geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="disable_gravity" params="ref">
+    <gazebo reference="${ref}">
+      <gravity>false</gravity>
+    </gazebo>
+  </xacro:macro>
+
+  <link name="base_link">
+    <inertial>
+      <mass value="50" />
+      <origin xyz="0.0 0.0 0.0" />
+      <inertia ixx="2.288641" ixy="0" ixz="0" iyy="5.103976" iyz="0" izz="3.431465" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://scout_description/meshes/base_link.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.008" rpy="0 0 0" />
+      <geometry>
+        <box size="${base_x_size} ${base_y_size} ${base_z_size}"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 0 ${base_z_size/6}" rpy="0 0 0" />
+      <geometry>
+        <box size="${base_x_size/6} ${base_y_size*1.65} ${base_z_size/3}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <origin xyz="0 0 ${wheel_vertical_offset - wheel_radius}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="base_footprint" />
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <origin xyz="0.19 0 0.149" rpy="0 -1.5708 3.1416" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+
+  <xacro:ackermann_wheel_link wheel_prefix="front_left" is_right="false" />
+  <xacro:ackermann_wheel_link wheel_prefix="front_right" is_right="true" />
+  <xacro:ackermann_wheel_link wheel_prefix="rear_left" is_right="false" />
+  <xacro:ackermann_wheel_link wheel_prefix="rear_right" is_right="true" />
+
+  <link name="front_left_steering_block_link">
+    <inertial>
+      <mass value="1" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.03" length="0.05" />
+      </geometry>
+      <material name="dark_grey" />
+    </visual>
+  </link>
+
+  <link name="front_right_steering_block_link">
+    <inertial>
+      <mass value="1" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.03" length="0.05" />
+      </geometry>
+      <material name="dark_grey" />
+    </visual>
+  </link>
+
+  <joint name="front_left_steering_joint" type="revolute">
+    <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_left_steering_block_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.7" upper="0.7" effort="200" velocity="1.5" />
+    <dynamics damping="2.0" friction="0.0" />
+  </joint>
+
+  <joint name="front_right_steering_joint" type="revolute">
+    <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_right_steering_block_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.7" upper="0.7" effort="200" velocity="1.5" />
+    <dynamics damping="2.0" friction="0.0" />
+  </joint>
+
+  <joint name="front_left_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_left_steering_block_link" />
+    <child link="front_left_wheel_link" />
+    <axis xyz="0 1 0" />
+    <dynamics damping="0.0" friction="${wheel_joint_friction}" />
+  </joint>
+
+  <joint name="front_right_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_right_steering_block_link" />
+    <child link="front_right_wheel_link" />
+    <axis xyz="0 1 0" />
+    <dynamics damping="0.0" friction="${wheel_joint_friction}" />
+  </joint>
+
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_left_wheel_link" />
+    <axis xyz="0 1 0" />
+    <dynamics damping="0.0" friction="${wheel_joint_friction}" />
+  </joint>
+
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_right_wheel_link" />
+    <axis xyz="0 1 0" />
+    <dynamics damping="0.0" friction="${wheel_joint_friction}" />
+  </joint>
+
+  <xacro:scout_decorate />
+
+  <xacro:if value="$(arg laser_enabled)">
+    <xacro:ydlidar_mount prefix="base"/>
+    <xacro:ydlidar frame="base_laser" topic="scan" min_range="0.65"
+      robot_namespace="$(arg robot_namespace)"/>
+    <joint name="laser_mount_joint" type="fixed">
+      <origin xyz="$(arg laser_xyz)" rpy="$(arg laser_rpy)" />
+      <parent link="top_plate_link" />
+      <child link="base_laser_mount" />
+    </joint>
+  </xacro:if>
+
+  <xacro:sensor_arch prefix="" parent="top_plate_link" size="$(arg sensor_arch_height)">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:sensor_arch>
+
+  <xacro:vlp16_mount
+    prefix=""
+    parent_link="sensor_arch_mount_link"
+    topic="/points"
+    robot_namespace="$(arg robot_namespace)"
+    update_rate="5"
+    horizontal_samples="360"
+    vertical_samples="16"
+    min_range="0.3"
+    max_range="25.0">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:vlp16_mount>
+
+  <xacro:disable_gravity ref="base_link" />
+  <xacro:disable_gravity ref="front_left_steering_block_link" />
+  <xacro:disable_gravity ref="front_right_steering_block_link" />
+  <xacro:disable_gravity ref="front_left_wheel_link" />
+  <xacro:disable_gravity ref="front_right_wheel_link" />
+  <xacro:disable_gravity ref="rear_left_wheel_link" />
+  <xacro:disable_gravity ref="rear_right_wheel_link" />
+  <xacro:disable_gravity ref="top_plate_link" />
+  <xacro:disable_gravity ref="base_laser_mount" />
+  <xacro:disable_gravity ref="base_laser" />
+  <xacro:disable_gravity ref="sensor_arch_base_link" />
+  <xacro:disable_gravity ref="sensor_arch_mount_link" />
+  <xacro:disable_gravity ref="vlp16_mount_base_link" />
+  <xacro:disable_gravity ref="vlp16_mount_left_support" />
+  <xacro:disable_gravity ref="vlp16_mount_right_support" />
+  <xacro:disable_gravity ref="vlp16_base_link" />
+  <xacro:disable_gravity ref="vlp16" />
+
+  <gazebo reference="front_left_wheel_link">
+    <mu1>1.8</mu1>
+    <mu2>1.5</mu2>
+    <kp>1000000000.0</kp>
+    <kd>0.0</kd>
+    <minDepth>0.001</minDepth>
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+
+  <gazebo reference="front_right_wheel_link">
+    <mu1>1.8</mu1>
+    <mu2>1.5</mu2>
+    <kp>1000000000.0</kp>
+    <kd>0.0</kd>
+    <minDepth>0.001</minDepth>
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+
+  <gazebo reference="rear_left_wheel_link">
+    <mu1>1.8</mu1>
+    <mu2>1.5</mu2>
+    <kp>1000000000.0</kp>
+    <kd>0.0</kd>
+    <minDepth>0.001</minDepth>
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+
+  <gazebo reference="rear_right_wheel_link">
+    <mu1>1.8</mu1>
+    <mu2>1.5</mu2>
+    <kp>1000000000.0</kp>
+    <kd>0.0</kd>
+    <minDepth>0.001</minDepth>
+    <fdir1>1 0 0</fdir1>
+  </gazebo>
+
+</robot>

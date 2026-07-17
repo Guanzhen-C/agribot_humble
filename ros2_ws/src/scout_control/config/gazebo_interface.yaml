@@ -1,0 +1,18 @@
+from_sim:
+  topics:
+    - topic: /joint_states
+      type: sensor_msgs/msg/JointState
+    - topic: /front/scan
+      type: sensor_msgs/msg/LaserScan
+    - topic: /odom
+      type: nav_msgs/msg/Odometry
+    - topic: /imu/data
+      type: sensor_msgs/msg/Imu
+    - topic: /navsat/fix
+      type: sensor_msgs/msg/NavSatFix
+    - topic: /navsat/vel
+      type: geometry_msgs/msg/Vector3Stamped
+to_sim:
+  topics:
+    - topic: /cmd_vel
+      type: geometry_msgs/msg/Twist

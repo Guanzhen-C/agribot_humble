@@ -1,0 +1,20 @@
+twist_mux:
+  ros__parameters:
+    topics:
+      - name: joy
+        topic: joy_teleop/cmd_vel
+        timeout: 0.5
+        priority: 100
+      - name: rl
+        topic: rl/cmd_vel
+        timeout: 0.5
+        priority: 20
+      - name: nav2
+        topic: nav2/cmd_vel
+        timeout: 0.5
+        priority: 10
+    locks:
+      - name: e_stop
+        topic: e_stop
+        timeout: 0.0
+        priority: 255

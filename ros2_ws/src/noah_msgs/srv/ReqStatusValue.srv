@@ -1,0 +1,7 @@
+# 请求状态数据
+# 状态index 对应 StatusValue.msg中的index
+
+uint8[] index
+---
+# 返回数据值
+noah_msgs/StatusValue status

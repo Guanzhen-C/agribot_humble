@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>scout_control</name>
+  <version>0.0.1</version>
+  <description>ROS 2 teleop, velocity mux, and localization utilities for AgileX Scout.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>joy</depend>
+  <depend>rclpy</depend>
+  <depend>robot_localization</depend>
+  <depend>scout_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>teleop_twist_joy</depend>
+  <depend>std_msgs</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

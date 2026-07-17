@@ -1,0 +1,46 @@
+/**:
+    ros__parameters:
+        map_file_path: "./ls.pcd"
+
+        common:
+            lid_topic: "/sync_point_cloud"
+            imu_topic: "/sync_imu"
+            time_sync_en: false 
+            time_offset_lidar_to_imu: 0.0 
+
+        preprocess:
+            lidar_type: 2 
+            scan_line: 16 
+            blind: 0.1                  # 推荐改成：0.1 （保留更多近距离点）
+            timestamp_unit: 3 
+            scan_rate: 10 
+            point_filter_num: 1         # 推荐改成：1 （最重要，点数直接翻倍）
+
+        mapping:
+            acc_cov: 0.1 
+            gyr_cov: 0.1 
+            b_acc_cov: 0.0001 
+            b_gyr_cov: 0.0001 
+            fov_degree: 106.0 
+            det_range: 10.0 
+            extrinsic_est_en: true 
+            extrinsic_T: [ 0.05512, 0.02226, -0.0297 ] 
+            extrinsic_R: [ 1., 0., 0.,
+                            0., 1., 0.,
+                            0., 0., 1.]
+
+            filter_size_surf: 0.05       # 推荐改成：0.05 （当前帧下采样，越小越密）
+            filter_size_map: 0.05        # 推荐改成：0.05 （地图增量下采样，最关键参数）
+            # filter_size_corner: 0.5   # 如果代码里有此参数，可加，推荐改成：0.05
+
+        publish:
+            path_en: true 
+            effect_map_en: false 
+            map_en: true 
+            scan_publish_en: true 
+            dense_publish_en: false     # 推荐改成：true （发布完整稠密点云）
+            scan_bodyframe_pub_en: true 
+
+        pcd_save:
+            pcd_save_en: true 
+            interval: -1                # -1 表示所有帧保存到一个pcd文件（密度最高）

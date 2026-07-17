@@ -1,0 +1,5 @@
+.vscode
+build
+package.xml
+!package.xml
+__pycache__

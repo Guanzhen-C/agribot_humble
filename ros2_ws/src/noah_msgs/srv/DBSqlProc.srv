@@ -1,0 +1,18 @@
+#数据库sql语句执行
+
+uint8   DB_SYSTEM = 1   #系统库
+uint8   DB_USER   = 2   #用户库
+
+uint8   db
+string  sql
+
+---
+
+int32 code
+
+
+uint8   DBCODE_OK       = 0
+uint8   DBCODE_DB_NONE  = 1     #没有该数据库
+uint8   DBCODE_SQLERR   = 2     #sql语句错误
+
+

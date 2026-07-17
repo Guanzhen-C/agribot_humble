@@ -1,0 +1,28 @@
+ackermann_collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    base_frame_id: base_link
+    odom_frame_id: odom
+    cmd_vel_in_topic: /nav2/cmd_vel
+    cmd_vel_out_topic: /nav2/cmd_vel_safe
+    transform_tolerance: 0.5
+    source_timeout: 0.5
+    # Gazebo publishes scans fast enough that motion compensation is negligible.
+    # Disabling it also avoids a Humble shutdown race in the odom TF lookup.
+    base_shift_correction: false
+    stop_pub_timeout: 2.0
+    polygons: [slowdown_zone]
+    slowdown_zone:
+      type: polygon
+      points: [1.6, 0.9, 1.6, -0.9, -0.35, -0.9, -0.35, 0.9]
+      action_type: slowdown
+      max_points: 3
+      slowdown_ratio: 0.55
+      visualize: true
+      polygon_pub_topic: /collision_monitor/slowdown_zone
+      enabled: true
+    observation_sources: [scan]
+    scan:
+      type: scan
+      topic: /scan
+      enabled: true

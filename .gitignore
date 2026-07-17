@@ -1,0 +1,68 @@
+# ROS/colcon workspace outputs
+build/
+install/
+log/
+**/build/
+**/install/
+**/log/
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# C/C++ generated files
+*.o
+*.so
+*.a
+*.out
+*.d
+
+# Editor and local tooling state
+.vscode/
+.idea/
+.claude/
+.codex
+.agents/
+.board_sync/
+**/.board_sync/
+.ssh/
+.env
+.env.*
+!.env.example
+
+# OS and temporary files
+.DS_Store
+*~
+*.swp
+*.tmp
+
+# ROS/runtime data that should stay local
+*.bag
+*.db3
+*.pcd
+ros_logs/
+ros2_ws/protobuf_compat/
+
+# Local runbooks and parameter dumps
+/ekf_filter_node.yaml
+/navsat_pose_bridge.yaml
+/navsat_to_local_odom.yaml
+/rtk_eskf_localization.yaml
+/rtk_to_local_odom.yaml
+/ros2_ws/base_link
+/ros2_ws/controller_server.yaml
+/ros2_ws/rtk_eskf_localization.yaml
+/ros2_ws/src/1.txt
+/ros2_ws/src/2.txt
+
+# Upstream documentation media not required to build or run
+/ros2_ws/src/FAST_LIO_ROS2/doc/
+/ros2_ws/src/KF-GINS/docs/
+/ros2_ws/src/ugv_sdk/docs/
+
+# Unreferenced Gazebo source textures
+/ros2_ws/src/scout_gazebo/meshes/GroundMoss001_COL_1K.jpg.001.jpg
+/ros2_ws/src/scout_gazebo/meshes/GroundTireTracks001_COL_3K.jpg.001.jpg

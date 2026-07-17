@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+
+<robot name="scout" xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <xacro:arg name="laser_enabled" default="$(optenv SCOUT_YDLIDAR_ENABLED 1)" />
+    <!-- xacro:arg name="laser_xyz" default="$(optenv SCOUT_YDLIDAR_XYZ 0.2206 0.0 0.00635)" / -->
+    <xacro:arg name="laser_xyz" default="$(optenv SCOUT_YDLIDAR_XYZ 0.1206 0.0 0.0)" />
+    <xacro:arg name="laser_rpy" default="$(optenv SCOUT_YDLIDAR_RPY 0.0 0.0 0.0)" />
+
+    <!-- 
+    <xacro:arg name="laser_enabled" default="$(optenv SCOUT_LMS1XX_ENABLED 0)" />
+    <xacro:arg name="laser_xyz" default="$(optenv SCOUT_LMS1XX_XYZ 0.2206 0.0 0.00635)" />
+    <xacro:arg name="laser_rpy" default="$(optenv SCOUT_LMS1XX_RPY 0.0 0.0 0.0)" />
+    -->
+
+    <xacro:arg name="laser_secondary_enabled" default="$(optenv SCOUT_LMS1XX_SECONDARY_ENABLED 0)" />
+    <xacro:arg name="laser_secondary_xyz" default="$(optenv SCOUT_LMS1XX_SECONDARY_XYZ -0.2206 0.0 0.00635)" />
+    <xacro:arg name="laser_secondary_rpy" default="$(optenv SCOUT_LMS1XX_SECONDARY_RPY 0.0 0.0 3.14159)" />
+
+    <xacro:arg name="laser_ust10_front_enabled" default="$(optenv SCOUT_UST10_ENABLED 0)" />
+    <xacro:arg name="laser_ust10_front_prefix"  default="$(optenv SCOUT_UST10_PREFIX front)" />
+    <xacro:arg name="laser_ust10_front_parent"  default="$(optenv SCOUT_UST10_PARENT top_plate_link)" />
+    <xacro:arg name="laser_ust10_front_topic"   default="$(optenv SCOUT_UST10_TOPIC front/scan)" />
+    <xacro:arg name="laser_ust10_front_xyz"     default="$(optenv SCOUT_UST10_XYZ 0.2206 0.0 0.00635)" />
+    <xacro:arg name="laser_ust10_front_rpy"     default="$(optenv SCOUT_UST10_RPY 0 0 0)" />
+
+    <xacro:arg name="laser_ust10_rear_enabled"  default="$(optenv SCOUT_UST10_SECONDARY_ENABLED 0)" />
+    <xacro:arg name="laser_ust10_rear_prefix"   default="$(optenv SCOUT_UST10_SECONDARY_PREFIX rear)" />
+    <xacro:arg name="laser_ust10_rear_parent"   default="$(optenv SCOUT_UST10_SECONDARY_PARENT top_plate_link)" />
+    <xacro:arg name="laser_ust10_rear_topic"    default="$(optenv SCOUT_UST10_SECONDARY_TOPIC rear/scan)" />
+    <xacro:arg name="laser_ust10_rear_xyz"      default="$(optenv SCOUT_UST10_SECONDARY_XYZ -0.2206 0.0 0.00635)" />
+    <xacro:arg name="laser_ust10_rear_rpy"      default="$(optenv SCOUT_UST10_SECONDARY_RPY 0 0 3.14159)" />
+
+    <xacro:arg name="laser_3d_enabled" default="$(optenv SCOUT_LASER_3D_ENABLED 0)" />
+    <xacro:arg name="laser_3d_xyz" default="$(optenv SCOUT_LASER_3D_XYZ 0 0 0)" />
+    <xacro:arg name="laser_3d_rpy" default="$(optenv SCOUT_LASER_3D_RPY 0 0 0)" />
+    <xacro:arg name="laser_3d_topic" default="$(optenv SCOUT_LASER_3D_TOPIC points)" />
+    <xacro:arg name="laser_3d_update_rate" default="$(optenv SCOUT_LASER_3D_UPDATE_RATE 5)" />
+    <xacro:arg name="laser_3d_horizontal_samples" default="$(optenv SCOUT_LASER_3D_HORIZONTAL_SAMPLES 360)" />
+    <xacro:arg name="laser_3d_vertical_samples" default="$(optenv SCOUT_LASER_3D_VERTICAL_SAMPLES 16)" />
+    <xacro:arg name="laser_3d_min_range" default="$(optenv SCOUT_LASER_3D_MIN_RANGE 0.3)" />
+    <xacro:arg name="laser_3d_max_range" default="$(optenv SCOUT_LASER_3D_MAX_RANGE 25.0)" />
+    <xacro:arg name="imu_update_rate" default="$(optenv SCOUT_IMU_UPDATE_RATE 100)" />
+    <xacro:arg name="gps_update_rate" default="$(optenv SCOUT_GPS_UPDATE_RATE 10)" />
+
+    <xacro:arg name="realsense_enabled" default="$(optenv SCOUT_REALSENSE_ENABLED 1)" />
+    <xacro:arg name="realsense_xyz" default="$(optenv SCOUT_REALSENSE_XYZ 0 0 0)" />
+    <xacro:arg name="realsense_rpy" default="$(optenv SCOUT_REALSENSE_RPY 0 0 0)" />
+    <xacro:arg name="realsense_mount" default="$(optenv SCOUT_REALSENSE_MOUNT_FRAME sensor_arch_mount_link)" />
+
+    <xacro:property name="scout_front_bumper_extend" value="$(optenv SCOUT_FRONT_BUMPER_EXTEND 0)" />
+    <xacro:property name="scout_rear_bumper_extend" value="$(optenv SCOUT_REAR_BUMPER_EXTEND 0)" />
+
+    <!-- Height of the sensor arch in mm.  Must be either 510 or 300 -->
+    <xacro:arg name="sensor_arch_height"  default="$(optenv SCOUT_SENSOR_ARCH_HEIGHT 300)" />
+    <xacro:arg name="sensor_arch"         default="$(optenv SCOUT_SENSOR_ARCH 0)" />
+
+    <xacro:arg name="robot_namespace" default="$(optenv ROBOT_NAMESPACE /)" />
+    <xacro:arg name="urdf_extras" default="$(optenv SCOUT_URDF_EXTRAS empty.urdf)" />
+    <xacro:arg name="cpr_urdf_extras" default="$(optenv CPR_URDF_EXTRAS empty.urdf)" />
+    <xacro:arg name="publish_odom_tf" default="$(optenv SCOUT_PUBLISH_ODOM_TF 1)" />
+
+    <!-- Included URDF/XACRO Files -->
+    <xacro:include filename="$(find scout_description)/urdf/decorations.urdf.xacro" />
+    <xacro:include filename="$(find scout_description)/urdf/wheel.urdf.xacro" />
+
+    <xacro:include filename="$(find scout_description)/urdf/accessories/intel_realsense.urdf.xacro"/>
+    <xacro:include filename="$(find scout_description)/urdf/accessories/sick_lms1xx_mount.urdf.xacro"/>
+    <xacro:include filename="$(find scout_description)/urdf/accessories/ydlidar_mount.urdf.xacro"/>
+    <xacro:include filename="$(find scout_description)/urdf/accessories/sensor_arch.urdf.xacro"/>
+    <xacro:include filename="$(find scout_description)/urdf/accessories/hokuyo_ust10.urdf.xacro"/>
+    <xacro:include filename="$(find scout_description)/urdf/accessories/vlp16_mount.urdf.xacro"/>
+
+    <xacro:arg name="robot_namespace" default="/" />
+
+    <xacro:include filename="$(find scout_description)/urdf/wheel.urdf.xacro" />
+    <!-- xacro:include filename="$(find scout_description)/urdf/scout_wheel_type1.xacro" / -->
+    <!-- xacro:include filename="$(find scout_description)/urdf/scout_wheel_type2.xacro" / -->
+
+    <!-- Variables -->
+    <xacro:property name="M_PI" value="3.14159"/>
+
+    <!-- Vehicle Geometries -->
+    <xacro:property name="base_x_size" value="0.9250000" />
+    <xacro:property name="base_y_size" value="0.380000" />
+    <xacro:property name="base_z_size" value="0.210000" />
+
+    <xacro:property name="wheelbase" value="0.498" />
+    <xacro:property name="track" value="0.58306" />
+    <xacro:property name="wheel_vertical_offset" value="-0.0702" />
+
+    <xacro:property name="wheel_length" value="1.1653e-01" />
+    <xacro:property name="wheel_radius" value="1.6459e-01" />
+
+    <!-- Base link: the center of the robot's bottom plate (rotational center) -->
+    <link name="base_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <mesh filename="package://scout_description/meshes/base_link.dae" />
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.008" rpy="0 0 0" />
+            <geometry>
+                <box size="${base_x_size} ${base_y_size} ${base_z_size}"/>
+            </geometry>
+        </collision>
+        <collision>
+            <origin xyz="0 0 ${base_z_size/6}" rpy="0 0 0" />
+            <geometry>
+                <box size="${base_x_size/6} ${base_y_size*1.65} ${base_z_size/3}"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- Base footprint is on the ground under the robot -->
+    <link name="base_footprint"/>
+
+    <joint name="base_footprint_joint" type="fixed">
+        <origin xyz="0 0 ${wheel_vertical_offset - wheel_radius}" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="base_footprint" />
+    </joint>
+
+    <!-- <joint name="chassis_link_joint" type="fixed">
+        <origin xyz="0 0 ${wheel_radius - wheel_vertical_offset}" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="chassis_link" />
+    </joint> -->
+
+    <link name="inertial_link">
+        <inertial>
+            <mass value="50" />
+            <!-- <mass value="50" /> -->
+            <!-- <origin xyz="-0.00065 -0.085 0.062" />
+            <inertia ixx="0.6022" ixy="-0.02364" ixz="-0.1197" iyy="1.7386" iyz="-0.001544" izz="2.0296" /> -->
+            <origin xyz="0.0 0.0 0.0" />
+            <inertia ixx="2.288641" ixy="0" ixz="0" iyy="5.103976" iyz="0" izz="3.431465" />
+        </inertial>
+    </link>
+
+    <joint name="inertial_joint" type="fixed">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="inertial_link" />
+    </joint>
+
+    <!-- IMU Link is the standard mounting position for the UM6 IMU.-->
+    <!-- Can be modified with environment variables in /etc/ros/setup.bash -->
+    <link name="imu_link"/>
+    <joint name="imu_joint" type="fixed">
+        <origin xyz="$(optenv SCOUT_IMU_XYZ 0.19 0 0.149)" rpy="$(optenv SCOUT_IMU_RPY 0 -1.5708 3.1416)" />
+        <parent link="base_link" />
+        <child link="imu_link" />
+    </joint>
+    <gazebo reference="imu_link">
+    </gazebo>
+
+    <!-- For testing, hang the robot up in the air -->
+    <!-- <link name="world" />
+    <joint name="world_to_base_link=" type="fixed">
+        <origin xyz="0 0 0.5" rpy="0 0 0" />
+        <parent link="world"/>
+        <child link="base_link"/>
+    </joint> -->
+
+    <!-- Scout wheel macros -->
+    <!-- wheel labeled from 0 to 3, conter-clockwise, starting from front right wheel -->
+    <!-- motor 1 and 2 (left side) are mechanically installed in a reversed direction -->
+    <xacro:scout_wheel wheel_prefix="front_right">
+        <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:scout_wheel>
+    <xacro:scout_wheel wheel_prefix="front_left">
+        <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:scout_wheel>
+    <xacro:scout_wheel wheel_prefix="rear_left">
+        <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:scout_wheel>
+    <xacro:scout_wheel wheel_prefix="rear_right">
+        <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    </xacro:scout_wheel>
+
+
+
+    <link name="front_mount" />
+
+    <joint name="front_mount_joint" type="fixed">
+        <origin xyz="0.325 0 0.112701" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="front_mount" />
+    </joint>
+
+    <link name="rear_mount" />
+
+    <joint name="rear_mount_joint" type="fixed">
+        <origin xyz="-0.325 0 0.112701" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="rear_mount" />
+    </joint>
+
+
+    <xacro:scout_decorate />
+
+    <!--
+        Add the primary and secondary lasers
+    -->
+    <xacro:if value="$(arg laser_enabled)">
+        <!--
+        <xacro:sick_lms1xx_mount prefix="base"/>
+
+        <xacro:sick_lms1xx frame="base_laser" topic="scan" robot_namespace="$(arg robot_namespace)"/>
+        -->
+        <xacro:ydlidar_mount prefix="base"/>
+
+        <xacro:ydlidar frame="base_laser" topic="scan" min_range="0.65"
+            robot_namespace="$(arg robot_namespace)"/>
+
+        <joint name="laser_mount_joint" type="fixed">
+        <origin xyz="$(arg laser_xyz)" rpy="$(arg laser_rpy)" />
+        <parent link="top_plate_link" />
+        <child link="base_laser_mount" />
+        </joint>
+    </xacro:if>
+    <xacro:if value="$(arg laser_secondary_enabled)">
+        <xacro:sick_lms1xx_mount prefix="rear"/>
+
+        <xacro:sick_lms1xx frame="rear_laser" topic="rear/scan" robot_namespace="$(arg robot_namespace)"/>
+
+        <joint name="laser_secondary_mount_joint" type="fixed">
+        <origin xyz="$(arg laser_secondary_xyz)" rpy="$(arg laser_secondary_rpy)" />
+        <parent link="top_plate_link" />
+        <child link="rear_laser_mount" />
+        </joint>
+    </xacro:if>
+
+    <!-- 
+        Add front and back hokuyo UST10 Lidars
+    -->
+    <xacro:if value="$(arg laser_ust10_front_enabled)">
+        <xacro:hokuyo_ust10_mount topic="$(arg laser_ust10_front_topic)" prefix="$(arg laser_ust10_front_prefix)" parent_link="$(arg laser_ust10_front_parent)">
+            <origin xyz="$(arg laser_ust10_front_xyz)" rpy="$(arg laser_ust10_front_rpy)" />
+        </xacro:hokuyo_ust10_mount>
+    </xacro:if>
+    <xacro:if value="$(arg laser_ust10_rear_enabled)">
+        <xacro:hokuyo_ust10_mount topic="$(arg laser_ust10_rear_topic)" prefix="$(arg laser_ust10_rear_prefix)" parent_link="$(arg laser_ust10_rear_parent)">
+            <origin xyz="$(arg laser_ust10_rear_xyz)" rpy="$(arg laser_ust10_rear_rpy)" />
+        </xacro:hokuyo_ust10_mount>
+    </xacro:if>
+
+    <!--
+        Add the main sensor arch if the user has specifically enabled it, or if a sensor
+        requires it for mounting
+    -->
+    <xacro:property name="sensorbar_user_enabled"     value="$(arg sensor_arch)" />
+    <xacro:property name="sensorbar_needed_realsense" value="$(arg realsense_enabled)" />
+    <xacro:property name="sensorbar_needed_lidar"     value="$(arg laser_3d_enabled)" />
+    <xacro:if value="${sensorbar_needed_realsense or sensorbar_user_enabled or sensorbar_needed_lidar}">
+        <xacro:sensor_arch prefix="" parent="top_plate_link" size="$(arg sensor_arch_height)">
+            <origin xyz="$(optenv SCOUT_SENSOR_ARCH_OFFSET 0 0 0)" rpy="$(optenv SCOUT_SENSOR_ARCH_RPY 0 0 0)"/>
+        </xacro:sensor_arch>
+    </xacro:if>
+
+    <!-- add the intel realsense to the sensor arch if needed -->
+    <xacro:if value="$(arg realsense_enabled)">
+        <link name="realsense_mountpoint"/>
+        <joint name="realsense_mountpoint_joint" type="fixed">
+        <origin xyz="$(arg realsense_xyz)" rpy="$(arg realsense_rpy)" />
+        <parent link="$(arg realsense_mount)"/>
+        <child link="realsense_mountpoint" />
+        </joint>
+        <!-- xacro:intel_realsense_mount prefix="camera" topic="realsense" parent_link="realsense_mountpoint"/ -->
+        <xacro:intel_realsense_mount prefix="camera" topic="camera" parent_link="realsense_mountpoint"/>
+    </xacro:if>
+
+    <!--
+        Add the 3d laser to the sensor arch if needed
+    -->
+    <xacro:if value="$(arg laser_3d_enabled)">
+        <xacro:vlp16_mount
+          prefix=""
+          parent_link="sensor_arch_mount_link"
+          topic="$(arg laser_3d_topic)"
+          robot_namespace="$(arg robot_namespace)"
+          update_rate="$(arg laser_3d_update_rate)"
+          horizontal_samples="$(arg laser_3d_horizontal_samples)"
+          vertical_samples="$(arg laser_3d_vertical_samples)"
+          min_range="$(arg laser_3d_min_range)"
+          max_range="$(arg laser_3d_max_range)">
+        <origin xyz="$(arg laser_3d_xyz)" rpy="$(arg laser_3d_rpy)" />
+        </xacro:vlp16_mount>
+    </xacro:if>
+
+    <!-- Additional definitions -->
+    <xacro:include filename="$(arg urdf_extras)" />
+
+    <!-- Gazebo definitions  -->
+    <xacro:include filename="$(find scout_description)/urdf/scout.gazebo.xacro" />
+
+</robot>

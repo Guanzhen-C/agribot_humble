@@ -1,0 +1,26 @@
+import_relay:
+  topics:
+    - topic: /cmd_vel
+      type: geometry_msgs/msg/Twist
+    - topic: /initialpose
+      type: geometry_msgs/msg/PoseWithCovarianceStamped
+    - topic: /goal_pose
+      type: geometry_msgs/msg/PoseStamped
+
+export_relay:
+  topics:
+    - topic: /odometry/filtered
+      type: nav_msgs/msg/Odometry
+      throttle_frequency: 1.0
+    - topic: /map
+      type: nav_msgs/msg/OccupancyGrid
+    - topic: /map_metadata
+      type: nav_msgs/msg/MapMetaData
+    - topic: /plan
+      type: nav_msgs/msg/Path
+    - topic: /current_goal
+      type: geometry_msgs/msg/PoseStamped
+
+  actions:
+    - action: /navigate_to_pose
+      type: nav2_msgs/action/NavigateToPose

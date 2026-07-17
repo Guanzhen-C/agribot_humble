@@ -1,0 +1,49 @@
+/**:
+  ros__parameters:
+    feature_extract_enable: false
+    point_filter_num: 1
+    max_iteration: 8
+    filter_size_surf: 0.10
+    filter_size_map: 0.10
+    cube_side_length: 500.0
+    runtime_pos_log_enable: false
+    map_file_path: "./fastlio_sim.pcd"
+
+    common:
+      lid_topic: "/points"
+      imu_topic: "/imu/data_corrected"
+      time_sync_en: false
+      time_offset_lidar_to_imu: 0.0
+
+    preprocess:
+      lidar_type: 2
+      scan_line: 16
+      scan_rate: 10
+      timestamp_unit: 0
+      blind: 0.2
+
+    mapping:
+      acc_cov: 0.05
+      gyr_cov: 0.05
+      b_acc_cov: 0.0001
+      b_gyr_cov: 0.0001
+      fov_degree: 360.0
+      det_range: 40.0
+      extrinsic_est_en: false
+      # LiDAR pose in the corrected IMU/body frame used in simulation.
+      # body ~= imu_link re-expressed in base_link axes, so the LiDAR is
+      # offset from the IMU by (-0.19, 0.0, 0.578-0.149) meters.
+      extrinsic_T: [-0.19, 0.0, 0.429]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    publish:
+      path_en: false
+      scan_publish_en: false
+      dense_publish_en: false
+      scan_bodyframe_pub_en: false
+
+    pcd_save:
+      pcd_save_en: false
+      interval: -1
