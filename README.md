@@ -83,7 +83,7 @@ Configure the dedicated C16 Ethernet route after boot without changing the
 Wi-Fi subnet, then preview all connected sensors:
 
 ```bash
-sudo ros2 run agribot_hardware_bringup configure_c16_network.sh eno1
+ros2 run agribot_hardware_bringup configure_c16_network.sh eno1
 ros2 launch agribot_hardware_bringup sensors.launch.py rviz:=true
 ```
 

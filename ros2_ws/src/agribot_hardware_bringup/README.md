@@ -10,7 +10,7 @@ stacks:
 Configure the dedicated LiDAR Ethernet link after each boot:
 
 ```bash
-sudo ros2 run agribot_hardware_bringup configure_c16_network.sh eno1
+ros2 run agribot_hardware_bringup configure_c16_network.sh eno1
 ```
 
 Then start the connected sensors:

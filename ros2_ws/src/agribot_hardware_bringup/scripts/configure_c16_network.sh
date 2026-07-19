@@ -6,8 +6,7 @@ host_ip="${2:-192.168.1.102}"
 lidar_ip="${3:-192.168.1.200}"
 
 if [[ ${EUID} -ne 0 ]]; then
-  echo "This command configures ${interface}; rerun it with sudo." >&2
-  exit 1
+  exec sudo -- "$0" "$@"
 fi
 
 ip link set dev "${interface}" up
