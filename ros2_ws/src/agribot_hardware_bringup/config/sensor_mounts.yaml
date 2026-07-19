@@ -1,0 +1,14 @@
+# Measure these transforms on the physical vehicle before navigation.
+# Convention: parent frame base_link, translation in meters, RPY in radians.
+imu:
+  child_frame: imu_link
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [0.0, 0.0, 0.0]
+lidar:
+  child_frame: lidar_link
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [0.0, 0.0, 0.0]
+rtk:
+  child_frame: rtk_link
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [0.0, 0.0, 0.0]

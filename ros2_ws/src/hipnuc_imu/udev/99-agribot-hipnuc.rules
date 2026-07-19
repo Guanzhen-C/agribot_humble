@@ -1,0 +1,2 @@
+# N300Pro on the QinHeng CH9102 USB serial bridge.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55d4", ATTRS{serial}=="5C2C082600", GROUP="dialout", MODE="0660", SYMLINK+="agribot_imu"

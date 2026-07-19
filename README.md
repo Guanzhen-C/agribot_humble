@@ -62,7 +62,50 @@ the installed package share directories. It does not depend on the clone path.
 Other supported localization values include `amcl`, `ground_truth`, and
 `fast_lio`. The RPP variant is provided by `agribot_ackermann_rpp`.
 
-## Hardware
+## Physical Sensors And MPPI
+
+The tested Jetson sensor interface is:
+
+- Leishen C16 at `192.168.1.200`, UDP `2368/2369`
+- N300Pro/HI13 at `115200`, default HI91 binary stream at `100 Hz`
+- RTK receiver using NMEA GGA at `115200`
+
+Install the IMU permission rule once, then log out and back in:
+
+```bash
+sudo cp install/hipnuc_imu/share/hipnuc_imu/udev/99-agribot-hipnuc.rules \
+  /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo usermod -aG dialout "$USER"
+```
+
+Configure the dedicated C16 Ethernet route after boot without changing the
+Wi-Fi subnet, then preview all connected sensors:
+
+```bash
+sudo ros2 run agribot_hardware_bringup configure_c16_network.sh eno1
+ros2 launch agribot_hardware_bringup sensors.launch.py rviz:=true
+```
+
+The normalized topics are `/lidar/points`, `/scan`, `/imu/data`, and
+`/rtk/fix`. Start either physical-vehicle MPPI stack with:
+
+```bash
+ros2 launch agribot_ackermann_fastlio_mppi fastlio_mppi.launch.py
+ros2 launch agribot_ackermann_navsat_mppi navsat_mppi.launch.py
+```
+
+Both launches keep physical command output disabled by default. They publish
+the collision-monitored command on `/nav2/cmd_vel_safe`; set
+`enable_chassis_output:=true` only after the chassis adapter and emergency stop
+have been verified. Before field use, replace the zero sensor transforms and
+FAST-LIO extrinsics with measured installation values.
+
+The RTK launch reads optional NTRIP credentials from `NTRIP_HOST`,
+`NTRIP_MOUNTPOINT`, `NTRIP_USERNAME`, and `NTRIP_PASSWORD`. Do not store these
+values in versioned YAML files.
+
+## Legacy Scout Hardware
 
 Driver only:
 

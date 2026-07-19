@@ -1,0 +1,56 @@
+rtk_eskf_localization:
+  ros__parameters:
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    imu_topic: /imu/data
+    imu_flu_frame: true
+
+    pose_topic: /rtk/fix
+    pose_message_type: navsat_fix
+    output_odom_topic: /odometry/filtered_navsat
+    raw_pose_topic: /navsat_pose
+    initial_pose_topic: /initialpose
+
+    publish_raw_pose: true
+    align_measurement_to_initial_pose: true
+    use_imu_orientation_for_initial_roll_pitch: true
+    use_pose_yaw_measurement: true
+    auto_reference_from_first_noah_gnss: false
+    auto_reference_from_first_navsat_fix: true
+
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_z: 0.0
+    initial_pose_yaw: 0.0
+    map_to_ned_yaw_deg: 0.0
+
+    measurement_position_std_m: [0.03, 0.03, 0.06]
+    measurement_yaw_std_deg: 2.0
+    default_initial_roll_deg: 0.0
+    default_initial_pitch_deg: 0.0
+
+    init_velocity_mps: [0.0, 0.0, 0.0]
+    init_gyrbias_degph: [0.0, 0.0, 0.0]
+    init_accbias_mgal: [0.0, 0.0, 0.0]
+    init_gyrscale_ppm: [0.0, 0.0, 0.0]
+    init_accscale_ppm: [0.0, 0.0, 0.0]
+
+    init_pos_std_m: [0.10, 0.10, 0.20]
+    init_vel_std_mps: [0.10, 0.10, 0.10]
+    init_att_std_deg: [1.0, 1.0, 2.0]
+    init_bg_std_degph: [20.0, 20.0, 20.0]
+    init_ba_std_mgal: [100.0, 100.0, 100.0]
+    init_sg_std_ppm: [1000.0, 1000.0, 1000.0]
+    init_sa_std_ppm: [1000.0, 1000.0, 1000.0]
+
+    imunoise_arw_deg_sqrt_hr: [0.10, 0.10, 0.10]
+    imunoise_vrw_mps_sqrt_hr: [0.12, 0.12, 0.12]
+    imunoise_gbstd_degph: [5.0, 5.0, 5.0]
+    imunoise_abstd_mgal: [100.0, 100.0, 100.0]
+    imunoise_gsstd_ppm: [1000.0, 1000.0, 1000.0]
+    imunoise_asstd_ppm: [1000.0, 1000.0, 1000.0]
+    imunoise_corrtime_hr: 1.0
+
+    # RTK antenna position in the IMU frame; measure before field use.
+    antlever_m: [0.0, 0.0, 0.0]

@@ -13,6 +13,8 @@
 #include <noah_msgs/msg/gnss_value.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <sensor_msgs/msg/nav_sat_status.hpp>
 
 #include "common/angle.h"
 #include "common/earth.h"
@@ -175,6 +177,8 @@ public:
         noah_heading_in_degrees_ = declare_parameter<bool>("noah_heading_in_degrees", true);
         auto_reference_from_first_noah_gnss_ =
             declare_parameter<bool>("auto_reference_from_first_noah_gnss", false);
+        auto_reference_from_first_navsat_fix_ =
+            declare_parameter<bool>("auto_reference_from_first_navsat_fix", false);
 
         default_initial_roll_deg_ = declare_parameter<double>("default_initial_roll_deg", 0.0);
         default_initial_pitch_deg_ = declare_parameter<double>("default_initial_pitch_deg", 0.0);
@@ -191,7 +195,7 @@ public:
         pending_initial_pose_.yaw = declare_parameter<double>("initial_pose_yaw", 0.0);
         reference_map_position_ = pending_initial_pose_.position;
 
-        if (auto_reference_from_first_noah_gnss_) {
+        if (auto_reference_from_first_noah_gnss_ || auto_reference_from_first_navsat_fix_) {
             reference_blh_initialized_ = false;
         } else {
             reference_blh_ = Eigen::Vector3d(
@@ -232,6 +236,11 @@ public:
                 pose_topic_,
                 20,
                 std::bind(&RtkEskfLocalizationNode::handleNoahGnss, this, std::placeholders::_1));
+        } else if (pose_message_type_ == "navsat_fix") {
+            navsat_fix_sub_ = create_subscription<sensor_msgs::msg::NavSatFix>(
+                pose_topic_,
+                20,
+                std::bind(&RtkEskfLocalizationNode::handleNavSatFix, this, std::placeholders::_1));
         } else {
             throw std::runtime_error("Unsupported pose_message_type: " + pose_message_type_);
         }
@@ -330,6 +339,60 @@ private:
         processPoseSample(sample);
     }
 
+    void handleNavSatFix(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
+        if (msg->status.status == sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX ||
+            !std::isfinite(msg->latitude) || !std::isfinite(msg->longitude) ||
+            !std::isfinite(msg->altitude)) {
+            return;
+        }
+        if (!latest_imu_orientation_.has_value()) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 2000,
+                "Waiting for IMU orientation before accepting NavSatFix");
+            return;
+        }
+
+        const Eigen::Vector3d global_blh(
+            msg->latitude * D2R, msg->longitude * D2R, msg->altitude);
+        if (!reference_blh_initialized_) {
+            if (!auto_reference_from_first_navsat_fix_) {
+                RCLCPP_WARN_THROTTLE(
+                    get_logger(), *get_clock(), 2000,
+                    "NavSat reference is not initialized");
+                return;
+            }
+            reference_blh_ = global_blh;
+            reference_blh_initialized_ = true;
+            RCLCPP_INFO(
+                get_logger(),
+                "Reference BLH anchored from NavSatFix: lat=%.8f lon=%.8f alt=%.3f",
+                msg->latitude, msg->longitude, msg->altitude);
+        }
+
+        PoseSample sample;
+        sample.time = rclcpp::Time(msg->header.stamp).seconds();
+        const Eigen::Vector3d local_ned = Earth::global2local(reference_blh_, global_blh);
+        sample.position =
+            reference_map_position_ + nedToMapEnu(local_ned, map_to_ned_yaw_rad_);
+        sample.position_std = default_position_std_;
+        if (msg->position_covariance[0] > 0.0) {
+            sample.position_std.x() = std::sqrt(msg->position_covariance[0]);
+        }
+        if (msg->position_covariance[4] > 0.0) {
+            sample.position_std.y() = std::sqrt(msg->position_covariance[4]);
+        }
+        if (msg->position_covariance[8] > 0.0) {
+            sample.position_std.z() = std::sqrt(msg->position_covariance[8]);
+        }
+        const auto &orientation = *latest_imu_orientation_;
+        sample.yaw = yawFromQuaternion(
+            orientation.x, orientation.y, orientation.z, orientation.w);
+        sample.yaw_std = default_yaw_std_rad_;
+        sample.has_global_blh = true;
+        sample.global_blh = global_blh;
+        processPoseSample(sample);
+    }
+
     Eigen::Vector3d extractPositionStd(const std::array<double, 36> &covariance) const {
 
         Eigen::Vector3d std = default_position_std_;
@@ -362,7 +425,8 @@ private:
         aligned.position = alignPosition(sample.position);
         aligned.yaw = wrapAngle(sample.yaw + alignment_yaw_);
 
-        if (!reference_blh_initialized_ && sample.has_global_blh && auto_reference_from_first_noah_gnss_) {
+        if (!reference_blh_initialized_ && sample.has_global_blh &&
+            (auto_reference_from_first_noah_gnss_ || auto_reference_from_first_navsat_fix_)) {
             reference_blh_ = sample.global_blh;
             reference_blh_initialized_ = true;
             RCLCPP_INFO(
@@ -675,6 +739,7 @@ private:
     bool use_pose_yaw_measurement_ = true;
     bool noah_heading_in_degrees_ = true;
     bool auto_reference_from_first_noah_gnss_ = false;
+    bool auto_reference_from_first_navsat_fix_ = false;
 
     double default_initial_roll_deg_ = 0.0;
     double default_initial_pitch_deg_ = 0.0;
@@ -701,6 +766,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_cov_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_stamped_sub_;
     rclcpp::Subscription<noah_msgs::msg::GNSSValue>::SharedPtr noah_gnss_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr navsat_fix_sub_;
 
     sensor_msgs::msg::Imu::SharedPtr prev_raw_imu_;
     bool have_prev_raw_imu_ = false;

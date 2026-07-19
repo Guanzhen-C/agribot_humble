@@ -1,0 +1,7 @@
+topics:
+  - topic: /nav2/cmd_vel_safe
+    timeout: 0.30
+    priority: 100
+locks:
+  - topic: /safety/e_stop
+    priority: 255

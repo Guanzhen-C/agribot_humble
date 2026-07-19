@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_ackermann_fastlio_mppi</name>
+  <version>0.1.0</version>
+  <description>Physical Ackermann vehicle navigation using C16 FAST-LIO and Nav2 MPPI.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>agribot_ackermann_mppi</exec_depend>
+  <exec_depend>agribot_autonomy</exec_depend>
+  <exec_depend>agribot_hardware_bringup</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>fast_lio</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav2_collision_monitor</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>scout_control</exec_depend>
+  <exec_depend>scout_navigation</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
