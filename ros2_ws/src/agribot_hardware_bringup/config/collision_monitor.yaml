@@ -1,4 +1,4 @@
-ackermann_collision_monitor:
+vehicle_collision_monitor:
   ros__parameters:
     use_sim_time: false
     base_frame_id: base_link

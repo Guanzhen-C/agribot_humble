@@ -70,3 +70,29 @@ def test_gate_requires_preflight_enable_and_clear_estop():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_gate_requires_clear_hardware_estop_when_configured():
+    rclpy.init()
+    node = GATE.VehicleCommandGate(
+        parameter_overrides=[
+            Parameter("require_preflight", value=False),
+            Parameter("require_hardware_e_stop", value=True),
+            Parameter("initially_enabled", value=True),
+            Parameter("input_timeout_sec", value=1.0),
+        ]
+    )
+    try:
+        command = Twist()
+        command.linear.x = 0.4
+        node.handle_command(command)
+        assert not node.output_is_active()
+
+        node.handle_hardware_e_stop(Bool(data=False))
+        assert node.output_is_active()
+
+        node.handle_hardware_e_stop(Bool(data=True))
+        assert not node.output_is_active()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

@@ -2,14 +2,22 @@
 <package format="3">
   <name>agribot_hardware_bringup</name>
   <version>0.1.0</version>
-  <description>End-to-end physical Agribot sensor, localization, Nav2 MPPI, safety and CAN bringup.</description>
+  <description>Physical Agribot sensor, localization, Nav2, safety and CAN bringup.</description>
 
   <maintainer email="cgz@example.com">cgz</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <build_depend>rclcpp</build_depend>
+  <build_depend>diagnostic_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>scout_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>agribot_ackermann_mppi</exec_depend>
@@ -21,8 +29,16 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>lslidar_driver</exec_depend>
   <exec_depend>nav2_collision_monitor</exec_depend>
+  <exec_depend>nav2_common</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>dwb_core</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>scout_base</exec_depend>
@@ -34,6 +50,8 @@
   <exec_depend>python3-serial</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>python3-yaml</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -48,6 +48,9 @@ class VehicleCommandGate(Node):
         e_stop_topic = self.declare_parameter(
             "e_stop_topic", "/safety/e_stop"
         ).value
+        hardware_e_stop_topic = self.declare_parameter(
+            "hardware_e_stop_topic", "/hardware/chassis_e_stop"
+        ).value
         drive_enable_topic = self.declare_parameter(
             "drive_enable_topic", "/safety/drive_enable"
         ).value
@@ -67,6 +70,9 @@ class VehicleCommandGate(Node):
         self.require_preflight = bool(
             self.declare_parameter("require_preflight", True).value
         )
+        self.require_hardware_e_stop = bool(
+            self.declare_parameter("require_hardware_e_stop", False).value
+        )
         self.drive_enabled = bool(
             self.declare_parameter("initially_enabled", False).value
         )
@@ -77,6 +83,8 @@ class VehicleCommandGate(Node):
 
         self.preflight_ready = not self.require_preflight
         self.e_stop = False
+        self.hardware_e_stop_received = not self.require_hardware_e_stop
+        self.hardware_e_stop = self.require_hardware_e_stop
         self.latest_command = zero_twist()
         self.latest_command_time_ns = None
         self.last_active = None
@@ -92,6 +100,9 @@ class VehicleCommandGate(Node):
         self.create_subscription(Twist, self.input_topic, self.handle_command, 20)
         self.create_subscription(Bool, preflight_topic, self.handle_preflight, state_qos)
         self.create_subscription(Bool, e_stop_topic, self.handle_e_stop, 10)
+        self.create_subscription(
+            Bool, hardware_e_stop_topic, self.handle_hardware_e_stop, 10
+        )
         self.create_subscription(Bool, drive_enable_topic, self.handle_drive_enable, 10)
         self.create_timer(1.0 / self.publish_rate, self.publish_command)
 
@@ -125,6 +136,10 @@ class VehicleCommandGate(Node):
     def handle_e_stop(self, msg: Bool) -> None:
         self.e_stop = bool(msg.data)
 
+    def handle_hardware_e_stop(self, msg: Bool) -> None:
+        self.hardware_e_stop_received = True
+        self.hardware_e_stop = bool(msg.data)
+
     def handle_drive_enable(self, msg: Bool) -> None:
         self.drive_enabled = bool(msg.data)
 
@@ -139,6 +154,8 @@ class VehicleCommandGate(Node):
             self.drive_enabled
             and self.preflight_ready
             and not self.e_stop
+            and self.hardware_e_stop_received
+            and not self.hardware_e_stop
             and self.command_is_fresh()
         )
 
@@ -161,6 +178,10 @@ class VehicleCommandGate(Node):
                     reasons.append("preflight not ready")
                 if self.e_stop:
                     reasons.append("emergency stop")
+                if not self.hardware_e_stop_received:
+                    reasons.append("hardware emergency-stop state missing")
+                elif self.hardware_e_stop:
+                    reasons.append("hardware emergency stop")
                 if not self.command_is_fresh():
                     reasons.append("command missing or stale")
                 self.get_logger().warn("CAN command output stopped: " + ", ".join(reasons))

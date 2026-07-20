@@ -16,31 +16,100 @@ from launch_ros.actions import Node
 
 
 def _validate_arguments(context):
-    localization = LaunchConfiguration("localization").perform(context).lower()
-    chassis_driver = LaunchConfiguration("chassis_driver").perform(context).lower()
+    localization = LaunchConfiguration("localization").perform(context)
+    vehicle_type = LaunchConfiguration("vehicle_type").perform(context)
+    controller = LaunchConfiguration("controller").perform(context)
+    chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
     enable_can = LaunchConfiguration("enable_can_output").perform(context).lower()
+    allow_reference_ackermann = LaunchConfiguration(
+        "allow_unverified_ackermann_protocol"
+    ).perform(context).lower()
+    output_enabled = enable_can in ("true", "1", "yes", "on")
 
     if localization not in ("navsat", "fastlio"):
         raise RuntimeError("localization must be 'navsat' or 'fastlio'")
-    if chassis_driver not in ("none", "scout", "simulated"):
+    if vehicle_type not in ("differential", "ackermann"):
+        raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
+    if controller not in ("dwb", "mppi"):
+        raise RuntimeError("controller must be 'dwb' or 'mppi'")
+    if vehicle_type == "differential" and controller != "dwb":
+        raise RuntimeError("differential vehicle currently requires controller:=dwb")
+    if vehicle_type == "ackermann" and controller != "mppi":
+        raise RuntimeError("ackermann vehicle currently requires controller:=mppi")
+    if chassis_driver not in (
+        "none",
+        "scout",
+        "simulated",
+        "differential_can",
+        "ackermann_can",
+    ):
         raise RuntimeError(
-            "chassis_driver must be 'none', 'scout' or 'simulated'"
+            "chassis_driver must be none, scout, simulated, differential_can "
+            "or ackermann_can"
         )
-    if enable_can in ("true", "1", "yes", "on") and chassis_driver == "none":
+    if output_enabled and chassis_driver == "none":
         raise RuntimeError(
             "enable_can_output:=true requires an explicitly selected chassis_driver"
         )
+    if output_enabled and vehicle_type == "differential" and chassis_driver not in (
+        "differential_can",
+        "scout",
+        "simulated",
+    ):
+        raise RuntimeError("differential vehicle requires a differential chassis driver")
+    if output_enabled and vehicle_type == "ackermann" and chassis_driver not in (
+        "ackermann_can",
+        "simulated",
+    ):
+        raise RuntimeError(
+            "ackermann vehicle requires an Ackermann or simulated chassis driver"
+        )
+    if (
+        output_enabled
+        and chassis_driver == "ackermann_can"
+        and allow_reference_ackermann not in ("true", "1", "yes", "on")
+    ):
+        raise RuntimeError(
+            "ackermann_can is a reference layout and requires explicit "
+            "allow_unverified_ackermann_protocol:=true"
+        )
     return []
+
+
+def _selection_condition(vehicle_type, controller, localization):
+    return IfCondition(
+        PythonExpression(
+            [
+                "'",
+                LaunchConfiguration("vehicle_type"),
+                "' == '",
+                vehicle_type,
+                "' and '",
+                LaunchConfiguration("controller"),
+                "' == '",
+                controller,
+                "' and '",
+                LaunchConfiguration("localization"),
+                "' == '",
+                localization,
+                "'",
+            ]
+        )
+    )
 
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
     ackermann_share = get_package_share_directory("agribot_ackermann_mppi")
-    navigation_share = get_package_share_directory("scout_navigation")
+    map_share = get_package_share_directory("scout_navigation")
+    navigation_launch = os.path.join(
+        hardware_share, "launch", "include", "navigation_only.launch.py"
+    )
 
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart = LaunchConfiguration("autostart")
     localization = LaunchConfiguration("localization")
+    vehicle_type = LaunchConfiguration("vehicle_type")
     enable_can_output = LaunchConfiguration("enable_can_output")
     chassis_driver = LaunchConfiguration("chassis_driver")
 
@@ -144,17 +213,12 @@ def generate_launch_description():
         condition=LaunchConfigurationEquals("localization", "fastlio"),
     )
 
-    navsat_navigation = TimerAction(
+    ackermann_navsat_navigation = TimerAction(
         period=LaunchConfiguration("navigation_delay"),
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    os.path.join(
-                        navigation_share,
-                        "launch",
-                        "include",
-                        "navigation_only.launch.py",
-                    )
+                    navigation_launch
                 ),
                 launch_arguments={
                     "use_sim_time": use_sim_time,
@@ -174,20 +238,15 @@ def generate_launch_description():
                 }.items(),
             )
         ],
-        condition=LaunchConfigurationEquals("localization", "navsat"),
+        condition=_selection_condition("ackermann", "mppi", "navsat"),
     )
 
-    fastlio_navigation = TimerAction(
+    ackermann_fastlio_navigation = TimerAction(
         period=LaunchConfiguration("navigation_delay"),
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    os.path.join(
-                        navigation_share,
-                        "launch",
-                        "include",
-                        "navigation_only.launch.py",
-                    )
+                    navigation_launch
                 ),
                 launch_arguments={
                     "use_sim_time": use_sim_time,
@@ -207,12 +266,50 @@ def generate_launch_description():
                 }.items(),
             )
         ],
-        condition=LaunchConfigurationEquals("localization", "fastlio"),
+        condition=_selection_condition("ackermann", "mppi", "fastlio"),
+    )
+
+    differential_navsat_navigation = TimerAction(
+        period=LaunchConfiguration("navigation_delay"),
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    navigation_launch
+                ),
+                launch_arguments={
+                    "use_sim_time": use_sim_time,
+                    "autostart": autostart,
+                    "params_file": LaunchConfiguration("dwb_navsat_nav2_params"),
+                    "odom_topic": "/odometry/filtered_navsat",
+                }.items(),
+            )
+        ],
+        condition=_selection_condition("differential", "dwb", "navsat"),
+    )
+
+    differential_fastlio_navigation = TimerAction(
+        period=LaunchConfiguration("navigation_delay"),
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    navigation_launch
+                ),
+                launch_arguments={
+                    "use_sim_time": use_sim_time,
+                    "autostart": autostart,
+                    "params_file": LaunchConfiguration("dwb_fastlio_nav2_params"),
+                    "odom_topic": "/fastlio/odometry",
+                }.items(),
+            )
+        ],
+        condition=_selection_condition("differential", "dwb", "fastlio"),
     )
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("localization", default_value="navsat"),
+            DeclareLaunchArgument("vehicle_type", default_value="ackermann"),
+            DeclareLaunchArgument("controller", default_value="mppi"),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
@@ -223,6 +320,9 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument("chassis_driver", default_value="none"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
+            DeclareLaunchArgument(
+                "allow_unverified_ackermann_protocol", default_value="false"
+            ),
             DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
@@ -235,7 +335,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "map",
                 default_value=os.path.join(
-                    navigation_share, "maps", "orchard_v2_map6.yaml"
+                    map_share, "maps", "orchard_v2_map6.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -295,6 +395,24 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "dwb_navsat_nav2_params",
+                default_value=os.path.join(
+                    hardware_share, "config", "nav2_dwb_navsat.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "dwb_fastlio_nav2_params",
+                default_value=os.path.join(
+                    hardware_share, "config", "nav2_dwb_fastlio.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "chassis_can_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "chassis_can.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "safety_config",
                 default_value=os.path.join(
                     hardware_share, "config", "vehicle_safety.yaml"
@@ -323,12 +441,14 @@ def generate_launch_description():
                     {"node_names": ["map_server"]},
                 ],
             ),
-            navsat_navigation,
-            fastlio_navigation,
+            ackermann_navsat_navigation,
+            ackermann_fastlio_navigation,
+            differential_navsat_navigation,
+            differential_fastlio_navigation,
             Node(
                 package="nav2_collision_monitor",
                 executable="collision_monitor",
-                name="ackermann_collision_monitor",
+                name="vehicle_collision_monitor",
                 output="screen",
                 parameters=[
                     os.path.join(hardware_share, "config", "collision_monitor.yaml"),
@@ -342,7 +462,7 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {"use_sim_time": use_sim_time, "autostart": autostart},
-                    {"node_names": ["ackermann_collision_monitor"]},
+                    {"node_names": ["vehicle_collision_monitor"]},
                 ],
             ),
             Node(
@@ -362,7 +482,7 @@ def generate_launch_description():
                                 enable_can_output,
                                 "'.lower() in ('true', '1', 'yes', 'on') and '",
                                 chassis_driver,
-                                "' == 'scout'",
+                                "' in ('scout', 'differential_can', 'ackermann_can')",
                             ]
                         ),
                         "require_chassis_feedback": enable_can_output,
@@ -381,6 +501,22 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "initially_enabled": enable_can_output,
                         "input_topic": LaunchConfiguration("command_input_topic"),
+                        "require_hardware_e_stop": PythonExpression(
+                            [
+                                "'",
+                                enable_can_output,
+                                "'.lower() in ('true', '1', 'yes', 'on') and '",
+                                chassis_driver,
+                                "' in ('differential_can', 'ackermann_can')",
+                            ]
+                        ),
+                        "max_angular_velocity": PythonExpression(
+                            [
+                                "1.4 if '",
+                                vehicle_type,
+                                "' == 'differential' else 0.65",
+                            ]
+                        ),
                     },
                 ],
             ),
@@ -402,7 +538,7 @@ def generate_launch_description():
                                 "base_frame": "base_link",
                                 "command_timeout_sec": 0.25,
                                 "max_linear_velocity": 0.80,
-                                "max_angular_velocity": 0.65,
+                                "max_angular_velocity": 1.4,
                             }
                         ],
                         condition=LaunchConfigurationEquals(
@@ -424,11 +560,46 @@ def generate_launch_description():
                                 "base_frame": "base_link",
                                 "command_timeout_sec": 0.25,
                                 "max_linear_velocity": 0.80,
-                                "max_angular_velocity": 0.65,
+                                "max_angular_velocity": 1.4,
                             }
                         ],
                         condition=LaunchConfigurationEquals(
                             "chassis_driver", "simulated"
+                        ),
+                    ),
+                    Node(
+                        package="agribot_hardware_bringup",
+                        executable="chassis_can_node",
+                        name="differential_chassis_can",
+                        output="screen",
+                        parameters=[
+                            LaunchConfiguration("chassis_can_config"),
+                            {
+                                "chassis_type": "differential",
+                                "can_interface": LaunchConfiguration("can_interface"),
+                            },
+                        ],
+                        condition=LaunchConfigurationEquals(
+                            "chassis_driver", "differential_can"
+                        ),
+                    ),
+                    Node(
+                        package="agribot_hardware_bringup",
+                        executable="chassis_can_node",
+                        name="ackermann_chassis_can",
+                        output="screen",
+                        parameters=[
+                            LaunchConfiguration("chassis_can_config"),
+                            {
+                                "chassis_type": "ackermann",
+                                "can_interface": LaunchConfiguration("can_interface"),
+                                "allow_unverified_ackermann_protocol": LaunchConfiguration(
+                                    "allow_unverified_ackermann_protocol"
+                                ),
+                            },
+                        ],
+                        condition=LaunchConfigurationEquals(
+                            "chassis_driver", "ackermann_can"
                         ),
                     ),
                 ],

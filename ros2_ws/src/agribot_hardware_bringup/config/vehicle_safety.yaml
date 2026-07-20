@@ -11,8 +11,10 @@ vehicle_command_gate:
     output_topic: /hardware/cmd_vel
     preflight_topic: /hardware/preflight_ready
     e_stop_topic: /safety/e_stop
+    hardware_e_stop_topic: /hardware/chassis_e_stop
     drive_enable_topic: /safety/drive_enable
     require_preflight: true
+    require_hardware_e_stop: false
     input_timeout_sec: 0.30
     publish_rate: 20.0
     max_linear_velocity: 0.80
