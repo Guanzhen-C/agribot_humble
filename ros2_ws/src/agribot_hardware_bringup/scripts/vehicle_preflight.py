@@ -56,6 +56,12 @@ class VehiclePreflight(Node):
             raise ValueError("localization_mode must be 'navsat' or 'fastlio'")
 
         self.require_can = bool(self.declare_parameter("require_can", False).value)
+        self.require_can_interface = bool(
+            self.declare_parameter("require_can_interface", self.require_can).value
+        )
+        self.require_chassis_feedback = bool(
+            self.declare_parameter("require_chassis_feedback", self.require_can).value
+        )
         self.can_interface = self.declare_parameter("can_interface", "can0").value
         self.sensor_timeout = float(
             self.declare_parameter("sensor_timeout_sec", 1.0).value
@@ -118,15 +124,21 @@ class VehiclePreflight(Node):
         self.create_subscription(
             Odometry, odom_topic, self.handle_localization, qos_profile_sensor_data
         )
-        if self.require_can:
+        if self.require_chassis_feedback:
             self.create_subscription(
                 ScoutStatus, "/scout_status", self.handle_chassis, 10
             )
 
         self.create_timer(0.2, self.evaluate)
         self.get_logger().info(
-            "Vehicle preflight ready: localization=%s require_can=%s interface=%s"
-            % (self.localization_mode, self.require_can, self.can_interface)
+            "Vehicle preflight ready: localization=%s can_interface=%s "
+            "chassis_feedback=%s interface=%s"
+            % (
+                self.localization_mode,
+                self.require_can_interface,
+                self.require_chassis_feedback,
+                self.can_interface,
+            )
         )
 
     def mark(self, name: str) -> None:
@@ -217,9 +229,10 @@ class VehiclePreflight(Node):
         if not self.fresh("localization", self.localization_timeout):
             missing.append("localization")
 
-        if self.require_can:
+        if self.require_can_interface:
             if not interface_is_up(self.can_interface):
                 missing.append(f"{self.can_interface}_down")
+        if self.require_chassis_feedback:
             if not self.fresh("chassis", self.chassis_timeout):
                 missing.append("chassis_feedback")
         return missing

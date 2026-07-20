@@ -11,7 +11,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition, LaunchConfigurationEquals
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -22,8 +22,10 @@ def _validate_arguments(context):
 
     if localization not in ("navsat", "fastlio"):
         raise RuntimeError("localization must be 'navsat' or 'fastlio'")
-    if chassis_driver not in ("none", "scout"):
-        raise RuntimeError("chassis_driver must be 'none' or 'scout'")
+    if chassis_driver not in ("none", "scout", "simulated"):
+        raise RuntimeError(
+            "chassis_driver must be 'none', 'scout' or 'simulated'"
+        )
     if enable_can in ("true", "1", "yes", "on") and chassis_driver == "none":
         raise RuntimeError(
             "enable_can_output:=true requires an explicitly selected chassis_driver"
@@ -40,6 +42,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration("autostart")
     localization = LaunchConfiguration("localization")
     enable_can_output = LaunchConfiguration("enable_can_output")
+    chassis_driver = LaunchConfiguration("chassis_driver")
 
     sensors = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -220,6 +223,9 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument("chassis_driver", default_value="none"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
+            DeclareLaunchArgument(
+                "command_input_topic", default_value="/nav2/cmd_vel_safe"
+            ),
             DeclareLaunchArgument("map_to_odom_x", default_value="0.0"),
             DeclareLaunchArgument("map_to_odom_y", default_value="0.0"),
             DeclareLaunchArgument("map_to_odom_z", default_value="0.0"),
@@ -349,7 +355,17 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "localization_mode": localization,
-                        "require_can": enable_can_output,
+                        "require_can": False,
+                        "require_can_interface": PythonExpression(
+                            [
+                                "'",
+                                enable_can_output,
+                                "'.lower() in ('true', '1', 'yes', 'on') and '",
+                                chassis_driver,
+                                "' == 'scout'",
+                            ]
+                        ),
+                        "require_chassis_feedback": enable_can_output,
                         "can_interface": LaunchConfiguration("can_interface"),
                     },
                 ],
@@ -364,27 +380,57 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "initially_enabled": enable_can_output,
+                        "input_topic": LaunchConfiguration("command_input_topic"),
                     },
                 ],
             ),
-            Node(
-                package="scout_base",
-                executable="scout_base_node",
-                name="scout_base_node",
-                output="screen",
-                parameters=[
-                    {
-                        "port_name": LaunchConfiguration("can_interface"),
-                        "cmd_vel_topic": "/hardware/cmd_vel",
-                        "simulated_robot": False,
-                        "pub_tf": False,
-                        "odom_topic_name": "/wheel/odometry",
-                        "odom_frame": "wheel_odom",
-                        "base_frame": "base_link",
-                        "command_timeout_sec": 0.25,
-                        "max_linear_velocity": 0.80,
-                        "max_angular_velocity": 0.65,
-                    }
+            GroupAction(
+                actions=[
+                    Node(
+                        package="scout_base",
+                        executable="scout_base_node",
+                        name="scout_base_node",
+                        output="screen",
+                        parameters=[
+                            {
+                                "port_name": LaunchConfiguration("can_interface"),
+                                "cmd_vel_topic": "/hardware/cmd_vel",
+                                "simulated_robot": False,
+                                "pub_tf": False,
+                                "odom_topic_name": "/wheel/odometry",
+                                "odom_frame": "wheel_odom",
+                                "base_frame": "base_link",
+                                "command_timeout_sec": 0.25,
+                                "max_linear_velocity": 0.80,
+                                "max_angular_velocity": 0.65,
+                            }
+                        ],
+                        condition=LaunchConfigurationEquals(
+                            "chassis_driver", "scout"
+                        ),
+                    ),
+                    Node(
+                        package="scout_base",
+                        executable="scout_base_node",
+                        name="simulated_chassis",
+                        output="screen",
+                        parameters=[
+                            {
+                                "cmd_vel_topic": "/hardware/cmd_vel",
+                                "simulated_robot": True,
+                                "pub_tf": False,
+                                "odom_topic_name": "/wheel/odometry",
+                                "odom_frame": "wheel_odom",
+                                "base_frame": "base_link",
+                                "command_timeout_sec": 0.25,
+                                "max_linear_velocity": 0.80,
+                                "max_angular_velocity": 0.65,
+                            }
+                        ],
+                        condition=LaunchConfigurationEquals(
+                            "chassis_driver", "simulated"
+                        ),
+                    ),
                 ],
                 condition=IfCondition(enable_can_output),
             ),

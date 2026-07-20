@@ -35,6 +35,17 @@ ros2 launch agribot_hardware_bringup vehicle_autonomy.launch.py \
   localization:=fastlio
 ```
 
+Validate the complete command path without transmitting CAN frames:
+
+```bash
+ros2 launch agribot_hardware_bringup vehicle_autonomy.launch.py \
+  localization:=navsat enable_can_output:=true chassis_driver:=simulated
+```
+
+In this mode preflight still requires fresh `/scout_status` feedback from the
+simulated chassis, but it does not require `can0` to be UP. The real `scout`
+mode requires both chassis feedback and an UP SocketCAN interface.
+
 The currently available CAN backend is the AgileX Scout protocol from
 `scout_base`. Use the following only if the physical controller is confirmed
 to be protocol-compatible:

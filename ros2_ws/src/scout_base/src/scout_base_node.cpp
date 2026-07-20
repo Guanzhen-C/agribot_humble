@@ -64,6 +64,12 @@ class ScoutBaseNode : public rclcpp::Node {
 
     setupRobot();
     last_command_time_ = now();
+    context_ = get_node_base_interface()->get_context();
+    pre_shutdown_callback_ = context_->add_pre_shutdown_callback([this]() {
+      RCLCPP_WARN(get_logger(), "ROS shutdown requested; sending zero chassis command");
+      sendMotionCommand(geometry_msgs::msg::Twist{});
+    });
+    pre_shutdown_callback_registered_ = true;
 
     const auto timer_period = std::chrono::milliseconds(static_cast<int>(1000.0 / std::max(control_rate_, 1)));
     timer_ = create_wall_timer(timer_period, std::bind(&ScoutBaseNode::publishLoop, this));
@@ -73,7 +79,12 @@ class ScoutBaseNode : public rclcpp::Node {
         max_angular_velocity_);
   }
 
-  ~ScoutBaseNode() override { sendMotionCommand(geometry_msgs::msg::Twist{}); }
+  ~ScoutBaseNode() override {
+    if (pre_shutdown_callback_registered_ && context_) {
+      context_->remove_pre_shutdown_callback(pre_shutdown_callback_);
+    }
+    sendMotionCommand(geometry_msgs::msg::Twist{});
+  }
 
  private:
   void setupRobot() {
@@ -152,6 +163,7 @@ class ScoutBaseNode : public rclcpp::Node {
       return;
     }
     try {
+      std::lock_guard<std::mutex> guard(robot_mutex_);
       if (is_scout_mini_ && is_scout_omni_) {
         auto* omni_robot = dynamic_cast<ScoutMiniOmniRobot*>(robot_.get());
         if (omni_robot != nullptr) {
@@ -172,6 +184,8 @@ class ScoutBaseNode : public rclcpp::Node {
     if (simulated_robot_ || !robot_) {
       return;
     }
+
+    std::lock_guard<std::mutex> guard(robot_mutex_);
 
     if (!msg->enable_cmd_light_control) {
       robot_->DisableLightControl();
@@ -337,6 +351,7 @@ class ScoutBaseNode : public rclcpp::Node {
   bool initialized_{false};
   bool command_received_{false};
   bool command_timed_out_{false};
+  bool pre_shutdown_callback_registered_{false};
   int control_rate_{50};
   double command_timeout_sec_{0.25};
   double max_linear_velocity_{0.8};
@@ -353,8 +368,11 @@ class ScoutBaseNode : public rclcpp::Node {
   std::string odom_topic_name_;
 
   std::mutex twist_mutex_;
+  std::mutex robot_mutex_;
   rclcpp::Time last_time_;
   rclcpp::Time last_command_time_;
+  rclcpp::Context::SharedPtr context_;
+  rclcpp::PreShutdownCallbackHandle pre_shutdown_callback_;
   geometry_msgs::msg::Twist current_twist_;
   std::unique_ptr<ScoutRobot> robot_;
 
