@@ -18,7 +18,7 @@ rtk_eskf_localization:
     initial_pose_topic: /initialpose
 
     publish_raw_pose: true
-    # Preserve the absolute ENU yaw supplied by the dual-antenna RTK.
+    # Keep map axes ENU and preserve the dual-antenna absolute yaw.
     align_measurement_to_initial_pose: false
     use_imu_orientation_for_initial_roll_pitch: true
     use_pose_yaw_measurement: true

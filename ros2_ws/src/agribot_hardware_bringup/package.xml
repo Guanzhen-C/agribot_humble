@@ -2,7 +2,7 @@
 <package format="3">
   <name>agribot_hardware_bringup</name>
   <version>0.1.0</version>
-  <description>Sensor bringup for the Agribot C16 LiDAR, N300Pro IMU and RTK receiver.</description>
+  <description>End-to-end physical Agribot sensor, localization, Nav2 MPPI, safety and CAN bringup.</description>
 
   <maintainer email="cgz@example.com">cgz</maintainer>
   <license>MIT</license>
@@ -10,17 +10,30 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>agribot_ackermann_mppi</exec_depend>
+  <exec_depend>agribot_autonomy</exec_depend>
+  <exec_depend>agribot_rl_nav</exec_depend>
+  <exec_depend>fast_lio</exec_depend>
   <exec_depend>hipnuc_imu</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>lslidar_driver</exec_depend>
+  <exec_depend>nav2_collision_monitor</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rviz2</exec_depend>
+  <exec_depend>scout_base</exec_depend>
+  <exec_depend>scout_msgs</exec_depend>
+  <exec_depend>scout_navigation</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>python3-serial</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

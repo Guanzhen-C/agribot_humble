@@ -1,0 +1,48 @@
+/**:
+  ros__parameters:
+    feature_extract_enable: false
+    point_filter_num: 2
+    max_iteration: 5
+    filter_size_surf: 0.20
+    filter_size_map: 0.20
+    cube_side_length: 500.0
+    runtime_pos_log_enable: false
+    map_file_path: ./fastlio_c16.pcd
+
+    common:
+      lid_topic: /lidar/points
+      imu_topic: /imu/data
+      time_sync_en: false
+      time_offset_lidar_to_imu: 0.0
+
+    preprocess:
+      lidar_type: 2
+      scan_line: 16
+      scan_rate: 10
+      # lslidar_driver publishes the per-point time field in seconds.
+      timestamp_unit: 0
+      blind: 0.30
+
+    mapping:
+      acc_cov: 0.05
+      gyr_cov: 0.02
+      b_acc_cov: 0.0001
+      b_gyr_cov: 0.0001
+      fov_degree: 360.0
+      det_range: 60.0
+      extrinsic_est_en: false
+      # LiDAR origin expressed in the IMU FLU frame. Measure before field use.
+      extrinsic_T: [0.0, 0.0, 0.0]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    publish:
+      path_en: true
+      scan_publish_en: true
+      dense_publish_en: false
+      scan_bodyframe_pub_en: true
+
+    pcd_save:
+      pcd_save_en: false
+      interval: -1

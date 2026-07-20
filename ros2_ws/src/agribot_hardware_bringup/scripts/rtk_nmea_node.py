@@ -5,13 +5,15 @@ import math
 import socket
 import threading
 import time
+from dataclasses import dataclass
 from typing import Optional
 
 import rclpy
 import serial
+from geometry_msgs.msg import QuaternionStamped
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix, NavSatStatus
-from std_msgs.msg import UInt8
+from std_msgs.msg import Bool, Float64, String, UInt8
 
 
 def nmea_checksum_valid(sentence: str) -> bool:
@@ -36,6 +38,93 @@ def nmea_coordinate(value: str, hemisphere: str) -> float:
     return coordinate
 
 
+def normalize_degrees(angle_deg: float) -> float:
+    return angle_deg % 360.0
+
+
+def gnss_heading_to_enu_yaw(heading_deg: float) -> float:
+    """Convert clockwise-from-north GNSS heading to ENU yaw radians."""
+    return math.atan2(
+        math.sin(math.radians(90.0 - heading_deg)),
+        math.cos(math.radians(90.0 - heading_deg)),
+    )
+
+
+def parse_ths_sentence(sentence: str) -> Optional[tuple[Optional[float], bool]]:
+    if not nmea_checksum_valid(sentence):
+        return None
+    fields = sentence.split("*", 1)[0].split(",")
+    if len(fields) < 3 or not fields[0].endswith("THS"):
+        return None
+    valid = fields[2] == "A"
+    if not fields[1]:
+        return None, valid
+    try:
+        heading_deg = normalize_degrees(float(fields[1]))
+    except ValueError:
+        return None, False
+    if not math.isfinite(heading_deg):
+        return None, False
+    return heading_deg, valid
+
+
+def novatel_crc_valid(sentence: str) -> bool:
+    if not sentence.startswith("#") or "*" not in sentence:
+        return False
+    body, expected = sentence[1:].rsplit("*", 1)
+    crc = 0
+    for byte in body.encode("ascii", errors="ignore"):
+        value = (crc ^ byte) & 0xFF
+        for _ in range(8):
+            value = (value >> 1) ^ 0xEDB88320 if value & 1 else value >> 1
+        crc = ((crc >> 8) & 0x00FFFFFF) ^ value
+    try:
+        return crc == int(expected[:8], 16)
+    except ValueError:
+        return False
+
+
+@dataclass(frozen=True)
+class UniHeadingSolution:
+    solution_status: str
+    position_type: str
+    baseline_length_m: float
+    heading_deg: float
+    pitch_deg: float
+    heading_std_deg: float
+    pitch_std_deg: float
+
+    @property
+    def valid(self) -> bool:
+        return self.solution_status == "SOL_COMPUTED" and self.position_type != "NONE"
+
+
+def parse_uniheading_sentence(sentence: str) -> Optional[UniHeadingSolution]:
+    if not novatel_crc_valid(sentence) or ";" not in sentence:
+        return None
+    header, payload_with_crc = sentence.split(";", 1)
+    if not header.split(",", 1)[0].endswith("UNIHEADINGA"):
+        return None
+    fields = payload_with_crc.split("*", 1)[0].split(",")
+    if len(fields) < 8:
+        return None
+    try:
+        numeric = [float(fields[index]) for index in (2, 3, 4, 6, 7)]
+    except ValueError:
+        return None
+    if not all(math.isfinite(value) for value in numeric):
+        return None
+    return UniHeadingSolution(
+        solution_status=fields[0],
+        position_type=fields[1],
+        baseline_length_m=numeric[0],
+        heading_deg=normalize_degrees(numeric[1]),
+        pitch_deg=numeric[2],
+        heading_std_deg=numeric[3],
+        pitch_std_deg=numeric[4],
+    )
+
+
 class RtkNmeaNode(Node):
     def __init__(self) -> None:
         super().__init__("rtk_nmea")
@@ -46,6 +135,24 @@ class RtkNmeaNode(Node):
         quality_topic = self.declare_parameter(
             "quality_topic", "/rtk/fix_quality"
         ).value
+        heading_topic = self.declare_parameter(
+            "heading_topic", "/rtk/heading"
+        ).value
+        heading_deg_topic = self.declare_parameter(
+            "heading_deg_topic", "/rtk/heading_deg"
+        ).value
+        heading_valid_topic = self.declare_parameter(
+            "heading_valid_topic", "/rtk/heading_valid"
+        ).value
+        heading_solution_topic = self.declare_parameter(
+            "heading_solution_topic", "/rtk/heading_solution"
+        ).value
+        self.heading_reference_frame = self.declare_parameter(
+            "heading_reference_frame", "map"
+        ).value
+        self.heading_offset_deg = float(
+            self.declare_parameter("heading_offset_deg", 0.0).value
+        )
         self.reconnect_interval = float(
             self.declare_parameter("reconnect_interval_sec", 1.0).value
         )
@@ -74,6 +181,18 @@ class RtkNmeaNode(Node):
 
         self.fix_publisher = self.create_publisher(NavSatFix, self.fix_topic, 10)
         self.quality_publisher = self.create_publisher(UInt8, quality_topic, 10)
+        self.heading_publisher = self.create_publisher(
+            QuaternionStamped, heading_topic, 10
+        )
+        self.heading_deg_publisher = self.create_publisher(
+            Float64, heading_deg_topic, 10
+        )
+        self.heading_valid_publisher = self.create_publisher(
+            Bool, heading_valid_topic, 10
+        )
+        self.heading_solution_publisher = self.create_publisher(
+            String, heading_solution_topic, 10
+        )
         self.serial: Optional[serial.Serial] = None
         self.serial_lock = threading.Lock()
         self.receive_buffer = bytearray()
@@ -163,10 +282,18 @@ class RtkNmeaNode(Node):
             self.handle_sentence(line)
 
     def handle_sentence(self, sentence: str) -> None:
+        if sentence.startswith("#"):
+            self.handle_uniheading(sentence)
+            return
         if not nmea_checksum_valid(sentence):
             return
         fields = sentence.split("*")[0].split(",")
-        if not fields or not fields[0].endswith("GGA"):
+        if not fields:
+            return
+        if fields[0].endswith("THS"):
+            self.handle_ths(sentence)
+            return
+        if not fields[0].endswith("GGA"):
             return
         self.latest_gga = (sentence + "\r\n").encode("ascii")
         if len(fields) < 15:
@@ -214,6 +341,35 @@ class RtkNmeaNode(Node):
         fix.position_covariance[8] = vertical_std * vertical_std
         fix.position_covariance_type = NavSatFix.COVARIANCE_TYPE_DIAGONAL_KNOWN
         self.fix_publisher.publish(fix)
+
+    def handle_ths(self, sentence: str) -> None:
+        parsed = parse_ths_sentence(sentence)
+        if parsed is None:
+            return
+        heading_deg, valid = parsed
+        self.heading_valid_publisher.publish(Bool(data=valid))
+        if not valid or heading_deg is None:
+            return
+
+        vehicle_heading_deg = normalize_degrees(
+            heading_deg + self.heading_offset_deg
+        )
+        yaw = gnss_heading_to_enu_yaw(vehicle_heading_deg)
+        heading = QuaternionStamped()
+        heading.header.stamp = self.get_clock().now().to_msg()
+        heading.header.frame_id = self.heading_reference_frame
+        heading.quaternion.z = math.sin(yaw / 2.0)
+        heading.quaternion.w = math.cos(yaw / 2.0)
+        self.heading_publisher.publish(heading)
+        self.heading_deg_publisher.publish(Float64(data=vehicle_heading_deg))
+
+    def handle_uniheading(self, sentence: str) -> None:
+        solution = parse_uniheading_sentence(sentence)
+        if solution is None:
+            return
+        self.heading_solution_publisher.publish(
+            String(data=f"{solution.solution_status},{solution.position_type}")
+        )
 
     def horizontal_standard_deviation(self, quality: int, hdop: float) -> float:
         if quality == 4:
@@ -308,7 +464,10 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        try:
+            node.destroy_node()
+        except KeyboardInterrupt:
+            pass
         rclpy.try_shutdown()
 
 

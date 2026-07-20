@@ -1,0 +1,14 @@
+fastlio_odom_bridge:
+  ros__parameters:
+    input_odom_topic: /Odometry
+    output_odom_topic: /fastlio/odometry
+    input_odom_frame: camera_init
+    input_body_frame: body
+    output_odom_frame: odom
+    output_base_frame: base_link
+    publish_tf: true
+    stamp_with_current_time: false
+    is_simulation: false
+    # FAST-LIO body is the IMU frame. Measure base_link -> IMU before field use.
+    base_to_body_xyz: [0.0, 0.0, 0.0]
+    base_to_body_rpy: [0.0, 0.0, 0.0]
