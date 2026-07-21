@@ -34,8 +34,8 @@
 #include "kiss_icp/pipeline/KissICP.hpp"
 
 // ROS 2 headers
-#include <tf2_ros/static_transform_broadcaster.hpp>
-#include <tf2_ros/transform_broadcaster.hpp>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>

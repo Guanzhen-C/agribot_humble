@@ -15,7 +15,7 @@
 #include "scout_msgs/msg/scout_light_cmd.hpp"
 #include "scout_msgs/msg/scout_status.hpp"
 #include "tf2/LinearMath/Quaternion.h"
-#include "tf2_ros/transform_broadcaster.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 #include "ugv_sdk/mobile_robot/scout_robot.hpp"
 #include "ugv_sdk/utilities/protocol_detector.hpp"
 
