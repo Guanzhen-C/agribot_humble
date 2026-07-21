@@ -4,6 +4,21 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).parents[1]
 
 
+def test_shared_can_code_uses_can_directory():
+    expected = (
+        "include/agribot_hardware_bringup/chassis_adapter.hpp",
+        "include/agribot_hardware_bringup/chassis_can_common.hpp",
+        "include/agribot_hardware_bringup/chassis_can_node.hpp",
+        "src/chassis_can_common.cpp",
+        "src/chassis_can_node.cpp",
+    )
+    can_root = PACKAGE_ROOT / "can"
+    assert can_root.is_dir()
+    for relative_path in expected:
+        assert (can_root / relative_path).is_file()
+    assert not (PACKAGE_ROOT / "common").exists()
+
+
 def test_vehicle_specific_code_is_separated():
     expected = {
         "differential": (

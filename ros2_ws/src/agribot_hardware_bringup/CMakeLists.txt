@@ -18,17 +18,17 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 set(CHASSIS_INCLUDE_DIRS
-  ${CMAKE_CURRENT_SOURCE_DIR}/common/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/can/include
   ${CMAKE_CURRENT_SOURCE_DIR}/differential/include
   ${CMAKE_CURRENT_SOURCE_DIR}/ackermann/include
 )
 
 add_library(chassis_can_common
-  common/src/chassis_can_common.cpp
-  common/src/chassis_can_node.cpp
+  can/src/chassis_can_common.cpp
+  can/src/chassis_can_node.cpp
 )
 target_include_directories(chassis_can_common PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/can/include>
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(chassis_can_common
@@ -45,7 +45,7 @@ add_library(differential_chassis_can
   differential/src/differential_chassis_adapter.cpp
 )
 target_include_directories(differential_chassis_can PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/can/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/differential/include>
   $<INSTALL_INTERFACE:include>
 )
@@ -57,7 +57,7 @@ add_library(ackermann_chassis_can
   ackermann/src/ackermann_chassis_adapter.cpp
 )
 target_include_directories(ackermann_chassis_can PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/can/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ackermann/include>
   $<INSTALL_INTERFACE:include>
 )
@@ -149,7 +149,7 @@ install(FILES
 )
 install(FILES differential/README.md DESTINATION share/${PROJECT_NAME}/differential)
 install(FILES ackermann/README.md DESTINATION share/${PROJECT_NAME}/ackermann)
-install(DIRECTORY common/include/ DESTINATION include)
+install(DIRECTORY can/include/ DESTINATION include)
 install(DIRECTORY differential/include/ DESTINATION include)
 install(DIRECTORY ackermann/include/ DESTINATION include)
 install(DIRECTORY localization/navsat/include/ DESTINATION include)

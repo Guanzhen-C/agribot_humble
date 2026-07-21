@@ -14,7 +14,7 @@ navigation selections:
 Vehicle-specific physical code is kept in separate source trees:
 
 ```text
-common/        SocketCAN transport, ROS topics, diagnostics and frame utilities
+can/           SocketCAN transport, ROS topics, diagnostics and frame utilities
 differential/  differential protocol, adapter, executable, config, launch and tests
 ackermann/     Ackermann protocol, MPPI config, behavior trees, launch and tests
 localization/  NavSat/KF-GINS node and localization bridge scripts
