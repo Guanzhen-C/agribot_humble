@@ -18,7 +18,6 @@ can/           SocketCAN transport, ROS topics, diagnostics and frame utilities
 differential/  differential protocol, adapter, executable, config, launch and tests
 ackermann/     Ackermann protocol, MPPI config, behavior trees, launch and tests
 localization/  NavSat/KF-GINS node and localization bridge scripts
-maps/          default orchard map used by Nav2
 ```
 
 All project-owned runtime code and resources used by these four entry points
@@ -26,6 +25,10 @@ are contained in this package. The remaining package dependencies are ROS 2
 system components or third-party device/algorithm packages: Nav2, RViz,
 FAST-LIO, `hipnuc_imu`, `lslidar_driver`, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
+
+No simulation map is bundled with the physical-vehicle package. Pass the
+absolute path to a map recorded on the target vehicle with `map:=/path/map.yaml`
+when launching any navigation entry point.
 
 The installed executables are `differential_chassis_can_node` and
 `ackermann_chassis_can_node`; there is no mixed vehicle executable.
@@ -86,13 +89,15 @@ Measure and verify them before physical motion.
 NavSat/KF-GINS, DWB, sensors, collision monitor, and RViz:
 
 ```bash
-ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py
+ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
+  map:=/absolute/path/to/real_map.yaml
 ```
 
 FAST-LIO, DWB, sensors, collision monitor, and RViz:
 
 ```bash
-ros2 launch agribot_hardware_bringup differential_dwb_fastlio.launch.py
+ros2 launch agribot_hardware_bringup differential_dwb_fastlio.launch.py \
+  map:=/absolute/path/to/real_map.yaml
 ```
 
 Both use a maximum linear speed of `0.8 m/s` and maximum angular speed of
@@ -110,6 +115,7 @@ differential controller:
 
 ```bash
 ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
+  map:=/absolute/path/to/real_map.yaml \
   enable_can_output:=true chassis_driver:=differential_can can_interface:=can0
 ```
 
@@ -181,8 +187,10 @@ hardware based only on this example.
 The two complete Ackermann entry points are:
 
 ```bash
-ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py
+ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
+  map:=/absolute/path/to/real_map.yaml
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
+  map:=/absolute/path/to/real_map.yaml
 ```
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
@@ -220,7 +228,7 @@ export NTRIP_MOUNTPOINT=mountpoint
 export NTRIP_USERNAME=user
 export NTRIP_PASSWORD=password
 ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
-  enable_ntrip:=true
+  map:=/absolute/path/to/real_map.yaml enable_ntrip:=true
 ```
 
 ## Safety and calibration

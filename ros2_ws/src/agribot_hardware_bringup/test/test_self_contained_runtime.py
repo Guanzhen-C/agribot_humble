@@ -2,9 +2,6 @@ import re
 import xml.etree.ElementTree as element_tree
 from pathlib import Path
 
-import yaml
-
-
 PACKAGE_ROOT = Path(__file__).parents[1]
 FORBIDDEN_PROJECT_PACKAGES = {
     "agribot_ackermann_mppi",
@@ -60,8 +57,6 @@ def test_migrated_runtime_resources_exist_and_parse():
         "localization/fastlio/scripts/fastlio_odom_bridge.py",
         "ackermann/config/nav2_params_ackermann_navsat_static.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
-        "maps/orchard_v2_map6.yaml",
-        "maps/orchard_v2_map6.pgm",
     )
     for relative_path in expected:
         assert (PACKAGE_ROOT / relative_path).is_file()
@@ -69,9 +64,12 @@ def test_migrated_runtime_resources_exist_and_parse():
     for path in (PACKAGE_ROOT / "ackermann" / "behavior_trees").glob("*.xml"):
         element_tree.parse(path)
 
-    map_path = PACKAGE_ROOT / "maps" / "orchard_v2_map6.yaml"
-    map_config = yaml.safe_load(map_path.read_text())
-    assert (map_path.parent / map_config["image"]).is_file()
+
+def test_simulation_orchard_map_is_not_bundled_or_defaulted():
+    assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.yaml").exists()
+    assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.pgm").exists()
+    for path in runtime_text_files():
+        assert "orchard_v2_map6" not in path.read_text()
 
 
 def test_kf_gins_subset_keeps_its_license_and_attribution():

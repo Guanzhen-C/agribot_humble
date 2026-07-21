@@ -332,9 +332,7 @@ def generate_launch_description():
             DeclareLaunchArgument("map_to_odom_yaw", default_value="0.0"),
             DeclareLaunchArgument(
                 "map",
-                default_value=os.path.join(
-                    hardware_share, "maps", "orchard_v2_map6.yaml"
-                ),
+                description="Absolute path to the real-vehicle Nav2 map YAML",
             ),
             DeclareLaunchArgument(
                 "lidar_config",

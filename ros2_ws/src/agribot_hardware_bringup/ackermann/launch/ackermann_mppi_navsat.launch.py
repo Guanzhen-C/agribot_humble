@@ -16,6 +16,9 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
+            DeclareLaunchArgument(
+                "map", description="Absolute path to the real-vehicle Nav2 map YAML"
+            ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
@@ -42,6 +45,7 @@ def generate_launch_description():
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
+                    "map": LaunchConfiguration("map"),
                     "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
                     "chassis_driver": LaunchConfiguration("chassis_driver"),

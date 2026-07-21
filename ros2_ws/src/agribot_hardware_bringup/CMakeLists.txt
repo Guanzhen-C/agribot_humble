@@ -133,7 +133,6 @@ install(DIRECTORY
   ackermann/behavior_trees
   DESTINATION share/${PROJECT_NAME}/ackermann
 )
-install(DIRECTORY maps DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY differential/launch/ DESTINATION share/${PROJECT_NAME}/launch
   FILES_MATCHING PATTERN "*.launch.py"
 )
