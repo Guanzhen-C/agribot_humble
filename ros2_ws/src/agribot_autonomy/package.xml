@@ -13,6 +13,7 @@
   <depend>nav2_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>rclpy</depend>
+  <depend>rclcpp</depend>
   <depend>scout_base</depend>
   <depend>scout_description</depend>
   <depend>sensor_msgs</depend>

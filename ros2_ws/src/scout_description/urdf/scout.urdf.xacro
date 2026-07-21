@@ -35,8 +35,8 @@
     <xacro:arg name="laser_3d_xyz" default="$(optenv SCOUT_LASER_3D_XYZ 0 0 0)" />
     <xacro:arg name="laser_3d_rpy" default="$(optenv SCOUT_LASER_3D_RPY 0 0 0)" />
     <xacro:arg name="laser_3d_topic" default="$(optenv SCOUT_LASER_3D_TOPIC points)" />
-    <xacro:arg name="laser_3d_update_rate" default="$(optenv SCOUT_LASER_3D_UPDATE_RATE 5)" />
-    <xacro:arg name="laser_3d_horizontal_samples" default="$(optenv SCOUT_LASER_3D_HORIZONTAL_SAMPLES 360)" />
+    <xacro:arg name="laser_3d_update_rate" default="$(optenv SCOUT_LASER_3D_UPDATE_RATE 10)" />
+    <xacro:arg name="laser_3d_horizontal_samples" default="$(optenv SCOUT_LASER_3D_HORIZONTAL_SAMPLES 720)" />
     <xacro:arg name="laser_3d_vertical_samples" default="$(optenv SCOUT_LASER_3D_VERTICAL_SAMPLES 16)" />
     <xacro:arg name="laser_3d_min_range" default="$(optenv SCOUT_LASER_3D_MIN_RANGE 0.3)" />
     <xacro:arg name="laser_3d_max_range" default="$(optenv SCOUT_LASER_3D_MAX_RANGE 25.0)" />

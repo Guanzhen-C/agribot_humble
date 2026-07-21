@@ -565,8 +565,8 @@ def generate_launch_description():
             DeclareLaunchArgument("laser_3d_xyz", default_value="0 0 0"),
             DeclareLaunchArgument("laser_3d_rpy", default_value="0 0 0"),
             DeclareLaunchArgument("laser_3d_topic", default_value="/points"),
-            DeclareLaunchArgument("laser_3d_update_rate", default_value="5"),
-            DeclareLaunchArgument("laser_3d_horizontal_samples", default_value="360"),
+            DeclareLaunchArgument("laser_3d_update_rate", default_value="10"),
+            DeclareLaunchArgument("laser_3d_horizontal_samples", default_value="720"),
             DeclareLaunchArgument("laser_3d_vertical_samples", default_value="16"),
             DeclareLaunchArgument("laser_3d_min_range", default_value="0.3"),
             DeclareLaunchArgument("laser_3d_max_range", default_value="25.0"),
@@ -606,6 +606,33 @@ def generate_launch_description():
                         ["'false' if '", localization_mode, "' == 'fast_lio' else 'true'"]
                     ),
                 }.items(),
+            ),
+            Node(
+                package="agribot_autonomy",
+                executable="pointcloud_ring_to_laserscan",
+                name="c16_horizontal_scan",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": True,
+                        "input_cloud_topic": LaunchConfiguration("laser_3d_topic"),
+                        "output_scan_topic": "/scan",
+                        "ring_index": 8,
+                        "beam_count": ParameterValue(
+                            LaunchConfiguration("laser_3d_horizontal_samples"),
+                            value_type=int,
+                        ),
+                        "range_min": ParameterValue(
+                            LaunchConfiguration("laser_3d_min_range"),
+                            value_type=float,
+                        ),
+                        "range_max": ParameterValue(
+                            LaunchConfiguration("laser_3d_max_range"),
+                            value_type=float,
+                        ),
+                        "scan_time": 0.1,
+                    }
+                ],
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

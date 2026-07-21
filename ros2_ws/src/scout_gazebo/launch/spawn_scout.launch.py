@@ -22,6 +22,7 @@ def _spawn_scout_actions(context):
     y = LaunchConfiguration("y").perform(context)
     z = LaunchConfiguration("z").perform(context)
     yaw = LaunchConfiguration("yaw").perform(context)
+    laser_enabled = LaunchConfiguration("laser_enabled").perform(context)
     laser_3d_enabled = LaunchConfiguration("laser_3d_enabled").perform(context)
     laser_3d_xyz = LaunchConfiguration("laser_3d_xyz").perform(context)
     laser_3d_rpy = LaunchConfiguration("laser_3d_rpy").perform(context)
@@ -41,6 +42,7 @@ def _spawn_scout_actions(context):
         description_file,
         f"robot_namespace:={robot_namespace}",
         f"urdf_extras:={empty_urdf}",
+        f"laser_enabled:={laser_enabled}",
         f"laser_3d_enabled:={laser_3d_enabled}",
         f"laser_3d_xyz:={laser_3d_xyz}",
         f"laser_3d_rpy:={laser_3d_rpy}",
@@ -96,12 +98,13 @@ def generate_launch_description():
             DeclareLaunchArgument("yaw", default_value="0.0"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("publish_joint_states", default_value="true"),
+            DeclareLaunchArgument("laser_enabled", default_value="true"),
             DeclareLaunchArgument("laser_3d_enabled", default_value="false"),
             DeclareLaunchArgument("laser_3d_xyz", default_value="0 0 0"),
             DeclareLaunchArgument("laser_3d_rpy", default_value="0 0 0"),
             DeclareLaunchArgument("laser_3d_topic", default_value="points"),
-            DeclareLaunchArgument("laser_3d_update_rate", default_value="5"),
-            DeclareLaunchArgument("laser_3d_horizontal_samples", default_value="360"),
+            DeclareLaunchArgument("laser_3d_update_rate", default_value="10"),
+            DeclareLaunchArgument("laser_3d_horizontal_samples", default_value="720"),
             DeclareLaunchArgument("laser_3d_vertical_samples", default_value="16"),
             DeclareLaunchArgument("laser_3d_min_range", default_value="0.3"),
             DeclareLaunchArgument("laser_3d_max_range", default_value="25.0"),
@@ -114,6 +117,7 @@ def generate_launch_description():
                     "robot_namespace": LaunchConfiguration("robot_namespace"),
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                     "publish_robot_state": "true",
+                    "laser_enabled": LaunchConfiguration("laser_enabled"),
                     "laser_3d_enabled": LaunchConfiguration("laser_3d_enabled"),
                     "laser_3d_xyz": LaunchConfiguration("laser_3d_xyz"),
                     "laser_3d_rpy": LaunchConfiguration("laser_3d_rpy"),

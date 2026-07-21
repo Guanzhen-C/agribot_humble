@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.8)
 project(agribot_autonomy)
 
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+
+add_executable(pointcloud_ring_to_laserscan src/pointcloud_ring_to_laserscan.cpp)
+ament_target_dependencies(pointcloud_ring_to_laserscan rclcpp sensor_msgs)
+
+install(TARGETS
+  pointcloud_ring_to_laserscan
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(PROGRAMS
   scripts/fastlio_odom_bridge.py

@@ -9,9 +9,11 @@
       parent_link
       topic
       robot_namespace:=/
-      update_rate:=5
-      horizontal_samples:=360
+      update_rate:=10
+      horizontal_samples:=720
       vertical_samples:=16
+      min_vertical_angle:=-0.2792526803190927
+      max_vertical_angle:=0.24434609527920614
       min_range:=0.3
       max_range:=25.0
       height:=0.12
@@ -71,6 +73,8 @@
       hz="${update_rate}"
       lasers="${vertical_samples}"
       samples="${horizontal_samples}"
+      min_vertical_angle="${min_vertical_angle}"
+      max_vertical_angle="${max_vertical_angle}"
       collision_range="${min_range}"
       min_range="${min_range}"
       max_range="${max_range}"

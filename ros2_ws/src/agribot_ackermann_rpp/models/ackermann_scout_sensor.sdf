@@ -75,41 +75,6 @@
         </plugin>
       </sensor>
 
-      <sensor name='base_laser' type='ray'>
-        <pose>0.1558 0 0.1766 3.14159 0 0</pose>
-        <always_on>true</always_on>
-        <visualize>false</visualize>
-        <update_rate>50</update_rate>
-        <ray>
-          <scan>
-            <horizontal>
-              <samples>720</samples>
-              <resolution>1</resolution>
-              <min_angle>-1.5708</min_angle>
-              <max_angle>1.5708</max_angle>
-            </horizontal>
-          </scan>
-          <range>
-            <min>0.65</min>
-            <max>30</max>
-            <resolution>0.01</resolution>
-          </range>
-          <noise>
-            <type>gaussian</type>
-            <mean>0</mean>
-            <stddev>0.001</stddev>
-          </noise>
-        </ray>
-        <plugin name='base_laser_scan' filename='libgazebo_ros_ray_sensor.so'>
-          <ros>
-            <namespace>/</namespace>
-            <remapping>~/out:=scan</remapping>
-          </ros>
-          <frame_name>base_laser</frame_name>
-          <output_type>sensor_msgs/LaserScan</output_type>
-        </plugin>
-      </sensor>
-
       <sensor name='vlp16_points' type='ray'>
         <pose>0 0 0.5777 0 0 0</pose>
         <always_on>true</always_on>
@@ -126,8 +91,8 @@
             <vertical>
               <samples>16</samples>
               <resolution>1</resolution>
-              <min_angle>-0.261799</min_angle>
-              <max_angle>0.261799</max_angle>
+              <min_angle>-0.2792526803190927</min_angle>
+              <max_angle>0.24434609527920614</max_angle>
             </vertical>
           </scan>
           <range>

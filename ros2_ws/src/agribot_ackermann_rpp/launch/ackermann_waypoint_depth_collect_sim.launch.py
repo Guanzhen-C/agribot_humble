@@ -205,7 +205,7 @@ def generate_launch_description():
                 "robot_namespace:=",
                 LaunchConfiguration("robot_namespace"),
                 " ",
-                "laser_enabled:=true",
+                "laser_enabled:=false",
             ]
         ),
         value_type=str,
@@ -570,6 +570,24 @@ def generate_launch_description():
                 )
             ),
             robot_spawn,
+            Node(
+                package="agribot_autonomy",
+                executable="pointcloud_ring_to_laserscan",
+                name="c16_horizontal_scan",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": LaunchConfiguration("use_sim_time"),
+                        "input_cloud_topic": "/points",
+                        "output_scan_topic": "/scan",
+                        "ring_index": 8,
+                        "beam_count": 720,
+                        "range_min": 0.3,
+                        "range_max": 25.0,
+                        "scan_time": 0.1,
+                    }
+                ],
+            ),
             Node(
                 package="agribot_ackermann_rpp",
                 executable="sim_navsat_bridge.py",
