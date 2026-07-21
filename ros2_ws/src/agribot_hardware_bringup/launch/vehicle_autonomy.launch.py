@@ -38,32 +38,28 @@ def _validate_arguments(context):
         raise RuntimeError("ackermann vehicle currently requires controller:=mppi")
     if chassis_driver not in (
         "none",
-        "scout",
-        "simulated",
         "differential_can",
         "ackermann_can",
     ):
         raise RuntimeError(
-            "chassis_driver must be none, scout, simulated, differential_can "
-            "or ackermann_can"
+            "chassis_driver must be none, differential_can or ackermann_can"
         )
     if output_enabled and chassis_driver == "none":
         raise RuntimeError(
             "enable_can_output:=true requires an explicitly selected chassis_driver"
         )
-    if output_enabled and vehicle_type == "differential" and chassis_driver not in (
-        "differential_can",
-        "scout",
-        "simulated",
+    if (
+        output_enabled
+        and vehicle_type == "differential"
+        and chassis_driver != "differential_can"
     ):
         raise RuntimeError("differential vehicle requires a differential chassis driver")
-    if output_enabled and vehicle_type == "ackermann" and chassis_driver not in (
-        "ackermann_can",
-        "simulated",
+    if (
+        output_enabled
+        and vehicle_type == "ackermann"
+        and chassis_driver != "ackermann_can"
     ):
-        raise RuntimeError(
-            "ackermann vehicle requires an Ackermann or simulated chassis driver"
-        )
+        raise RuntimeError("ackermann vehicle requires an Ackermann chassis driver")
     if (
         output_enabled
         and chassis_driver == "ackermann_can"
@@ -100,8 +96,6 @@ def _selection_condition(vehicle_type, controller, localization):
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
-    ackermann_share = get_package_share_directory("agribot_ackermann_mppi")
-    map_share = get_package_share_directory("scout_navigation")
     navigation_launch = os.path.join(
         hardware_share, "launch", "include", "navigation_only.launch.py"
     )
@@ -134,7 +128,7 @@ def generate_launch_description():
     navsat_localization = GroupAction(
         actions=[
             Node(
-                package="agribot_rl_nav",
+                package="agribot_hardware_bringup",
                 executable="rtk_eskf_localization",
                 name="rtk_eskf_localization",
                 output="screen",
@@ -144,7 +138,7 @@ def generate_launch_description():
                 ],
             ),
             Node(
-                package="agribot_rl_nav",
+                package="agribot_hardware_bringup",
                 executable="navsat_pose_bridge.py",
                 name="navsat_pose_bridge",
                 output="screen",
@@ -177,7 +171,7 @@ def generate_launch_description():
                 ],
             ),
             Node(
-                package="agribot_autonomy",
+                package="agribot_hardware_bringup",
                 executable="fastlio_odom_bridge.py",
                 name="fastlio_odom_bridge",
                 output="screen",
@@ -226,12 +220,14 @@ def generate_launch_description():
                     "params_file": LaunchConfiguration("navsat_nav2_params"),
                     "odom_topic": "/odometry/filtered_navsat",
                     "default_nav_to_pose_bt_xml": os.path.join(
-                        ackermann_share,
+                        hardware_share,
+                        "ackermann",
                         "behavior_trees",
                         "navigate_w_replanning_ackermann_no_spin.xml",
                     ),
                     "default_nav_through_poses_bt_xml": os.path.join(
-                        ackermann_share,
+                        hardware_share,
+                        "ackermann",
                         "behavior_trees",
                         "navigate_through_poses_w_replanning_ackermann.xml",
                     ),
@@ -254,12 +250,14 @@ def generate_launch_description():
                     "params_file": LaunchConfiguration("fastlio_nav2_params"),
                     "odom_topic": "/fastlio/odometry",
                     "default_nav_to_pose_bt_xml": os.path.join(
-                        ackermann_share,
+                        hardware_share,
+                        "ackermann",
                         "behavior_trees",
                         "navigate_w_replanning_ackermann_no_spin.xml",
                     ),
                     "default_nav_through_poses_bt_xml": os.path.join(
-                        ackermann_share,
+                        hardware_share,
+                        "ackermann",
                         "behavior_trees",
                         "navigate_through_poses_w_replanning_ackermann.xml",
                     ),
@@ -335,7 +333,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "map",
                 default_value=os.path.join(
-                    map_share, "maps", "orchard_v2_map6.yaml"
+                    hardware_share, "maps", "orchard_v2_map6.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -381,7 +379,8 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "navsat_nav2_params",
                 default_value=os.path.join(
-                    ackermann_share,
+                    hardware_share,
+                    "ackermann",
                     "config",
                     "nav2_params_ackermann_navsat_static.yaml",
                 ),
@@ -389,7 +388,8 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "fastlio_nav2_params",
                 default_value=os.path.join(
-                    ackermann_share,
+                    hardware_share,
+                    "ackermann",
                     "config",
                     "nav2_params_ackermann_fastlio_static.yaml",
                 ),
@@ -397,19 +397,31 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "dwb_navsat_nav2_params",
                 default_value=os.path.join(
-                    hardware_share, "config", "nav2_dwb_navsat.yaml"
+                    hardware_share,
+                    "differential",
+                    "config",
+                    "nav2_dwb_navsat.yaml",
                 ),
             ),
             DeclareLaunchArgument(
                 "dwb_fastlio_nav2_params",
                 default_value=os.path.join(
-                    hardware_share, "config", "nav2_dwb_fastlio.yaml"
+                    hardware_share,
+                    "differential",
+                    "config",
+                    "nav2_dwb_fastlio.yaml",
                 ),
             ),
             DeclareLaunchArgument(
-                "chassis_can_config",
+                "differential_chassis_can_config",
                 default_value=os.path.join(
-                    hardware_share, "config", "chassis_can.yaml"
+                    hardware_share, "differential", "config", "chassis_can.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "ackermann_chassis_can_config",
+                default_value=os.path.join(
+                    hardware_share, "ackermann", "config", "chassis_can.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -482,7 +494,7 @@ def generate_launch_description():
                                 enable_can_output,
                                 "'.lower() in ('true', '1', 'yes', 'on') and '",
                                 chassis_driver,
-                                "' in ('scout', 'differential_can', 'ackermann_can')",
+                                "' in ('differential_can', 'ackermann_can')",
                             ]
                         ),
                         "require_chassis_feedback": enable_can_output,
@@ -523,59 +535,13 @@ def generate_launch_description():
             GroupAction(
                 actions=[
                     Node(
-                        package="scout_base",
-                        executable="scout_base_node",
-                        name="scout_base_node",
-                        output="screen",
-                        parameters=[
-                            {
-                                "port_name": LaunchConfiguration("can_interface"),
-                                "cmd_vel_topic": "/hardware/cmd_vel",
-                                "simulated_robot": False,
-                                "pub_tf": False,
-                                "odom_topic_name": "/wheel/odometry",
-                                "odom_frame": "wheel_odom",
-                                "base_frame": "base_link",
-                                "command_timeout_sec": 0.25,
-                                "max_linear_velocity": 0.80,
-                                "max_angular_velocity": 1.4,
-                            }
-                        ],
-                        condition=LaunchConfigurationEquals(
-                            "chassis_driver", "scout"
-                        ),
-                    ),
-                    Node(
-                        package="scout_base",
-                        executable="scout_base_node",
-                        name="simulated_chassis",
-                        output="screen",
-                        parameters=[
-                            {
-                                "cmd_vel_topic": "/hardware/cmd_vel",
-                                "simulated_robot": True,
-                                "pub_tf": False,
-                                "odom_topic_name": "/wheel/odometry",
-                                "odom_frame": "wheel_odom",
-                                "base_frame": "base_link",
-                                "command_timeout_sec": 0.25,
-                                "max_linear_velocity": 0.80,
-                                "max_angular_velocity": 1.4,
-                            }
-                        ],
-                        condition=LaunchConfigurationEquals(
-                            "chassis_driver", "simulated"
-                        ),
-                    ),
-                    Node(
                         package="agribot_hardware_bringup",
-                        executable="chassis_can_node",
+                        executable="differential_chassis_can_node",
                         name="differential_chassis_can",
                         output="screen",
                         parameters=[
-                            LaunchConfiguration("chassis_can_config"),
+                            LaunchConfiguration("differential_chassis_can_config"),
                             {
-                                "chassis_type": "differential",
                                 "can_interface": LaunchConfiguration("can_interface"),
                             },
                         ],
@@ -585,15 +551,14 @@ def generate_launch_description():
                     ),
                     Node(
                         package="agribot_hardware_bringup",
-                        executable="chassis_can_node",
+                        executable="ackermann_chassis_can_node",
                         name="ackermann_chassis_can",
                         output="screen",
                         parameters=[
-                            LaunchConfiguration("chassis_can_config"),
+                            LaunchConfiguration("ackermann_chassis_can_config"),
                             {
-                                "chassis_type": "ackermann",
                                 "can_interface": LaunchConfiguration("can_interface"),
-                                "allow_unverified_ackermann_protocol": LaunchConfiguration(
+                                "allow_unverified_protocol": LaunchConfiguration(
                                     "allow_unverified_ackermann_protocol"
                                 ),
                             },

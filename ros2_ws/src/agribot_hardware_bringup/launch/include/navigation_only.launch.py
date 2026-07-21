@@ -45,7 +45,10 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "params_file",
                 default_value=os.path.join(
-                    hardware_share, "config", "nav2_dwb_navsat.yaml"
+                    hardware_share,
+                    "differential",
+                    "config",
+                    "nav2_dwb_navsat.yaml",
                 ),
             ),
             DeclareLaunchArgument(

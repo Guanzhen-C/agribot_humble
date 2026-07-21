@@ -1,0 +1,28 @@
+/**:
+  ros__parameters:
+    can_interface: can0
+    command_topic: /hardware/cmd_vel
+    odom_topic: /wheel/odometry
+    odom_frame: wheel_odom
+    base_frame: base_link
+
+    send_rate_hz: 10.0
+    command_timeout_sec: 0.25
+    feedback_timeout_sec: 1.2
+    require_feedback_before_motion: true
+    require_autonomous_mode: false
+    headlight: false
+
+    wheelbase_m: 0.65
+    max_steering_angle_rad: 0.60
+    max_linear_velocity: 0.80
+    max_angular_velocity: 0.65
+    minimum_motion_speed: 0.02
+
+    # Reference layout only. Keep false until the physical controller firmware
+    # has been checked against all four IDs and their signal definitions.
+    command_id: 0x515
+    chassis_state_id: 0x535
+    drive_state_id: 0x536
+    steering_state_id: 0x537
+    allow_unverified_protocol: false

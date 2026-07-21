@@ -22,7 +22,6 @@ rtk_eskf_localization:
     align_measurement_to_initial_pose: false
     use_imu_orientation_for_initial_roll_pitch: true
     use_pose_yaw_measurement: true
-    auto_reference_from_first_noah_gnss: false
     auto_reference_from_first_navsat_fix: true
 
     initial_pose_x: 0.0

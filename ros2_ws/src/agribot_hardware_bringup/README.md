@@ -8,8 +8,27 @@ navigation selections:
 | --- | --- | --- | --- |
 | Differential | DWB | NavSat/KF-GINS | `differential_dwb_navsat.launch.py` |
 | Differential | DWB | FAST-LIO | `differential_dwb_fastlio.launch.py` |
-| Ackermann | MPPI | NavSat/KF-GINS | `vehicle_autonomy.launch.py` |
-| Ackermann | MPPI | FAST-LIO | `vehicle_autonomy.launch.py` |
+| Ackermann | MPPI | NavSat/KF-GINS | `ackermann_mppi_navsat.launch.py` |
+| Ackermann | MPPI | FAST-LIO | `ackermann_mppi_fastlio.launch.py` |
+
+Vehicle-specific physical code is kept in separate source trees:
+
+```text
+common/        SocketCAN transport, ROS topics, diagnostics and frame utilities
+differential/  differential protocol, adapter, executable, config, launch and tests
+ackermann/     Ackermann protocol, MPPI config, behavior trees, launch and tests
+localization/  NavSat/KF-GINS node and localization bridge scripts
+maps/          default orchard map used by Nav2
+```
+
+All project-owned runtime code and resources used by these four entry points
+are contained in this package. The remaining package dependencies are ROS 2
+system components or third-party device/algorithm packages: Nav2, RViz,
+FAST-LIO, `hipnuc_imu`, `lslidar_driver`, and their message packages.
+The CAN status interface also uses the third-party `scout_msgs` package.
+
+The installed executables are `differential_chassis_can_node` and
+`ackermann_chassis_can_node`; there is no mixed vehicle executable.
 
 The dedicated differential launch files default to CAN output disabled. The
 Nav2 command path is:
@@ -57,7 +76,8 @@ publishes:
 - `/hardware/chassis_e_stop`: decoded controller emergency-stop state
 - `/diagnostics`: freshness, fault, checksum, counter, replay, and I/O status
 
-Important dimensions and drivetrain values are in `config/chassis_can.yaml`:
+Important dimensions and drivetrain values are in
+`differential/config/chassis_can.yaml`:
 `track_width_m`, `wheel_diameter_m`, `reduction_ratio`, and `max_motor_rpm`.
 Measure and verify them before physical motion.
 
@@ -81,12 +101,8 @@ localization. In both modes, obstacle avoidance consumes `/scan`, which is the
 horizontal projection published by the C16 driver on the real vehicle.
 
 To inspect the complete navigation stack without opening SocketCAN, leave the
-default `enable_can_output:=false`. To test its output path without hardware:
-
-```bash
-ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
-  enable_can_output:=true chassis_driver:=simulated
-```
+default `enable_can_output:=false`. The unified real-vehicle launch accepts
+only `none`, `differential_can`, and `ackermann_can` chassis backends.
 
 After the controller bitrate, vehicle dimensions, wheel directions, emergency
 stop, and lifted-wheel test have been confirmed, enable the supplied
@@ -115,8 +131,8 @@ For protocol-only testing, create a virtual CAN interface and run the node:
 sudo modprobe vcan
 sudo ip link add dev vcan0 type vcan
 sudo ip link set vcan0 up
-ros2 run agribot_hardware_bringup chassis_can_node --ros-args \
-  --params-file $(ros2 pkg prefix agribot_hardware_bringup)/share/agribot_hardware_bringup/config/chassis_can.yaml \
+ros2 run agribot_hardware_bringup differential_chassis_can_node --ros-args \
+  --params-file $(ros2 pkg prefix agribot_hardware_bringup)/share/agribot_hardware_bringup/differential/config/chassis_can.yaml \
   -p can_interface:=vcan0
 ```
 
@@ -128,23 +144,54 @@ reported chassis/motor fault is present. Shutdown sends three brake frames.
 
 ## Ackermann reference protocol
 
-No Ackermann controller specification was supplied. The Ackermann codec is
-therefore a clearly isolated reference implementation, not a claim of
+No Ackermann controller specification was supplied. The four-frame Ackermann
+codec is therefore a clearly isolated reference implementation, not a claim of
 compatibility with a physical controller:
 
-- Command ID `0x515`, feedback ID `0x535`
-- Byte 0: enable and brake bits
-- Bytes 1-2: signed speed, `0.001 m/s`, Intel order
-- Bytes 3-4: signed steering angle, `0.001 rad`, Intel order
-- Byte 5: headlight bit
-- Byte 6: rolling counter; byte 7: XOR checksum
+| Direction | CAN ID | Content |
+| --- | --- | --- |
+| TX | `0x515` | Enable, brake, target speed, target steering angle, headlight |
+| RX | `0x535` | Enable, emergency stop, running/fault state, measured speed and steering angle, battery |
+| RX | `0x536` | Drive motor faults, RPM, voltage, current and temperature |
+| RX | `0x537` | Steering motor faults, RPM, voltage, current and temperature |
+
+`0x515` uses byte 0 bit 0 for enable and bit 1 for brake, bytes 1-2 for signed
+speed at `0.001 m/s`, bytes 3-4 for signed steering angle at `0.001 rad`, and
+byte 5 bit 0 for the headlight. Positive speed is forward and positive steering
+angle turns left, matching ROS REP 103. The brake bit overrides both numeric
+commands. `0x535` uses byte 0 bits 0-3 for enable,
+emergency stop, running and fault; bytes 1-2 and 3-4 contain measured speed and
+steering angle at the same resolutions, and byte 5 is battery voltage in `1 V`.
+
+Both motor frames use byte 0 bits 0-7 for over-voltage, under-voltage,
+temperature, over-current, overload, Hall, locked-rotor and other faults.
+Bytes 1-2 are signed RPM in Intel order, byte 3 is voltage in `1 V`, byte 4 is
+signed current in `1 A`, and byte 5 is temperature with a `-40 degC` offset.
+Every frame uses byte 6 low nibble as its rolling counter and byte 7 as XOR of
+bytes 0 through 6. All three feedback frames must be fresh and fault-free before
+the driver permits motion.
 
 It converts `Twist` yaw rate to steering angle using the configured wheelbase
 and never requests an in-place rotation. The node and unified launch both
 refuse this backend unless `allow_unverified_ackermann_protocol:=true` is set.
-Replace the reference IDs and signal layout after receiving the real
-Ackermann controller document; do not enable it on hardware based only on this
-example.
+Replace or confirm all four reference IDs, signal scales and bit definitions
+after receiving the real Ackermann controller document; do not enable it on
+hardware based only on this example.
+
+The two complete Ackermann entry points are:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py
+```
+
+For a protocol-only virtual-CAN run, use the dedicated executable and config:
+
+```bash
+ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
+  --params-file $(ros2 pkg prefix agribot_hardware_bringup)/share/agribot_hardware_bringup/ackermann/config/chassis_can.yaml \
+  -p can_interface:=vcan0 -p allow_unverified_protocol:=true
+```
 
 ## Sensors and localization
 
@@ -199,6 +246,11 @@ measured transforms and the RTK antenna lever arm. Register the orchard map to
 the ENU or FAST-LIO map frame as appropriate.
 
 ## Build and test
+
+On another ROS 2 Humble machine, this is the only project-owned package that
+must be copied into the workspace. Install its dependencies with `rosdep`;
+FAST-LIO and the physical sensor driver packages must still be available as
+third-party ROS packages.
 
 ```bash
 cd ~/agribot_ws/ros2_ws

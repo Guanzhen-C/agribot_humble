@@ -54,11 +54,12 @@ def test_ackermann_reference_can_requires_explicit_confirmation():
         LAUNCH._validate_arguments(context)
 
 
-def test_ackermann_simulated_output_does_not_require_reference_confirmation():
+def test_removed_simulated_driver_is_rejected():
     context = context_with(
         vehicle_type="ackermann",
         controller="mppi",
         chassis_driver="simulated",
         enable_can_output="true",
     )
-    assert LAUNCH._validate_arguments(context) == []
+    with pytest.raises(RuntimeError, match="chassis_driver must be"):
+        LAUNCH._validate_arguments(context)

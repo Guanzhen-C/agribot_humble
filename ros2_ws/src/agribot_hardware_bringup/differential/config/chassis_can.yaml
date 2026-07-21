@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    can_interface: can0
+    command_topic: /hardware/cmd_vel
+    odom_topic: /wheel/odometry
+    odom_frame: wheel_odom
+    base_frame: base_link
+
+    # The workbook specifies 200 ms and recommends 100-300 ms. The proven
+    # legacy implementation used 100 ms, so this driver defaults to 10 Hz.
+    send_rate_hz: 10.0
+    command_timeout_sec: 0.25
+    feedback_timeout_sec: 1.2
+    require_feedback_before_motion: true
+    require_autonomous_mode: true
+    headlight: false
+
+    # The proven tracked-vehicle implementation used byte0=0x03 for braking,
+    # although byte0 is not described in the supplied Excel workbook.
+    legacy_brake_byte: true
+    invert_left_motor: false
+    invert_right_motor: false
+
+    track_width_m: 0.94
+    wheel_diameter_m: 0.20
+    reduction_ratio: 30.0
+    max_motor_rpm: 3000.0
+    max_linear_velocity: 0.80
+    max_angular_velocity: 1.4
