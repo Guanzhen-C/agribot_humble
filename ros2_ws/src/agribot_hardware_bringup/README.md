@@ -148,41 +148,35 @@ when the command is older than 0.25 s, required feedback is older than 1.2 s,
 the controller is not in autonomous mode, emergency stop is active, or a
 reported chassis/motor fault is present. Shutdown sends three brake frames.
 
-## Ackermann reference protocol
+## Ackermann C50C protocol
 
-No Ackermann controller specification was supplied. The four-frame Ackermann
-codec is therefore a clearly isolated reference implementation, not a claim of
-compatibility with a physical controller:
+The Ackermann backend uses the WHEELTEC C50C SocketCAN protocol verified on the
+RDK X5 at 1 Mbit/s:
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
-| TX | `0x515` | Enable, brake, target speed, target steering angle, headlight |
-| RX | `0x535` | Enable, emergency stop, running/fault state, measured speed and steering angle, battery |
-| RX | `0x536` | Drive motor faults, RPM, voltage, current and temperature |
-| RX | `0x537` | Steering motor faults, RPM, voltage, current and temperature |
+| TX | `0x181` | Longitudinal speed, lateral speed, front steering angle, reserved |
+| RX | `0x101` | Bytes 0-7 of the 24-byte chassis telemetry packet |
+| RX | `0x102` | Bytes 8-15 of the 24-byte chassis telemetry packet |
+| RX | `0x103` | Bytes 16-23 of the 24-byte chassis telemetry packet |
 
-`0x515` uses byte 0 bit 0 for enable and bit 1 for brake, bytes 1-2 for signed
-speed at `0.001 m/s`, bytes 3-4 for signed steering angle at `0.001 rad`, and
-byte 5 bit 0 for the headlight. Positive speed is forward and positive steering
-angle turns left, matching ROS REP 103. The brake bit overrides both numeric
-commands. `0x535` uses byte 0 bits 0-3 for enable,
-emergency stop, running and fault; bytes 1-2 and 3-4 contain measured speed and
-steering angle at the same resolutions, and byte 5 is battery voltage in `1 V`.
+`0x181` contains four signed big-endian 16-bit fields. Bytes 0-1 are forward
+speed in `0.001 m/s`, bytes 2-3 are lateral speed and remain zero for Ackermann,
+bytes 4-5 are front steering angle in `0.001 rad`, and bytes 6-7 are reserved
+zeros. Positive speed is forward and positive steering turns left. A stop is an
+all-zero frame.
 
-Both motor frames use byte 0 bits 0-7 for over-voltage, under-voltage,
-temperature, over-current, overload, Hall, locked-rotor and other faults.
-Bytes 1-2 are signed RPM in Intel order, byte 3 is voltage in `1 V`, byte 4 is
-signed current in `1 A`, and byte 5 is temperature with a `-40 degC` offset.
-Every frame uses byte 6 low nibble as its rolling counter and byte 7 as XOR of
-bytes 0 through 6. All three feedback frames must be fresh and fault-free before
-the driver permits motion.
+The RX frames are one logical packet, not three independent status messages.
+The assembled packet starts with `0x7b`, ends with `0x7d`, and byte 22 is the
+XOR of bytes 0 through 21. It reports X/Y velocity and Z yaw rate at `0.001`
+units, raw chassis IMU values, and battery voltage at `0.001 V`. The driver
+publishes wheel odometry only after the complete packet passes its BCC check.
 
-It converts `Twist` yaw rate to steering angle using the configured wheelbase
-and never requests an in-place rotation. The node and unified launch both
-refuse this backend unless `allow_unverified_ackermann_protocol:=true` is set.
-Replace or confirm all four reference IDs, signal scales and bit definitions
-after receiving the real Ackermann controller document; do not enable it on
-hardware based only on this example.
+MPPI supplies `linear.x` and yaw rate in `angular.z`. The adapter converts yaw
+rate to front steering angle using the configured wheelbase and never requests
+an in-place rotation. The protocol has no documented autonomous-mode,
+emergency-stop, steering-position, motor-fault, or wheel-RPM feedback fields;
+the driver does not invent these safety states.
 
 The two complete Ackermann entry points are:
 
@@ -198,7 +192,7 @@ For a protocol-only virtual-CAN run, use the dedicated executable and config:
 ```bash
 ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
   --params-file $(ros2 pkg prefix agribot_hardware_bringup)/share/agribot_hardware_bringup/ackermann/config/chassis_can.yaml \
-  -p can_interface:=vcan0 -p allow_unverified_protocol:=true
+  -p can_interface:=vcan0
 ```
 
 ## Sensors and localization

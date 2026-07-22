@@ -294,18 +294,24 @@ private:
 
   void processFrame(const chassis_can::Frame & frame)
   {
-    if (!chassis_can::hasValidChecksum(frame.data)) {
-      ++checksum_errors_;
-      return;
-    }
-    if (!counterIsNew(frame)) {
-      return;
+    if (adapter_->usesPerFrameIntegrity()) {
+      if (!chassis_can::hasValidChecksum(frame.data)) {
+        ++checksum_errors_;
+        return;
+      }
+      if (!counterIsNew(frame)) {
+        return;
+      }
     }
 
     const auto current_time = now();
     const auto update = adapter_->processFrame(frame, current_time);
     if (!update.valid) {
-      ++invalid_frames_;
+      if (update.checksum_error) {
+        ++checksum_errors_;
+      } else {
+        ++invalid_frames_;
+      }
       return;
     }
     if (update.emergency_stop.has_value()) {

@@ -1,6 +1,8 @@
 #ifndef AGRIBOT_HARDWARE_BRINGUP__ACKERMANN_CAN_PROTOCOL_HPP_
 #define AGRIBOT_HARDWARE_BRINGUP__ACKERMANN_CAN_PROTOCOL_HPP_
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -9,57 +11,55 @@
 namespace agribot_hardware_bringup::ackermann_can
 {
 
-// Software-side reference IDs until the controller supplier confirms them.
-constexpr uint32_t kCommandId = 0x515;
-constexpr uint32_t kChassisStateId = 0x535;
-constexpr uint32_t kDriveStateId = 0x536;
-constexpr uint32_t kSteeringStateId = 0x537;
+constexpr uint32_t kCommandId = 0x181;
+constexpr uint32_t kFeedbackPart1Id = 0x101;
+constexpr uint32_t kFeedbackPart2Id = 0x102;
+constexpr uint32_t kFeedbackPart3Id = 0x103;
+constexpr std::size_t kTelemetrySize = 24;
+
+using TelemetryPayload = std::array<uint8_t, kTelemetrySize>;
 
 struct Command
 {
   double speed_mps{0.0};
   double steering_angle_rad{0.0};
-  bool enabled{false};
-  bool brake{true};
-  bool headlight{false};
 };
 
 struct Kinematics
 {
   double wheelbase_m{0.65};
-  double max_steering_angle_rad{0.60};
+  double max_steering_angle_rad{0.30};
   double max_linear_velocity{0.80};
   double max_angular_velocity{0.65};
   double minimum_motion_speed{0.02};
 };
 
-struct ChassisState
+struct Telemetry
 {
-  bool enabled{false};
-  bool emergency_stop{false};
-  bool running{false};
-  bool fault{false};
-  double speed_mps{0.0};
-  double steering_angle_rad{0.0};
+  uint8_t stop_flag{0};
+  double linear_velocity_x{0.0};
+  double linear_velocity_y{0.0};
+  double angular_velocity_z{0.0};
+  double linear_acceleration_x{0.0};
+  double linear_acceleration_y{0.0};
+  double linear_acceleration_z{0.0};
+  double angular_velocity_x{0.0};
+  double angular_velocity_y{0.0};
+  double imu_angular_velocity_z{0.0};
   double battery_voltage{0.0};
-  uint8_t rolling_counter{0};
 };
 
 chassis_can::Frame encodeCommand(
   const Command & command,
-  uint8_t rolling_counter,
   uint32_t command_id = kCommandId);
 
-std::optional<ChassisState> decodeChassisState(
-  const chassis_can::Frame & frame,
-  uint32_t state_id = kChassisStateId);
+std::optional<Telemetry> decodeTelemetry(const TelemetryPayload & payload);
 
 Command fromTwist(
   double linear_velocity,
   double angular_velocity,
   const Kinematics & config,
-  bool brake = false,
-  bool headlight = false);
+  bool brake = false);
 
 }  // namespace agribot_hardware_bringup::ackermann_can
 

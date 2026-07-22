@@ -26,7 +26,6 @@ def context_with(**overrides):
         "controller": "dwb",
         "chassis_driver": "differential_can",
         "enable_can_output": "false",
-        "allow_unverified_ackermann_protocol": "false",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -43,15 +42,14 @@ def test_differential_rejects_mppi():
         LAUNCH._validate_arguments(context_with(controller="mppi"))
 
 
-def test_ackermann_reference_can_requires_explicit_confirmation():
+def test_ackermann_can_accepts_verified_driver():
     context = context_with(
         vehicle_type="ackermann",
         controller="mppi",
         chassis_driver="ackermann_can",
         enable_can_output="true",
     )
-    with pytest.raises(RuntimeError, match="reference layout"):
-        LAUNCH._validate_arguments(context)
+    assert LAUNCH._validate_arguments(context) == []
 
 
 def test_removed_simulated_driver_is_rejected():

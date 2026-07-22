@@ -51,6 +51,11 @@ public:
       differential_can::kRightMotorStateId};
   }
 
+  bool usesPerFrameIntegrity() const override
+  {
+    return true;
+  }
+
   chassis_can::Frame commandFromTwist(
     const geometry_msgs::msg::Twist & message,
     bool brake,

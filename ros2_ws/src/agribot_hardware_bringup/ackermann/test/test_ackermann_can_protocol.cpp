@@ -1,104 +1,108 @@
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cmath>
+#include <limits>
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "gtest/gtest.h"
 
 #include "agribot_hardware_bringup/ackermann_can_protocol.hpp"
-#include "agribot_hardware_bringup/chassis_can_common.hpp"
+#include "agribot_hardware_bringup/chassis_adapter.hpp"
 
 namespace ackermann = agribot_hardware_bringup::ackermann_can;
-namespace common = agribot_hardware_bringup::chassis_can;
 
-TEST(AckermannCanProtocol, EncodesCommandLayout)
+TEST(AckermannCanProtocol, EncodesVerifiedC50cCommandLayout)
 {
-  ackermann::Command command;
-  command.speed_mps = 0.8;
-  command.steering_angle_rad = -0.2;
-  command.enabled = true;
-  command.brake = false;
-  command.headlight = true;
+  struct Case
+  {
+    ackermann::Command command;
+    std::array<uint8_t, 8> expected;
+  };
 
-  const auto frame = ackermann::encodeCommand(command, 4);
-  EXPECT_EQ(frame.id, ackermann::kCommandId);
-  EXPECT_EQ(frame.data[0], 0x01);
-  EXPECT_EQ(frame.data[1], 0x20);
-  EXPECT_EQ(frame.data[2], 0x03);
-  EXPECT_EQ(frame.data[3], 0x38);
-  EXPECT_EQ(frame.data[4], 0xff);
-  EXPECT_EQ(frame.data[5], 0x01);
-  EXPECT_EQ(frame.data[6], 0x04);
-  EXPECT_TRUE(common::hasValidChecksum(frame.data));
+  const std::array<Case, 5> cases{{
+    {{0.0, 0.0}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {{0.1, 0.0}, {0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {{-0.1, 0.0}, {0xff, 0x9c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {{0.0, 0.12}, {0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00}},
+    {{0.1, -0.12}, {0x00, 0x64, 0x00, 0x00, 0xff, 0x88, 0x00, 0x00}},
+  }};
+
+  for (const auto & test_case : cases) {
+    const auto frame = ackermann::encodeCommand(test_case.command);
+    EXPECT_EQ(frame.id, ackermann::kCommandId);
+    EXPECT_EQ(frame.data, test_case.expected);
+  }
 }
 
-TEST(AckermannCanKinematics, DoesNotRequestInPlaceRotation)
+TEST(AckermannCanProtocol, RejectsNonFiniteCommands)
+{
+  ackermann::Command command;
+  command.speed_mps = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_THROW(ackermann::encodeCommand(command), std::invalid_argument);
+}
+
+TEST(AckermannCanProtocol, DecodesCapturedC50cTelemetry)
+{
+  const ackermann::TelemetryPayload payload{
+    0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0d, 0x58, 0x04, 0x0e, 0x42, 0x6a, 0x00, 0x02,
+    0x00, 0x01, 0x00, 0x00, 0x63, 0x62, 0x0e, 0x7d};
+
+  const auto telemetry = ackermann::decodeTelemetry(payload);
+  ASSERT_TRUE(telemetry.has_value());
+  EXPECT_EQ(telemetry->stop_flag, 0U);
+  EXPECT_DOUBLE_EQ(telemetry->linear_velocity_x, 0.0);
+  EXPECT_DOUBLE_EQ(telemetry->linear_velocity_y, 0.0);
+  EXPECT_DOUBLE_EQ(telemetry->angular_velocity_z, 0.0);
+  EXPECT_NEAR(telemetry->linear_acceleration_x, 3416.0 / 1671.84, 1e-9);
+  EXPECT_NEAR(telemetry->linear_acceleration_y, 1038.0 / 1671.84, 1e-9);
+  EXPECT_NEAR(telemetry->linear_acceleration_z, 17002.0 / 1671.84, 1e-9);
+  EXPECT_NEAR(telemetry->angular_velocity_x, 2.0 * 0.00026644, 1e-12);
+  EXPECT_NEAR(telemetry->angular_velocity_y, 0.00026644, 1e-12);
+  EXPECT_DOUBLE_EQ(telemetry->imu_angular_velocity_z, 0.0);
+  EXPECT_DOUBLE_EQ(telemetry->battery_voltage, 25.442);
+}
+
+TEST(AckermannCanProtocol, RejectsCorruptTelemetry)
+{
+  ackermann::TelemetryPayload payload{
+    0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0d, 0x58, 0x04, 0x0e, 0x42, 0x6a, 0x00, 0x02,
+    0x00, 0x01, 0x00, 0x00, 0x63, 0x62, 0x0e, 0x7d};
+
+  payload[2] ^= 0x01U;
+  EXPECT_FALSE(ackermann::decodeTelemetry(payload).has_value());
+  payload[2] ^= 0x01U;
+  payload[23] = 0x00U;
+  EXPECT_FALSE(ackermann::decodeTelemetry(payload).has_value());
+}
+
+TEST(AckermannCanKinematics, ConvertsYawRateAndDoesNotRequestInPlaceRotation)
 {
   ackermann::Kinematics config;
   const auto stopped = ackermann::fromTwist(0.0, 0.5, config);
   EXPECT_DOUBLE_EQ(stopped.speed_mps, 0.0);
   EXPECT_DOUBLE_EQ(stopped.steering_angle_rad, 0.0);
 
-  const auto moving = ackermann::fromTwist(0.5, 0.4, config);
+  const auto moving = ackermann::fromTwist(0.5, 0.1, config);
   EXPECT_NEAR(
     moving.steering_angle_rad,
-    std::atan(config.wheelbase_m * 0.4 / 0.5),
+    std::atan(config.wheelbase_m * 0.1 / 0.5),
     1e-9);
+
+  const auto limited = ackermann::fromTwist(0.1, 0.65, config);
+  EXPECT_DOUBLE_EQ(limited.steering_angle_rad, config.max_steering_angle_rad);
 }
 
-TEST(AckermannCanProtocol, DecodesChassisFeedback)
+TEST(AckermannCanKinematics, StopRequestProducesAllZeroCommand)
 {
-  common::Frame frame;
-  frame.id = ackermann::kChassisStateId;
-  frame.data[0] = 0x05;
-  frame.data[1] = 0x0c;
-  frame.data[2] = 0xfe;
-  frame.data[3] = 0xfa;
-  frame.data[4] = 0x00;
-  frame.data[5] = 48;
-  frame.data[6] = 9;
-  frame.data[7] = common::xorChecksum(frame.data);
-
-  const auto state = ackermann::decodeChassisState(frame);
-  ASSERT_TRUE(state.has_value());
-  EXPECT_TRUE(state->enabled);
-  EXPECT_TRUE(state->running);
-  EXPECT_FALSE(state->emergency_stop);
-  EXPECT_FALSE(state->fault);
-  EXPECT_DOUBLE_EQ(state->speed_mps, -0.5);
-  EXPECT_DOUBLE_EQ(state->steering_angle_rad, 0.25);
-  EXPECT_DOUBLE_EQ(state->battery_voltage, 48.0);
-  EXPECT_EQ(state->rolling_counter, 9);
-}
-
-TEST(AckermannCanProtocol, DecodesMotorFeedback)
-{
-  common::Frame drive;
-  drive.id = ackermann::kDriveStateId;
-  drive.data[0] = 0x08;
-  drive.data[1] = 0x2e;
-  drive.data[2] = 0xfb;
-  drive.data[3] = 48;
-  drive.data[4] = static_cast<uint8_t>(static_cast<int8_t>(-7));
-  drive.data[5] = 70;
-  drive.data[6] = 0x0b;
-  drive.data[7] = common::xorChecksum(drive.data);
-
-  const auto drive_state = common::decodeMotorState(
-    drive, ackermann::kDriveStateId, ackermann::kSteeringStateId);
-  ASSERT_TRUE(drive_state.has_value());
-  EXPECT_TRUE(drive_state->over_current);
-  EXPECT_TRUE(drive_state->hasFault());
-  EXPECT_EQ(drive_state->rpm, -1234);
-  EXPECT_DOUBLE_EQ(drive_state->voltage, 48.0);
-  EXPECT_DOUBLE_EQ(drive_state->current, -7.0);
-  EXPECT_DOUBLE_EQ(drive_state->temperature_c, 30.0);
-  EXPECT_EQ(drive_state->rolling_counter, 11);
-
-  drive.id = 0x538;
-  drive.data[7] = common::xorChecksum(drive.data);
-  EXPECT_FALSE(
-    common::decodeMotorState(
-      drive, ackermann::kDriveStateId,
-      ackermann::kSteeringStateId).has_value());
+  ackermann::Kinematics config;
+  const auto stopped = ackermann::fromTwist(0.5, 0.2, config, true);
+  const auto frame = ackermann::encodeCommand(stopped);
+  EXPECT_EQ(frame.data, (std::array<uint8_t, 8>{}));
 }
 
 TEST(AckermannCanKinematics, RejectsInvalidConfiguration)
@@ -106,4 +110,57 @@ TEST(AckermannCanKinematics, RejectsInvalidConfiguration)
   ackermann::Kinematics config;
   config.wheelbase_m = 0.0;
   EXPECT_THROW(ackermann::fromTwist(0.1, 0.0, config), std::invalid_argument);
+}
+
+TEST(AckermannCanAdapter, ReassemblesTelemetryAndRejectsBadBcc)
+{
+  rclcpp::init(0, nullptr);
+  const auto node = std::make_shared<rclcpp::Node>("ackermann_can_adapter_test");
+  auto adapter = agribot_hardware_bringup::makeAckermannChassisAdapter(*node);
+  EXPECT_FALSE(adapter->usesPerFrameIntegrity());
+  EXPECT_EQ(
+    adapter->feedbackIds(),
+    (std::vector<uint32_t>{
+      ackermann::kFeedbackPart1Id,
+      ackermann::kFeedbackPart2Id,
+      ackermann::kFeedbackPart3Id}));
+
+  ackermann::TelemetryPayload payload{
+    0x7b, 0x00, 0x00, 0x64, 0x00, 0x00, 0xff, 0xce,
+    0x0d, 0x58, 0x04, 0x0e, 0x42, 0x6a, 0x00, 0x02,
+    0x00, 0x01, 0x00, 0x00, 0x63, 0x62, 0x5b, 0x7d};
+  const std::array<uint32_t, 3> ids{
+    ackermann::kFeedbackPart1Id,
+    ackermann::kFeedbackPart2Id,
+    ackermann::kFeedbackPart3Id};
+  const rclcpp::Time stamp(10, 0, RCL_ROS_TIME);
+
+  agribot_hardware_bringup::FrameUpdate update;
+  for (std::size_t part = 0; part < ids.size(); ++part) {
+    agribot_hardware_bringup::chassis_can::Frame frame;
+    frame.id = ids[part];
+    std::copy_n(
+      payload.begin() + static_cast<std::ptrdiff_t>(part * 8), 8, frame.data.begin());
+    update = adapter->processFrame(frame, stamp);
+    EXPECT_TRUE(update.valid);
+  }
+  ASSERT_TRUE(update.motion.has_value());
+  EXPECT_DOUBLE_EQ(update.motion->linear_velocity, 0.1);
+  EXPECT_DOUBLE_EQ(update.motion->angular_velocity, -0.05);
+  EXPECT_TRUE(adapter->feedbackFresh(rclcpp::Time(10, 500000000, RCL_ROS_TIME), 0.6));
+  EXPECT_FALSE(adapter->feedbackFresh(rclcpp::Time(10, 700000000, RCL_ROS_TIME), 0.6));
+  EXPECT_TRUE(adapter->feedbackAllowsMotion(false));
+  EXPECT_FALSE(adapter->feedbackAllowsMotion(true));
+
+  payload[22] ^= 0x01U;
+  for (std::size_t part = 0; part < ids.size(); ++part) {
+    agribot_hardware_bringup::chassis_can::Frame frame;
+    frame.id = ids[part];
+    std::copy_n(
+      payload.begin() + static_cast<std::ptrdiff_t>(part * 8), 8, frame.data.begin());
+    update = adapter->processFrame(frame, stamp);
+  }
+  EXPECT_FALSE(update.valid);
+  EXPECT_TRUE(update.checksum_error);
+  rclcpp::shutdown();
 }

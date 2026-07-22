@@ -24,9 +24,6 @@ def generate_launch_description():
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
             DeclareLaunchArgument(
-                "allow_unverified_ackermann_protocol", default_value="false"
-            ),
-            DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
             IncludeLaunchDescription(
@@ -50,9 +47,6 @@ def generate_launch_description():
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
                     "chassis_driver": LaunchConfiguration("chassis_driver"),
                     "can_interface": LaunchConfiguration("can_interface"),
-                    "allow_unverified_ackermann_protocol": LaunchConfiguration(
-                        "allow_unverified_ackermann_protocol"
-                    ),
                     "command_input_topic": LaunchConfiguration("command_input_topic"),
                 }.items(),
             ),

@@ -1,9 +1,10 @@
 #include "agribot_hardware_bringup/chassis_adapter.hpp"
 
-#include <cmath>
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -21,7 +22,7 @@ public:
   {
     config_.wheelbase_m = node.declare_parameter<double>("wheelbase_m", 0.65);
     config_.max_steering_angle_rad =
-      node.declare_parameter<double>("max_steering_angle_rad", 0.60);
+      node.declare_parameter<double>("max_steering_angle_rad", 0.30);
     config_.max_linear_velocity =
       node.declare_parameter<double>("max_linear_velocity", 0.80);
     config_.max_angular_velocity =
@@ -29,16 +30,12 @@ public:
     config_.minimum_motion_speed =
       node.declare_parameter<double>("minimum_motion_speed", 0.02);
     command_id_ = declareId(node, "command_id", ackermann_can::kCommandId);
-    chassis_state_id_ = declareId(node, "chassis_state_id", ackermann_can::kChassisStateId);
-    drive_state_id_ = declareId(node, "drive_state_id", ackermann_can::kDriveStateId);
-    steering_state_id_ = declareId(node, "steering_state_id", ackermann_can::kSteeringStateId);
-    const bool allow_unverified =
-      node.declare_parameter<bool>("allow_unverified_protocol", false);
-    if (!allow_unverified) {
-      throw std::invalid_argument(
-              "Ackermann CAN layout is a reference only; set "
-              "allow_unverified_protocol:=true only after controller confirmation");
-    }
+    feedback_ids_[0] = declareId(
+      node, "feedback_part1_id", ackermann_can::kFeedbackPart1Id);
+    feedback_ids_[1] = declareId(
+      node, "feedback_part2_id", ackermann_can::kFeedbackPart2Id);
+    feedback_ids_[2] = declareId(
+      node, "feedback_part3_id", ackermann_can::kFeedbackPart3Id);
     (void)ackermann_can::fromTwist(0.0, 0.0, config_, true);
   }
 
@@ -54,7 +51,12 @@ public:
 
   std::vector<uint32_t> feedbackIds() const override
   {
-    return {chassis_state_id_, drive_state_id_, steering_state_id_};
+    return {feedback_ids_.begin(), feedback_ids_.end()};
+  }
+
+  bool usesPerFrameIntegrity() const override
+  {
+    return false;
   }
 
   chassis_can::Frame commandFromTwist(
@@ -63,9 +65,11 @@ public:
     bool headlight,
     uint8_t rolling_counter) const override
   {
+    (void)headlight;
+    (void)rolling_counter;
     const auto command = ackermann_can::fromTwist(
-      message.linear.x, message.angular.z, config_, brake, headlight);
-    return ackermann_can::encodeCommand(command, rolling_counter, command_id_);
+      message.linear.x, message.angular.z, config_, brake);
+    return ackermann_can::encodeCommand(command, command_id_);
   }
 
   FrameUpdate processFrame(
@@ -73,39 +77,56 @@ public:
     const rclcpp::Time & stamp) override
   {
     FrameUpdate update;
-    if (frame.id == chassis_state_id_) {
-      chassis_state_ = ackermann_can::decodeChassisState(frame, chassis_state_id_);
-      if (!chassis_state_.has_value()) {
-        return update;
-      }
-      chassis_state_time_ = stamp;
-      chassis_state_received_ = true;
-      update.valid = true;
-      update.emergency_stop = chassis_state_->emergency_stop;
-      MeasuredMotion motion;
-      motion.linear_velocity = chassis_state_->speed_mps;
-      motion.angular_velocity = std::abs(chassis_state_->speed_mps) < 1e-6 ? 0.0 :
-        chassis_state_->speed_mps * std::tan(chassis_state_->steering_angle_rad) /
-        config_.wheelbase_m;
-      update.motion = motion;
+    const auto found = std::find(feedback_ids_.begin(), feedback_ids_.end(), frame.id);
+    if (found == feedback_ids_.end()) {
       return update;
     }
 
-    const auto motor = chassis_can::decodeMotorState(
-      frame, drive_state_id_, steering_state_id_);
-    if (!motor.has_value()) {
+    const auto index = static_cast<std::size_t>(found - feedback_ids_.begin());
+    if (index == 0U) {
+      cycle_started_ = true;
+      second_part_received_ = false;
+    } else if (index == 1U) {
+      if (!cycle_started_) {
+        return update;
+      }
+      second_part_received_ = true;
+    } else if (!cycle_started_ || !second_part_received_) {
       return update;
     }
+
+    feedback_parts_[index] = frame.data;
+    feedback_times_[index] = stamp;
+    feedback_received_[index] = true;
     update.valid = true;
-    if (frame.id == drive_state_id_) {
-      drive_state_ = motor;
-      drive_state_time_ = stamp;
-      drive_state_received_ = true;
-    } else {
-      steering_state_ = motor;
-      steering_state_time_ = stamp;
-      steering_state_received_ = true;
+
+    if (index != 2U) {
+      return update;
     }
+
+    cycle_started_ = false;
+    second_part_received_ = false;
+    ackermann_can::TelemetryPayload payload{};
+    for (std::size_t part = 0; part < feedback_parts_.size(); ++part) {
+      std::copy(
+        feedback_parts_[part].begin(), feedback_parts_[part].end(),
+        payload.begin() + static_cast<std::ptrdiff_t>(part * chassis_can::kPayloadSize));
+    }
+
+    const auto telemetry = ackermann_can::decodeTelemetry(payload);
+    if (!telemetry.has_value()) {
+      update.valid = false;
+      update.checksum_error = true;
+      return update;
+    }
+
+    telemetry_ = telemetry;
+    telemetry_time_ = stamp;
+    telemetry_received_ = true;
+    MeasuredMotion motion;
+    motion.linear_velocity = telemetry_->linear_velocity_x;
+    motion.angular_velocity = telemetry_->angular_velocity_z;
+    update.motion = motion;
     return update;
   }
 
@@ -113,32 +134,30 @@ public:
     const rclcpp::Time & current_time,
     double timeout_sec) const override
   {
-    return isFresh(chassis_state_received_, chassis_state_time_, current_time, timeout_sec) &&
-           isFresh(drive_state_received_, drive_state_time_, current_time, timeout_sec) &&
-           isFresh(steering_state_received_, steering_state_time_, current_time, timeout_sec);
+    if (!isFresh(telemetry_received_, telemetry_time_, current_time, timeout_sec)) {
+      return false;
+    }
+    for (std::size_t index = 0; index < feedback_received_.size(); ++index) {
+      if (!isFresh(
+          feedback_received_[index], feedback_times_[index], current_time, timeout_sec))
+      {
+        return false;
+      }
+    }
+    return true;
   }
 
-  bool feedbackAllowsMotion(bool) const override
+  bool feedbackAllowsMotion(bool require_autonomous_mode) const override
   {
-    return chassis_state_.has_value() && drive_state_.has_value() &&
-           steering_state_.has_value() && chassis_state_->enabled &&
-           !chassis_state_->emergency_stop && !chassis_state_->fault &&
-           !drive_state_->hasFault() && !steering_state_->hasFault();
+    return telemetry_.has_value() && !require_autonomous_mode;
   }
 
   void populateStatus(scout_msgs::msg::ScoutStatus & status) const override
   {
-    if (!chassis_state_.has_value()) {
+    if (!telemetry_.has_value()) {
       return;
     }
-    status.control_mode = chassis_state_->enabled ? 1U : 0U;
-    status.battery_voltage = chassis_state_->battery_voltage;
-    const bool chassis_fault = chassis_state_->emergency_stop || chassis_state_->fault;
-    const bool drive_fault = drive_state_.has_value() && drive_state_->hasFault();
-    const bool steering_fault = steering_state_.has_value() && steering_state_->hasFault();
-    status.base_state = (chassis_fault || drive_fault || steering_fault) ? 1U : 0U;
-    status.fault_code = (chassis_fault ? 0x01U : 0x00U) |
-      (drive_fault ? 0x02U : 0x00U) | (steering_fault ? 0x04U : 0x00U);
+    status.battery_voltage = telemetry_->battery_voltage;
   }
 
 private:
@@ -163,18 +182,21 @@ private:
 
   ackermann_can::Kinematics config_;
   uint32_t command_id_{ackermann_can::kCommandId};
-  uint32_t chassis_state_id_{ackermann_can::kChassisStateId};
-  uint32_t drive_state_id_{ackermann_can::kDriveStateId};
-  uint32_t steering_state_id_{ackermann_can::kSteeringStateId};
-  rclcpp::Time chassis_state_time_{0, 0, RCL_ROS_TIME};
-  rclcpp::Time drive_state_time_{0, 0, RCL_ROS_TIME};
-  rclcpp::Time steering_state_time_{0, 0, RCL_ROS_TIME};
-  bool chassis_state_received_{false};
-  bool drive_state_received_{false};
-  bool steering_state_received_{false};
-  std::optional<ackermann_can::ChassisState> chassis_state_;
-  std::optional<chassis_can::MotorState> drive_state_;
-  std::optional<chassis_can::MotorState> steering_state_;
+  std::array<uint32_t, 3> feedback_ids_{
+    ackermann_can::kFeedbackPart1Id,
+    ackermann_can::kFeedbackPart2Id,
+    ackermann_can::kFeedbackPart3Id};
+  std::array<chassis_can::Payload, 3> feedback_parts_{};
+  std::array<rclcpp::Time, 3> feedback_times_{
+    rclcpp::Time(0, 0, RCL_ROS_TIME),
+    rclcpp::Time(0, 0, RCL_ROS_TIME),
+    rclcpp::Time(0, 0, RCL_ROS_TIME)};
+  std::array<bool, 3> feedback_received_{false, false, false};
+  rclcpp::Time telemetry_time_{0, 0, RCL_ROS_TIME};
+  bool cycle_started_{false};
+  bool second_part_received_{false};
+  bool telemetry_received_{false};
+  std::optional<ackermann_can::Telemetry> telemetry_;
 };
 
 }  // namespace

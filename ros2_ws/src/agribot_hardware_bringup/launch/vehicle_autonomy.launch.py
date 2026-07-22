@@ -21,9 +21,6 @@ def _validate_arguments(context):
     controller = LaunchConfiguration("controller").perform(context)
     chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
     enable_can = LaunchConfiguration("enable_can_output").perform(context).lower()
-    allow_reference_ackermann = LaunchConfiguration(
-        "allow_unverified_ackermann_protocol"
-    ).perform(context).lower()
     output_enabled = enable_can in ("true", "1", "yes", "on")
 
     if localization not in ("navsat", "fastlio"):
@@ -60,15 +57,6 @@ def _validate_arguments(context):
         and chassis_driver != "ackermann_can"
     ):
         raise RuntimeError("ackermann vehicle requires an Ackermann chassis driver")
-    if (
-        output_enabled
-        and chassis_driver == "ackermann_can"
-        and allow_reference_ackermann not in ("true", "1", "yes", "on")
-    ):
-        raise RuntimeError(
-            "ackermann_can is a reference layout and requires explicit "
-            "allow_unverified_ackermann_protocol:=true"
-        )
     return []
 
 
@@ -319,9 +307,6 @@ def generate_launch_description():
             DeclareLaunchArgument("chassis_driver", default_value="none"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
             DeclareLaunchArgument(
-                "allow_unverified_ackermann_protocol", default_value="false"
-            ),
-            DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
             DeclareLaunchArgument("map_to_odom_x", default_value="0.0"),
@@ -556,9 +541,6 @@ def generate_launch_description():
                             LaunchConfiguration("ackermann_chassis_can_config"),
                             {
                                 "can_interface": LaunchConfiguration("can_interface"),
-                                "allow_unverified_protocol": LaunchConfiguration(
-                                    "allow_unverified_ackermann_protocol"
-                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(

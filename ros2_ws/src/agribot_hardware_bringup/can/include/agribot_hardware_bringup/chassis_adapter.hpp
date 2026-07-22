@@ -25,6 +25,7 @@ struct MeasuredMotion
 struct FrameUpdate
 {
   bool valid{false};
+  bool checksum_error{false};
   std::optional<bool> emergency_stop;
   std::optional<MeasuredMotion> motion;
 };
@@ -37,6 +38,7 @@ public:
   virtual std::string type() const = 0;
   virtual uint32_t commandId() const = 0;
   virtual std::vector<uint32_t> feedbackIds() const = 0;
+  virtual bool usesPerFrameIntegrity() const = 0;
   virtual chassis_can::Frame commandFromTwist(
     const geometry_msgs::msg::Twist & command,
     bool brake,
