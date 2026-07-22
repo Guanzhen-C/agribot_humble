@@ -20,7 +20,7 @@ class AckermannChassisAdapter final : public ChassisAdapter
 public:
   explicit AckermannChassisAdapter(rclcpp::Node & node)
   {
-    config_.wheelbase_m = node.declare_parameter<double>("wheelbase_m", 0.65);
+    config_.wheelbase_m = node.declare_parameter<double>("wheelbase_m", 0.50);
     config_.max_steering_angle_rad =
       node.declare_parameter<double>("max_steering_angle_rad", 0.30);
     config_.max_linear_velocity =

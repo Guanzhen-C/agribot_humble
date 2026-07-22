@@ -13,7 +13,7 @@
     require_autonomous_mode: false
     headlight: false
 
-    wheelbase_m: 0.65
+    wheelbase_m: 0.50
     max_steering_angle_rad: 0.30
     max_linear_velocity: 0.80
     max_angular_velocity: 0.65
