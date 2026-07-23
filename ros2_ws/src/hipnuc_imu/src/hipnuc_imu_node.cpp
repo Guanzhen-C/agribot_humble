@@ -129,10 +129,21 @@ Quaternion normalized(Quaternion quaternion)
   return quaternion;
 }
 
-std::array<double, 3> rfuToFlu(const std::array<float, 3> & input)
+std::array<double, 3> rotateAboutZ(
+  const std::array<float, 3> & input, double yaw_rad)
 {
-  return {static_cast<double>(input[1]), -static_cast<double>(input[0]),
-    static_cast<double>(input[2])};
+  const double cosine = std::cos(yaw_rad);
+  const double sine = std::sin(yaw_rad);
+  return {
+    cosine * static_cast<double>(input[0]) - sine * static_cast<double>(input[1]),
+    sine * static_cast<double>(input[0]) + cosine * static_cast<double>(input[1]),
+    static_cast<double>(input[2]),
+  };
+}
+
+Quaternion yawQuaternion(double yaw_rad)
+{
+  return {std::cos(yaw_rad / 2.0), 0.0, 0.0, std::sin(yaw_rad / 2.0)};
 }
 
 void setDiagonal(std::array<double, 9> & covariance, double standard_deviation)
@@ -173,6 +184,13 @@ public:
     publish_magnetic_field_ = declare_parameter<bool>("publish_magnetic_field", true);
     publish_temperature_ = declare_parameter<bool>("publish_temperature", true);
     gravity_m_s2_ = declare_parameter<double>("gravity_m_s2", 9.80665);
+    const double device_yaw_in_flu_deg =
+      declare_parameter<double>("device_yaw_in_flu_deg", -90.0);
+    if (!std::isfinite(device_yaw_in_flu_deg)) {
+      throw std::invalid_argument("device_yaw_in_flu_deg must be finite");
+    }
+    device_yaw_in_flu_rad_ = device_yaw_in_flu_deg * kPi / 180.0;
+    device_from_flu_ = yawQuaternion(-device_yaw_in_flu_rad_);
 
     const double orientation_std_rad =
       declare_parameter<double>("orientation_std_deg", 2.0) * kPi / 180.0;
@@ -186,6 +204,9 @@ public:
     setDiagonal(angular_velocity_covariance_, angular_velocity_std_rad_s);
     setDiagonal(linear_acceleration_covariance_, linear_acceleration_std_m_s2);
     setDiagonal(magnetic_field_covariance_, magnetic_field_std_t);
+    RCLCPP_INFO(
+      get_logger(), "N300Pro frame conversion: raw +X yaw in FLU = %.1f deg",
+      device_yaw_in_flu_deg);
 
     imu_publisher_ = create_publisher<sensor_msgs::msg::Imu>(imu_topic_, 50);
     if (publish_magnetic_field_) {
@@ -342,16 +363,17 @@ private:
   void publish(const Hi91Sample & sample)
   {
     const rclcpp::Time stamp = now();
-    const auto acceleration_flu = rfuToFlu(sample.acceleration_g);
-    const auto angular_velocity_flu = rfuToFlu(sample.angular_velocity_deg_s);
-    const auto magnetic_field_flu = rfuToFlu(sample.magnetic_field_ut);
+    const auto acceleration_flu =
+      rotateAboutZ(sample.acceleration_g, device_yaw_in_flu_rad_);
+    const auto angular_velocity_flu =
+      rotateAboutZ(sample.angular_velocity_deg_s, device_yaw_in_flu_rad_);
+    const auto magnetic_field_flu =
+      rotateAboutZ(sample.magnetic_field_ut, device_yaw_in_flu_rad_);
 
-    // The device reports ENU<-RFU. Post-multiplying by RFU<-FLU produces
-    // the ROS orientation ENU<-FLU without discarding roll or pitch.
-    const double half_sqrt = std::sqrt(0.5);
-    const Quaternion rfu_from_flu{half_sqrt, 0.0, 0.0, half_sqrt};
+    // The device reports ENU<-device. Apply the same mounting rotation used
+    // for vectors so the orientation remains ENU<-FLU.
     const Quaternion enu_from_flu =
-      normalized(multiply(sample.enu_from_rfu, rfu_from_flu));
+      normalized(multiply(sample.enu_from_rfu, device_from_flu_));
 
     sensor_msgs::msg::Imu imu;
     imu.header.stamp = stamp;
@@ -399,6 +421,8 @@ private:
   bool publish_magnetic_field_ = true;
   bool publish_temperature_ = true;
   double gravity_m_s2_ = 9.80665;
+  double device_yaw_in_flu_rad_ = -kPi / 2.0;
+  Quaternion device_from_flu_{std::sqrt(0.5), 0.0, 0.0, std::sqrt(0.5)};
 
   int serial_fd_ = -1;
   rclcpp::Time last_open_attempt_{0, 0, RCL_ROS_TIME};

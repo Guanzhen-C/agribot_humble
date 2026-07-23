@@ -1,8 +1,14 @@
 # hipnuc_imu
 
 ROS 2 Humble driver for the N300Pro default HI91 stream (`115200`, `100 Hz`).
-It validates every frame with CRC16, publishes SI units, and converts the vendor
-RFU body frame to ROS FLU while keeping the vendor ENU world frame.
+It validates every frame with CRC16, publishes SI units, and rotates the vendor
+device frame into ROS FLU while keeping the vendor ENU world frame.
+
+`device_yaw_in_flu_deg` is the direction of the case/raw `+X` axis measured
+counterclockwise from FLU `+X`. Use `-90.0` for the vendor's normal mounting
+(`+Y` forward, `+X` right), or `0.0` when the case `+X` points forward. The
+rotation is applied consistently to acceleration, angular velocity, magnetic
+field, and orientation.
 
 Topics:
 
