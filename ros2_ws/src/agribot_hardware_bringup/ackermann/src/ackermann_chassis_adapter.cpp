@@ -22,7 +22,7 @@ public:
   {
     config_.wheelbase_m = node.declare_parameter<double>("wheelbase_m", 0.50);
     config_.max_steering_angle_rad =
-      node.declare_parameter<double>("max_steering_angle_rad", 0.30);
+      node.declare_parameter<double>("max_steering_angle_rad", 0.384);
     config_.max_linear_velocity =
       node.declare_parameter<double>("max_linear_velocity", 0.80);
     config_.max_angular_velocity =

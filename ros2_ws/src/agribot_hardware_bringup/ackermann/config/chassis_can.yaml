@@ -14,7 +14,7 @@
     headlight: false
 
     wheelbase_m: 0.50
-    max_steering_angle_rad: 0.30
+    max_steering_angle_rad: 0.384
     max_linear_velocity: 0.80
     max_angular_velocity: 0.65
     minimum_motion_speed: 0.02

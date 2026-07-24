@@ -28,7 +28,7 @@ struct Command
 struct Kinematics
 {
   double wheelbase_m{0.50};
-  double max_steering_angle_rad{0.30};
+  double max_steering_angle_rad{0.384};
   double max_linear_velocity{0.80};
   double max_angular_velocity{0.65};
   double minimum_motion_speed{0.02};

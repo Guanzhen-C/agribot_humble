@@ -52,7 +52,7 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert follow_path["motion_model"] == "Ackermann"
         assert follow_path["vx_max"] == 0.8
         assert follow_path["vy_max"] == 0.0
-        assert follow_path["AckermannConstraints"]["min_turning_r"] == 0.75
+        assert follow_path["AckermannConstraints"]["min_turning_r"] == 1.30
 
 
 def test_ackermann_configs_use_horizontal_scan_for_obstacles():

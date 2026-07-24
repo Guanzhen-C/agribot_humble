@@ -104,7 +104,7 @@ controller_server:
       gamma: 0.015
       motion_model: "Ackermann"
       AckermannConstraints:
-        min_turning_r: 0.75
+        min_turning_r: 1.30
       visualize: false
       regenerate_noises: false
       reset_period: 1.0
