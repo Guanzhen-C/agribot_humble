@@ -169,7 +169,7 @@ class VehicleCommandGate(Node):
 
         if active != self.last_active:
             if active:
-                self.get_logger().info("CAN command output enabled")
+                self.get_logger().info("Chassis command output enabled")
             else:
                 reasons = []
                 if not self.drive_enabled:
@@ -184,7 +184,9 @@ class VehicleCommandGate(Node):
                     reasons.append("hardware emergency stop")
                 if not self.command_is_fresh():
                     reasons.append("command missing or stale")
-                self.get_logger().warn("CAN command output stopped: " + ", ".join(reasons))
+                self.get_logger().warn(
+                    "Chassis command output stopped: " + ", ".join(reasons)
+                )
             self.last_active = active
 
     def destroy_node(self):

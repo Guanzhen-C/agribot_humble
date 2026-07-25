@@ -26,6 +26,7 @@ def context_with(**overrides):
         "controller": "dwb",
         "chassis_driver": "differential_can",
         "enable_can_output": "false",
+        "enable_chassis_output": "false",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -47,7 +48,17 @@ def test_ackermann_can_accepts_verified_driver():
         vehicle_type="ackermann",
         controller="mppi",
         chassis_driver="ackermann_can",
-        enable_can_output="true",
+        enable_chassis_output="true",
+    )
+    assert LAUNCH._validate_arguments(context) == []
+
+
+def test_ackermann_serial_accepts_verified_driver():
+    context = context_with(
+        vehicle_type="ackermann",
+        controller="mppi",
+        chassis_driver="ackermann_serial",
+        enable_chassis_output="true",
     )
     assert LAUNCH._validate_arguments(context) == []
 
@@ -57,7 +68,7 @@ def test_removed_simulated_driver_is_rejected():
         vehicle_type="ackermann",
         controller="mppi",
         chassis_driver="simulated",
-        enable_can_output="true",
+        enable_chassis_output="true",
     )
     with pytest.raises(RuntimeError, match="chassis_driver must be"):
         LAUNCH._validate_arguments(context)

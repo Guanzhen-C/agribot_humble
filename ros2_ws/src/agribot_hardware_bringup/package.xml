@@ -2,7 +2,7 @@
 <package format="3">
   <name>agribot_hardware_bringup</name>
   <version>0.1.0</version>
-  <description>Physical Agribot sensor, localization, Nav2, safety and CAN bringup.</description>
+  <description>Physical Agribot sensor, localization, Nav2, safety and chassis bringup.</description>
 
   <maintainer email="cgz@example.com">cgz</maintainer>
   <license>GPL-3.0-only</license>

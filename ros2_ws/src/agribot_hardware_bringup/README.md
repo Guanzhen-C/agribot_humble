@@ -105,9 +105,11 @@ Both use a maximum linear speed of `0.8 m/s` and maximum angular speed of
 localization. In both modes, obstacle avoidance consumes `/scan`, which is the
 horizontal projection published by the C16 driver on the real vehicle.
 
-To inspect the complete navigation stack without opening SocketCAN, leave the
-default `enable_can_output:=false`. The unified real-vehicle launch accepts
-only `none`, `differential_can`, and `ackermann_can` chassis backends.
+To inspect the complete navigation stack without opening a chassis transport,
+leave the default `enable_chassis_output:=false`. The unified real-vehicle
+launch accepts `none`, `differential_can`, `ackermann_can`, and
+`ackermann_serial` chassis backends. The legacy `enable_can_output` argument
+remains as a compatibility alias.
 
 After the controller bitrate, vehicle dimensions, wheel directions, emergency
 stop, and lifted-wheel test have been confirmed, enable the supplied
@@ -150,8 +152,8 @@ reported chassis/motor fault is present. Shutdown sends three brake frames.
 
 ## Ackermann C50C protocol
 
-The Ackermann backend uses the WHEELTEC C50C SocketCAN protocol verified on the
-RDK X5 at 1 Mbit/s:
+The Ackermann backend supports both the WHEELTEC C50C SocketCAN protocol and its
+USART3 transport. SocketCAN was verified on the RDK X5 at 1 Mbit/s:
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
@@ -171,6 +173,12 @@ The assembled packet starts with `0x7b`, ends with `0x7d`, and byte 22 is the
 XOR of bytes 0 through 21. It reports X/Y velocity and Z yaw rate at `0.001`
 units, raw chassis IMU values, and battery voltage at `0.001 V`. The driver
 publishes wheel odometry only after the complete packet passes its BCC check.
+
+The serial backend opens `/dev/wheeltec_controller` exclusively at 115200 baud.
+Its 11-byte command starts with `0x7b`, contains forward speed, zero lateral
+speed and front steering angle as signed big-endian values at `0.001` units,
+then an XOR byte and `0x7d`. It receives the same 24-byte telemetry packet
+directly from USART3.
 
 MPPI supplies `linear.x` and yaw rate in `angular.z`. The adapter converts yaw
 rate to front steering angle using the configured wheelbase and never requests

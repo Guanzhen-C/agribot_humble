@@ -21,8 +21,15 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
-            DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
+            DeclareLaunchArgument(
+                "enable_chassis_output",
+                default_value=LaunchConfiguration("enable_can_output"),
+            ),
+            DeclareLaunchArgument("chassis_driver", default_value="ackermann_serial"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
+            DeclareLaunchArgument(
+                "serial_port", default_value="/dev/wheeltec_controller"
+            ),
             DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
@@ -45,8 +52,12 @@ def generate_launch_description():
                     "map": LaunchConfiguration("map"),
                     "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
+                    "enable_chassis_output": LaunchConfiguration(
+                        "enable_chassis_output"
+                    ),
                     "chassis_driver": LaunchConfiguration("chassis_driver"),
                     "can_interface": LaunchConfiguration("can_interface"),
+                    "serial_port": LaunchConfiguration("serial_port"),
                     "command_input_topic": LaunchConfiguration("command_input_topic"),
                 }.items(),
             ),

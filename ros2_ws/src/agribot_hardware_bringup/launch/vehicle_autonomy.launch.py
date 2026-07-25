@@ -20,8 +20,10 @@ def _validate_arguments(context):
     vehicle_type = LaunchConfiguration("vehicle_type").perform(context)
     controller = LaunchConfiguration("controller").perform(context)
     chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
-    enable_can = LaunchConfiguration("enable_can_output").perform(context).lower()
-    output_enabled = enable_can in ("true", "1", "yes", "on")
+    enable_chassis = (
+        LaunchConfiguration("enable_chassis_output").perform(context).lower()
+    )
+    output_enabled = enable_chassis in ("true", "1", "yes", "on")
 
     if localization not in ("navsat", "fastlio"):
         raise RuntimeError("localization must be 'navsat' or 'fastlio'")
@@ -37,13 +39,15 @@ def _validate_arguments(context):
         "none",
         "differential_can",
         "ackermann_can",
+        "ackermann_serial",
     ):
         raise RuntimeError(
-            "chassis_driver must be none, differential_can or ackermann_can"
+            "chassis_driver must be none, differential_can, ackermann_can "
+            "or ackermann_serial"
         )
     if output_enabled and chassis_driver == "none":
         raise RuntimeError(
-            "enable_can_output:=true requires an explicitly selected chassis_driver"
+            "enable_chassis_output:=true requires an explicitly selected chassis_driver"
         )
     if (
         output_enabled
@@ -54,7 +58,7 @@ def _validate_arguments(context):
     if (
         output_enabled
         and vehicle_type == "ackermann"
-        and chassis_driver != "ackermann_can"
+        and chassis_driver not in ("ackermann_can", "ackermann_serial")
     ):
         raise RuntimeError("ackermann vehicle requires an Ackermann chassis driver")
     return []
@@ -92,7 +96,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration("autostart")
     localization = LaunchConfiguration("localization")
     vehicle_type = LaunchConfiguration("vehicle_type")
-    enable_can_output = LaunchConfiguration("enable_can_output")
+    enable_chassis_output = LaunchConfiguration("enable_chassis_output")
     chassis_driver = LaunchConfiguration("chassis_driver")
 
     sensors = IncludeLaunchDescription(
@@ -304,8 +308,19 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
+            DeclareLaunchArgument(
+                "enable_chassis_output",
+                default_value=LaunchConfiguration("enable_can_output"),
+                description=(
+                    "Enable the selected physical chassis transport; "
+                    "enable_can_output is retained as a compatibility alias"
+                ),
+            ),
             DeclareLaunchArgument("chassis_driver", default_value="none"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
+            DeclareLaunchArgument(
+                "serial_port", default_value="/dev/wheeltec_controller"
+            ),
             DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
@@ -408,6 +423,12 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "ackermann_chassis_serial_config",
+                default_value=os.path.join(
+                    hardware_share, "ackermann", "config", "chassis_serial.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "safety_config",
                 default_value=os.path.join(
                     hardware_share, "config", "vehicle_safety.yaml"
@@ -474,13 +495,13 @@ def generate_launch_description():
                         "require_can_interface": PythonExpression(
                             [
                                 "'",
-                                enable_can_output,
+                                enable_chassis_output,
                                 "'.lower() in ('true', '1', 'yes', 'on') and '",
                                 chassis_driver,
                                 "' in ('differential_can', 'ackermann_can')",
                             ]
                         ),
-                        "require_chassis_feedback": enable_can_output,
+                        "require_chassis_feedback": enable_chassis_output,
                         "can_interface": LaunchConfiguration("can_interface"),
                     },
                 ],
@@ -494,15 +515,16 @@ def generate_launch_description():
                     LaunchConfiguration("safety_config"),
                     {
                         "use_sim_time": use_sim_time,
-                        "initially_enabled": enable_can_output,
+                        "initially_enabled": enable_chassis_output,
                         "input_topic": LaunchConfiguration("command_input_topic"),
                         "require_hardware_e_stop": PythonExpression(
                             [
                                 "'",
-                                enable_can_output,
+                                enable_chassis_output,
                                 "'.lower() in ('true', '1', 'yes', 'on') and '",
                                 chassis_driver,
-                                "' in ('differential_can', 'ackermann_can')",
+                                "' in ('differential_can', 'ackermann_can', "
+                                "'ackermann_serial')",
                             ]
                         ),
                         "max_angular_velocity": PythonExpression(
@@ -547,8 +569,23 @@ def generate_launch_description():
                             "chassis_driver", "ackermann_can"
                         ),
                     ),
+                    Node(
+                        package="agribot_hardware_bringup",
+                        executable="ackermann_chassis_serial_node",
+                        name="ackermann_chassis_serial",
+                        output="screen",
+                        parameters=[
+                            LaunchConfiguration("ackermann_chassis_serial_config"),
+                            {
+                                "port": LaunchConfiguration("serial_port"),
+                            },
+                        ],
+                        condition=LaunchConfigurationEquals(
+                            "chassis_driver", "ackermann_serial"
+                        ),
+                    ),
                 ],
-                condition=IfCondition(enable_can_output),
+                condition=IfCondition(enable_chassis_output),
             ),
             Node(
                 package="rviz2",

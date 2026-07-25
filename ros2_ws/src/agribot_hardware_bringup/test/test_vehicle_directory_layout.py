@@ -35,13 +35,18 @@ def test_vehicle_specific_code_is_separated():
         "ackermann": (
             "README.md",
             "config/chassis_can.yaml",
+            "config/chassis_serial.yaml",
             "include/agribot_hardware_bringup/ackermann_can_protocol.hpp",
+            "include/agribot_hardware_bringup/ackermann_serial_protocol.hpp",
             "launch/ackermann_mppi_fastlio.launch.py",
             "launch/ackermann_mppi_navsat.launch.py",
             "src/ackermann_can_protocol.cpp",
             "src/ackermann_chassis_adapter.cpp",
             "src/ackermann_chassis_main.cpp",
+            "src/ackermann_serial_node.cpp",
+            "src/ackermann_serial_protocol.cpp",
             "test/test_ackermann_can_protocol.cpp",
+            "test/test_ackermann_serial_protocol.cpp",
         ),
     }
     for vehicle, relative_paths in expected.items():
@@ -67,6 +72,8 @@ def test_unified_launch_selects_dedicated_executables_and_configs():
     launch_source = (PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py").read_text()
     assert 'executable="differential_chassis_can_node"' in launch_source
     assert 'executable="ackermann_chassis_can_node"' in launch_source
+    assert 'executable="ackermann_chassis_serial_node"' in launch_source
     assert '"differential", "config", "chassis_can.yaml"' in launch_source
     assert '"ackermann", "config", "chassis_can.yaml"' in launch_source
+    assert '"ackermann", "config", "chassis_serial.yaml"' in launch_source
     assert 'executable="chassis_can_node"' not in launch_source

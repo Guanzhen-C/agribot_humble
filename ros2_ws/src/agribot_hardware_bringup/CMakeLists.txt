@@ -64,6 +64,16 @@ target_include_directories(ackermann_chassis_can PUBLIC
 target_link_libraries(ackermann_chassis_can chassis_can_common)
 ament_target_dependencies(ackermann_chassis_can geometry_msgs rclcpp scout_msgs)
 
+add_library(ackermann_chassis_serial
+  ackermann/src/ackermann_serial_protocol.cpp
+)
+target_include_directories(ackermann_chassis_serial PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/can/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ackermann/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(ackermann_chassis_serial ackermann_chassis_can)
+
 add_executable(
   differential_chassis_can_node
   differential/src/differential_chassis_main.cpp
@@ -84,6 +94,26 @@ target_link_libraries(
   ackermann_chassis_can_node
   chassis_can_common
   ackermann_chassis_can
+)
+
+add_executable(
+  ackermann_chassis_serial_node
+  ackermann/src/ackermann_serial_node.cpp
+)
+target_include_directories(ackermann_chassis_serial_node PRIVATE ${CHASSIS_INCLUDE_DIRS})
+target_link_libraries(
+  ackermann_chassis_serial_node
+  ackermann_chassis_can
+  ackermann_chassis_serial
+)
+ament_target_dependencies(ackermann_chassis_serial_node
+  diagnostic_msgs
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  scout_msgs
+  sensor_msgs
+  std_msgs
 )
 
 add_executable(
@@ -156,6 +186,7 @@ install(TARGETS
   chassis_can_common
   differential_chassis_can
   ackermann_chassis_can
+  ackermann_chassis_serial
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -163,6 +194,7 @@ install(TARGETS
 install(TARGETS
   differential_chassis_can_node
   ackermann_chassis_can_node
+  ackermann_chassis_serial_node
   rtk_eskf_localization
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
@@ -172,6 +204,7 @@ ament_export_libraries(
   chassis_can_common
   differential_chassis_can
   ackermann_chassis_can
+  ackermann_chassis_serial
 )
 
 if(BUILD_TESTING)
@@ -187,6 +220,14 @@ if(BUILD_TESTING)
     ackermann/test/test_ackermann_can_protocol.cpp
   )
   target_link_libraries(test_ackermann_can_protocol ackermann_chassis_can)
+  ament_add_gtest(
+    test_ackermann_serial_protocol
+    ackermann/test/test_ackermann_serial_protocol.cpp
+  )
+  target_link_libraries(
+    test_ackermann_serial_protocol
+    ackermann_chassis_serial
+  )
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
