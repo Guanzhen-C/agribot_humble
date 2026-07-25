@@ -19,7 +19,7 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
-                default_value=LaunchConfiguration("enable_can_output"),
+                default_value="true",
             ),
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_serial"),
             DeclareLaunchArgument("can_interface", default_value="can0"),

@@ -143,8 +143,6 @@ install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
   scripts/rtk_nmea_node.py
-  scripts/vehicle_command_gate.py
-  scripts/vehicle_preflight.py
   localization/fastlio/scripts/fastlio_odom_bridge.py
   localization/navsat/scripts/navsat_pose_bridge.py
   DESTINATION lib/${PROJECT_NAME}
@@ -239,7 +237,6 @@ if(BUILD_TESTING)
     test_self_contained_runtime
     test/test_self_contained_runtime.py
   )
-  ament_add_pytest_test(test_vehicle_safety test/test_vehicle_safety.py)
 endif()
 
 ament_package()

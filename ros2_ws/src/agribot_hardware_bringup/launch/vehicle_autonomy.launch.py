@@ -448,12 +448,6 @@ def generate_launch_description():
                     hardware_share, "ackermann", "config", "chassis_serial.yaml"
                 ),
             ),
-            DeclareLaunchArgument(
-                "safety_config",
-                default_value=os.path.join(
-                    hardware_share, "config", "vehicle_safety.yaml"
-                ),
-            ),
             OpaqueFunction(function=_validate_arguments),
             sensors,
             navsat_localization,
@@ -503,62 +497,6 @@ def generate_launch_description():
                     {"node_names": ["vehicle_collision_monitor"]},
                 ],
             ),
-            Node(
-                package="agribot_hardware_bringup",
-                executable="vehicle_preflight.py",
-                name="vehicle_preflight",
-                output="screen",
-                parameters=[
-                    LaunchConfiguration("safety_config"),
-                    {
-                        "use_sim_time": use_sim_time,
-                        "localization_mode": localization,
-                        "require_can": False,
-                        "require_can_interface": PythonExpression(
-                            [
-                                "'",
-                                enable_chassis_output,
-                                "'.lower() in ('true', '1', 'yes', 'on') and '",
-                                chassis_driver,
-                                "' in ('differential_can', 'ackermann_can')",
-                            ]
-                        ),
-                        "require_chassis_feedback": enable_chassis_output,
-                        "can_interface": LaunchConfiguration("can_interface"),
-                    },
-                ],
-            ),
-            Node(
-                package="agribot_hardware_bringup",
-                executable="vehicle_command_gate.py",
-                name="vehicle_command_gate",
-                output="screen",
-                parameters=[
-                    LaunchConfiguration("safety_config"),
-                    {
-                        "use_sim_time": use_sim_time,
-                        "initially_enabled": enable_chassis_output,
-                        "input_topic": LaunchConfiguration("command_input_topic"),
-                        "require_hardware_e_stop": PythonExpression(
-                            [
-                                "'",
-                                enable_chassis_output,
-                                "'.lower() in ('true', '1', 'yes', 'on') and '",
-                                chassis_driver,
-                                "' in ('differential_can', 'ackermann_can', "
-                                "'ackermann_serial')",
-                            ]
-                        ),
-                        "max_angular_velocity": PythonExpression(
-                            [
-                                "1.4 if '",
-                                vehicle_type,
-                                "' == 'differential' else 0.65",
-                            ]
-                        ),
-                    },
-                ],
-            ),
             GroupAction(
                 actions=[
                     Node(
@@ -570,6 +508,9 @@ def generate_launch_description():
                             LaunchConfiguration("differential_chassis_can_config"),
                             {
                                 "can_interface": LaunchConfiguration("can_interface"),
+                                "command_topic": LaunchConfiguration(
+                                    "command_input_topic"
+                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(
@@ -585,6 +526,9 @@ def generate_launch_description():
                             LaunchConfiguration("ackermann_chassis_can_config"),
                             {
                                 "can_interface": LaunchConfiguration("can_interface"),
+                                "command_topic": LaunchConfiguration(
+                                    "command_input_topic"
+                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(
@@ -600,6 +544,9 @@ def generate_launch_description():
                             LaunchConfiguration("ackermann_chassis_serial_config"),
                             {
                                 "port": LaunchConfiguration("serial_port"),
+                                "command_topic": LaunchConfiguration(
+                                    "command_input_topic"
+                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(

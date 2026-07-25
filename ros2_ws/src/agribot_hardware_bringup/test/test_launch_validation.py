@@ -6,11 +6,13 @@ from launch import LaunchContext
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
+VEHICLE_LAUNCH_PATH = PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py"
 
 
 def load_vehicle_launch():
-    path = PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py"
-    spec = importlib.util.spec_from_file_location("vehicle_autonomy_launch", path)
+    spec = importlib.util.spec_from_file_location(
+        "vehicle_autonomy_launch", VEHICLE_LAUNCH_PATH
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -103,3 +105,14 @@ def test_static_navigation_requires_map():
 def test_unknown_navigation_mode_is_rejected():
     with pytest.raises(RuntimeError, match="navigation_mode must be"):
         LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))
+
+
+def test_chassis_uses_collision_monitor_output_without_manual_gate():
+    source = VEHICLE_LAUNCH_PATH.read_text()
+    assert "vehicle_command_gate" not in source
+    assert "vehicle_preflight" not in source
+    assert source.count(
+        '"command_topic": LaunchConfiguration(\n'
+        '                                    "command_input_topic"\n'
+        "                                ),"
+    ) == 3

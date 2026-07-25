@@ -73,11 +73,12 @@ are outside this chassis adapter. In particular, the old C++ sends an
 implement command on `0x582`, while the workbook defines it as `0x580`; that
 conflicting implement command is intentionally not transmitted here.
 
-The driver receives `geometry_msgs/msg/Twist` on `/hardware/cmd_vel` and
-publishes:
+The driver command topic is configurable. The unified navigation launch routes
+`geometry_msgs/msg/Twist` from `/nav2/cmd_vel_safe` directly to the selected
+driver. The driver publishes:
 
 - `/wheel/odometry`: odometry integrated from left/right motor RPM
-- `/scout_status`: common chassis feedback used by preflight
+- `/scout_status`: common chassis feedback
 - `/hardware/chassis_e_stop`: decoded controller emergency-stop state
 - `/diagnostics`: freshness, fault, checksum, counter, replay, and I/O status
 
@@ -247,21 +248,19 @@ ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml enable_ntrip:=true
 ```
 
-## Safety and calibration
+## Runtime command path and calibration
 
-Real CAN output is opt-in. The command gate requires current preflight and
-chassis feedback, a clear software and hardware emergency stop, a fresh finite
-velocity command, and `/safety/drive_enable:=true`. The CAN node repeats those
-checks independently before encoding motion.
+The real chassis receives `/nav2/cmd_vel_safe` directly from the Nav2 collision
+monitor. With chassis output enabled, selecting a Nav2 Goal in RViz immediately
+starts path execution. The collision monitor still slows or stops for `/scan`
+obstacles, and each chassis transport sends a zero command when the velocity
+stream becomes stale.
 
-Monitor or stop the command path with:
+Monitor the chassis transport with:
 
 ```bash
-ros2 topic echo /hardware/preflight_status
-ros2 topic echo /hardware/command_output_active
+ros2 topic echo /scout_status
 ros2 topic echo /diagnostics
-ros2 topic pub --once /safety/e_stop std_msgs/msg/Bool '{data: true}'
-ros2 topic pub --once /safety/drive_enable std_msgs/msg/Bool '{data: false}'
 ```
 
 Before field motion, replace zero placeholders in `sensor_mounts.yaml`,
