@@ -22,11 +22,13 @@ LAUNCH = load_vehicle_launch()
 def context_with(**overrides):
     values = {
         "localization": "navsat",
+        "navigation_mode": "static",
         "vehicle_type": "differential",
         "controller": "dwb",
         "chassis_driver": "differential_can",
         "enable_can_output": "false",
         "enable_chassis_output": "false",
+        "map": "/tmp/real_map.yaml",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -72,3 +74,32 @@ def test_removed_simulated_driver_is_rejected():
     )
     with pytest.raises(RuntimeError, match="chassis_driver must be"):
         LAUNCH._validate_arguments(context)
+
+
+def test_local_navigation_accepts_fastlio_without_map():
+    context = context_with(
+        localization="fastlio",
+        navigation_mode="local",
+        vehicle_type="ackermann",
+        controller="mppi",
+        chassis_driver="ackermann_serial",
+        map="",
+    )
+    assert LAUNCH._validate_arguments(context) == []
+
+
+def test_local_navigation_rejects_navsat():
+    with pytest.raises(RuntimeError, match="requires localization:=fastlio"):
+        LAUNCH._validate_arguments(
+            context_with(localization="navsat", navigation_mode="local", map="")
+        )
+
+
+def test_static_navigation_requires_map():
+    with pytest.raises(RuntimeError, match="static navigation requires map"):
+        LAUNCH._validate_arguments(context_with(map=""))
+
+
+def test_unknown_navigation_mode_is_rejected():
+    with pytest.raises(RuntimeError, match="navigation_mode must be"):
+        LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))

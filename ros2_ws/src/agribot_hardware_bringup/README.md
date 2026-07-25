@@ -10,6 +10,7 @@ navigation selections:
 | Differential | DWB | FAST-LIO | `differential_dwb_fastlio.launch.py` |
 | Ackermann | MPPI | NavSat/KF-GINS | `ackermann_mppi_navsat.launch.py` |
 | Ackermann | MPPI | FAST-LIO | `ackermann_mppi_fastlio.launch.py` |
+| Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -28,7 +29,8 @@ The CAN status interface also uses the third-party `scout_msgs` package.
 
 No simulation map is bundled with the physical-vehicle package. Pass the
 absolute path to a map recorded on the target vehicle with `map:=/path/map.yaml`
-when launching any navigation entry point.
+when launching a static-map entry point. The FAST-LIO local entry point does
+not require a saved map.
 
 The installed executables are `differential_chassis_can_node` and
 `ackermann_chassis_can_node`; there is no mixed vehicle executable.
@@ -194,6 +196,18 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
   map:=/absolute/path/to/real_map.yaml
 ```
+
+For short-range navigation without a saved map, use the FAST-LIO rolling
+costmap entry point:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py
+```
+
+This mode plans in a `20 x 20 m` rolling `odom` window, uses `/scan` for both
+global and local obstacle layers, and caps MPPI at `0.30 m/s`. It is intended
+for immediate local goals. It does not provide persistent global coordinates
+or restart-time relocalization.
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 

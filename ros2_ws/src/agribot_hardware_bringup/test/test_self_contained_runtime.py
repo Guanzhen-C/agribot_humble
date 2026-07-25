@@ -57,6 +57,8 @@ def test_migrated_runtime_resources_exist_and_parse():
         "localization/fastlio/scripts/fastlio_odom_bridge.py",
         "ackermann/config/nav2_params_ackermann_navsat_static.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
+        "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
+        "rviz/navigation_local.rviz",
     )
     for relative_path in expected:
         assert (PACKAGE_ROOT / relative_path).is_file()

@@ -17,9 +17,11 @@ from launch_ros.actions import Node
 
 def _validate_arguments(context):
     localization = LaunchConfiguration("localization").perform(context)
+    navigation_mode = LaunchConfiguration("navigation_mode").perform(context)
     vehicle_type = LaunchConfiguration("vehicle_type").perform(context)
     controller = LaunchConfiguration("controller").perform(context)
     chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
+    map_path = LaunchConfiguration("map").perform(context)
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
@@ -27,6 +29,12 @@ def _validate_arguments(context):
 
     if localization not in ("navsat", "fastlio"):
         raise RuntimeError("localization must be 'navsat' or 'fastlio'")
+    if navigation_mode not in ("static", "local"):
+        raise RuntimeError("navigation_mode must be 'static' or 'local'")
+    if navigation_mode == "local" and localization != "fastlio":
+        raise RuntimeError("local navigation currently requires localization:=fastlio")
+    if navigation_mode == "static" and not map_path:
+        raise RuntimeError("static navigation requires map:=/absolute/path/to/map.yaml")
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
     if controller not in ("dwb", "mppi"):
@@ -194,6 +202,7 @@ def generate_launch_description():
                     "--child-frame-id",
                     "odom",
                 ],
+                condition=LaunchConfigurationEquals("navigation_mode", "static"),
             ),
         ],
         condition=LaunchConfigurationEquals("localization", "fastlio"),
@@ -298,6 +307,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("localization", default_value="navsat"),
+            DeclareLaunchArgument("navigation_mode", default_value="static"),
             DeclareLaunchArgument("vehicle_type", default_value="ackermann"),
             DeclareLaunchArgument("controller", default_value="mppi"),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
@@ -332,7 +342,17 @@ def generate_launch_description():
             DeclareLaunchArgument("map_to_odom_yaw", default_value="0.0"),
             DeclareLaunchArgument(
                 "map",
-                description="Absolute path to the real-vehicle Nav2 map YAML",
+                default_value="",
+                description=(
+                    "Absolute path to the real-vehicle Nav2 map YAML; "
+                    "unused when navigation_mode:=local"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value=os.path.join(
+                    hardware_share, "rviz", "navigation.rviz"
+                ),
             ),
             DeclareLaunchArgument(
                 "lidar_config",
@@ -446,6 +466,7 @@ def generate_launch_description():
                 parameters=[
                     {"use_sim_time": use_sim_time, "yaml_filename": LaunchConfiguration("map")}
                 ],
+                condition=LaunchConfigurationEquals("navigation_mode", "static"),
             ),
             Node(
                 package="nav2_lifecycle_manager",
@@ -456,6 +477,7 @@ def generate_launch_description():
                     {"use_sim_time": use_sim_time, "autostart": autostart},
                     {"node_names": ["map_server"]},
                 ],
+                condition=LaunchConfigurationEquals("navigation_mode", "static"),
             ),
             ackermann_navsat_navigation,
             ackermann_fastlio_navigation,
@@ -592,7 +614,7 @@ def generate_launch_description():
                 executable="rviz2",
                 arguments=[
                     "-d",
-                    os.path.join(hardware_share, "rviz", "navigation.rviz"),
+                    LaunchConfiguration("rviz_config"),
                 ],
                 output="screen",
                 condition=IfCondition(LaunchConfiguration("rviz")),

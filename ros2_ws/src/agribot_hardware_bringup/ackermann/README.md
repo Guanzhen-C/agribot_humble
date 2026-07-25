@@ -5,7 +5,8 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 - `src/` and `include/`: shared Ackermann kinematics plus CAN and USART3 codecs
 - `config/chassis_can.yaml`: wheelbase, steering limits, IDs and safety timing
 - `config/chassis_serial.yaml`: USART3 port, 115200 baud and safety timing
-- `launch/`: NavSat and FAST-LIO physical-vehicle entry points
+- `config/nav2_params_ackermann_fastlio_local.yaml`: mapless rolling costmaps
+- `launch/`: NavSat, static-map FAST-LIO and local FAST-LIO entry points
 - `test/`: captured-frame protocol and kinematics tests
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
@@ -27,6 +28,16 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
 
 Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. Do not run the standalone
 serial GUI while the ROS serial chassis node owns `/dev/wheeltec_controller`.
+For short-range FAST-LIO navigation without a saved map, use:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
+  enable_chassis_output:=true \
+  chassis_driver:=ackermann_serial
+```
+
+The local mode uses `odom`-frame rolling costmaps and C16 `/scan` obstacles,
+and caps MPPI at `0.30 m/s`. Goals must remain inside the rolling window.
 The original CAN backend remains available:
 
 ```bash
