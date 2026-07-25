@@ -67,6 +67,13 @@ def test_migrated_runtime_resources_exist_and_parse():
         element_tree.parse(path)
 
 
+def test_rviz_goal_tool_sends_nav2_action_directly():
+    for name in ("navigation.rviz", "navigation_local.rviz"):
+        config = (PACKAGE_ROOT / "rviz" / name).read_text()
+        assert "Class: nav2_rviz_plugins/GoalTool" in config
+        assert "Class: rviz_default_plugins/SetGoal" not in config
+
+
 def test_simulation_orchard_map_is_not_bundled_or_defaulted():
     assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.yaml").exists()
     assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.pgm").exists()

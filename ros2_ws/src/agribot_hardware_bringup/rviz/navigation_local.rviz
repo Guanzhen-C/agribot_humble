@@ -158,8 +158,7 @@ Visualization Manager:
     - Class: rviz_default_plugins/Measure
     - Class: rviz_default_plugins/SetInitialPose
       Topic: /initialpose
-    - Class: rviz_default_plugins/SetGoal
-      Topic: /goal_pose
+    - Class: nav2_rviz_plugins/GoalTool
     - Class: rviz_default_plugins/PublishPoint
       Topic: /clicked_point
   Views:
