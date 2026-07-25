@@ -100,3 +100,13 @@ def test_collision_monitor_parameters_match_launched_node_name():
     sources = config["vehicle_collision_monitor"]["ros__parameters"]
     assert sources["observation_sources"] == ["scan"]
     assert sources["scan"]["topic"] == "/scan"
+    assert sources["stop_zone"]["points"] == [
+        1.0,
+        0.45,
+        1.0,
+        -0.45,
+        -0.35,
+        -0.45,
+        -0.35,
+        0.45,
+    ]
