@@ -2,11 +2,11 @@
 # Convention: parent frame base_link, translation in meters, RPY in radians.
 imu:
   child_frame: imu_link
-  xyz: [0.0, 0.0, 0.0]
+  xyz: [0.1425, 0.0, 0.143]
   rpy: [0.0, 0.0, 0.0]
 lidar:
   child_frame: lidar_link
-  xyz: [0.0, 0.0, 0.0]
+  xyz: [0.48, 0.0, 0.233]
   rpy: [0.0, 0.0, 0.0]
 rtk:
   child_frame: rtk_link

@@ -9,6 +9,6 @@ fastlio_odom_bridge:
     publish_tf: true
     stamp_with_current_time: false
     is_simulation: false
-    # FAST-LIO body is the IMU frame. Measure base_link -> IMU before field use.
-    base_to_body_xyz: [0.0, 0.0, 0.0]
+    # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
+    base_to_body_xyz: [0.1425, 0.0, 0.143]
     base_to_body_rpy: [0.0, 0.0, 0.0]
