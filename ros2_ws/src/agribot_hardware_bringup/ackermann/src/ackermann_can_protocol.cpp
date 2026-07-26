@@ -144,4 +144,25 @@ Command fromTwist(
   return command;
 }
 
+double limitSteeringRate(
+  double target_angle_rad,
+  double previous_angle_rad,
+  double max_rate_rad_s,
+  double elapsed_sec)
+{
+  if (!std::isfinite(target_angle_rad) || !std::isfinite(previous_angle_rad)) {
+    throw std::invalid_argument("steering angles must be finite");
+  }
+  requirePositive(max_rate_rad_s, "max_rate_rad_s");
+  if (!std::isfinite(elapsed_sec) || elapsed_sec < 0.0) {
+    throw std::invalid_argument("elapsed_sec must be finite and non-negative");
+  }
+
+  const double max_delta = max_rate_rad_s * elapsed_sec;
+  return std::clamp(
+    target_angle_rad,
+    previous_angle_rad - max_delta,
+    previous_angle_rad + max_delta);
+}
+
 }  // namespace agribot_hardware_bringup::ackermann_can

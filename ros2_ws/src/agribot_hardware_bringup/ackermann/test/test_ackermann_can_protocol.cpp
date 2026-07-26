@@ -112,6 +112,28 @@ TEST(AckermannCanKinematics, RejectsInvalidConfiguration)
   EXPECT_THROW(ackermann::fromTwist(0.1, 0.0, config), std::invalid_argument);
 }
 
+TEST(AckermannCanKinematics, LimitsSteeringAngleChangePerCycle)
+{
+  EXPECT_NEAR(ackermann::limitSteeringRate(0.20, 0.0, 0.60, 0.05), 0.03, 1e-12);
+  EXPECT_NEAR(ackermann::limitSteeringRate(-0.20, 0.03, 0.60, 0.05), 0.0, 1e-12);
+  EXPECT_NEAR(ackermann::limitSteeringRate(0.02, 0.0, 0.60, 0.05), 0.02, 1e-12);
+  EXPECT_DOUBLE_EQ(ackermann::limitSteeringRate(0.20, 0.05, 0.60, 0.0), 0.05);
+}
+
+TEST(AckermannCanKinematics, RejectsInvalidSteeringRateInputs)
+{
+  EXPECT_THROW(
+    ackermann::limitSteeringRate(0.1, 0.0, 0.0, 0.05),
+    std::invalid_argument);
+  EXPECT_THROW(
+    ackermann::limitSteeringRate(
+      std::numeric_limits<double>::quiet_NaN(), 0.0, 0.60, 0.05),
+    std::invalid_argument);
+  EXPECT_THROW(
+    ackermann::limitSteeringRate(0.1, 0.0, 0.60, -0.05),
+    std::invalid_argument);
+}
+
 TEST(AckermannCanAdapter, ReassemblesTelemetryAndRejectsBadBcc)
 {
   rclcpp::init(0, nullptr);

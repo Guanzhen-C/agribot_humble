@@ -61,6 +61,12 @@ Command fromTwist(
   const Kinematics & config,
   bool brake = false);
 
+double limitSteeringRate(
+  double target_angle_rad,
+  double previous_angle_rad,
+  double max_rate_rad_s,
+  double elapsed_sec);
+
 }  // namespace agribot_hardware_bringup::ackermann_can
 
 #endif  // AGRIBOT_HARDWARE_BRINGUP__ACKERMANN_CAN_PROTOCOL_HPP_

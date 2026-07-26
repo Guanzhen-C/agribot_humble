@@ -112,6 +112,8 @@ public:
       declare_parameter<double>("max_angular_velocity", 0.65);
     kinematics_.minimum_motion_speed =
       declare_parameter<double>("minimum_motion_speed", 0.02);
+    max_steering_rate_rad_s_ =
+      declare_parameter<double>("max_steering_rate_rad_s", 0.60);
     validateParameters();
 
     command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
@@ -151,8 +153,10 @@ public:
     }
     RCLCPP_INFO(
       get_logger(),
-      "Ackermann serial chassis ready: port=%s baud=%d command=%s rate=%.1f Hz",
-      port_.c_str(), baud_rate_, command_topic_.c_str(), send_rate_hz_);
+      "Ackermann serial chassis ready: port=%s baud=%d command=%s rate=%.1f Hz "
+      "steering_rate=%.2f rad/s",
+      port_.c_str(), baud_rate_, command_topic_.c_str(), send_rate_hz_,
+      max_steering_rate_rad_s_);
   }
 
   ~AckermannSerialNode() override
@@ -176,6 +180,11 @@ private:
       feedback_timeout_sec_ <= 0.0 || reconnect_interval_sec_ <= 0.0)
     {
       throw std::invalid_argument("serial timing parameters must be positive");
+    }
+    if (!std::isfinite(max_steering_rate_rad_s_) ||
+      max_steering_rate_rad_s_ <= 0.0)
+    {
+      throw std::invalid_argument("max_steering_rate_rad_s must be positive");
     }
     (void)ackermann_can::fromTwist(0.0, 0.0, kinematics_, true);
   }
@@ -236,6 +245,8 @@ private:
     parser_.reset();
     feedback_received_ = false;
     last_odom_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+    last_steering_update_time_ = SteadyClock::time_point{};
+    sent_steering_angle_rad_ = 0.0;
     ++open_count_;
     publishEmergencyStop(true);
     RCLCPP_INFO(get_logger(), "Opened serial chassis %s at %d", port_.c_str(), baud_rate_);
@@ -249,6 +260,8 @@ private:
     }
     feedback_received_ = false;
     motion_command_active_ = false;
+    last_steering_update_time_ = SteadyClock::time_point{};
+    sent_steering_angle_rad_ = 0.0;
   }
 
   bool shouldReconnect(SteadyClock::time_point current_time) const
@@ -311,10 +324,34 @@ private:
       !require_feedback_before_motion_ || feedbackFresh(current_time);
     const bool motion_allowed = commandFresh(current_time) && feedback_ready;
     try {
-      const auto command = ackermann_can::fromTwist(
+      auto command = ackermann_can::fromTwist(
         latest_command_.linear.x, latest_command_.angular.z,
         kinematics_, !motion_allowed);
+      requested_steering_angle_rad_ = command.steering_angle_rad;
+      steering_rate_limited_ = false;
+      if (motion_allowed &&
+        std::abs(command.speed_mps) >= kinematics_.minimum_motion_speed)
+      {
+        double elapsed_sec = 1.0 / send_rate_hz_;
+        if (last_steering_update_time_ != SteadyClock::time_point{}) {
+          elapsed_sec =
+            std::chrono::duration<double>(
+            current_time - last_steering_update_time_).count();
+        }
+        command.steering_angle_rad = ackermann_can::limitSteeringRate(
+          command.steering_angle_rad,
+          sent_steering_angle_rad_,
+          max_steering_rate_rad_s_,
+          elapsed_sec);
+        steering_rate_limited_ =
+          std::abs(command.steering_angle_rad - requested_steering_angle_rad_) > 1e-9;
+        if (steering_rate_limited_) {
+          ++steering_rate_limit_count_;
+        }
+      }
       writeFrame(ackermann_serial::encodeCommand(command));
+      sent_steering_angle_rad_ = command.steering_angle_rad;
+      last_steering_update_time_ = current_time;
       motion_command_active_ =
         motion_allowed &&
         (std::abs(command.speed_mps) >= kinematics_.minimum_motion_speed);
@@ -475,6 +512,26 @@ private:
     status.values.push_back(keyValue("open_count", std::to_string(open_count_)));
     status.values.push_back(keyValue("read_errors", std::to_string(read_errors_)));
     status.values.push_back(keyValue("write_errors", std::to_string(write_errors_)));
+    status.values.push_back(
+      keyValue(
+        "max_steering_rate_rad_s",
+        std::to_string(max_steering_rate_rad_s_)));
+    status.values.push_back(
+      keyValue(
+        "requested_steering_angle_rad",
+        std::to_string(requested_steering_angle_rad_)));
+    status.values.push_back(
+      keyValue(
+        "sent_steering_angle_rad",
+        std::to_string(sent_steering_angle_rad_)));
+    status.values.push_back(
+      keyValue(
+        "steering_rate_limited",
+        steering_rate_limited_ ? "true" : "false"));
+    status.values.push_back(
+      keyValue(
+        "steering_rate_limit_count",
+        std::to_string(steering_rate_limit_count_)));
     array.status.push_back(std::move(status));
     diagnostics_publisher_->publish(array);
   }
@@ -511,6 +568,7 @@ private:
   double command_timeout_sec_{0.25};
   double feedback_timeout_sec_{0.6};
   double reconnect_interval_sec_{1.0};
+  double max_steering_rate_rad_s_{0.60};
   bool require_feedback_before_motion_{true};
   ackermann_can::Kinematics kinematics_;
 
@@ -521,17 +579,22 @@ private:
   uint64_t open_count_{0U};
   uint64_t read_errors_{0U};
   uint64_t write_errors_{0U};
+  uint64_t steering_rate_limit_count_{0U};
 
   std::mutex state_mutex_;
   geometry_msgs::msg::Twist latest_command_;
   SteadyClock::time_point last_command_time_{};
   SteadyClock::time_point last_feedback_time_{};
   SteadyClock::time_point last_open_attempt_{};
+  SteadyClock::time_point last_steering_update_time_{};
   rclcpp::Time last_odom_time_{0, 0, RCL_ROS_TIME};
   bool command_received_{false};
   bool feedback_received_{false};
   bool motion_command_active_{false};
+  bool steering_rate_limited_{false};
   bool stop_frames_sent_{false};
+  double requested_steering_angle_rad_{0.0};
+  double sent_steering_angle_rad_{0.0};
   double x_{0.0};
   double y_{0.0};
   double yaw_{0.0};

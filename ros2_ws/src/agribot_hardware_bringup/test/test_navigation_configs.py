@@ -98,10 +98,17 @@ def test_ackermann_fastlio_local_config_limits_steering_corrections():
     config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
     follow_path = config["controller_server"]["ros__parameters"]["FollowPath"]
 
-    assert follow_path["wz_std"] <= 0.15
+    assert follow_path["wz_std"] <= 0.10
     assert follow_path["wz_max"] <= 0.30
     assert follow_path["az_max"] <= 0.35
-    assert follow_path["PathAlignCritic"]["cost_weight"] <= 5.0
+    assert follow_path["PathAlignCritic"]["cost_weight"] <= 3.5
+
+
+def test_ackermann_serial_config_limits_steering_rate():
+    config = load_config("chassis_serial.yaml", "ackermann")["/**"]["ros__parameters"]
+
+    assert config["send_rate_hz"] == 20.0
+    assert config["max_steering_rate_rad_s"] == 0.60
 
 
 def test_ackermann_fastlio_local_inflation_covers_inscribed_radius():

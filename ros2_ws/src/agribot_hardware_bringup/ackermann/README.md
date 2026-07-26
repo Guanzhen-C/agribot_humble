@@ -13,6 +13,8 @@ Both chassis transports run at 20 Hz, require valid feedback before permitting
 motion, send an all-zero command after a command timeout, and send a stop burst
 during ROS shutdown. The serial transport is the default for the Ackermann
 launch files; select `chassis_driver:=ackermann_can` to use SocketCAN instead.
+The serial transport also limits commanded steering changes to `0.60 rad/s`;
+timeouts and stop commands bypass this limiter and stop immediately.
 
 Build and run the NavSat variant:
 

@@ -89,7 +89,7 @@ controller_server:
       batch_size: 2000
       vx_std: 0.15
       vy_std: 0.0
-      wz_std: 0.15
+      wz_std: 0.10
       vx_max: 0.30
       vx_min: 0.05
       vy_max: 0.0
@@ -143,7 +143,7 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
+        cost_weight: 3.5
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
