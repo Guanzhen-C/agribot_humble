@@ -87,18 +87,18 @@ controller_server:
       time_steps: 40
       model_dt: 0.1
       batch_size: 2000
-      vx_std: 0.25
+      vx_std: 0.15
       vy_std: 0.0
-      wz_std: 0.35
+      wz_std: 0.15
       vx_max: 0.30
       vx_min: 0.05
       vy_max: 0.0
-      wz_max: 0.65
-      ax_max: 1.5
-      ax_min: -1.5
+      wz_max: 0.30
+      ax_max: 0.8
+      ax_min: -0.8
       ay_min: 0.0
       ay_max: 0.0
-      az_max: 0.8
+      az_max: 0.35
       iteration_count: 1
       temperature: 0.3
       gamma: 0.015
@@ -143,7 +143,7 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 10.0
+        cost_weight: 5.0
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
@@ -158,7 +158,7 @@ controller_server:
       PathAngleCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 2.0
+        cost_weight: 3.0
         offset_from_furthest: 3
         threshold_to_consider: 0.5
         max_angle_to_furthest: 1.0
@@ -201,8 +201,8 @@ global_costmap:
           inf_is_valid: true
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.2
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.4
 
 local_costmap:
   local_costmap:
@@ -235,8 +235,8 @@ local_costmap:
           inf_is_valid: true
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.1
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.4
 
 map_server:
   ros__parameters:

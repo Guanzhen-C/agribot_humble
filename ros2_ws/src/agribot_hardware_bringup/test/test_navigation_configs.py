@@ -94,6 +94,24 @@ def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
     assert config["behavior_server"]["ros__parameters"]["global_frame"] == "odom"
 
 
+def test_ackermann_fastlio_local_config_limits_steering_corrections():
+    config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
+    follow_path = config["controller_server"]["ros__parameters"]["FollowPath"]
+
+    assert follow_path["wz_std"] <= 0.15
+    assert follow_path["wz_max"] <= 0.30
+    assert follow_path["az_max"] <= 0.35
+    assert follow_path["PathAlignCritic"]["cost_weight"] <= 5.0
+
+
+def test_ackermann_fastlio_local_inflation_covers_inscribed_radius():
+    config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
+
+    for costmap_name in ("global_costmap", "local_costmap"):
+        costmap = config[costmap_name][costmap_name]["ros__parameters"]
+        assert costmap["inflation_layer"]["inflation_radius"] >= 0.36
+
+
 def test_collision_monitor_parameters_match_launched_node_name():
     config = load_config("collision_monitor.yaml")
     assert "vehicle_collision_monitor" in config
@@ -101,12 +119,15 @@ def test_collision_monitor_parameters_match_launched_node_name():
     assert sources["observation_sources"] == ["scan"]
     assert sources["scan"]["topic"] == "/scan"
     assert sources["stop_zone"]["points"] == [
-        1.0,
-        0.45,
-        1.0,
-        -0.45,
-        -0.35,
-        -0.45,
-        -0.35,
-        0.45,
+        0.95,
+        0.38,
+        0.95,
+        -0.38,
+        0.55,
+        -0.38,
+        0.55,
+        0.38,
     ]
+    assert sources["stop_zone"]["max_points"] == 12
+    assert sources["slowdown_zone"]["max_points"] == 20
+    assert sources["slowdown_zone"]["slowdown_ratio"] == 0.75

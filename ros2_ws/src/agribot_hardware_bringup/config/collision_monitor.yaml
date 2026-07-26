@@ -12,18 +12,18 @@ vehicle_collision_monitor:
     polygons: [stop_zone, slowdown_zone]
     stop_zone:
       type: polygon
-      points: [1.0, 0.45, 1.0, -0.45, -0.35, -0.45, -0.35, 0.45]
+      points: [0.95, 0.38, 0.95, -0.38, 0.55, -0.38, 0.55, 0.38]
       action_type: stop
-      max_points: 3
+      max_points: 12
       visualize: true
       polygon_pub_topic: /collision_monitor/stop_zone
       enabled: true
     slowdown_zone:
       type: polygon
-      points: [1.8, 0.9, 1.8, -0.9, -0.4, -0.9, -0.4, 0.9]
+      points: [1.45, 0.4, 1.45, -0.4, 0.55, -0.4, 0.55, 0.4]
       action_type: slowdown
-      max_points: 3
-      slowdown_ratio: 0.45
+      max_points: 20
+      slowdown_ratio: 0.75
       visualize: true
       polygon_pub_topic: /collision_monitor/slowdown_zone
       enabled: true
