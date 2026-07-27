@@ -1,0 +1,149 @@
+# ROS 2 build (required before launch)
+cd /home/cgz/agribot_ws/ros2_ws
+./build_ros2_humble.sh
+source ./setup_ros2_humble.sh
+
+# Optional: set CPU to performance mode before launch
+sudo bash -lc '
+for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+  [ -f "$f" ] && printf performance > "$f"
+done
+for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+  [ -f "$f" ] && printf performance > "$f"
+done
+printf 100 > /sys/devices/system/cpu/intel_pstate/min_perf_pct
+printf 100 > /sys/devices/system/cpu/intel_pstate/max_perf_pct
+printf 1 > /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
+'
+
+# Recommended on this machine: headless collection, no Gazebo GUI, no RViz
+
+# Close all related simulation/navigation processes before a clean restart
+pkill -f orchard_waypoint_depth_collect_sim.launch.py || true
+pkill -f orchard_waypoint_coverage_sim.launch.py || true
+pkill -f ackermann_waypoint_depth_collect_sim.launch.py || true
+pkill -f fast_lio_sim.launch.py || true
+pkill -f fast_livo2_sim.launch.py || true
+pkill -f fastlio_mapping || true
+pkill -f fastlivo_mapping || true
+pkill -f fastlio_odom_bridge.py || true
+pkill -f imu_frame_bridge.py || true
+pkill -f kiss_localization.py || true
+pkill -f ground_truth_localization.py || true
+pkill -f navsat_to_local_odom.py || true
+pkill -f snake_waypoint_runner.py || true
+pkill -f planner_server || true
+pkill -f controller_server || true
+pkill -f bt_navigator || true
+pkill -f waypoint_follower || true
+pkill -f behavior_server || true
+pkill -f map_server || true
+pkill -f lifecycle_manager || true
+pkill -f robot_state_publisher || true
+pkill -f cmd_vel_mux.py || true
+pkill -f simulated_joint_state_publisher.py || true
+pkill -f rviz2 || true
+pkill -f gzserver || true
+pkill -f gzclient || true
+sleep 2
+source /opt/ros/humble/setup.bash
+ros2 daemon stop || true
+ros2 daemon start || true
+
+# The simulations below publish /scan from the C16-style 3D cloud's horizontal ring 8; no separate 2D lidar is used.
+
+# ROS 2 static map + ground truth (most stable)
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=ground_truth enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+# ROS 2 static map + AMCL
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=amcl enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+# ROS 2 static map + navsat
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=navsat enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+# ROS 2 static map + RTK absolute pose + KF-GINS ESKF
+# pose_message_type supports: odometry | pose_with_covariance | pose_stamped | noah_gnss
+# If your RTK driver publishes noah_msgs/msg/GNSSValue, set:
+#   navsat_pose_message_type:=noah_gnss
+#   navsat_auto_reference_from_first_noah_gnss:=true
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=navsat enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+# Optional: RViz-only monitoring for ground truth
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=false rviz:=true use_static_map:=true localization_mode:=ground_truth enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+# ROS 2 static map + fast_lio
+# Use this as the only FAST-LIO navigation entrypoint.
+# Do not start agribot_autonomy/fast_lio_sim.launch.py separately at the same time.
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=fast_lio enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
+
+
+
+# Ackermann local simulation + RPP + navsat/ESKF localization
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=false use_static_map:=true \
+  localization_mode:=navsat enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# Ackermann local simulation + RPP + Fast-LIO localization
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=true headless:=false rviz:=true use_static_map:=true \
+  localization_mode:=fast_lio enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# Ackermann local simulation + MPPI + navsat/ESKF localization
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=false use_static_map:=true \
+  localization_mode:=navsat enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# Ackermann local simulation + MPPI + Fast-LIO localization
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=true headless:=false rviz:=true use_static_map:=true \
+  localization_mode:=fast_lio enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# Ackermann local simulation + MPPI + FAST-LIVO2 localization
+# FAST-LIVO2 consumes the simulated C16 cloud, IMU, and RGB camera.
+# Keep Gazebo rendering enabled for the camera, while hiding the Gazebo GUI.
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=false rviz:=true use_static_map:=true \
+  localization_mode:=fast_livo2 enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml

@@ -20,6 +20,8 @@
   <depend>tf2_ros</depend>
 
   <exec_depend>fast_lio</exec_depend>
+  <exec_depend>fast_livo</exec_depend>
+  <exec_depend>demo_nodes_cpp</exec_depend>
   <exec_depend>nav2_amcl</exec_depend>
   <exec_depend>nav2_behaviors</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>

@@ -98,6 +98,20 @@
     <child link="imu_link" />
   </joint>
 
+  <link name="camera_realsense"/>
+  <joint name="camera_realsense_joint" type="fixed">
+    <origin xyz="0.025 0 0.42" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="camera_realsense" />
+  </joint>
+
+  <link name="camera_realsense_gazebo"/>
+  <joint name="camera_realsense_gazebo_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+    <parent link="camera_realsense" />
+    <child link="camera_realsense_gazebo" />
+  </joint>
+
   <xacro:ackermann_wheel_link wheel_prefix="front_left" is_right="false" />
   <xacro:ackermann_wheel_link wheel_prefix="front_right" is_right="true" />
   <xacro:ackermann_wheel_link wheel_prefix="rear_left" is_right="false" />
@@ -230,6 +244,8 @@
   <xacro:disable_gravity ref="vlp16_mount_right_support" />
   <xacro:disable_gravity ref="vlp16_base_link" />
   <xacro:disable_gravity ref="vlp16" />
+  <xacro:disable_gravity ref="camera_realsense" />
+  <xacro:disable_gravity ref="camera_realsense_gazebo" />
 
   <gazebo reference="front_left_wheel_link">
     <mu1>1.8</mu1>
