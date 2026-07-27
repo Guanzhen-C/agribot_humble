@@ -1,0 +1,105 @@
+# Local + board manual run commands
+
+# Board SSH
+ssh sunrise@192.168.137.64
+
+# ====================
+# Stop all processes
+# ====================
+
+# Local: clear current HIL simulation/navigation processes
+pkill -f 'orchard_waypoint_depth_collect_sim.launch.py|scout_orchard_world.launch.py|gzserver|gzclient|rviz2|snake_waypoint_runner|controller_server|planner_server|bt_navigator|waypoint_follower|kiss_localization|localization_ready_gate|fastlio_localization|nav2_map_server|demo_nodes_cpp|listener' || true
+
+# Optional: kill known stale local launch processes by PID if they still exist
+kill 148689 148674 || true
+
+# Refresh the local ROS 2 daemon cache
+source /opt/ros/humble/setup.bash >/dev/null 2>&1 && ros2 daemon stop || true
+
+# Board: clear current HIL remote-nav processes through SSH
+sshpass -p sunrise ssh -o StrictHostKeyChecking=no sunrise@192.168.137.64 "pkill -f 'rdk_x3_remote_nav.launch.py|snake_waypoint_runner|controller_server|planner_server|bt_navigator|waypoint_follower|kiss_localization|localization_ready_gate|fastlio_localization|demo_nodes_cpp|listener' || true"
+
+# Refresh the board ROS 2 daemon cache
+sshpass -p sunrise ssh -o StrictHostKeyChecking=no sunrise@192.168.137.64 'bash -lc "source /opt/ros/humble/setup.bash >/dev/null 2>&1 && ros2 daemon stop || true"'
+
+
+# ====================
+# NAVSAT
+# ====================
+
+# Local terminal: start Gazebo/RViz environment only
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>enx207bd2b013d1</NetworkInterfaceAddress></General></Domain></CycloneDDS>'
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=navsat enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml offboard_algorithm:=true
+
+# Board terminal: start remote algorithm (run via SSH or directly on board)
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+source /opt/ros/humble/setup.bash
+source /home/sunrise/rdk_x3_ws/install/setup.bash
+ros2 launch agribot_autonomy rdk_x3_remote_nav.launch.py localization_mode:=navsat use_sim_time:=true enable_waypoint_runner:=true waypoint_runner_startup_delay:=8.0 nav_startup_delay:=15.0 lidar_frame:=vlp16
+
+
+# ====================
+# FAST_LIO
+# ====================
+
+# Local terminal: start Gazebo/RViz environment only
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>enx207bd2b013d1</NetworkInterfaceAddress></General></Domain></CycloneDDS>'
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=fast_lio enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml offboard_algorithm:=true
+
+# Board terminal: start remote algorithm
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+source /opt/ros/humble/setup.bash
+source /home/sunrise/rdk_x3_ws/install/setup.bash
+ros2 launch agribot_autonomy rdk_x3_remote_nav.launch.py localization_mode:=fast_lio use_sim_time:=true enable_waypoint_runner:=true waypoint_runner_startup_delay:=8.0 nav_startup_delay:=15.0 lidar_frame:=vlp16
+
+
+# ====================
+# REAL_NAVSAT
+# ====================
+
+# Board terminal: start real-vehicle navsat algorithm
+cd /home/sunrise/rdk_x3_ws
+source /opt/ros/humble/setup.bash
+source /home/sunrise/rdk_x3_ws/install/setup.bash
+ros2 launch agribot_autonomy rdk_x3_remote_nav.launch.py localization_mode:=navsat use_sim_time:=false enable_waypoint_runner:=true waypoint_runner_startup_delay:=8.0
+
+# Local test terminal: replay recorded real-vehicle bag to verify board-side navsat input chain
+cd /home/cgz
+source /opt/ros/humble/setup.bash
+ros2 bag play /home/cgz/rosbag2_2026_04_30-10_44_41
+
+
+# ====================
+# REAL_FAST_LIO
+# ====================
+
+# Board terminal: start real-vehicle fast-lio algorithm
+cd /home/sunrise/rdk_x3_ws
+source /opt/ros/humble/setup.bash
+source /home/sunrise/rdk_x3_ws/install/setup.bash
+ros2 launch agribot_autonomy rdk_x3_remote_nav.launch.py localization_mode:=fast_lio use_sim_time:=false enable_waypoint_runner:=true waypoint_runner_startup_delay:=8.0
+
+# Local test terminal: replay recorded real-vehicle bag to verify board-side fast-lio input chain
+cd /home/cgz
+source /opt/ros/humble/setup.bash
+ros2 bag play /home/cgz/rosbag2_2026_04_30-10_44_41
+
+
+# ====================
+# Optional checks
+# ====================
+
+# Local: confirm navsat pose topic
+ros2 topic echo /navsat_pose
+
+# Local: confirm velocity command returned by board
+ros2 topic echo /cmd_vel
+
+# Local: confirm simulated vehicle is actually moving
+ros2 topic echo /base_pose_ground_truth
