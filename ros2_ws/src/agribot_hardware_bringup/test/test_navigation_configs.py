@@ -75,6 +75,24 @@ def test_ackermann_configs_use_horizontal_scan_for_obstacles():
         assert obstacle_layer["scan"]["data_type"] == "LaserScan"
 
 
+def test_ackermann_configs_use_measured_rear_axle_footprint():
+    expected = [
+        [0.66, 0.33],
+        [0.66, -0.33],
+        [-0.12, -0.33],
+        [-0.12, 0.33],
+    ]
+    for name in (
+        "nav2_params_ackermann_navsat_static.yaml",
+        "nav2_params_ackermann_fastlio_static.yaml",
+        "nav2_params_ackermann_fastlio_local.yaml",
+    ):
+        config = load_config(name, "ackermann")
+        for costmap_name in ("global_costmap", "local_costmap"):
+            costmap = config[costmap_name][costmap_name]["ros__parameters"]
+            assert yaml.safe_load(costmap["footprint"]) == expected
+
+
 def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
     config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
 
@@ -126,15 +144,25 @@ def test_collision_monitor_parameters_match_launched_node_name():
     assert sources["observation_sources"] == ["scan"]
     assert sources["scan"]["topic"] == "/scan"
     assert sources["stop_zone"]["points"] == [
-        0.95,
-        0.38,
-        0.95,
-        -0.38,
-        0.55,
-        -0.38,
-        0.55,
-        0.38,
+        1.06,
+        0.36,
+        1.06,
+        -0.36,
+        0.66,
+        -0.36,
+        0.66,
+        0.36,
     ]
     assert sources["stop_zone"]["max_points"] == 12
+    assert sources["slowdown_zone"]["points"] == [
+        1.56,
+        0.38,
+        1.56,
+        -0.38,
+        0.66,
+        -0.38,
+        0.66,
+        0.38,
+    ]
     assert sources["slowdown_zone"]["max_points"] == 20
     assert sources["slowdown_zone"]["slowdown_ratio"] == 0.75
