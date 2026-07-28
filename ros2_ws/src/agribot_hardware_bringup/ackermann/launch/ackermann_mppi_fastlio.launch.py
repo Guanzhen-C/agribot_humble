@@ -27,7 +27,11 @@ def generate_launch_description():
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_serial"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
             DeclareLaunchArgument(
-                "serial_port", default_value="/dev/wheeltec_controller"
+                "serial_port",
+                default_value=(
+                    "/dev/serial/by-id/"
+                    "usb-1a86_USB_Single_Serial_5C2C079857-if00"
+                ),
             ),
             DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"

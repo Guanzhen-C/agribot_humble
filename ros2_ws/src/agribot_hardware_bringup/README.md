@@ -177,7 +177,9 @@ XOR of bytes 0 through 21. It reports X/Y velocity and Z yaw rate at `0.001`
 units, raw chassis IMU values, and battery voltage at `0.001 V`. The driver
 publishes wheel odometry only after the complete packet passes its BCC check.
 
-The serial backend opens `/dev/wheeltec_controller` exclusively at 115200 baud.
+The serial backend opens
+`/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00` exclusively at
+115200 baud.
 Its 11-byte command starts with `0x7b`, contains forward speed, zero lateral
 speed and front steering angle as signed big-endian values at `0.001` units,
 then an XOR byte and `0x7d`. It receives the same 24-byte telemetry packet

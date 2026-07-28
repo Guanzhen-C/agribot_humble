@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
-    port: /dev/wheeltec_controller
+    port: /dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
     baud_rate: 115200
     command_topic: /hardware/cmd_vel
     odom_topic: /wheel/odometry

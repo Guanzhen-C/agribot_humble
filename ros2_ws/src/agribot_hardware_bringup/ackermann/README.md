@@ -25,11 +25,11 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_serial \
-  serial_port:=/dev/wheeltec_controller
+  serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
 ```
 
 Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. Do not run the standalone
-serial GUI while the ROS serial chassis node owns `/dev/wheeltec_controller`.
+serial GUI while the ROS serial chassis node owns the chassis USB serial port.
 For short-range FAST-LIO navigation without a saved map, use:
 
 ```bash

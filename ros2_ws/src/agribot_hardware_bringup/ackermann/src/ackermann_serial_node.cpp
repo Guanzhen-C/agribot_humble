@@ -85,7 +85,8 @@ public:
   AckermannSerialNode()
   : Node("ackermann_chassis_serial")
   {
-    port_ = declare_parameter<std::string>("port", "/dev/wheeltec_controller");
+    port_ = declare_parameter<std::string>(
+      "port", "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00");
     baud_rate_ = declare_parameter<int>("baud_rate", 115200);
     command_topic_ = declare_parameter<std::string>("command_topic", "/hardware/cmd_vel");
     odom_topic_ = declare_parameter<std::string>("odom_topic", "/wheel/odometry");
