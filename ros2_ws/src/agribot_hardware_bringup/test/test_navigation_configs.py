@@ -129,12 +129,12 @@ def test_ackermann_serial_config_limits_steering_rate():
     assert config["max_steering_rate_rad_s"] == 0.60
 
 
-def test_ackermann_fastlio_local_inflation_covers_inscribed_radius():
+def test_ackermann_fastlio_local_uses_requested_inflation_radius():
     config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
 
     for costmap_name in ("global_costmap", "local_costmap"):
         costmap = config[costmap_name][costmap_name]["ros__parameters"]
-        assert costmap["inflation_layer"]["inflation_radius"] >= 0.36
+        assert costmap["inflation_layer"]["inflation_radius"] == 0.2
 
 
 def test_collision_monitor_parameters_match_launched_node_name():
