@@ -107,22 +107,27 @@ def generate_launch_description():
     enable_chassis_output = LaunchConfiguration("enable_chassis_output")
     chassis_driver = LaunchConfiguration("chassis_driver")
 
-    sensors = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(hardware_share, "launch", "sensors.launch.py")
-        ),
-        launch_arguments={
-            "start_lidar": "true",
-            "start_imu": "true",
-            "start_rtk": LaunchConfiguration("start_rtk"),
-            "rviz": "false",
-            "lidar_config": LaunchConfiguration("lidar_config"),
-            "imu_config": LaunchConfiguration("imu_config"),
-            "rtk_config": LaunchConfiguration("rtk_config"),
-            "mount_config": LaunchConfiguration("mount_config"),
-            "enable_ntrip": LaunchConfiguration("enable_ntrip"),
-        }.items(),
-        condition=IfCondition(LaunchConfiguration("start_sensors")),
+    sensors = GroupAction(
+        scoped=True,
+        actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(hardware_share, "launch", "sensors.launch.py")
+                ),
+                launch_arguments={
+                    "start_lidar": "true",
+                    "start_imu": "true",
+                    "start_rtk": LaunchConfiguration("start_rtk"),
+                    "rviz": "false",
+                    "lidar_config": LaunchConfiguration("lidar_config"),
+                    "imu_config": LaunchConfiguration("imu_config"),
+                    "rtk_config": LaunchConfiguration("rtk_config"),
+                    "mount_config": LaunchConfiguration("mount_config"),
+                    "enable_ntrip": LaunchConfiguration("enable_ntrip"),
+                }.items(),
+                condition=IfCondition(LaunchConfiguration("start_sensors")),
+            )
+        ],
     )
 
     navsat_localization = GroupAction(

@@ -116,3 +116,11 @@ def test_chassis_uses_collision_monitor_output_without_manual_gate():
         '                                    "command_input_topic"\n'
         "                                ),"
     ) == 3
+
+
+def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():
+    source = VEHICLE_LAUNCH_PATH.read_text()
+    sensor_block = source[source.index("    sensors = GroupAction("):]
+    sensor_block = sensor_block[:sensor_block.index("    navsat_localization")]
+    assert "scoped=True" in sensor_block
+    assert '"rviz": "false"' in sensor_block
