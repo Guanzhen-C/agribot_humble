@@ -154,6 +154,13 @@ def test_ackermann_serial_config_limits_steering_rate():
     assert config["max_steering_rate_rad_s"] == 0.60
 
 
+def test_ackermann_can_does_not_require_legacy_three_frame_feedback():
+    config = load_config("chassis_can.yaml", "ackermann")["/**"]["ros__parameters"]
+
+    assert config["require_feedback_before_motion"] is False
+    assert config["command_timeout_sec"] == 0.25
+
+
 def test_ackermann_fastlio_local_uses_requested_inflation_radius():
     config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
 

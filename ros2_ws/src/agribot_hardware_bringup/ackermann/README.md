@@ -9,12 +9,14 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 - `launch/`: NavSat, static-map FAST-LIO and local FAST-LIO entry points
 - `test/`: captured-frame protocol and kinematics tests
 
-Both chassis transports run at 20 Hz, require valid feedback before permitting
-motion, send an all-zero command after a command timeout, and send a stop burst
-during ROS shutdown. SocketCAN is the default for the Ackermann launch files;
-select `chassis_driver:=ackermann_serial` only when using the serial fallback.
-The serial transport also limits commanded steering changes to `0.60 rad/s`;
-timeouts and stop commands bypass this limiter and stop immediately.
+Both chassis transports run at 20 Hz, send an all-zero command after a command
+timeout, and send a stop burst during ROS shutdown. The CAN transport does not
+gate motion on the legacy `0x101`/`0x102`/`0x103` packet because the currently
+connected controller publishes `0x182` instead. SocketCAN is the default for
+the Ackermann launch files; select `chassis_driver:=ackermann_serial` only when
+using the serial fallback. The serial transport also limits commanded steering
+changes to `0.60 rad/s`; timeouts and stop commands bypass this limiter and stop
+immediately.
 
 Build and run the NavSat variant:
 
