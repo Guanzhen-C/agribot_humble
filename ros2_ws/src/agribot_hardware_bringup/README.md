@@ -210,6 +210,10 @@ the `zqwl_cdc` transport and this stable USB device path:
 The driver configures channel 0 for classic CAN at 1 Mbit/s. Native SocketCAN
 remains available through `can_transport:=socketcan can_interface:=can0`, and
 the chassis serial fallback through `chassis_driver:=ackermann_serial`.
+Every ZQWL open performs one deterministic channel initialization: send STOP,
+wait 100 ms, discard stale adapter input, then send the verified START
+configuration. This clears a channel state left active or bus-off by an
+earlier process. Motion remains inhibited until fresh chassis feedback arrives.
 
 For short-range navigation without a saved map, use the FAST-LIO rolling
 costmap entry point:

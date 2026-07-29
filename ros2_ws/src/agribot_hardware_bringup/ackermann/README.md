@@ -14,6 +14,9 @@ motion, send an all-zero command after a command timeout, and send a stop burst
 during ROS shutdown. The Ackermann CAN launch files default to the ZQWL-CANFD
 USB CDC bridge on channel 0 at 1 Mbit/s. Native SocketCAN and the chassis
 USART3 connection remain available as explicit fallbacks.
+Every ZQWL open performs one STOP, waits 100 ms, clears stale input and then
+sends START. This resets a stale channel once at startup; motion remains
+blocked until fresh `0x101`, `0x102` and `0x103` feedback has been received.
 The serial transport also limits commanded steering changes to `0.60 rad/s`;
 timeouts and stop commands bypass this limiter and stop immediately.
 

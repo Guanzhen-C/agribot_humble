@@ -17,6 +17,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <system_error>
+#include <thread>
 #include <unordered_set>
 #include <utility>
 
@@ -187,8 +188,17 @@ public:
       if (tcflush(serial_fd_, TCIOFLUSH) < 0) {
         throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC)");
       }
-      const auto packet = zqwl_cdc::makeStartPacket(channel_, bitrate);
-      writePacket(packet.data(), packet.size());
+
+      // Normalize a channel left active or bus-off by an earlier process before
+      // applying the verified channel-0, 1-Mbit/s configuration.
+      const auto stop_packet = zqwl_cdc::makeStopPacket();
+      writePacket(stop_packet.data(), stop_packet.size());
+      std::this_thread::sleep_for(100ms);
+      if (tcflush(serial_fd_, TCIFLUSH) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC input)");
+      }
+      const auto start_packet = zqwl_cdc::makeStartPacket(channel_, bitrate);
+      writePacket(start_packet.data(), start_packet.size());
     } catch (...) {
       close(serial_fd_);
       serial_fd_ = -1;
