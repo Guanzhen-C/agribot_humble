@@ -31,7 +31,10 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "command_input_topic", default_value="/nav2/cmd_vel_safe"
+                "command_input_topic", default_value="/nav2/cmd_vel"
+            ),
+            DeclareLaunchArgument(
+                "enable_collision_monitor", default_value="false"
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -68,6 +71,9 @@ def generate_launch_description():
                     "can_interface": LaunchConfiguration("can_interface"),
                     "serial_port": LaunchConfiguration("serial_port"),
                     "command_input_topic": LaunchConfiguration("command_input_topic"),
+                    "enable_collision_monitor": LaunchConfiguration(
+                        "enable_collision_monitor"
+                    ),
                 }.items(),
             ),
         ]

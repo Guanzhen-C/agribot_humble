@@ -126,6 +126,20 @@ def test_chassis_uses_collision_monitor_output_without_manual_gate():
     ) == 3
 
 
+def test_fastlio_local_ackermann_uses_mppi_command_directly():
+    source = ACKERMANN_LAUNCH_PATHS[2].read_text()
+    assert (
+        'DeclareLaunchArgument(\n'
+        '                "command_input_topic", default_value="/nav2/cmd_vel"\n'
+        "            )"
+    ) in source
+    assert (
+        'DeclareLaunchArgument(\n'
+        '                "enable_collision_monitor", default_value="false"\n'
+        "            )"
+    ) in source
+
+
 def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():
     source = VEHICLE_LAUNCH_PATH.read_text()
     sensor_block = source[source.index("    sensors = GroupAction("):]

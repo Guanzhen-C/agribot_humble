@@ -343,6 +343,9 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "command_input_topic", default_value="/nav2/cmd_vel_safe"
             ),
+            DeclareLaunchArgument(
+                "enable_collision_monitor", default_value="true"
+            ),
             DeclareLaunchArgument("map_to_odom_x", default_value="0.0"),
             DeclareLaunchArgument("map_to_odom_y", default_value="0.0"),
             DeclareLaunchArgument("map_to_odom_z", default_value="0.0"),
@@ -495,6 +498,9 @@ def generate_launch_description():
                     os.path.join(hardware_share, "config", "collision_monitor.yaml"),
                     {"use_sim_time": use_sim_time},
                 ],
+                condition=IfCondition(
+                    LaunchConfiguration("enable_collision_monitor")
+                ),
             ),
             Node(
                 package="nav2_lifecycle_manager",
@@ -505,6 +511,9 @@ def generate_launch_description():
                     {"use_sim_time": use_sim_time, "autostart": autostart},
                     {"node_names": ["vehicle_collision_monitor"]},
                 ],
+                condition=IfCondition(
+                    LaunchConfiguration("enable_collision_monitor")
+                ),
             ),
             GroupAction(
                 actions=[
