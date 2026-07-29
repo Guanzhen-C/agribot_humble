@@ -11,8 +11,8 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
 motion, send an all-zero command after a command timeout, and send a stop burst
-during ROS shutdown. The serial transport is the default for the Ackermann
-launch files; select `chassis_driver:=ackermann_can` to use SocketCAN instead.
+during ROS shutdown. SocketCAN is the default for the Ackermann launch files;
+select `chassis_driver:=ackermann_serial` only when using the serial fallback.
 The serial transport also limits commanded steering changes to `0.60 rad/s`;
 timeouts and stop commands bypass this limiter and stop immediately.
 
@@ -24,30 +24,30 @@ source install/setup.bash
 ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml \
   enable_chassis_output:=true \
-  chassis_driver:=ackermann_serial \
-  serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
+  chassis_driver:=ackermann_can \
+  can_interface:=can0
 ```
 
-Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. Do not run the standalone
-serial GUI while the ROS serial chassis node owns the chassis USB serial port.
-For short-range FAST-LIO navigation without a saved map, use:
+Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. For short-range FAST-LIO
+navigation without a saved map, use:
 
 ```bash
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   enable_chassis_output:=true \
-  chassis_driver:=ackermann_serial
+  chassis_driver:=ackermann_can \
+  can_interface:=can0
 ```
 
 The local mode uses `odom`-frame rolling costmaps and C16 `/scan` obstacles,
 and caps MPPI at `0.30 m/s`. Goals must remain inside the rolling window.
-The original CAN backend remains available:
+The serial fallback remains available. Do not run the standalone serial GUI
+while the ROS serial chassis node owns the chassis USB serial port:
 
 ```bash
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
-  map:=/absolute/path/to/real_map.yaml \
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   enable_chassis_output:=true \
-  chassis_driver:=ackermann_can \
-  can_interface:=can0
+  chassis_driver:=ackermann_serial \
+  serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
 ```
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and

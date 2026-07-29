@@ -148,7 +148,7 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Physical Ackermann vehicle: run FAST-LIO, Nav2, and the serial chassis on RDK X5
+# Physical Ackermann vehicle: run FAST-LIO, Nav2, and the CAN chassis on RDK X5
 # Terminal 1 on the Jetson:
 ssh sunrise@192.168.100.125
 source /opt/ros/humble/setup.bash
@@ -158,8 +158,8 @@ export ROS_LOCALHOST_ONLY=0
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   rviz:=false \
   enable_chassis_output:=true \
-  chassis_driver:=ackermann_serial \
-  serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
+  chassis_driver:=ackermann_can \
+  can_interface:=can0
 
 # Physical Ackermann vehicle: display the RDK topics in RViz on the Jetson
 # Terminal 2 on the Jetson:
@@ -182,7 +182,7 @@ export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   rviz:=true \
   enable_chassis_output:=true \
-  chassis_driver:=ackermann_serial \
-  serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
+  chassis_driver:=ackermann_can \
+  can_interface:=can0
 
 # Stop the physical vehicle stack with Ctrl+C in terminal 1 first, then close RViz.

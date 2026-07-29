@@ -7,6 +7,14 @@ from launch import LaunchContext
 
 PACKAGE_ROOT = Path(__file__).parents[1]
 VEHICLE_LAUNCH_PATH = PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py"
+ACKERMANN_LAUNCH_PATHS = (
+    PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_navsat.launch.py",
+    PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_fastlio.launch.py",
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_mppi_fastlio_local.launch.py",
+)
 
 
 def load_vehicle_launch():
@@ -124,3 +132,13 @@ def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():
     sensor_block = sensor_block[:sensor_block.index("    navsat_localization")]
     assert "scoped=True" in sensor_block
     assert '"rviz": "false"' in sensor_block
+
+
+def test_ackermann_entry_points_default_to_verified_can_transport():
+    for launch_path in ACKERMANN_LAUNCH_PATHS:
+        source = launch_path.read_text()
+        assert (
+            'DeclareLaunchArgument("chassis_driver", '
+            'default_value="ackermann_can")'
+        ) in source
+        assert 'DeclareLaunchArgument("can_interface", default_value="can0")' in source

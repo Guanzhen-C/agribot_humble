@@ -200,6 +200,10 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
   map:=/absolute/path/to/real_map.yaml
 ```
 
+These Ackermann entry points use the verified `can0` SocketCAN backend by
+default. The serial backend remains available through
+`chassis_driver:=ackermann_serial`.
+
 For short-range navigation without a saved map, use the FAST-LIO rolling
 costmap entry point:
 
