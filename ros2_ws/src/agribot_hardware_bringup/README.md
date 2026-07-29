@@ -175,10 +175,6 @@ The assembled packet starts with `0x7b`, ends with `0x7d`, and byte 22 is the
 XOR of bytes 0 through 21. It reports X/Y velocity and Z yaw rate at `0.001`
 units, raw chassis IMU values, and battery voltage at `0.001 V`. The driver
 publishes wheel odometry only after the complete packet passes its BCC check.
-The currently connected controller publishes `0x182` instead of these legacy
-three feedback frames. Therefore the Ackermann CAN configuration does not gate
-motion on `0x101`/`0x102`/`0x103`; FAST-LIO provides navigation odometry, while
-the CAN command timeout still sends a zero frame after 0.25 seconds.
 
 The serial backend opens
 `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00` exclusively at
