@@ -250,8 +250,9 @@ planner_server:
     planner_plugins: [GridBased]
     GridBased:
       plugin: nav2_smac_planner/SmacPlannerHybrid
-      downsample_costmap: true
-      downsampling_factor: 2
+      # Humble's downsampler does not follow a rolling costmap's moving origin.
+      downsample_costmap: false
+      downsampling_factor: 1
       tolerance: 0.25
       allow_unknown: true
       max_iterations: 1000000

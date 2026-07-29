@@ -124,8 +124,9 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
         "min_turning_r"
     ]
     assert planner["angle_quantization_bins"] == 72
-    assert planner["downsample_costmap"] is True
-    assert planner["downsampling_factor"] == 2
+    # Humble's downsampler keeps its initial origin when a rolling costmap moves.
+    assert planner["downsample_costmap"] is False
+    assert planner["downsampling_factor"] == 1
     assert planner["analytic_expansion_max_length"] >= (
         4.0 * planner["minimum_turning_radius"]
     )
