@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=WHEELTEC 车辆控制
+Comment=触摸、鼠标和键盘控制大型阿克曼底盘
+Exec=/home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/lib/agribot_hardware_bringup/start_wheeltec_car_gui.sh
+Icon=input-gaming
+Terminal=false
+Categories=Utility;
+StartupNotify=true

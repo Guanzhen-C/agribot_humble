@@ -59,6 +59,9 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
         "rviz/navigation_local.rviz",
+        "scripts/start_wheeltec_car_gui.sh",
+        "scripts/wheeltec_car_gui.py",
+        "desktop/wheeltec-car-gui.desktop",
     )
     for relative_path in expected:
         assert (PACKAGE_ROOT / relative_path).is_file()

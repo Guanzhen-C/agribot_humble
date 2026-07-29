@@ -144,6 +144,8 @@ install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
   scripts/rtk_nmea_node.py
+  scripts/start_wheeltec_car_gui.sh
+  scripts/wheeltec_car_gui.py
   localization/fastlio/scripts/fastlio_odom_bridge.py
   localization/navsat/scripts/navsat_pose_bridge.py
   DESTINATION lib/${PROJECT_NAME}
@@ -177,6 +179,11 @@ install(FILES
 )
 install(FILES differential/README.md DESTINATION share/${PROJECT_NAME}/differential)
 install(FILES ackermann/README.md DESTINATION share/${PROJECT_NAME}/ackermann)
+install(FILES
+  desktop/README.md
+  desktop/wheeltec-car-gui.desktop
+  DESTINATION share/${PROJECT_NAME}/desktop
+)
 install(DIRECTORY can/include/ DESTINATION include)
 install(DIRECTORY differential/include/ DESTINATION include)
 install(DIRECTORY ackermann/include/ DESTINATION include)
@@ -242,6 +249,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_self_contained_runtime
     test/test_self_contained_runtime.py
+  )
+  ament_add_pytest_test(
+    test_wheeltec_car_gui
+    test/test_wheeltec_car_gui.py
   )
 endif()
 
