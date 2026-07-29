@@ -133,7 +133,7 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     assert controller["vx_min"] < 0.0
     assert controller["enforce_path_inversion"] is True
     assert controller["PathAlignCritic"]["use_path_orientations"] is True
-    assert controller["PathAngleCritic"]["mode"] == 2
+    assert controller["PathAngleCritic"]["forward_preference"] is False
     assert controller["PreferForwardCritic"]["enabled"] is False
 
 
