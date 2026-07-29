@@ -118,7 +118,7 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     controller = config["controller_server"]["ros__parameters"]["FollowPath"]
 
     assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
-    assert planner["motion_model_for_search"] == "DUBIN"
+    assert planner["motion_model_for_search"] == "REEDS_SHEPP"
     assert planner["minimum_turning_radius"] == 1.30
     assert planner["minimum_turning_radius"] == controller["AckermannConstraints"][
         "min_turning_r"
@@ -130,6 +130,11 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     assert planner["analytic_expansion_max_length"] >= (
         4.0 * planner["minimum_turning_radius"]
     )
+    assert controller["vx_min"] < 0.0
+    assert controller["enforce_path_inversion"] is True
+    assert controller["PathAlignCritic"]["use_path_orientations"] is True
+    assert controller["PathAngleCritic"]["mode"] == 2
+    assert controller["PreferForwardCritic"]["enabled"] is False
 
 
 def test_ackermann_fastlio_local_config_limits_steering_corrections():
