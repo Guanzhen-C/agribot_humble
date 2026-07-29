@@ -115,10 +115,12 @@ def test_unknown_navigation_mode_is_rejected():
         LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))
 
 
-def test_chassis_uses_collision_monitor_output_without_manual_gate():
+def test_chassis_uses_nav2_controller_output_without_manual_gate():
     source = VEHICLE_LAUNCH_PATH.read_text()
     assert "vehicle_command_gate" not in source
     assert "vehicle_preflight" not in source
+    assert "nav2_collision_monitor" not in source
+    assert 'default_value="/nav2/cmd_vel"' in source
     assert source.count(
         '"command_topic": LaunchConfiguration(\n'
         '                                    "command_input_topic"\n'
@@ -131,11 +133,6 @@ def test_fastlio_local_ackermann_uses_mppi_command_directly():
     assert (
         'DeclareLaunchArgument(\n'
         '                "command_input_topic", default_value="/nav2/cmd_vel"\n'
-        "            )"
-    ) in source
-    assert (
-        'DeclareLaunchArgument(\n'
-        '                "enable_collision_monitor", default_value="false"\n'
         "            )"
     ) in source
 

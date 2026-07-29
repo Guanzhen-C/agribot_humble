@@ -341,10 +341,7 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "command_input_topic", default_value="/nav2/cmd_vel_safe"
-            ),
-            DeclareLaunchArgument(
-                "enable_collision_monitor", default_value="true"
+                "command_input_topic", default_value="/nav2/cmd_vel"
             ),
             DeclareLaunchArgument("map_to_odom_x", default_value="0.0"),
             DeclareLaunchArgument("map_to_odom_y", default_value="0.0"),
@@ -489,32 +486,6 @@ def generate_launch_description():
             ackermann_fastlio_navigation,
             differential_navsat_navigation,
             differential_fastlio_navigation,
-            Node(
-                package="nav2_collision_monitor",
-                executable="collision_monitor",
-                name="vehicle_collision_monitor",
-                output="screen",
-                parameters=[
-                    os.path.join(hardware_share, "config", "collision_monitor.yaml"),
-                    {"use_sim_time": use_sim_time},
-                ],
-                condition=IfCondition(
-                    LaunchConfiguration("enable_collision_monitor")
-                ),
-            ),
-            Node(
-                package="nav2_lifecycle_manager",
-                executable="lifecycle_manager",
-                name="lifecycle_manager_collision_monitor",
-                output="screen",
-                parameters=[
-                    {"use_sim_time": use_sim_time, "autostart": autostart},
-                    {"node_names": ["vehicle_collision_monitor"]},
-                ],
-                condition=IfCondition(
-                    LaunchConfiguration("enable_collision_monitor")
-                ),
-            ),
             GroupAction(
                 actions=[
                     Node(

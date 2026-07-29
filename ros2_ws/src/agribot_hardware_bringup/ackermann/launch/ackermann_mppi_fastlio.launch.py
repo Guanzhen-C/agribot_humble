@@ -34,7 +34,7 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "command_input_topic", default_value="/nav2/cmd_vel_safe"
+                "command_input_topic", default_value="/nav2/cmd_vel"
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

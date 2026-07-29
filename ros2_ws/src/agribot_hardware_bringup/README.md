@@ -39,8 +39,7 @@ The dedicated differential launch files default to CAN output disabled. The
 Nav2 command path is:
 
 ```text
-/nav2/cmd_vel -> collision monitor -> /nav2/cmd_vel_safe
-  -> vehicle command gate -> /hardware/cmd_vel -> chassis driver
+/nav2/cmd_vel -> chassis driver
 ```
 
 ## Differential CAN protocol
@@ -74,7 +73,7 @@ implement command on `0x582`, while the workbook defines it as `0x580`; that
 conflicting implement command is intentionally not transmitted here.
 
 The driver command topic is configurable. The unified navigation launch routes
-`geometry_msgs/msg/Twist` from `/nav2/cmd_vel_safe` directly to the selected
+`geometry_msgs/msg/Twist` from `/nav2/cmd_vel` directly to the selected
 driver. The driver publishes:
 
 - `/wheel/odometry`: odometry integrated from left/right motor RPM
@@ -256,11 +255,11 @@ ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
 
 ## Runtime command path and calibration
 
-The real chassis receives `/nav2/cmd_vel_safe` directly from the Nav2 collision
-monitor. With chassis output enabled, selecting a Nav2 Goal in RViz immediately
-starts path execution. The collision monitor still slows or stops for `/scan`
-obstacles, and each chassis transport sends a zero command when the velocity
-stream becomes stale.
+The real chassis receives `/nav2/cmd_vel` directly from the selected Nav2
+controller. With chassis output enabled, selecting a Nav2 Goal in RViz
+immediately starts path execution. Global planning, the local costmap, and the
+controller remain responsible for obstacle avoidance. Each chassis transport
+sends a zero command when the velocity stream becomes stale.
 
 Monitor the chassis transport with:
 

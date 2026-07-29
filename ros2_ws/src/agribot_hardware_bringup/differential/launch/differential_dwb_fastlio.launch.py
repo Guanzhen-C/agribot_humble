@@ -23,7 +23,7 @@ def generate_launch_description():
             DeclareLaunchArgument("chassis_driver", default_value="differential_can"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
             DeclareLaunchArgument(
-                "command_input_topic", default_value="/nav2/cmd_vel_safe"
+                "command_input_topic", default_value="/nav2/cmd_vel"
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

@@ -160,34 +160,3 @@ def test_ackermann_fastlio_local_uses_requested_inflation_radius():
     for costmap_name in ("global_costmap", "local_costmap"):
         costmap = config[costmap_name][costmap_name]["ros__parameters"]
         assert costmap["inflation_layer"]["inflation_radius"] == 0.2
-
-
-def test_collision_monitor_parameters_match_launched_node_name():
-    config = load_config("collision_monitor.yaml")
-    assert "vehicle_collision_monitor" in config
-    sources = config["vehicle_collision_monitor"]["ros__parameters"]
-    assert sources["observation_sources"] == ["scan"]
-    assert sources["scan"]["topic"] == "/scan"
-    assert sources["stop_zone"]["points"] == [
-        1.06,
-        0.36,
-        1.06,
-        -0.36,
-        0.66,
-        -0.36,
-        0.66,
-        0.36,
-    ]
-    assert sources["stop_zone"]["max_points"] == 12
-    assert sources["slowdown_zone"]["points"] == [
-        1.56,
-        0.38,
-        1.56,
-        -0.38,
-        0.66,
-        -0.38,
-        0.66,
-        0.38,
-    ]
-    assert sources["slowdown_zone"]["max_points"] == 20
-    assert sources["slowdown_zone"]["slowdown_ratio"] == 0.75
