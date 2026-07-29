@@ -112,6 +112,25 @@ def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
     assert config["behavior_server"]["ros__parameters"]["global_frame"] == "odom"
 
 
+def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
+    config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
+    planner = config["planner_server"]["ros__parameters"]["GridBased"]
+    controller = config["controller_server"]["ros__parameters"]["FollowPath"]
+
+    assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
+    assert planner["motion_model_for_search"] == "DUBIN"
+    assert planner["minimum_turning_radius"] == 1.30
+    assert planner["minimum_turning_radius"] == controller["AckermannConstraints"][
+        "min_turning_r"
+    ]
+    assert planner["angle_quantization_bins"] == 72
+    assert planner["downsample_costmap"] is True
+    assert planner["downsampling_factor"] == 2
+    assert planner["analytic_expansion_max_length"] >= (
+        4.0 * planner["minimum_turning_radius"]
+    )
+
+
 def test_ackermann_fastlio_local_config_limits_steering_corrections():
     config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
     follow_path = config["controller_server"]["ros__parameters"]["FollowPath"]
