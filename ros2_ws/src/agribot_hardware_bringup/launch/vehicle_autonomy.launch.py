@@ -21,6 +21,7 @@ def _validate_arguments(context):
     vehicle_type = LaunchConfiguration("vehicle_type").perform(context)
     controller = LaunchConfiguration("controller").perform(context)
     chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
+    can_transport = LaunchConfiguration("can_transport").perform(context)
     map_path = LaunchConfiguration("map").perform(context)
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
@@ -53,6 +54,8 @@ def _validate_arguments(context):
             "chassis_driver must be none, differential_can, ackermann_can "
             "or ackermann_serial"
         )
+    if can_transport not in ("socketcan", "zqwl_cdc"):
+        raise RuntimeError("can_transport must be 'socketcan' or 'zqwl_cdc'")
     if output_enabled and chassis_driver == "none":
         raise RuntimeError(
             "enable_chassis_output:=true requires an explicitly selected chassis_driver"
@@ -332,7 +335,17 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("chassis_driver", default_value="none"),
+            DeclareLaunchArgument("can_transport", default_value="socketcan"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
+            DeclareLaunchArgument(
+                "zqwl_port",
+                default_value=(
+                    "/dev/serial/by-id/"
+                    "usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00"
+                ),
+            ),
+            DeclareLaunchArgument("zqwl_channel", default_value="0"),
+            DeclareLaunchArgument("zqwl_bitrate", default_value="1000000"),
             DeclareLaunchArgument(
                 "serial_port",
                 default_value=(
@@ -496,7 +509,11 @@ def generate_launch_description():
                         parameters=[
                             LaunchConfiguration("differential_chassis_can_config"),
                             {
+                                "can_transport": LaunchConfiguration("can_transport"),
                                 "can_interface": LaunchConfiguration("can_interface"),
+                                "zqwl_port": LaunchConfiguration("zqwl_port"),
+                                "zqwl_channel": LaunchConfiguration("zqwl_channel"),
+                                "zqwl_bitrate": LaunchConfiguration("zqwl_bitrate"),
                                 "command_topic": LaunchConfiguration(
                                     "command_input_topic"
                                 ),
@@ -514,7 +531,11 @@ def generate_launch_description():
                         parameters=[
                             LaunchConfiguration("ackermann_chassis_can_config"),
                             {
+                                "can_transport": LaunchConfiguration("can_transport"),
                                 "can_interface": LaunchConfiguration("can_interface"),
+                                "zqwl_port": LaunchConfiguration("zqwl_port"),
+                                "zqwl_channel": LaunchConfiguration("zqwl_channel"),
+                                "zqwl_bitrate": LaunchConfiguration("zqwl_bitrate"),
                                 "command_topic": LaunchConfiguration(
                                     "command_input_topic"
                                 ),

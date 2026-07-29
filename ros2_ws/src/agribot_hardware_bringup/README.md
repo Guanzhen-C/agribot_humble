@@ -1,7 +1,7 @@
 # Agribot hardware bringup
 
 This package is the physical-vehicle entry point for sensors, localization,
-Nav2, command safety, and SocketCAN chassis control. It supports these tested
+Nav2, command safety, and CAN/serial chassis control. It supports these tested
 navigation selections:
 
 | Vehicle | Controller | Localization | Launch file |
@@ -15,7 +15,7 @@ navigation selections:
 Vehicle-specific physical code is kept in separate source trees:
 
 ```text
-can/           SocketCAN transport, ROS topics, diagnostics and frame utilities
+can/           SocketCAN/ZQWL CDC transports, ROS topics, diagnostics and frame utilities
 differential/  differential protocol, adapter, executable, config, launch and tests
 ackermann/     Ackermann protocol, MPPI config, behavior trees, launch and tests
 localization/  NavSat/KF-GINS node and localization bridge scripts
@@ -154,8 +154,9 @@ reported chassis/motor fault is present. Shutdown sends three brake frames.
 
 ## Ackermann C50C protocol
 
-The Ackermann backend supports both the WHEELTEC C50C SocketCAN protocol and its
-USART3 transport. SocketCAN was verified on the RDK X5 at 1 Mbit/s:
+The Ackermann backend supports the WHEELTEC C50C classic CAN protocol through
+either native SocketCAN or the ZQWL-CANFD USB CDC bridge. Its USART3 transport
+remains available as a separate fallback. The CAN bus runs at 1 Mbit/s:
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
@@ -199,9 +200,16 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
   map:=/absolute/path/to/real_map.yaml
 ```
 
-These Ackermann entry points use the verified `can0` SocketCAN backend by
-default. The serial backend remains available through
-`chassis_driver:=ackermann_serial`.
+These Ackermann entry points default to `chassis_driver:=ackermann_can` with
+the `zqwl_cdc` transport and this stable USB device path:
+
+```text
+/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+```
+
+The driver configures channel 0 for classic CAN at 1 Mbit/s. Native SocketCAN
+remains available through `can_transport:=socketcan can_interface:=can0`, and
+the chassis serial fallback through `chassis_driver:=ackermann_serial`.
 
 For short-range navigation without a saved map, use the FAST-LIO rolling
 costmap entry point:
@@ -220,6 +228,7 @@ For a protocol-only virtual-CAN run, use the dedicated executable and config:
 ```bash
 ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
   --params-file $(ros2 pkg prefix agribot_hardware_bringup)/share/agribot_hardware_bringup/ackermann/config/chassis_can.yaml \
+  -p can_transport:=socketcan \
   -p can_interface:=vcan0
 ```
 

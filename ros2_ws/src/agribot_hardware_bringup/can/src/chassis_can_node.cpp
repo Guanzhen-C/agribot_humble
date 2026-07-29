@@ -1,27 +1,19 @@
 #include "agribot_hardware_bringup/chassis_can_node.hpp"
 
-#include <fcntl.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include <algorithm>
-#include <cerrno>
 #include <chrono>
 #include <cmath>
-#include <cstring>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "agribot_hardware_bringup/chassis_can_transport.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
@@ -48,7 +40,13 @@ public:
       throw std::invalid_argument("chassis adapter factory is required");
     }
 
+    can_transport_ = declare_parameter<std::string>("can_transport", "socketcan");
     can_interface_ = declare_parameter<std::string>("can_interface", "can0");
+    zqwl_port_ = declare_parameter<std::string>(
+      "zqwl_port",
+      "/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00");
+    zqwl_channel_ = declare_parameter<int>("zqwl_channel", 0);
+    zqwl_bitrate_ = declare_parameter<int>("zqwl_bitrate", 1000000);
     command_topic_ = declare_parameter<std::string>("command_topic", "/hardware/cmd_vel");
     odom_topic_ = declare_parameter<std::string>("odom_topic", "/wheel/odometry");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "wheel_odom");
@@ -63,7 +61,7 @@ public:
 
     adapter_ = adapter_factory(*this);
     validateParameters();
-    openSocket();
+    openTransport();
 
     command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
       command_topic_, 20,
@@ -93,8 +91,10 @@ public:
     pre_shutdown_callback_registered_ = true;
 
     RCLCPP_INFO(
-      get_logger(), "CAN chassis ready: type=%s interface=%s command=%s rate=%.1f Hz",
-      adapter_->type().c_str(), can_interface_.c_str(), command_topic_.c_str(), send_rate_hz_);
+      get_logger(),
+      "CAN chassis ready: type=%s transport=%s hardware=%s command=%s rate=%.1f Hz",
+      adapter_->type().c_str(), transport_->type().c_str(),
+      transport_->hardwareId().c_str(), command_topic_.c_str(), send_rate_hz_);
   }
 
   ~ChassisCanNode() override
@@ -103,10 +103,7 @@ public:
       context_->remove_pre_shutdown_callback(pre_shutdown_callback_);
     }
     sendStopFrames();
-    if (socket_fd_ >= 0) {
-      close(socket_fd_);
-      socket_fd_ = -1;
-    }
+    transport_.reset();
   }
 
 private:
@@ -124,7 +121,7 @@ private:
       throw std::invalid_argument("at least one CAN feedback ID is required");
     }
     ids.insert(ids.end(), feedback_ids.begin(), feedback_ids.end());
-    if (std::any_of(ids.begin(), ids.end(), [](uint32_t id) {return id > CAN_SFF_MASK;})) {
+    if (std::any_of(ids.begin(), ids.end(), [](uint32_t id) {return id > 0x7ffU;})) {
       throw std::invalid_argument("only standard 11-bit CAN IDs are supported");
     }
     std::sort(ids.begin(), ids.end());
@@ -133,52 +130,15 @@ private:
     }
   }
 
-  void openSocket()
+  void openTransport()
   {
-    socket_fd_ = socket(PF_CAN, SOCK_RAW | SOCK_NONBLOCK, CAN_RAW);
-    if (socket_fd_ < 0) {
-      throw std::system_error(errno, std::generic_category(), "socket(PF_CAN)");
-    }
-
-    struct ifreq request {};
-    if (can_interface_.size() >= IFNAMSIZ) {
-      close(socket_fd_);
-      socket_fd_ = -1;
-      throw std::invalid_argument("CAN interface name is too long");
-    }
-    std::strncpy(request.ifr_name, can_interface_.c_str(), IFNAMSIZ - 1);
-    if (ioctl(socket_fd_, SIOCGIFINDEX, &request) < 0) {
-      const auto error = errno;
-      close(socket_fd_);
-      socket_fd_ = -1;
-      throw std::system_error(error, std::generic_category(), "CAN interface lookup");
-    }
-
-    const auto feedback_ids = adapter_->feedbackIds();
-    std::vector<struct can_filter> filters;
-    filters.reserve(feedback_ids.size());
-    for (const auto id : feedback_ids) {
-      filters.push_back({id, CAN_SFF_MASK});
-    }
-    if (setsockopt(
-        socket_fd_, SOL_CAN_RAW, CAN_RAW_FILTER, filters.data(),
-        static_cast<socklen_t>(filters.size() * sizeof(struct can_filter))) < 0)
-    {
-      const auto error = errno;
-      close(socket_fd_);
-      socket_fd_ = -1;
-      throw std::system_error(error, std::generic_category(), "CAN_RAW_FILTER");
-    }
-
-    struct sockaddr_can address {};
-    address.can_family = AF_CAN;
-    address.can_ifindex = request.ifr_ifindex;
-    if (bind(socket_fd_, reinterpret_cast<struct sockaddr *>(&address), sizeof(address)) < 0) {
-      const auto error = errno;
-      close(socket_fd_);
-      socket_fd_ = -1;
-      throw std::system_error(error, std::generic_category(), "bind(SocketCAN)");
-    }
+    ChassisCanTransportConfig config;
+    config.backend = can_transport_;
+    config.socketcan_interface = can_interface_;
+    config.zqwl_port = zqwl_port_;
+    config.zqwl_channel = zqwl_channel_;
+    config.zqwl_bitrate = zqwl_bitrate_;
+    transport_ = makeChassisCanTransport(config, adapter_->feedbackIds());
   }
 
   void handleCommand(const geometry_msgs::msg::Twist::SharedPtr message)
@@ -234,43 +194,22 @@ private:
 
   void writeFrame(const chassis_can::Frame & frame)
   {
-    struct can_frame raw_frame {};
-    raw_frame.can_id = frame.id;
-    raw_frame.can_dlc = chassis_can::kPayloadSize;
-    std::copy(frame.data.begin(), frame.data.end(), raw_frame.data);
-    const auto bytes = write(socket_fd_, &raw_frame, sizeof(raw_frame));
-    if (bytes != static_cast<ssize_t>(sizeof(raw_frame))) {
-      throw std::system_error(errno, std::generic_category(), "write(SocketCAN)");
-    }
+    transport_->writeFrame(frame);
   }
 
   void receiveFrames()
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
-    for (std::size_t count = 0; count < 64; ++count) {
-      struct can_frame raw_frame {};
-      const auto bytes = read(socket_fd_, &raw_frame, sizeof(raw_frame));
-      if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-        return;
+    try {
+      const auto received = transport_->readFrames(64);
+      invalid_frames_ += received.invalid_frames;
+      for (const auto & frame : received.frames) {
+        processFrame(frame);
       }
-      if (bytes < 0) {
-        ++receive_errors_;
-        RCLCPP_ERROR_THROTTLE(
-          get_logger(), *get_clock(), 2000, "CAN receive failed: %s", std::strerror(errno));
-        return;
-      }
-      if (bytes != static_cast<ssize_t>(sizeof(raw_frame)) ||
-        raw_frame.can_dlc != chassis_can::kPayloadSize ||
-        (raw_frame.can_id & (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_ERR_FLAG)) != 0U)
-      {
-        ++invalid_frames_;
-        continue;
-      }
-
-      chassis_can::Frame frame;
-      frame.id = raw_frame.can_id & CAN_SFF_MASK;
-      std::copy(std::begin(raw_frame.data), std::end(raw_frame.data), frame.data.begin());
-      processFrame(frame);
+    } catch (const std::exception & exception) {
+      ++receive_errors_;
+      RCLCPP_ERROR_THROTTLE(
+        get_logger(), *get_clock(), 2000, "CAN receive failed: %s", exception.what());
     }
   }
 
@@ -388,7 +327,7 @@ private:
     array.header.stamp = now();
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.name = "agribot/chassis_can/" + adapter_->type();
-    status.hardware_id = can_interface_;
+    status.hardware_id = transport_->hardwareId();
 
     const bool fresh = feedbackFresh(now());
     if (!fresh) {
@@ -402,6 +341,7 @@ private:
       status.message = "CAN protocol and feedback healthy";
     }
     status.values.push_back(keyValue("chassis_type", adapter_->type()));
+    status.values.push_back(keyValue("can_transport", transport_->type()));
     status.values.push_back(keyValue("feedback_fresh", fresh ? "true" : "false"));
     status.values.push_back(
       keyValue("command_active", motion_command_active_ ? "true" : "false"));
@@ -418,7 +358,7 @@ private:
   void sendStopFrames() noexcept
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
-    if (socket_fd_ < 0 || stop_frames_sent_) {
+    if (!transport_ || stop_frames_sent_) {
       return;
     }
     stop_frames_sent_ = true;
@@ -437,7 +377,12 @@ private:
   }
 
   std::unique_ptr<ChassisAdapter> adapter_;
+  std::unique_ptr<ChassisCanTransport> transport_;
+  std::string can_transport_;
   std::string can_interface_;
+  std::string zqwl_port_;
+  int zqwl_channel_{0};
+  int zqwl_bitrate_{1000000};
   std::string command_topic_;
   std::string odom_topic_;
   std::string odom_frame_;
@@ -449,7 +394,6 @@ private:
   bool require_autonomous_mode_{true};
   bool headlight_{false};
 
-  int socket_fd_{-1};
   uint8_t transmit_counter_{0};
   std::unordered_map<uint32_t, uint8_t> receive_counters_;
   uint64_t checksum_errors_{0};

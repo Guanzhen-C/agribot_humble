@@ -9,8 +9,11 @@ def test_shared_can_code_uses_can_directory():
         "include/agribot_hardware_bringup/chassis_adapter.hpp",
         "include/agribot_hardware_bringup/chassis_can_common.hpp",
         "include/agribot_hardware_bringup/chassis_can_node.hpp",
+        "include/agribot_hardware_bringup/chassis_can_transport.hpp",
         "src/chassis_can_common.cpp",
         "src/chassis_can_node.cpp",
+        "src/chassis_can_transport.cpp",
+        "test/test_chassis_can_transport.cpp",
     )
     can_root = PACKAGE_ROOT / "can"
     assert can_root.is_dir()

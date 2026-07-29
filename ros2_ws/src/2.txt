@@ -159,7 +159,8 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   rviz:=false \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
-  can_interface:=can0
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
 # Physical Ackermann vehicle: display the RDK topics in RViz on the Jetson
 # Terminal 2 on the Jetson:
@@ -183,6 +184,7 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   rviz:=true \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
-  can_interface:=can0
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
 # Stop the physical vehicle stack with Ctrl+C in terminal 1 first, then close RViz.

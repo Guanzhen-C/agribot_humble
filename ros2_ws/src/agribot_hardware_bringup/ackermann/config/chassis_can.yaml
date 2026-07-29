@@ -1,6 +1,12 @@
 /**:
   ros__parameters:
+    # Physical Ackermann default: ZQWL-CANFD USB CDC bridge, channel 0 at 1 Mbit/s.
+    # Set can_transport to socketcan and choose can_interface for a native CAN port.
+    can_transport: zqwl_cdc
     can_interface: can0
+    zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+    zqwl_channel: 0
+    zqwl_bitrate: 1000000
     command_topic: /hardware/cmd_vel
     odom_topic: /wheel/odometry
     odom_frame: wheel_odom
@@ -19,7 +25,7 @@
     max_angular_velocity: 0.65
     minimum_motion_speed: 0.02
 
-    # WHEELTEC C50C SocketCAN protocol verified on the RDK X5 at 1 Mbit/s.
+    # WHEELTEC C50C classic CAN protocol, standard 11-bit IDs and 8-byte payloads.
     command_id: 0x181
     feedback_part1_id: 0x101
     feedback_part2_id: 0x102

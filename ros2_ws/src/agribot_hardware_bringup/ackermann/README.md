@@ -11,8 +11,9 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
 motion, send an all-zero command after a command timeout, and send a stop burst
-during ROS shutdown. SocketCAN is the default for the Ackermann launch files;
-select `chassis_driver:=ackermann_serial` only when using the serial fallback.
+during ROS shutdown. The Ackermann CAN launch files default to the ZQWL-CANFD
+USB CDC bridge on channel 0 at 1 Mbit/s. Native SocketCAN and the chassis
+USART3 connection remain available as explicit fallbacks.
 The serial transport also limits commanded steering changes to `0.60 rad/s`;
 timeouts and stop commands bypass this limiter and stop immediately.
 
@@ -25,7 +26,8 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
-  can_interface:=can0
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
 Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. For short-range FAST-LIO
@@ -35,7 +37,8 @@ navigation without a saved map, use:
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
-  can_interface:=can0
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
 The local mode uses `odom`-frame rolling costmaps and C16 `/scan` obstacles,
@@ -60,3 +63,11 @@ The telemetry contains chassis velocity, a chassis IMU, and battery voltage. It
 does not contain a documented autonomous-mode, physical emergency-stop,
 steering-position, motor-fault, or wheel-RPM field. Those states cannot be
 inferred by this driver and require separate protocol support if available.
+
+For a native CAN adapter, override the CAN transport:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
+  can_transport:=socketcan \
+  can_interface:=can0
+```

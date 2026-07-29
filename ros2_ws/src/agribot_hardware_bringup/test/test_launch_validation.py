@@ -36,6 +36,7 @@ def context_with(**overrides):
         "vehicle_type": "differential",
         "controller": "dwb",
         "chassis_driver": "differential_can",
+        "can_transport": "socketcan",
         "enable_can_output": "false",
         "enable_chassis_output": "false",
         "map": "/tmp/real_map.yaml",
@@ -63,6 +64,11 @@ def test_ackermann_can_accepts_verified_driver():
         enable_chassis_output="true",
     )
     assert LAUNCH._validate_arguments(context) == []
+
+
+def test_unknown_can_transport_is_rejected():
+    with pytest.raises(RuntimeError, match="can_transport must be"):
+        LAUNCH._validate_arguments(context_with(can_transport="unknown"))
 
 
 def test_ackermann_serial_accepts_verified_driver():
@@ -152,4 +158,14 @@ def test_ackermann_entry_points_default_to_verified_can_transport():
             'DeclareLaunchArgument("chassis_driver", '
             'default_value="ackermann_can")'
         ) in source
+        assert (
+            'DeclareLaunchArgument("can_transport", default_value="zqwl_cdc")'
+            in source
+        )
         assert 'DeclareLaunchArgument("can_interface", default_value="can0")' in source
+        assert "usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00" in source
+        assert 'DeclareLaunchArgument("zqwl_channel", default_value="0")' in source
+        assert (
+            'DeclareLaunchArgument("zqwl_bitrate", default_value="1000000")'
+            in source
+        )

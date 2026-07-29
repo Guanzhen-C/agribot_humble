@@ -26,6 +26,7 @@ set(CHASSIS_INCLUDE_DIRS
 add_library(chassis_can_common
   can/src/chassis_can_common.cpp
   can/src/chassis_can_node.cpp
+  can/src/chassis_can_transport.cpp
 )
 target_include_directories(chassis_can_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/can/include>
@@ -226,6 +227,11 @@ if(BUILD_TESTING)
     test_ackermann_serial_protocol
     ackermann_chassis_serial
   )
+  ament_add_gtest(
+    test_chassis_can_transport
+    can/test/test_chassis_can_transport.cpp
+  )
+  target_link_libraries(test_chassis_can_transport chassis_can_common)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
