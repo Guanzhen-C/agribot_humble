@@ -29,7 +29,9 @@ using namespace std::chrono_literals;
 
 constexpr uint8_t kZqwlPacketStart = 0x5a;
 constexpr uint8_t kZqwlPacketEnd = 0xa5;
+constexpr uint8_t kZqwlStatusPacketType = 0xfe;
 constexpr std::size_t kZqwlHeaderSize = 7;
+constexpr std::size_t kZqwlStatusPacketSize = 32;
 constexpr std::size_t kMaxZqwlBufferSize = 128 * 1024;
 
 void validateStandardCanId(uint32_t id)
@@ -387,6 +389,20 @@ ChassisCanReadResult FrameDecoder::append(
     }
 
     const std::size_t payload_size = buffer_[1];
+    if (payload_size == kZqwlStatusPacketType) {
+      if (buffer_.size() < kZqwlStatusPacketSize) {
+        break;
+      }
+      if (buffer_[kZqwlStatusPacketSize - 1] != kZqwlPacketEnd) {
+        buffer_.erase(buffer_.begin());
+        ++result.invalid_frames;
+        continue;
+      }
+      buffer_.erase(
+        buffer_.begin(),
+        buffer_.begin() + static_cast<std::ptrdiff_t>(kZqwlStatusPacketSize));
+      continue;
+    }
     if (payload_size > CAN_MAX_DLEN) {
       buffer_.erase(buffer_.begin());
       ++result.invalid_frames;

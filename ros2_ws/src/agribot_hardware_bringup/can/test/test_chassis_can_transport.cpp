@@ -74,7 +74,7 @@ TEST(ZqwlCdcProtocol, DecodesFragmentedAndCoalescedFeedback)
 
 TEST(ZqwlCdcProtocol, ResynchronizesAfterMalformedPacket)
 {
-  const std::array<uint8_t, 5> malformed {0x5a, 0xfe, 0x00, 0x00, 0x00};
+  const std::array<uint8_t, 5> malformed {0x5a, 0xfd, 0x00, 0x00, 0x00};
   chassis_can::Frame source;
   source.id = 0x101;
   source.data = {0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -107,6 +107,31 @@ TEST(ZqwlCdcProtocol, RejectsFramesFromAnInactiveChannel)
   ASSERT_EQ(decoded.frames.size(), 1U);
   EXPECT_EQ(decoded.frames.front().id, 0x101U);
   EXPECT_EQ(decoded.invalid_frames, 1U);
+}
+
+TEST(ZqwlCdcProtocol, IgnoresVerifiedAdapterStatusPacket)
+{
+  const std::array<uint8_t, 32> status {
+    0x5a, 0xfe, 0x00, 0x14, 0x00, 0x3c, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa5};
+  chassis_can::Frame source;
+  source.id = 0x101;
+  source.data = {0x7b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  const auto valid = zqwl_cdc::encodeFrame(source, 0);
+
+  zqwl_cdc::FrameDecoder decoder;
+  auto decoded = decoder.append(status.data(), 9, 64);
+  EXPECT_TRUE(decoded.frames.empty());
+  EXPECT_EQ(decoded.invalid_frames, 0U);
+
+  std::vector<uint8_t> remainder(status.begin() + 9, status.end());
+  remainder.insert(remainder.end(), valid.begin(), valid.end());
+  decoded = decoder.append(remainder.data(), remainder.size(), 64);
+  ASSERT_EQ(decoded.frames.size(), 1U);
+  EXPECT_EQ(decoded.frames.front().id, 0x101U);
+  EXPECT_EQ(decoded.invalid_frames, 0U);
 }
 
 }  // namespace
