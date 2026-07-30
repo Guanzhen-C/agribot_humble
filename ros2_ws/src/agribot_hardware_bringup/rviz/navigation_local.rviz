@@ -144,7 +144,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 2
-      Enabled: true
+      Enabled: false
       Name: FAST-LIO Cloud
       Position Transformer: XYZ
       Queue Size: 3
