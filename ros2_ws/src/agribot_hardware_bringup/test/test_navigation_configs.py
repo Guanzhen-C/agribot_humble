@@ -253,7 +253,7 @@ def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
             "inflation_layer",
         ]
         assert costmap["static_layer"]["subscribe_to_updates"] is True
-        assert costmap["inflation_layer"]["inflation_radius"] == 0.4
+        assert costmap["inflation_layer"]["inflation_radius"] == 0.1
 
 
 def test_ackermann_fastlio_local_config_limits_steering_corrections():
@@ -296,4 +296,4 @@ def test_ackermann_fastlio_local_uses_requested_inflation_radius():
 
     for costmap_name in ("global_costmap", "local_costmap"):
         costmap = config[costmap_name][costmap_name]["ros__parameters"]
-        assert costmap["inflation_layer"]["inflation_radius"] == 0.4
+        assert costmap["inflation_layer"]["inflation_radius"] == 0.1
