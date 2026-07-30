@@ -39,6 +39,9 @@
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>pointcloud_to_laserscan</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>spatio_temporal_voxel_layer</exec_depend>
   <exec_depend>dwb_core</exec_depend>
   <exec_depend>dwb_critics</exec_depend>
   <exec_depend>rclpy</exec_depend>

@@ -44,6 +44,7 @@ def test_vehicle_specific_code_is_separated():
             "include/agribot_hardware_bringup/ackermann_serial_protocol.hpp",
             "launch/ackermann_mppi_fastlio.launch.py",
             "launch/ackermann_mppi_fastlio_local.launch.py",
+            "launch/ackermann_mppi_fastlio_mapping.launch.py",
             "launch/ackermann_mppi_navsat.launch.py",
             "src/ackermann_can_protocol.cpp",
             "src/ackermann_chassis_adapter.cpp",

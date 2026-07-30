@@ -105,20 +105,33 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /local_plan
-    - Alpha: 1
-      Class: rviz_default_plugins/LaserScan
+    - Alpha: 0.8
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
       Color: 255; 0; 0
+      Color Transformer: AxisColor
+      Decay Time: 0.2
       Enabled: true
-      Name: Collision Scan
-      Queue Size: 10
-      Size (Pixels): 3
+      Name: C16 Obstacle Input
+      Position Transformer: XYZ
+      Queue Size: 3
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.02
       Style: Points
       Topic:
-        Depth: 5
+        Depth: 3
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /scan
+        Value: /lidar/points
+      Use Fixed Frame: true
     - Alpha: 0.8
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:

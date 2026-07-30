@@ -12,6 +12,35 @@ def load_config(name, vehicle=None):
         return yaml.safe_load(stream)
 
 
+def assert_c16_stvl(costmap, obstacle_range):
+    assert "obstacle_layer" not in costmap
+    assert "stvl_layer" in costmap["plugins"]
+    layer = costmap["stvl_layer"]
+    assert (
+        layer["plugin"]
+        == "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+    )
+    assert layer["mapping_mode"] is False
+    assert layer["observation_sources"] == "lidar_mark lidar_clear"
+
+    marking = layer["lidar_mark"]
+    assert marking["topic"] == "/lidar/points"
+    assert marking["data_type"] == "PointCloud2"
+    assert marking["marking"] is True
+    assert marking["clearing"] is False
+    assert marking["obstacle_range"] == obstacle_range
+    assert marking["min_obstacle_height"] == 0.08
+    assert marking["max_obstacle_height"] == 1.8
+
+    clearing = layer["lidar_clear"]
+    assert clearing["topic"] == "/lidar/points"
+    assert clearing["data_type"] == "PointCloud2"
+    assert clearing["marking"] is False
+    assert clearing["clearing"] is True
+    assert clearing["model_type"] == 1
+    assert clearing["horizontal_fov_angle"] > 6.28
+
+
 def test_differential_configs_use_dwb_and_matching_limits():
     for name in ("nav2_dwb_navsat.yaml", "nav2_dwb_fastlio.yaml"):
         config = load_config(name, "differential")
@@ -25,15 +54,14 @@ def test_differential_configs_use_dwb_and_matching_limits():
         assert "RotateToGoal" in follow_path["critics"]
 
 
-def test_differential_configs_use_horizontal_scan_for_obstacles():
+def test_differential_configs_use_c16_stvl_for_obstacles():
     for name in ("nav2_dwb_navsat.yaml", "nav2_dwb_fastlio.yaml"):
         config = load_config(name, "differential")
+        global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
         local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
-        obstacle_layer = local_costmap["obstacle_layer"]
 
-        assert obstacle_layer["observation_sources"] == "scan"
-        assert obstacle_layer["scan"]["topic"] == "/scan"
-        assert obstacle_layer["scan"]["data_type"] == "LaserScan"
+        assert_c16_stvl(global_costmap, 8.0)
+        assert_c16_stvl(local_costmap, 4.0)
 
 
 def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
@@ -50,6 +78,7 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         config = load_config(name, "ackermann")
         controller = config["controller_server"]["ros__parameters"]
         follow_path = controller["FollowPath"]
+        planner = config["planner_server"]["ros__parameters"]["GridBased"]
 
         assert controller["controller_plugins"] == ["FollowPath"]
         assert controller["odom_topic"] == odom_topic
@@ -58,21 +87,50 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert follow_path["vx_max"] == max_velocity
         assert follow_path["vy_max"] == 0.0
         assert follow_path["AckermannConstraints"]["min_turning_r"] == 1.30
+        assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
+        assert planner["motion_model_for_search"] == "REEDS_SHEPP"
+        assert planner["minimum_turning_radius"] == 1.30
 
 
-def test_ackermann_configs_use_horizontal_scan_for_obstacles():
+def test_ackermann_configs_use_c16_stvl_for_obstacles():
     for name in (
         "nav2_params_ackermann_navsat_static.yaml",
         "nav2_params_ackermann_fastlio_static.yaml",
         "nav2_params_ackermann_fastlio_local.yaml",
     ):
         config = load_config(name, "ackermann")
+        global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
         local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
-        obstacle_layer = local_costmap["obstacle_layer"]
 
-        assert obstacle_layer["observation_sources"] == "scan"
-        assert obstacle_layer["scan"]["topic"] == "/scan"
-        assert obstacle_layer["scan"]["data_type"] == "LaserScan"
+        assert_c16_stvl(global_costmap, 8.0)
+        assert_c16_stvl(local_costmap, 4.0)
+
+
+def test_c16_driver_does_not_publish_legacy_scan():
+    config = load_config("c16.yaml")
+    lidar = config["lslidar_driver_node"]["ros__parameters"]
+
+    assert lidar["pointcloud_topic"] == "/lidar/points"
+    assert lidar["publish_scan"] is False
+    assert "scan_num" not in lidar
+
+
+def test_mapping_projects_a_height_band_for_slam_toolbox_only():
+    projection = load_config("pointcloud_to_laserscan_mapping.yaml")[
+        "pointcloud_to_laserscan"
+    ]["ros__parameters"]
+    slam = load_config("slam_toolbox_c16.yaml")["slam_toolbox"]["ros__parameters"]
+
+    assert projection["target_frame"] == "base_link"
+    assert projection["min_height"] == 0.08
+    assert projection["max_height"] == 1.50
+    assert projection["range_min"] == 0.30
+    assert slam["scan_topic"] == "/scan_mapping"
+    assert slam["mode"] == "mapping"
+    assert slam["odom_frame"] == "odom"
+    assert slam["map_frame"] == "map"
+    assert slam["base_frame"] == "base_link"
+    assert slam["do_loop_closing"] is True
 
 
 def test_ackermann_configs_use_measured_rear_axle_footprint():
@@ -101,8 +159,10 @@ def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
         assert costmap["global_frame"] == "odom"
         assert costmap["rolling_window"] is True
         assert "static_layer" not in costmap["plugins"]
-        assert costmap["plugins"] == ["obstacle_layer", "inflation_layer"]
-        assert costmap["obstacle_layer"]["scan"]["topic"] == "/scan"
+        assert costmap["plugins"] == ["stvl_layer", "inflation_layer"]
+        assert_c16_stvl(
+            costmap, 8.0 if costmap_name == "global_costmap" else 4.0
+        )
 
     global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
     assert global_costmap["width"] == 20

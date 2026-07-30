@@ -11,6 +11,7 @@ navigation selections:
 | Ackermann | MPPI | NavSat/KF-GINS | `ackermann_mppi_navsat.launch.py` |
 | Ackermann | MPPI | FAST-LIO | `ackermann_mppi_fastlio.launch.py` |
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
+| Ackermann | MPPI | FAST-LIO + online mapping | `ackermann_mppi_fastlio_mapping.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -24,7 +25,8 @@ localization/  NavSat/KF-GINS node and localization bridge scripts
 All project-owned runtime code and resources used by these four entry points
 are contained in this package. The remaining package dependencies are ROS 2
 system components or third-party device/algorithm packages: Nav2, RViz,
-FAST-LIO, `hipnuc_imu`, `lslidar_driver`, and their message packages.
+FAST-LIO, `hipnuc_imu`, `lslidar_driver`, STVL, SLAM Toolbox,
+`pointcloud_to_laserscan`, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
 
 No simulation map is bundled with the physical-vehicle package. Pass the
@@ -88,14 +90,14 @@ Measure and verify them before physical motion.
 
 ## Differential DWB navigation
 
-NavSat/KF-GINS, DWB, sensors, collision monitor, and RViz:
+NavSat/KF-GINS, DWB, sensors, STVL obstacle perception, and RViz:
 
 ```bash
 ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml
 ```
 
-FAST-LIO, DWB, sensors, collision monitor, and RViz:
+FAST-LIO, DWB, sensors, STVL obstacle perception, and RViz:
 
 ```bash
 ros2 launch agribot_hardware_bringup differential_dwb_fastlio.launch.py \
@@ -104,8 +106,9 @@ ros2 launch agribot_hardware_bringup differential_dwb_fastlio.launch.py \
 
 Both use a maximum linear speed of `0.8 m/s` and maximum angular speed of
 `1.4 rad/s`. FAST-LIO consumes `/lidar/points` and `/imu/data` for
-localization. In both modes, obstacle avoidance consumes `/scan`, which is the
-horizontal projection published by the C16 driver on the real vehicle.
+localization. Navigation also consumes the complete `/lidar/points` cloud
+through a `SpatioTemporalVoxelLayer`; the C16 driver does not publish the old
+single-ring `/scan`.
 
 To inspect the complete navigation stack without opening a chassis transport,
 leave the default `enable_chassis_output:=false`. The unified real-vehicle
@@ -222,10 +225,33 @@ costmap entry point:
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py
 ```
 
-This mode plans in a `20 x 20 m` rolling `odom` window, uses `/scan` for both
-global and local obstacle layers, and caps MPPI at `0.30 m/s`. It is intended
-for immediate local goals. It does not provide persistent global coordinates
-or restart-time relocalization.
+This mode plans in a `20 x 20 m` rolling `odom` window, uses the complete C16
+cloud through STVL for both global and local obstacle layers, and caps MPPI at
+`0.30 m/s`. It is intended for immediate local goals. It does not provide
+persistent global coordinates or restart-time relocalization.
+
+For online 2D occupancy-grid mapping while FAST-LIO supplies odometry:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py
+```
+
+This entry point projects all C16 points between `0.08` and `1.50 m` above
+`base_link` into `/scan_mapping` for SLAM Toolbox. This topic is only a mapping
+interface; Nav2 obstacle perception continues to use `/lidar/points` through
+STVL. SLAM Toolbox publishes `/map` and `map -> odom`, performs 2D loop
+closure, and allows Nav2 to plan while the map grows.
+
+Save the Nav2 occupancy map and lossless SLAM Toolbox pose graph after mapping:
+
+```bash
+mkdir -p ~/maps
+ros2 run nav2_map_server map_saver_cli -f ~/maps/agribot_map
+ros2 service call /slam_toolbox/serialize_map \
+  slam_toolbox/srv/SerializePoseGraph "{filename: '$HOME/maps/agribot_map'}"
+```
+
+Use the saved `agribot_map.yaml` with a static-map launch on later runs.
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 
@@ -238,7 +264,8 @@ ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
 
 ## Sensors and localization
 
-- Leishen C16: `/lidar/points` at about 10 Hz and `/scan`
+- Leishen C16: `/lidar/points` at about 10 Hz
+- Mapping-only height-band projection: `/scan_mapping`
 - N300Pro: `/imu/data` at about 100 Hz
 - RTK position: `/rtk/fix` and `/rtk/fix_quality`
 - RTK heading: `/rtk/heading`, `/rtk/heading_deg`, `/rtk/heading_valid`, and

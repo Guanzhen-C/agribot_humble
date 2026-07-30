@@ -19,8 +19,7 @@ lslidar_driver_node:
     angle_disable_min: 0
     angle_disable_max: 0
     horizontal_angle_resolution: 0.18
-    publish_scan: true
-    scan_num: 8
+    publish_scan: false
     filter_angle_file: config/filter_angle.yaml
 
     is_pretreatment: false

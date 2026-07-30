@@ -30,10 +30,12 @@ def _validate_arguments(context):
 
     if localization not in ("navsat", "fastlio"):
         raise RuntimeError("localization must be 'navsat' or 'fastlio'")
-    if navigation_mode not in ("static", "local"):
-        raise RuntimeError("navigation_mode must be 'static' or 'local'")
-    if navigation_mode == "local" and localization != "fastlio":
-        raise RuntimeError("local navigation currently requires localization:=fastlio")
+    if navigation_mode not in ("static", "local", "mapping"):
+        raise RuntimeError("navigation_mode must be 'static', 'local' or 'mapping'")
+    if navigation_mode in ("local", "mapping") and localization != "fastlio":
+        raise RuntimeError(
+            f"{navigation_mode} navigation currently requires localization:=fastlio"
+        )
     if navigation_mode == "static" and not map_path:
         raise RuntimeError("static navigation requires map:=/absolute/path/to/map.yaml")
     if vehicle_type not in ("differential", "ackermann"):
@@ -216,6 +218,36 @@ def generate_launch_description():
         condition=LaunchConfigurationEquals("localization", "fastlio"),
     )
 
+    online_mapping = GroupAction(
+        actions=[
+            Node(
+                package="pointcloud_to_laserscan",
+                executable="pointcloud_to_laserscan_node",
+                name="pointcloud_to_laserscan",
+                output="screen",
+                remappings=[
+                    ("cloud_in", "/lidar/points"),
+                    ("scan", "/scan_mapping"),
+                ],
+                parameters=[
+                    LaunchConfiguration("pointcloud_to_laserscan_config"),
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+            Node(
+                package="slam_toolbox",
+                executable="async_slam_toolbox_node",
+                name="slam_toolbox",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("slam_toolbox_config"),
+                    {"use_sim_time": use_sim_time},
+                ],
+            ),
+        ],
+        condition=LaunchConfigurationEquals("navigation_mode", "mapping"),
+    )
+
     ackermann_navsat_navigation = TimerAction(
         period=LaunchConfiguration("navigation_delay"),
         actions=[
@@ -367,7 +399,7 @@ def generate_launch_description():
                 default_value="",
                 description=(
                     "Absolute path to the real-vehicle Nav2 map YAML; "
-                    "unused when navigation_mode:=local"
+                    "unused when navigation_mode is local or mapping"
                 ),
             ),
             DeclareLaunchArgument(
@@ -414,6 +446,18 @@ def generate_launch_description():
                 "fastlio_bridge_config",
                 default_value=os.path.join(
                     hardware_share, "config", "fastlio_bridge.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "pointcloud_to_laserscan_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "pointcloud_to_laserscan_mapping.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "slam_toolbox_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "slam_toolbox_c16.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -474,6 +518,7 @@ def generate_launch_description():
             sensors,
             navsat_localization,
             fastlio_localization,
+            online_mapping,
             Node(
                 package="nav2_map_server",
                 executable="map_server",

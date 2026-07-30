@@ -14,6 +14,10 @@ ACKERMANN_LAUNCH_PATHS = (
     / "ackermann"
     / "launch"
     / "ackermann_mppi_fastlio_local.launch.py",
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_mppi_fastlio_mapping.launch.py",
 )
 
 
@@ -108,6 +112,25 @@ def test_local_navigation_rejects_navsat():
     with pytest.raises(RuntimeError, match="requires localization:=fastlio"):
         LAUNCH._validate_arguments(
             context_with(localization="navsat", navigation_mode="local", map="")
+        )
+
+
+def test_mapping_navigation_accepts_fastlio_without_map():
+    context = context_with(
+        localization="fastlio",
+        navigation_mode="mapping",
+        vehicle_type="ackermann",
+        controller="mppi",
+        chassis_driver="ackermann_can",
+        map="",
+    )
+    assert LAUNCH._validate_arguments(context) == []
+
+
+def test_mapping_navigation_rejects_navsat():
+    with pytest.raises(RuntimeError, match="requires localization:=fastlio"):
+        LAUNCH._validate_arguments(
+            context_with(localization="navsat", navigation_mode="mapping", map="")
         )
 
 

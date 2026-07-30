@@ -6,7 +6,7 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 - `config/chassis_can.yaml`: wheelbase, steering limits, IDs and safety timing
 - `config/chassis_serial.yaml`: USART3 port, 115200 baud and safety timing
 - `config/nav2_params_ackermann_fastlio_local.yaml`: mapless rolling costmaps
-- `launch/`: NavSat, static-map FAST-LIO and local FAST-LIO entry points
+- `launch/`: NavSat, static-map, local FAST-LIO and online mapping entry points
 - `test/`: captured-frame protocol and kinematics tests
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
@@ -44,8 +44,9 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-The local mode uses `odom`-frame rolling costmaps and C16 `/scan` obstacles,
-and caps MPPI at `0.30 m/s`. Goals must remain inside the rolling window.
+The local mode uses `odom`-frame rolling costmaps and the complete C16
+`/lidar/points` cloud through STVL, and caps MPPI at `0.30 m/s`. Goals must
+remain inside the rolling window.
 The serial fallback remains available. Do not run the standalone serial GUI
 while the ROS serial chassis node owns the chassis USB serial port:
 
@@ -55,6 +56,16 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   chassis_driver:=ackermann_serial \
   serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
 ```
+
+For online Nav2 map construction with FAST-LIO odometry and 2D loop closure:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py
+```
+
+The mapping entry point creates `/scan_mapping` from a configurable C16 height
+band for SLAM Toolbox. Navigation never consumes this synthetic scan; global
+and local obstacle layers continue to consume `/lidar/points` through STVL.
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and
 telemetry is the 24-byte WHEELTEC packet also carried by the three CAN feedback
