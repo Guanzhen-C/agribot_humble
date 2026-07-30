@@ -163,7 +163,8 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
 # Physical Ackermann vehicle: build a map on the RDK X5
-# Chassis output stays disabled; use one external manual controller.
+# Chassis and Nav2 stay disabled; use one external manual controller.
+# SLAM Toolbox starts after FAST-LIO2 has warmed up for 5 seconds.
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -172,6 +173,8 @@ export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
   rviz:=true \
+  start_navigation:=false \
+  slam_start_delay:=5.0 \
   enable_chassis_output:=false
 
 # Save both the Nav2 map and the SLAM Toolbox pose graph before stopping mapping
