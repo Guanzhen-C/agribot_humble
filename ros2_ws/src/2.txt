@@ -180,10 +180,10 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
 # Save both the Nav2 map and the SLAM Toolbox pose graph before stopping mapping
 mkdir -p /home/sunrise/agribot_maps/test_site
 ros2 run nav2_map_server map_saver_cli \
-  -f /home/sunrise/agribot_maps/test_site/map
+  -f /home/sunrise/agribot_maps/test_site/map_zoulang
 ros2 service call /slam_toolbox/serialize_map \
   slam_toolbox/srv/SerializePoseGraph \
-  "{filename: '/home/sunrise/agribot_maps/test_site/map'}"
+  "{filename: '/home/sunrise/agribot_maps/test_site/map_zoulang'}"
 
 # Physical Ackermann vehicle: localize in the saved pose graph and navigate
 # initial_pose is approximate [map_x, map_y, map_yaw]; refine it in RViz with
