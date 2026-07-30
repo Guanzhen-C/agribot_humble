@@ -70,11 +70,22 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
             "nav2_params_ackermann_navsat_static.yaml",
             "/odometry/filtered_navsat",
             0.8,
+            5.0,
         ),
-        ("nav2_params_ackermann_fastlio_static.yaml", "/fastlio/odometry", 0.8),
-        ("nav2_params_ackermann_fastlio_local.yaml", "/fastlio/odometry", 0.3),
+        (
+            "nav2_params_ackermann_fastlio_static.yaml",
+            "/fastlio/odometry",
+            0.8,
+            5.0,
+        ),
+        (
+            "nav2_params_ackermann_fastlio_local.yaml",
+            "/fastlio/odometry",
+            0.3,
+            10.0,
+        ),
     )
-    for name, odom_topic, max_velocity in cases:
+    for name, odom_topic, max_velocity, lookup_table_size in cases:
         config = load_config(name, "ackermann")
         controller = config["controller_server"]["ros__parameters"]
         follow_path = controller["FollowPath"]
@@ -90,7 +101,7 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
         assert planner["motion_model_for_search"] == "REEDS_SHEPP"
         assert planner["minimum_turning_radius"] == 1.30
-        assert planner["lookup_table_size"] == 5.0
+        assert planner["lookup_table_size"] == lookup_table_size
 
 
 def test_ackermann_configs_use_c16_stvl_for_obstacles():
@@ -206,6 +217,24 @@ def test_ackermann_fastlio_local_config_limits_steering_corrections():
     assert follow_path["wz_max"] <= 0.30
     assert follow_path["az_max"] <= 0.35
     assert follow_path["PathAlignCritic"]["cost_weight"] <= 3.5
+
+
+def test_ackermann_fastlio_local_balances_long_plans_and_rdk_load():
+    config = load_config("nav2_params_ackermann_fastlio_local.yaml", "ackermann")
+    controller = config["controller_server"]["ros__parameters"]["FollowPath"]
+    planner = config["planner_server"]["ros__parameters"]["GridBased"]
+    global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
+    local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
+
+    assert planner["lookup_table_size"] == 10.0
+    assert global_costmap["resolution"] == 0.10
+    assert local_costmap["resolution"] == 0.05
+    assert controller["batch_size"] == 1200
+    assert global_costmap["update_frequency"] == 2.0
+    assert local_costmap["update_frequency"] == 5.0
+    assert global_costmap["stvl_layer"]["voxel_size"] == 0.10
+    assert local_costmap["stvl_layer"]["voxel_size"] == 0.10
+    assert global_costmap["stvl_layer"]["voxel_decay"] == 5.0
 
 
 def test_ackermann_serial_config_limits_steering_rate():
