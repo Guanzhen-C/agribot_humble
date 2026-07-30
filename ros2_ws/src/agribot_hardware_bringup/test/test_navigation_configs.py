@@ -139,20 +139,30 @@ def test_mapping_projects_a_height_band_for_slam_toolbox_only():
     ]["ros__parameters"]
 
     assert projection["target_frame"] == "base_link"
-    assert projection["min_height"] == 0.08
-    assert projection["max_height"] == 1.50
+    assert projection["min_height"] == 0.20
+    assert projection["max_height"] == 1.20
     assert projection["range_min"] == 0.30
+    assert projection["range_max"] == 20.0
     assert slam["scan_topic"] == "/scan_mapping"
     assert slam["mode"] == "mapping"
     assert slam["odom_frame"] == "odom"
     assert slam["map_frame"] == "map"
     assert slam["base_frame"] == "base_link"
+    assert slam["scan_queue_size"] == 10
+    assert slam["max_laser_range"] == 20.0
     assert slam["do_loop_closing"] is True
+    assert slam["loop_match_maximum_variance_coarse"] == 2.0
+    assert slam["loop_match_minimum_response_coarse"] == 0.45
+    assert slam["loop_match_minimum_response_fine"] == 0.55
     assert localization["scan_topic"] == "/scan_mapping"
     assert localization["mode"] == "localization"
     assert localization["map_file_name"] == ""
     assert localization["map_start_pose"] == [0.0, 0.0, 0.0]
-    assert localization["scan_queue_size"] == 1
+    assert localization["scan_queue_size"] == 10
+    assert localization["max_laser_range"] == 20.0
+    assert localization["loop_match_maximum_variance_coarse"] == 2.0
+    assert localization["loop_match_minimum_response_coarse"] == 0.45
+    assert localization["loop_match_minimum_response_fine"] == 0.55
 
 
 def test_ackermann_configs_use_measured_rear_axle_footprint():

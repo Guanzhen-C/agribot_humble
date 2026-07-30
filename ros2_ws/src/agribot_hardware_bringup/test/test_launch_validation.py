@@ -224,6 +224,8 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert '"navigation_mode": "mapping"' in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert "slam_toolbox_mapping_c16.yaml" in source
+    assert 'DeclareLaunchArgument("slam_start_delay", default_value="5.0")' in source
+    assert '"slam_start_delay": LaunchConfiguration("slam_start_delay")' in source
     assert (
         'DeclareLaunchArgument(\n'
         '                "enable_chassis_output",\n'
@@ -238,6 +240,8 @@ def test_localization_entry_loads_posegraph_instead_of_static_map():
     assert '"initial_pose": LaunchConfiguration("initial_pose")' in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert "slam_toolbox_localization_c16.yaml" in source
+    assert 'DeclareLaunchArgument("slam_start_delay", default_value="5.0")' in source
+    assert '"slam_start_delay": LaunchConfiguration("slam_start_delay")' in source
     assert '"map": LaunchConfiguration("map")' not in source
 
 

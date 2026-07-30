@@ -16,11 +16,12 @@ slam_toolbox:
 
     debug_logging: false
     throttle_scans: 1
+    scan_queue_size: 10
     transform_publish_period: 0.02
     map_update_interval: 2.0
     resolution: 0.05
     min_laser_range: 0.30
-    max_laser_range: 30.0
+    max_laser_range: 20.0
     minimum_time_interval: 0.10
     transform_timeout: 0.3
     tf_buffer_duration: 30.0
@@ -38,9 +39,9 @@ slam_toolbox:
     loop_search_maximum_distance: 5.0
     do_loop_closing: true
     loop_match_minimum_chain_size: 10
-    loop_match_maximum_variance_coarse: 3.0
-    loop_match_minimum_response_coarse: 0.35
-    loop_match_minimum_response_fine: 0.45
+    loop_match_maximum_variance_coarse: 2.0
+    loop_match_minimum_response_coarse: 0.45
+    loop_match_minimum_response_fine: 0.55
 
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01

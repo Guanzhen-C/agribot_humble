@@ -15,7 +15,8 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("navigation_delay", default_value="5.0"),
+            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
@@ -63,6 +64,7 @@ def generate_launch_description():
                         hardware_share, "rviz", "navigation.rviz"
                     ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
+                    "slam_start_delay": LaunchConfiguration("slam_start_delay"),
                     "map": "",
                     "slam_toolbox_mapping_config": os.path.join(
                         hardware_share,

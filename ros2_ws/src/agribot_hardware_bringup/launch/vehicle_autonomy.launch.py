@@ -269,33 +269,43 @@ def generate_launch_description():
         ),
     )
 
-    online_mapping = Node(
-        package="slam_toolbox",
-        executable="async_slam_toolbox_node",
-        name="slam_toolbox",
-        output="screen",
-        parameters=[
-            LaunchConfiguration("slam_toolbox_mapping_config"),
-            {"use_sim_time": use_sim_time},
+    online_mapping = TimerAction(
+        period=LaunchConfiguration("slam_start_delay"),
+        actions=[
+            Node(
+                package="slam_toolbox",
+                executable="async_slam_toolbox_node",
+                name="slam_toolbox",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("slam_toolbox_mapping_config"),
+                    {"use_sim_time": use_sim_time},
+                ],
+            )
         ],
         condition=LaunchConfigurationEquals("navigation_mode", "mapping"),
     )
 
-    posegraph_localization = Node(
-        package="slam_toolbox",
-        executable="localization_slam_toolbox_node",
-        name="slam_toolbox",
-        output="screen",
-        parameters=[
-            LaunchConfiguration("slam_toolbox_localization_config"),
-            {
-                "use_sim_time": use_sim_time,
-                "map_file_name": LaunchConfiguration("posegraph"),
-                "map_start_pose": ParameterValue(
-                    LaunchConfiguration("initial_pose"),
-                    value_type=List[float],
-                ),
-            },
+    posegraph_localization = TimerAction(
+        period=LaunchConfiguration("slam_start_delay"),
+        actions=[
+            Node(
+                package="slam_toolbox",
+                executable="localization_slam_toolbox_node",
+                name="slam_toolbox",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("slam_toolbox_localization_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "map_file_name": LaunchConfiguration("posegraph"),
+                        "map_start_pose": ParameterValue(
+                            LaunchConfiguration("initial_pose"),
+                            value_type=List[float],
+                        ),
+                    },
+                ],
+            )
         ],
         condition=LaunchConfigurationEquals("navigation_mode", "localization"),
     )
@@ -409,6 +419,7 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
+            DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
