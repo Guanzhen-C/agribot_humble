@@ -148,32 +148,7 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Physical Ackermann vehicle: run FAST-LIO, Nav2, and the CAN chassis on RDK X5
-# Terminal 1 on the Jetson:
-ssh sunrise@192.168.100.125
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
-  rviz:=false \
-  enable_chassis_output:=true \
-  chassis_driver:=ackermann_can \
-  can_transport:=zqwl_cdc \
-  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
-
-# Physical Ackermann vehicle: display the RDK topics in RViz on the Jetson
-# Terminal 2 on the Jetson:
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 run rviz2 rviz2 \
-  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation_local.rviz
-
-# Alternative: run the complete physical stack and display RViz on the RDK desktop
-# Terminal 1 on the Jetson:
-ssh sunrise@192.168.100.125
+# Physical Ackermann vehicle: local rolling navigation and RViz on the RDK X5
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -187,4 +162,43 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# Stop the physical vehicle stack with Ctrl+C in terminal 1 first, then close RViz.
+# Physical Ackermann vehicle: build a map on the RDK X5
+# Chassis output stays disabled; use one external manual controller.
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
+  rviz:=true \
+  enable_chassis_output:=false
+
+# Save both the Nav2 map and the SLAM Toolbox pose graph before stopping mapping
+mkdir -p /home/sunrise/agribot_maps/test_site
+ros2 run nav2_map_server map_saver_cli \
+  -f /home/sunrise/agribot_maps/test_site/map
+ros2 service call /slam_toolbox/serialize_map \
+  slam_toolbox/srv/SerializePoseGraph \
+  "{filename: '/home/sunrise/agribot_maps/test_site/map'}"
+
+# Physical Ackermann vehicle: localize in the saved pose graph and navigate
+# initial_pose is approximate [map_x, map_y, map_yaw]; refine it in RViz with
+# 2D Pose Estimate before sending a goal.
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_localization.launch.py \
+  posegraph:=/home/sunrise/agribot_maps/test_site/map \
+  initial_pose:="[0.0, 0.0, 0.0]" \
+  rviz:=true \
+  enable_chassis_output:=true \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# Stop each physical stack with Ctrl+C before starting another mode.

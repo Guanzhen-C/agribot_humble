@@ -19,7 +19,7 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
-                default_value="true",
+                default_value="false",
             ),
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
             DeclareLaunchArgument("can_transport", default_value="zqwl_cdc"),
@@ -64,11 +64,16 @@ def generate_launch_description():
                     ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "map": "",
+                    "slam_toolbox_mapping_config": os.path.join(
+                        hardware_share,
+                        "config",
+                        "slam_toolbox_mapping_c16.yaml",
+                    ),
                     "fastlio_nav2_params": os.path.join(
                         hardware_share,
                         "ackermann",
                         "config",
-                        "nav2_params_ackermann_fastlio_static.yaml",
+                        "nav2_params_ackermann_fastlio_mapped.yaml",
                     ),
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
                     "enable_chassis_output": LaunchConfiguration(

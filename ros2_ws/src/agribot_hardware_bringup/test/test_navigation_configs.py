@@ -73,10 +73,10 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
             5.0,
         ),
         (
-            "nav2_params_ackermann_fastlio_static.yaml",
+            "nav2_params_ackermann_fastlio_mapped.yaml",
             "/fastlio/odometry",
-            0.8,
-            5.0,
+            0.3,
+            10.0,
         ),
         (
             "nav2_params_ackermann_fastlio_local.yaml",
@@ -107,7 +107,7 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
 def test_ackermann_configs_use_c16_stvl_for_obstacles():
     for name in (
         "nav2_params_ackermann_navsat_static.yaml",
-        "nav2_params_ackermann_fastlio_static.yaml",
+        "nav2_params_ackermann_fastlio_mapped.yaml",
         "nav2_params_ackermann_fastlio_local.yaml",
     ):
         config = load_config(name, "ackermann")
@@ -131,7 +131,12 @@ def test_mapping_projects_a_height_band_for_slam_toolbox_only():
     projection = load_config("pointcloud_to_laserscan_mapping.yaml")[
         "pointcloud_to_laserscan"
     ]["ros__parameters"]
-    slam = load_config("slam_toolbox_c16.yaml")["slam_toolbox"]["ros__parameters"]
+    slam = load_config("slam_toolbox_mapping_c16.yaml")["slam_toolbox"][
+        "ros__parameters"
+    ]
+    localization = load_config("slam_toolbox_localization_c16.yaml")[
+        "slam_toolbox"
+    ]["ros__parameters"]
 
     assert projection["target_frame"] == "base_link"
     assert projection["min_height"] == 0.08
@@ -143,6 +148,11 @@ def test_mapping_projects_a_height_band_for_slam_toolbox_only():
     assert slam["map_frame"] == "map"
     assert slam["base_frame"] == "base_link"
     assert slam["do_loop_closing"] is True
+    assert localization["scan_topic"] == "/scan_mapping"
+    assert localization["mode"] == "localization"
+    assert localization["map_file_name"] == ""
+    assert localization["map_start_pose"] == [0.0, 0.0, 0.0]
+    assert localization["scan_queue_size"] == 1
 
 
 def test_ackermann_configs_use_measured_rear_axle_footprint():
@@ -154,7 +164,7 @@ def test_ackermann_configs_use_measured_rear_axle_footprint():
     ]
     for name in (
         "nav2_params_ackermann_navsat_static.yaml",
-        "nav2_params_ackermann_fastlio_static.yaml",
+        "nav2_params_ackermann_fastlio_mapped.yaml",
         "nav2_params_ackermann_fastlio_local.yaml",
     ):
         config = load_config(name, "ackermann")
@@ -207,6 +217,33 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     assert controller["PathAlignCritic"]["use_path_orientations"] is True
     assert controller["PathAngleCritic"]["forward_preference"] is False
     assert controller["PreferForwardCritic"]["enabled"] is False
+
+
+def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
+    config = load_config("nav2_params_ackermann_fastlio_mapped.yaml", "ackermann")
+    controller = config["controller_server"]["ros__parameters"]["FollowPath"]
+    planner = config["planner_server"]["ros__parameters"]["GridBased"]
+    global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
+    local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
+
+    assert config["bt_navigator"]["ros__parameters"]["global_frame"] == "map"
+    assert controller["vx_max"] == 0.30
+    assert controller["vx_min"] < 0.0
+    assert controller["batch_size"] == 1200
+    assert controller["AckermannConstraints"]["min_turning_r"] == 1.30
+    assert planner["minimum_turning_radius"] == 1.30
+    assert planner["lookup_table_size"] == 10.0
+    assert planner["downsample_costmap"] is True
+    assert planner["downsampling_factor"] == 2
+    for costmap in (global_costmap, local_costmap):
+        assert costmap["global_frame"] == "map"
+        assert costmap["plugins"] == [
+            "static_layer",
+            "stvl_layer",
+            "inflation_layer",
+        ]
+        assert costmap["static_layer"]["subscribe_to_updates"] is True
+        assert costmap["inflation_layer"]["inflation_radius"] == 0.4
 
 
 def test_ackermann_fastlio_local_config_limits_steering_corrections():

@@ -9,9 +9,9 @@ navigation selections:
 | Differential | DWB | NavSat/KF-GINS | `differential_dwb_navsat.launch.py` |
 | Differential | DWB | FAST-LIO | `differential_dwb_fastlio.launch.py` |
 | Ackermann | MPPI | NavSat/KF-GINS | `ackermann_mppi_navsat.launch.py` |
-| Ackermann | MPPI | FAST-LIO | `ackermann_mppi_fastlio.launch.py` |
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 | Ackermann | MPPI | FAST-LIO + online mapping | `ackermann_mppi_fastlio_mapping.launch.py` |
+| Ackermann | MPPI | FAST-LIO + pose-graph localization | `ackermann_mppi_fastlio_localization.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -22,17 +22,17 @@ ackermann/     Ackermann protocol, MPPI config, behavior trees, launch and tests
 localization/  NavSat/KF-GINS node and localization bridge scripts
 ```
 
-All project-owned runtime code and resources used by these four entry points
+All project-owned runtime code and resources used by these entry points
 are contained in this package. The remaining package dependencies are ROS 2
 system components or third-party device/algorithm packages: Nav2, RViz,
 FAST-LIO, `hipnuc_imu`, `lslidar_driver`, STVL, SLAM Toolbox,
 `pointcloud_to_laserscan`, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
 
-No simulation map is bundled with the physical-vehicle package. Pass the
-absolute path to a map recorded on the target vehicle with `map:=/path/map.yaml`
-when launching a static-map entry point. The FAST-LIO local entry point does
-not require a saved map.
+No simulation map is bundled with the physical-vehicle package. NavSat and
+differential static-map entry points accept a real map with
+`map:=/path/map.yaml`. Ackermann FAST-LIO persistent navigation instead loads
+a SLAM Toolbox pose graph; the local rolling-map entry point requires neither.
 
 The installed executables are `differential_chassis_can_node` and
 `ackermann_chassis_can_node`; there is no mixed vehicle executable.
@@ -194,12 +194,10 @@ an in-place rotation. The protocol has no documented autonomous-mode,
 emergency-stop, steering-position, motor-fault, or wheel-RPM feedback fields;
 the driver does not invent these safety states.
 
-The two complete Ackermann entry points are:
+The NavSat static-map Ackermann entry point is:
 
 ```bash
 ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
-  map:=/absolute/path/to/real_map.yaml
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio.launch.py \
   map:=/absolute/path/to/real_map.yaml
 ```
 
@@ -233,25 +231,46 @@ persistent global coordinates or restart-time relocalization.
 For online 2D occupancy-grid mapping while FAST-LIO supplies odometry:
 
 ```bash
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
+  rviz:=true \
+  enable_chassis_output:=false
 ```
 
 This entry point projects all C16 points between `0.08` and `1.50 m` above
 `base_link` into `/scan_mapping` for SLAM Toolbox. This topic is only a mapping
 interface; Nav2 obstacle perception continues to use `/lidar/points` through
 STVL. SLAM Toolbox publishes `/map` and `map -> odom`, performs 2D loop
-closure, and allows Nav2 to plan while the map grows.
+closure, and allows Nav2 to plan while the map grows. Chassis output defaults
+to disabled during mapping so a manual controller can own the CAN adapter.
 
 Save the Nav2 occupancy map and lossless SLAM Toolbox pose graph after mapping:
 
 ```bash
-mkdir -p ~/maps
-ros2 run nav2_map_server map_saver_cli -f ~/maps/agribot_map
+mkdir -p ~/agribot_maps/test_site
+ros2 run nav2_map_server map_saver_cli \
+  -f ~/agribot_maps/test_site/map
 ros2 service call /slam_toolbox/serialize_map \
-  slam_toolbox/srv/SerializePoseGraph "{filename: '$HOME/maps/agribot_map'}"
+  slam_toolbox/srv/SerializePoseGraph \
+  "{filename: '$HOME/agribot_maps/test_site/map'}"
 ```
 
-Use the saved `agribot_map.yaml` with a static-map launch on later runs.
+The first command saves `map.pgm` and `map.yaml`; the second saves
+`map.posegraph` and `map.data`. Persistent FAST-LIO navigation uses the
+pose-graph base path without a suffix:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_localization.launch.py \
+  posegraph:=/home/sunrise/agribot_maps/test_site/map \
+  initial_pose:="[0.0, 0.0, 0.0]" \
+  rviz:=true \
+  enable_chassis_output:=true
+```
+
+Set `initial_pose` to an approximate map pose, or use RViz's
+`2D Pose Estimate` before sending a navigation goal. SLAM Toolbox then
+scan-matches `/scan_mapping` against the saved graph and publishes the dynamic
+`map -> odom` transform; no fixed identity transform is used.
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 

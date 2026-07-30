@@ -15,9 +15,18 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("navigation_delay", default_value="5.0"),
+            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             DeclareLaunchArgument(
-                "map", description="Absolute path to the real-vehicle Nav2 map YAML"
+                "posegraph",
+                description=(
+                    "Absolute SLAM Toolbox pose-graph base path without "
+                    "the .posegraph or .data suffix"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "initial_pose",
+                default_value="[0.0, 0.0, 0.0]",
+                description="Approximate [x, y, yaw] pose in the saved map",
             ),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
@@ -56,13 +65,27 @@ def generate_launch_description():
                     "vehicle_type": "ackermann",
                     "controller": "mppi",
                     "localization": "fastlio",
+                    "navigation_mode": "localization",
                     "start_rtk": "false",
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
-                    "map": LaunchConfiguration("map"),
+                    "map": "",
+                    "posegraph": LaunchConfiguration("posegraph"),
+                    "initial_pose": LaunchConfiguration("initial_pose"),
+                    "slam_toolbox_localization_config": os.path.join(
+                        hardware_share,
+                        "config",
+                        "slam_toolbox_localization_c16.yaml",
+                    ),
+                    "fastlio_nav2_params": os.path.join(
+                        hardware_share,
+                        "ackermann",
+                        "config",
+                        "nav2_params_ackermann_fastlio_mapped.yaml",
+                    ),
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
                     "enable_chassis_output": LaunchConfiguration(
                         "enable_chassis_output"

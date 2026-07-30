@@ -6,7 +6,8 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 - `config/chassis_can.yaml`: wheelbase, steering limits, IDs and safety timing
 - `config/chassis_serial.yaml`: USART3 port, 115200 baud and safety timing
 - `config/nav2_params_ackermann_fastlio_local.yaml`: mapless rolling costmaps
-- `launch/`: NavSat, static-map, local FAST-LIO and online mapping entry points
+- `config/nav2_params_ackermann_fastlio_mapped.yaml`: mapped navigation limits
+- `launch/`: NavSat, local FAST-LIO, mapping and pose-graph localization
 - `test/`: captured-frame protocol and kinematics tests
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
@@ -33,8 +34,7 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-Use `ackermann_mppi_fastlio.launch.py` for FAST-LIO. For short-range FAST-LIO
-navigation without a saved map, use:
+For short-range FAST-LIO navigation without a saved map, use:
 
 ```bash
 ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
@@ -60,12 +60,33 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
 For online Nav2 map construction with FAST-LIO odometry and 2D loop closure:
 
 ```bash
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
+  enable_chassis_output:=false
 ```
 
 The mapping entry point creates `/scan_mapping` from a configurable C16 height
 band for SLAM Toolbox. Navigation never consumes this synthetic scan; global
 and local obstacle layers continue to consume `/lidar/points` through STVL.
+Mapping defaults to no chassis output so the CAN GUI or another manual
+controller can drive the coverage route.
+
+After saving both the occupancy map and serialized pose graph, localize and
+navigate with:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_localization.launch.py \
+  posegraph:=/home/sunrise/agribot_maps/test_site/map \
+  initial_pose:="[0.0, 0.0, 0.0]" \
+  enable_chassis_output:=true \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+```
+
+The pose-graph argument is the base path, not the `.posegraph` file name.
+Set an approximate initial map pose on the command line or with RViz's
+`2D Pose Estimate` tool before sending a goal.
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and
 telemetry is the 24-byte WHEELTEC packet also carried by the three CAN feedback

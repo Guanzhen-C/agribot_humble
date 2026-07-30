@@ -9,7 +9,10 @@ PACKAGE_ROOT = Path(__file__).parents[1]
 VEHICLE_LAUNCH_PATH = PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py"
 ACKERMANN_LAUNCH_PATHS = (
     PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_navsat.launch.py",
-    PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_fastlio.launch.py",
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_mppi_fastlio_localization.launch.py",
     PACKAGE_ROOT
     / "ackermann"
     / "launch"
@@ -44,6 +47,7 @@ def context_with(**overrides):
         "enable_can_output": "false",
         "enable_chassis_output": "false",
         "map": "/tmp/real_map.yaml",
+        "posegraph": "/tmp/real_map",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -134,6 +138,55 @@ def test_mapping_navigation_rejects_navsat():
         )
 
 
+def test_posegraph_localization_accepts_fastlio():
+    context = context_with(
+        localization="fastlio",
+        navigation_mode="localization",
+        vehicle_type="ackermann",
+        controller="mppi",
+        chassis_driver="ackermann_can",
+        map="",
+        posegraph="/tmp/real_map",
+    )
+    assert LAUNCH._validate_arguments(context) == []
+
+
+def test_posegraph_localization_requires_base_path():
+    with pytest.raises(RuntimeError, match="requires posegraph"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="localization",
+                vehicle_type="ackermann",
+                controller="mppi",
+                posegraph="",
+            )
+        )
+
+    with pytest.raises(RuntimeError, match="without .posegraph"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="localization",
+                vehicle_type="ackermann",
+                controller="mppi",
+                posegraph="/tmp/real_map.posegraph",
+            )
+        )
+
+
+def test_removed_ackermann_fastlio_static_mode_is_rejected():
+    with pytest.raises(RuntimeError, match="static mode was removed"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="static",
+                vehicle_type="ackermann",
+                controller="mppi",
+            )
+        )
+
+
 def test_static_navigation_requires_map():
     with pytest.raises(RuntimeError, match="static navigation requires map"):
         LAUNCH._validate_arguments(context_with(map=""))
@@ -164,6 +217,40 @@ def test_fastlio_local_ackermann_uses_mppi_command_directly():
         '                "command_input_topic", default_value="/nav2/cmd_vel"\n'
         "            )"
     ) in source
+
+
+def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
+    source = ACKERMANN_LAUNCH_PATHS[3].read_text()
+    assert '"navigation_mode": "mapping"' in source
+    assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
+    assert "slam_toolbox_mapping_c16.yaml" in source
+    assert (
+        'DeclareLaunchArgument(\n'
+        '                "enable_chassis_output",\n'
+        '                default_value="false",'
+    ) in source
+
+
+def test_localization_entry_loads_posegraph_instead_of_static_map():
+    source = ACKERMANN_LAUNCH_PATHS[1].read_text()
+    assert '"navigation_mode": "localization"' in source
+    assert '"posegraph": LaunchConfiguration("posegraph")' in source
+    assert '"initial_pose": LaunchConfiguration("initial_pose")' in source
+    assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
+    assert "slam_toolbox_localization_c16.yaml" in source
+    assert '"map": LaunchConfiguration("map")' not in source
+
+
+def test_vehicle_launch_uses_slam_toolbox_posegraph_localization():
+    source = VEHICLE_LAUNCH_PATH.read_text()
+    assert 'executable="localization_slam_toolbox_node"' in source
+    assert '"map_file_name": LaunchConfiguration("posegraph")' in source
+    assert '"map_start_pose": ParameterValue(' in source
+    assert "map_to_fastlio_odom" in source
+    assert (
+        'condition=LaunchConfigurationEquals("navigation_mode", "static")'
+        in source
+    )
 
 
 def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():

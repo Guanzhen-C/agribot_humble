@@ -56,11 +56,13 @@ def test_migrated_runtime_resources_exist_and_parse():
         "localization/navsat/scripts/navsat_pose_bridge.py",
         "localization/fastlio/scripts/fastlio_odom_bridge.py",
         "ackermann/config/nav2_params_ackermann_navsat_static.yaml",
-        "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
+        "ackermann/config/nav2_params_ackermann_fastlio_mapped.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
+        "ackermann/launch/ackermann_mppi_fastlio_localization.launch.py",
         "ackermann/launch/ackermann_mppi_fastlio_mapping.launch.py",
         "config/pointcloud_to_laserscan_mapping.yaml",
-        "config/slam_toolbox_c16.yaml",
+        "config/slam_toolbox_mapping_c16.yaml",
+        "config/slam_toolbox_localization_c16.yaml",
         "rviz/navigation_local.rviz",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
@@ -68,6 +70,14 @@ def test_migrated_runtime_resources_exist_and_parse():
     )
     for relative_path in expected:
         assert (PACKAGE_ROOT / relative_path).is_file()
+
+    obsolete = (
+        "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
+        "ackermann/launch/ackermann_mppi_fastlio.launch.py",
+        "config/slam_toolbox_c16.yaml",
+    )
+    for relative_path in obsolete:
+        assert not (PACKAGE_ROOT / relative_path).exists()
 
     for path in (PACKAGE_ROOT / "ackermann" / "behavior_trees").glob("*.xml"):
         element_tree.parse(path)
