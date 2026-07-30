@@ -253,6 +253,8 @@ def test_vehicle_launch_uses_slam_toolbox_posegraph_localization():
     assert '"map_file_name": LaunchConfiguration("posegraph")' in source
     assert '"map_start_pose": ParameterValue(' in source
     assert "map_to_fastlio_odom" in source
+    assert "odom_to_fastlio_world" in source
+    assert '("cloud_in", "/cloud_registered_body")' in source
     assert (
         'condition=LaunchConfigurationEquals("navigation_mode", "static")'
         in source

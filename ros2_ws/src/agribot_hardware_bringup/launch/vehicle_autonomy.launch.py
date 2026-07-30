@@ -219,6 +219,19 @@ def generate_launch_description():
                     {"use_sim_time": use_sim_time},
                 ],
             ),
+            # The odom bridge preserves FAST-LIO's camera_init world coordinates.
+            # This alias connects its deskewed body cloud to the Nav2 TF tree.
+            Node(
+                package="tf2_ros",
+                executable="static_transform_publisher",
+                name="odom_to_fastlio_world",
+                arguments=[
+                    "--frame-id",
+                    "odom",
+                    "--child-frame-id",
+                    "camera_init",
+                ],
+            ),
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
@@ -253,7 +266,7 @@ def generate_launch_description():
         name="pointcloud_to_laserscan",
         output="screen",
         remappings=[
-            ("cloud_in", "/lidar/points"),
+            ("cloud_in", "/cloud_registered_body"),
             ("scan", "/scan_mapping"),
         ],
         parameters=[
