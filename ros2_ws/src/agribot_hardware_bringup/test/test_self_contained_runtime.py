@@ -91,6 +91,20 @@ def test_rviz_goal_tool_sends_nav2_action_directly():
         assert "Class: rviz_default_plugins/SetGoal" not in config
 
 
+def test_mapped_navigation_rviz_defaults_to_low_bandwidth_scan():
+    config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
+    assert "Class: rviz_default_plugins/LaserScan" in config
+    assert "Name: Map Matching Scan" in config
+    assert "Value: /scan_mapping" in config
+    assert re.search(
+        r"Class: rviz_default_plugins/PointCloud2"
+        r"(?:(?!Class:).)*Enabled: false"
+        r"(?:(?!Class:).)*Name: C16 Obstacle Input",
+        config,
+        re.DOTALL,
+    )
+
+
 def test_simulation_orchard_map_is_not_bundled_or_defaulted():
     assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.yaml").exists()
     assert not (PACKAGE_ROOT / "maps" / "orchard_v2_map6.pgm").exists()

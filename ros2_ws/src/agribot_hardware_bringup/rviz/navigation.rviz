@@ -113,11 +113,37 @@ Visualization Manager:
         Value: true
       Axis: Z
       Channel Name: intensity
+      Class: rviz_default_plugins/LaserScan
+      Color: 0; 255; 120
+      Color Transformer: FlatColor
+      Decay Time: 0.2
+      Enabled: true
+      Name: Map Matching Scan
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.03
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /scan_mapping
+      Use Fixed Frame: true
+    - Alpha: 0.8
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 0; 0
       Color Transformer: AxisColor
       Decay Time: 0.2
-      Enabled: true
+      Enabled: false
       Name: C16 Obstacle Input
       Position Transformer: XYZ
       Queue Size: 3
