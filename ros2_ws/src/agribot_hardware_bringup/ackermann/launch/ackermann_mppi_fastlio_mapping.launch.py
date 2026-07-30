@@ -15,6 +15,7 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("start_navigation", default_value="false"),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
@@ -60,6 +61,7 @@ def generate_launch_description():
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
+                    "start_navigation": LaunchConfiguration("start_navigation"),
                     "rviz_config": os.path.join(
                         hardware_share, "rviz", "navigation.rviz"
                     ),

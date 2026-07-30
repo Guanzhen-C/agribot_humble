@@ -109,6 +109,8 @@ def _selection_condition(vehicle_type, controller, localization):
         PythonExpression(
             [
                 "'",
+                LaunchConfiguration("start_navigation"),
+                "'.lower() in ('true', '1', 'yes', 'on') and '",
                 LaunchConfiguration("vehicle_type"),
                 "' == '",
                 vehicle_type,
@@ -418,6 +420,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
             DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),

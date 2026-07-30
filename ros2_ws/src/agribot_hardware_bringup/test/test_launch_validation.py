@@ -224,6 +224,8 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert '"navigation_mode": "mapping"' in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert "slam_toolbox_mapping_c16.yaml" in source
+    assert 'DeclareLaunchArgument("start_navigation", default_value="false")' in source
+    assert '"start_navigation": LaunchConfiguration("start_navigation")' in source
     assert 'DeclareLaunchArgument("slam_start_delay", default_value="5.0")' in source
     assert '"slam_start_delay": LaunchConfiguration("slam_start_delay")' in source
     assert (
