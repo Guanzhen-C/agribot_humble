@@ -318,7 +318,7 @@ planner_server:
       non_straight_penalty: 1.2
       cost_penalty: 2.0
       retrospective_penalty: 0.015
-      lookup_table_size: 20.0
+      lookup_table_size: 5.0
       cache_obstacle_heuristic: false
       smooth_path: true
 

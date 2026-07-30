@@ -90,6 +90,7 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
         assert planner["motion_model_for_search"] == "REEDS_SHEPP"
         assert planner["minimum_turning_radius"] == 1.30
+        assert planner["lookup_table_size"] == 5.0
 
 
 def test_ackermann_configs_use_c16_stvl_for_obstacles():
