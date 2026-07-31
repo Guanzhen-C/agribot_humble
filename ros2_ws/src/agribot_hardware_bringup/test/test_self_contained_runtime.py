@@ -83,6 +83,12 @@ def test_migrated_runtime_resources_exist_and_parse():
         element_tree.parse(path)
 
 
+def test_ackermann_behavior_trees_never_request_backup():
+    for path in (PACKAGE_ROOT / "ackermann" / "behavior_trees").glob("*.xml"):
+        tree = element_tree.parse(path)
+        assert not tree.findall(".//BackUp")
+
+
 def test_rviz_goal_tool_sends_nav2_action_directly():
     for name in ("navigation.rviz", "navigation_local.rviz"):
         config = (PACKAGE_ROOT / "rviz" / name).read_text()

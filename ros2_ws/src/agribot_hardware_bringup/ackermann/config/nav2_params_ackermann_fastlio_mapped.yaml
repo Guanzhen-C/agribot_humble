@@ -20,7 +20,6 @@ bt_navigator:
       - nav2_spin_action_bt_node
       - nav2_wait_action_bt_node
       - nav2_assisted_teleop_action_bt_node
-      - nav2_back_up_action_bt_node
       - nav2_drive_on_heading_bt_node
       - nav2_clear_costmap_service_bt_node
       - nav2_is_stuck_condition_bt_node
@@ -56,7 +55,6 @@ bt_navigator:
       - nav2_path_longer_on_approach_bt_node
       - nav2_wait_cancel_bt_node
       - nav2_spin_cancel_bt_node
-      - nav2_back_up_cancel_bt_node
       - nav2_assisted_teleop_cancel_bt_node
       - nav2_drive_on_heading_cancel_bt_node
       - nav2_is_battery_charging_condition_bt_node
@@ -91,7 +89,7 @@ controller_server:
       vy_std: 0.0
       wz_std: 0.10
       vx_max: 0.30
-      vx_min: -0.15
+      vx_min: 0.0
       vy_max: 0.0
       wz_max: 0.30
       ax_max: 0.8
@@ -109,7 +107,7 @@ controller_server:
       regenerate_noises: false
       reset_period: 1.0
       prune_distance: 4.0
-      enforce_path_inversion: true
+      enforce_path_inversion: false
       inversion_xy_tolerance: 0.2
       inversion_yaw_tolerance: 0.4
       TrajectoryVisualizer:
@@ -165,9 +163,9 @@ controller_server:
         offset_from_furthest: 3
         threshold_to_consider: 0.5
         max_angle_to_furthest: 1.0
-        forward_preference: false
+        forward_preference: true
       PreferForwardCritic:
-        enabled: false
+        enabled: true
         cost_power: 1
         cost_weight: 5.0
         threshold_to_consider: 0.5
@@ -319,12 +317,11 @@ planner_server:
       max_iterations: 1000000
       max_on_approach_iterations: 1000
       max_planning_time: 5.0
-      motion_model_for_search: REEDS_SHEPP
+      motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
       analytic_expansion_max_length: 5.2
       minimum_turning_radius: 1.30
-      reverse_penalty: 2.0
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0
@@ -339,11 +336,9 @@ behavior_server:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: [spin, backup, wait]
+    behavior_plugins: [spin, wait]
     spin:
       plugin: nav2_behaviors/Spin
-    backup:
-      plugin: nav2_behaviors/BackUp
     wait:
       plugin: nav2_behaviors/Wait
     global_frame: map

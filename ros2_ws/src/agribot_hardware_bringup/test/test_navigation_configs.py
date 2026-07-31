@@ -96,12 +96,25 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert follow_path["plugin"] == "nav2_mppi_controller::MPPIController"
         assert follow_path["motion_model"] == "Ackermann"
         assert follow_path["vx_max"] == max_velocity
+        assert follow_path["vx_min"] == 0.0
         assert follow_path["vy_max"] == 0.0
+        assert follow_path["enforce_path_inversion"] is False
         assert follow_path["AckermannConstraints"]["min_turning_r"] == 1.30
         assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
-        assert planner["motion_model_for_search"] == "REEDS_SHEPP"
+        assert planner["motion_model_for_search"] == "DUBIN"
+        assert "reverse_penalty" not in planner
         assert planner["minimum_turning_radius"] == 1.30
         assert planner["lookup_table_size"] == lookup_table_size
+
+        behavior_server = config["behavior_server"]["ros__parameters"]
+        assert "backup" not in behavior_server["behavior_plugins"]
+        assert "backup" not in behavior_server
+        assert all(
+            "back_up" not in plugin
+            for plugin in config["bt_navigator"]["ros__parameters"][
+                "plugin_lib_names"
+            ]
+        )
 
 
 def test_ackermann_configs_use_c16_stvl_for_obstacles():
@@ -210,7 +223,7 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     controller = config["controller_server"]["ros__parameters"]["FollowPath"]
 
     assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
-    assert planner["motion_model_for_search"] == "REEDS_SHEPP"
+    assert planner["motion_model_for_search"] == "DUBIN"
     assert planner["minimum_turning_radius"] == 1.30
     assert planner["minimum_turning_radius"] == controller["AckermannConstraints"][
         "min_turning_r"
@@ -222,11 +235,11 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     assert planner["analytic_expansion_max_length"] >= (
         4.0 * planner["minimum_turning_radius"]
     )
-    assert controller["vx_min"] < 0.0
-    assert controller["enforce_path_inversion"] is True
+    assert controller["vx_min"] == 0.0
+    assert controller["enforce_path_inversion"] is False
     assert controller["PathAlignCritic"]["use_path_orientations"] is True
-    assert controller["PathAngleCritic"]["forward_preference"] is False
-    assert controller["PreferForwardCritic"]["enabled"] is False
+    assert controller["PathAngleCritic"]["forward_preference"] is True
+    assert controller["PreferForwardCritic"]["enabled"] is True
 
 
 def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
@@ -238,7 +251,7 @@ def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
 
     assert config["bt_navigator"]["ros__parameters"]["global_frame"] == "map"
     assert controller["vx_max"] == 0.30
-    assert controller["vx_min"] < 0.0
+    assert controller["vx_min"] == 0.0
     assert controller["batch_size"] == 1200
     assert controller["AckermannConstraints"]["min_turning_r"] == 1.30
     assert planner["minimum_turning_radius"] == 1.30
