@@ -11,18 +11,20 @@ def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "map_base",
+                description=(
+                    "Absolute output path without an extension; saving creates "
+                    ".pcd, .pgm and .yaml files"
+                ),
+            ),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("start_navigation", default_value="false"),
-            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
-            DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
+            DeclareLaunchArgument("map_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
-            DeclareLaunchArgument(
-                "enable_chassis_output",
-                default_value="false",
-            ),
+            DeclareLaunchArgument("enable_chassis_output", default_value="false"),
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
             DeclareLaunchArgument("can_transport", default_value="zqwl_cdc"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
@@ -57,28 +59,17 @@ def generate_launch_description():
                     "localization": "fastlio",
                     "navigation_mode": "mapping",
                     "start_rtk": "false",
+                    "start_navigation": "false",
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
-                    "start_navigation": LaunchConfiguration("start_navigation"),
                     "rviz_config": os.path.join(
-                        hardware_share, "rviz", "navigation.rviz"
+                        hardware_share, "rviz", "pcd_mapping.rviz"
                     ),
-                    "navigation_delay": LaunchConfiguration("navigation_delay"),
-                    "slam_start_delay": LaunchConfiguration("slam_start_delay"),
+                    "map_start_delay": LaunchConfiguration("map_start_delay"),
+                    "pcd_map_base": LaunchConfiguration("map_base"),
                     "map": "",
-                    "slam_toolbox_mapping_config": os.path.join(
-                        hardware_share,
-                        "config",
-                        "slam_toolbox_mapping_c16.yaml",
-                    ),
-                    "fastlio_nav2_params": os.path.join(
-                        hardware_share,
-                        "ackermann",
-                        "config",
-                        "nav2_params_ackermann_fastlio_mapped.yaml",
-                    ),
                     "enable_can_output": LaunchConfiguration("enable_can_output"),
                     "enable_chassis_output": LaunchConfiguration(
                         "enable_chassis_output"

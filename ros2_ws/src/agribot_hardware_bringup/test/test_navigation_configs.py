@@ -140,42 +140,29 @@ def test_c16_driver_does_not_publish_legacy_scan():
     assert "scan_num" not in lidar
 
 
-def test_mapping_projects_a_height_band_for_slam_toolbox_only():
-    projection = load_config("pointcloud_to_laserscan_mapping.yaml")[
-        "pointcloud_to_laserscan"
-    ]["ros__parameters"]
-    slam = load_config("slam_toolbox_mapping_c16.yaml")["slam_toolbox"][
+def test_3d_mapping_and_mapped_navigation_keep_fastlio_as_pose_source():
+    mapping = load_config("pcd_mapping.yaml")["pcd_map_builder"]["ros__parameters"]
+    anchor = load_config("fastlio_map_anchor.yaml")["fastlio_map_anchor"][
         "ros__parameters"
     ]
-    localization = load_config("slam_toolbox_localization_c16.yaml")[
-        "slam_toolbox"
-    ]["ros__parameters"]
 
-    assert projection["target_frame"] == "base_link"
-    assert projection["min_height"] == 0.20
-    assert projection["max_height"] == 1.20
-    assert projection["range_min"] == 0.30
-    assert projection["range_max"] == 20.0
-    assert slam["scan_topic"] == "/scan_mapping"
-    assert slam["mode"] == "mapping"
-    assert slam["odom_frame"] == "odom"
-    assert slam["map_frame"] == "map"
-    assert slam["base_frame"] == "base_link"
-    assert slam["scan_queue_size"] == 10
-    assert slam["max_laser_range"] == 20.0
-    assert slam["do_loop_closing"] is True
-    assert slam["loop_match_maximum_variance_coarse"] == 2.0
-    assert slam["loop_match_minimum_response_coarse"] == 0.45
-    assert slam["loop_match_minimum_response_fine"] == 0.55
-    assert localization["scan_topic"] == "/scan_mapping"
-    assert localization["mode"] == "localization"
-    assert localization["map_file_name"] == ""
-    assert localization["map_start_pose"] == [0.0, 0.0, 0.0]
-    assert localization["scan_queue_size"] == 10
-    assert localization["max_laser_range"] == 20.0
-    assert localization["loop_match_maximum_variance_coarse"] == 2.0
-    assert localization["loop_match_minimum_response_coarse"] == 0.45
-    assert localization["loop_match_minimum_response_fine"] == 0.55
+    assert mapping["cloud_topic"] == "/cloud_registered"
+    assert mapping["cloud_frame"] == "camera_init"
+    assert mapping["odom_topic"] == "/fastlio/odometry"
+    assert mapping["map_frame"] == "map"
+    assert mapping["odom_frame"] == "odom"
+    assert mapping["voxel_size"] == 0.10
+    assert mapping["min_observations"] >= 2
+    assert mapping["occupancy_resolution"] == 0.05
+    assert mapping["occupancy_min_z"] == 0.05
+    assert mapping["occupancy_max_z"] == 1.80
+
+    assert anchor["odom_topic"] == "/fastlio/odometry"
+    assert anchor["initial_pose_topic"] == "/initialpose"
+    assert anchor["map_frame"] == "map"
+    assert anchor["odom_frame"] == "odom"
+    assert anchor["base_frame"] == "base_link"
+    assert anchor["allow_reinitialization"] is True
 
 
 def test_ackermann_configs_use_measured_rear_axle_footprint():

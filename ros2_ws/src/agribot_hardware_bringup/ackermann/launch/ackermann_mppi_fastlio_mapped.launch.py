@@ -4,31 +4,31 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    map_base = LaunchConfiguration("map_base")
     return LaunchDescription(
         [
-            DeclareLaunchArgument("use_sim_time", default_value="false"),
-            DeclareLaunchArgument("autostart", default_value="true"),
-            DeclareLaunchArgument("start_sensors", default_value="true"),
-            DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
-            DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
             DeclareLaunchArgument(
-                "posegraph",
+                "map_base",
                 description=(
-                    "Absolute SLAM Toolbox pose-graph base path without "
-                    "the .posegraph or .data suffix"
+                    "Absolute saved-map path without the .yaml extension"
                 ),
             ),
             DeclareLaunchArgument(
                 "initial_pose",
                 default_value="[0.0, 0.0, 0.0]",
-                description="Approximate [x, y, yaw] pose in the saved map",
+                description="Initial [map_x, map_y, map_yaw] rear-axle pose",
             ),
+            DeclareLaunchArgument("use_sim_time", default_value="false"),
+            DeclareLaunchArgument("autostart", default_value="true"),
+            DeclareLaunchArgument("start_sensors", default_value="true"),
+            DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            DeclareLaunchArgument("map_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
@@ -72,16 +72,13 @@ def generate_launch_description():
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
-                    "navigation_delay": LaunchConfiguration("navigation_delay"),
-                    "slam_start_delay": LaunchConfiguration("slam_start_delay"),
-                    "map": "",
-                    "posegraph": LaunchConfiguration("posegraph"),
-                    "initial_pose": LaunchConfiguration("initial_pose"),
-                    "slam_toolbox_localization_config": os.path.join(
-                        hardware_share,
-                        "config",
-                        "slam_toolbox_localization_c16.yaml",
+                    "rviz_config": os.path.join(
+                        hardware_share, "rviz", "navigation.rviz"
                     ),
+                    "navigation_delay": LaunchConfiguration("navigation_delay"),
+                    "map_start_delay": LaunchConfiguration("map_start_delay"),
+                    "map": PythonExpression(["'", map_base, ".yaml'"]),
+                    "initial_pose": LaunchConfiguration("initial_pose"),
                     "fastlio_nav2_params": os.path.join(
                         hardware_share,
                         "ackermann",

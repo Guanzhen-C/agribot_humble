@@ -58,12 +58,14 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/config/nav2_params_ackermann_navsat_static.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_mapped.yaml",
         "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
-        "ackermann/launch/ackermann_mppi_fastlio_localization.launch.py",
-        "ackermann/launch/ackermann_mppi_fastlio_mapping.launch.py",
-        "config/pointcloud_to_laserscan_mapping.yaml",
-        "config/slam_toolbox_mapping_c16.yaml",
-        "config/slam_toolbox_localization_c16.yaml",
+        "ackermann/launch/ackermann_mppi_fastlio_mapped.launch.py",
+        "ackermann/launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
+        "config/fastlio_map_anchor.yaml",
+        "config/pcd_mapping.yaml",
+        "localization/fastlio/scripts/fastlio_map_anchor.py",
+        "localization/pcd/src/pcd_map_builder.cpp",
         "rviz/navigation_local.rviz",
+        "rviz/pcd_mapping.rviz",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
         "desktop/wheeltec-car-gui.desktop",
@@ -74,6 +76,11 @@ def test_migrated_runtime_resources_exist_and_parse():
     obsolete = (
         "ackermann/config/nav2_params_ackermann_fastlio_static.yaml",
         "ackermann/launch/ackermann_mppi_fastlio.launch.py",
+        "ackermann/launch/ackermann_mppi_fastlio_localization.launch.py",
+        "ackermann/launch/ackermann_mppi_fastlio_mapping.launch.py",
+        "config/pointcloud_to_laserscan_mapping.yaml",
+        "config/slam_toolbox_mapping_c16.yaml",
+        "config/slam_toolbox_localization_c16.yaml",
         "config/slam_toolbox_c16.yaml",
     )
     for relative_path in obsolete:
@@ -97,11 +104,10 @@ def test_rviz_goal_tool_sends_nav2_action_directly():
         assert "Class: rviz_default_plugins/SetGoal" not in config
 
 
-def test_mapped_navigation_rviz_defaults_to_low_bandwidth_scan():
+def test_navigation_rviz_does_not_render_3d_clouds_or_legacy_scan():
     config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
-    assert "Class: rviz_default_plugins/LaserScan" in config
-    assert "Name: Map Matching Scan" in config
-    assert "Value: /scan_mapping" in config
+    assert "Class: rviz_default_plugins/LaserScan" not in config
+    assert "/scan_mapping" not in config
     assert re.search(
         r"Class: rviz_default_plugins/PointCloud2"
         r"(?:(?!Class:).)*Enabled: false"
@@ -109,6 +115,13 @@ def test_mapped_navigation_rviz_defaults_to_low_bandwidth_scan():
         config,
         re.DOTALL,
     )
+
+
+def test_mapping_rviz_displays_voxelized_pcd_map():
+    config = (PACKAGE_ROOT / "rviz" / "pcd_mapping.rviz").read_text()
+    assert "Name: 3D PCD Map" in config
+    assert "Value: /pcd_map" in config
+    assert "Durability Policy: Transient Local" in config
 
 
 def test_simulation_orchard_map_is_not_bundled_or_defaulted():

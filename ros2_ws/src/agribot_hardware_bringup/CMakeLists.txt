@@ -12,10 +12,14 @@ find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io)
+find_package(pcl_conversions REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(scout_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 set(CHASSIS_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}/can/include
@@ -140,6 +144,22 @@ ament_target_dependencies(rtk_eskf_localization
   sensor_msgs
 )
 
+add_executable(
+  pcd_map_builder
+  localization/pcd/src/pcd_map_builder.cpp
+)
+target_include_directories(pcd_map_builder SYSTEM PRIVATE ${PCL_INCLUDE_DIRS})
+target_link_libraries(pcd_map_builder Eigen3::Eigen ${PCL_LIBRARIES})
+ament_target_dependencies(pcd_map_builder
+  geometry_msgs
+  nav_msgs
+  pcl_conversions
+  rclcpp
+  sensor_msgs
+  std_srvs
+  tf2_ros
+)
+
 install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
@@ -147,6 +167,7 @@ install(PROGRAMS
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
   localization/fastlio/scripts/fastlio_odom_bridge.py
+  localization/fastlio/scripts/fastlio_map_anchor.py
   localization/navsat/scripts/navsat_pose_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -202,6 +223,7 @@ install(TARGETS
   ackermann_chassis_can_node
   ackermann_chassis_serial_node
   rtk_eskf_localization
+  pcd_map_builder
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -240,6 +262,10 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_chassis_can_transport chassis_can_common)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
+  ament_add_pytest_test(
+    test_fastlio_map_anchor
+    test/test_fastlio_map_anchor.py
+  )
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
   ament_add_pytest_test(

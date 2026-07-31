@@ -25,7 +25,7 @@ def _validate_arguments(context):
     chassis_driver = LaunchConfiguration("chassis_driver").perform(context)
     can_transport = LaunchConfiguration("can_transport").perform(context)
     map_path = LaunchConfiguration("map").perform(context)
-    posegraph_path = LaunchConfiguration("posegraph").perform(context)
+    pcd_map_base_path = LaunchConfiguration("pcd_map_base").perform(context)
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
@@ -44,8 +44,11 @@ def _validate_arguments(context):
         raise RuntimeError(
             f"{navigation_mode} navigation currently requires localization:=fastlio"
         )
-    if navigation_mode == "static" and not map_path:
-        raise RuntimeError("static navigation requires map:=/absolute/path/to/map.yaml")
+    if navigation_mode in ("static", "localization") and not map_path:
+        raise RuntimeError(
+            f"{navigation_mode} navigation requires "
+            "map:=/absolute/path/to/map.yaml"
+        )
     if (
         navigation_mode == "static"
         and localization == "fastlio"
@@ -53,17 +56,11 @@ def _validate_arguments(context):
     ):
         raise RuntimeError(
             "Ackermann FAST-LIO static mode was removed; use navigation_mode:="
-            "localization with a serialized pose graph"
+            "localization with a saved map"
         )
-    if navigation_mode == "localization" and not posegraph_path:
+    if navigation_mode == "mapping" and not pcd_map_base_path:
         raise RuntimeError(
-            "pose-graph localization requires posegraph:=/absolute/path/to/map"
-        )
-    if navigation_mode == "localization" and posegraph_path.endswith(
-        (".posegraph", ".data")
-    ):
-        raise RuntimeError(
-            "posegraph must be the base path without .posegraph or .data"
+            "3D mapping requires pcd_map_base:=/absolute/path/to/map_name"
         )
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
@@ -260,61 +257,39 @@ def generate_launch_description():
         condition=LaunchConfigurationEquals("localization", "fastlio"),
     )
 
-    mapping_scan_projection = Node(
-        package="pointcloud_to_laserscan",
-        executable="pointcloud_to_laserscan_node",
-        name="pointcloud_to_laserscan",
-        output="screen",
-        remappings=[
-            ("cloud_in", "/cloud_registered_body"),
-            ("scan", "/scan_mapping"),
-        ],
-        parameters=[
-            LaunchConfiguration("pointcloud_to_laserscan_config"),
-            {"use_sim_time": use_sim_time},
-        ],
-        condition=IfCondition(
-            PythonExpression(
-                [
-                    "'",
-                    LaunchConfiguration("navigation_mode"),
-                    "' in ('mapping', 'localization')",
-                ]
-            )
-        ),
-    )
-
-    online_mapping = TimerAction(
-        period=LaunchConfiguration("slam_start_delay"),
+    pcd_mapping = TimerAction(
+        period=LaunchConfiguration("map_start_delay"),
         actions=[
             Node(
-                package="slam_toolbox",
-                executable="async_slam_toolbox_node",
-                name="slam_toolbox",
+                package="agribot_hardware_bringup",
+                executable="pcd_map_builder",
+                name="pcd_map_builder",
                 output="screen",
                 parameters=[
-                    LaunchConfiguration("slam_toolbox_mapping_config"),
-                    {"use_sim_time": use_sim_time},
+                    LaunchConfiguration("pcd_mapping_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "map_base_path": LaunchConfiguration("pcd_map_base"),
+                    },
                 ],
             )
         ],
         condition=LaunchConfigurationEquals("navigation_mode", "mapping"),
     )
 
-    posegraph_localization = TimerAction(
-        period=LaunchConfiguration("slam_start_delay"),
+    mapped_localization = TimerAction(
+        period=LaunchConfiguration("map_start_delay"),
         actions=[
             Node(
-                package="slam_toolbox",
-                executable="localization_slam_toolbox_node",
-                name="slam_toolbox",
+                package="agribot_hardware_bringup",
+                executable="fastlio_map_anchor.py",
+                name="fastlio_map_anchor",
                 output="screen",
                 parameters=[
-                    LaunchConfiguration("slam_toolbox_localization_config"),
+                    LaunchConfiguration("fastlio_map_anchor_config"),
                     {
                         "use_sim_time": use_sim_time,
-                        "map_file_name": LaunchConfiguration("posegraph"),
-                        "map_start_pose": ParameterValue(
+                        "initial_pose": ParameterValue(
                             LaunchConfiguration("initial_pose"),
                             value_type=List[float],
                         ),
@@ -435,7 +410,7 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
-            DeclareLaunchArgument("slam_start_delay", default_value="5.0"),
+            DeclareLaunchArgument("map_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
@@ -477,11 +452,11 @@ def generate_launch_description():
                 "map",
                 default_value="",
                 description=(
-                    "Absolute path to the real-vehicle Nav2 map YAML; "
-                    "unused for FAST-LIO local, mapping or localization modes"
+                    "Absolute path to the real-vehicle Nav2 map YAML; required "
+                    "for static and mapped FAST-LIO modes"
                 ),
             ),
-            DeclareLaunchArgument("posegraph", default_value=""),
+            DeclareLaunchArgument("pcd_map_base", default_value=""),
             DeclareLaunchArgument(
                 "initial_pose", default_value="[0.0, 0.0, 0.0]"
             ),
@@ -532,21 +507,15 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "pointcloud_to_laserscan_config",
+                "pcd_mapping_config",
                 default_value=os.path.join(
-                    hardware_share, "config", "pointcloud_to_laserscan_mapping.yaml"
+                    hardware_share, "config", "pcd_mapping.yaml"
                 ),
             ),
             DeclareLaunchArgument(
-                "slam_toolbox_mapping_config",
+                "fastlio_map_anchor_config",
                 default_value=os.path.join(
-                    hardware_share, "config", "slam_toolbox_mapping_c16.yaml"
-                ),
-            ),
-            DeclareLaunchArgument(
-                "slam_toolbox_localization_config",
-                default_value=os.path.join(
-                    hardware_share, "config", "slam_toolbox_localization_c16.yaml"
+                    hardware_share, "config", "fastlio_map_anchor.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -607,9 +576,8 @@ def generate_launch_description():
             sensors,
             navsat_localization,
             fastlio_localization,
-            mapping_scan_projection,
-            online_mapping,
-            posegraph_localization,
+            pcd_mapping,
+            mapped_localization,
             Node(
                 package="nav2_map_server",
                 executable="map_server",
@@ -618,7 +586,15 @@ def generate_launch_description():
                 parameters=[
                     {"use_sim_time": use_sim_time, "yaml_filename": LaunchConfiguration("map")}
                 ],
-                condition=LaunchConfigurationEquals("navigation_mode", "static"),
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("navigation_mode"),
+                            "' in ('static', 'localization')",
+                        ]
+                    )
+                ),
             ),
             Node(
                 package="nav2_lifecycle_manager",
@@ -629,7 +605,15 @@ def generate_launch_description():
                     {"use_sim_time": use_sim_time, "autostart": autostart},
                     {"node_names": ["map_server"]},
                 ],
-                condition=LaunchConfigurationEquals("navigation_mode", "static"),
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("navigation_mode"),
+                            "' in ('static', 'localization')",
+                        ]
+                    )
+                ),
             ),
             ackermann_navsat_navigation,
             ackermann_fastlio_navigation,

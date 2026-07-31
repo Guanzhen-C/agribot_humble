@@ -12,7 +12,7 @@ ACKERMANN_LAUNCH_PATHS = (
     PACKAGE_ROOT
     / "ackermann"
     / "launch"
-    / "ackermann_mppi_fastlio_localization.launch.py",
+    / "ackermann_mppi_fastlio_mapped.launch.py",
     PACKAGE_ROOT
     / "ackermann"
     / "launch"
@@ -20,7 +20,7 @@ ACKERMANN_LAUNCH_PATHS = (
     PACKAGE_ROOT
     / "ackermann"
     / "launch"
-    / "ackermann_mppi_fastlio_mapping.launch.py",
+    / "ackermann_mppi_fastlio_3d_mapping.launch.py",
 )
 
 
@@ -47,7 +47,7 @@ def context_with(**overrides):
         "enable_can_output": "false",
         "enable_chassis_output": "false",
         "map": "/tmp/real_map.yaml",
-        "posegraph": "/tmp/real_map",
+        "pcd_map_base": "/tmp/real_map",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -138,39 +138,41 @@ def test_mapping_navigation_rejects_navsat():
         )
 
 
-def test_posegraph_localization_accepts_fastlio():
+def test_mapping_navigation_requires_output_base_path():
+    with pytest.raises(RuntimeError, match="3D mapping requires pcd_map_base"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="mapping",
+                vehicle_type="ackermann",
+                controller="mppi",
+                map="",
+                pcd_map_base="",
+            )
+        )
+
+
+def test_mapped_localization_accepts_fastlio():
     context = context_with(
         localization="fastlio",
         navigation_mode="localization",
         vehicle_type="ackermann",
         controller="mppi",
         chassis_driver="ackermann_can",
-        map="",
-        posegraph="/tmp/real_map",
+        map="/tmp/real_map.yaml",
     )
     assert LAUNCH._validate_arguments(context) == []
 
 
-def test_posegraph_localization_requires_base_path():
-    with pytest.raises(RuntimeError, match="requires posegraph"):
+def test_mapped_localization_requires_nav2_map():
+    with pytest.raises(RuntimeError, match="localization navigation requires map"):
         LAUNCH._validate_arguments(
             context_with(
                 localization="fastlio",
                 navigation_mode="localization",
                 vehicle_type="ackermann",
                 controller="mppi",
-                posegraph="",
-            )
-        )
-
-    with pytest.raises(RuntimeError, match="without .posegraph"):
-        LAUNCH._validate_arguments(
-            context_with(
-                localization="fastlio",
-                navigation_mode="localization",
-                vehicle_type="ackermann",
-                controller="mppi",
-                posegraph="/tmp/real_map.posegraph",
+                map="",
             )
         )
 
@@ -222,39 +224,33 @@ def test_fastlio_local_ackermann_uses_mppi_command_directly():
 def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     source = ACKERMANN_LAUNCH_PATHS[3].read_text()
     assert '"navigation_mode": "mapping"' in source
-    assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
-    assert "slam_toolbox_mapping_c16.yaml" in source
-    assert 'DeclareLaunchArgument("start_navigation", default_value="false")' in source
-    assert '"start_navigation": LaunchConfiguration("start_navigation")' in source
-    assert 'DeclareLaunchArgument("slam_start_delay", default_value="5.0")' in source
-    assert '"slam_start_delay": LaunchConfiguration("slam_start_delay")' in source
-    assert (
-        'DeclareLaunchArgument(\n'
-        '                "enable_chassis_output",\n'
-        '                default_value="false",'
-    ) in source
+    assert '"start_navigation": "false"' in source
+    assert '"pcd_map_base": LaunchConfiguration("map_base")' in source
+    assert "pcd_mapping.rviz" in source
+    assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
+    assert 'DeclareLaunchArgument("enable_chassis_output", default_value="false")' in source
 
 
-def test_localization_entry_loads_posegraph_instead_of_static_map():
+def test_mapped_entry_uses_static_map_with_fastlio_anchor():
     source = ACKERMANN_LAUNCH_PATHS[1].read_text()
     assert '"navigation_mode": "localization"' in source
-    assert '"posegraph": LaunchConfiguration("posegraph")' in source
+    assert '"map": PythonExpression(' in source
+    assert "map_base, \".yaml'\"]" in source
     assert '"initial_pose": LaunchConfiguration("initial_pose")' in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
-    assert "slam_toolbox_localization_c16.yaml" in source
-    assert 'DeclareLaunchArgument("slam_start_delay", default_value="5.0")' in source
-    assert '"slam_start_delay": LaunchConfiguration("slam_start_delay")' in source
-    assert '"map": LaunchConfiguration("map")' not in source
+    assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
+    assert "posegraph" not in source
 
 
-def test_vehicle_launch_uses_slam_toolbox_posegraph_localization():
+def test_vehicle_launch_keeps_map_matching_out_of_fastlio_localization():
     source = VEHICLE_LAUNCH_PATH.read_text()
-    assert 'executable="localization_slam_toolbox_node"' in source
-    assert '"map_file_name": LaunchConfiguration("posegraph")' in source
-    assert '"map_start_pose": ParameterValue(' in source
+    assert 'executable="fastlio_map_anchor.py"' in source
+    assert 'executable="pcd_map_builder"' in source
+    assert "slam_toolbox" not in source
+    assert "pointcloud_to_laserscan" not in source
+    assert "pcd_ndt_localizer" not in source
     assert "map_to_fastlio_odom" in source
     assert "odom_to_fastlio_world" in source
-    assert '("cloud_in", "/cloud_registered_body")' in source
     assert (
         'condition=LaunchConfigurationEquals("navigation_mode", "static")'
         in source

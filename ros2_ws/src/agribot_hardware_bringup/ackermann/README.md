@@ -7,7 +7,7 @@ This directory contains the WHEELTEC C50C Ackermann chassis implementation:
 - `config/chassis_serial.yaml`: USART3 port, 115200 baud and safety timing
 - `config/nav2_params_ackermann_fastlio_local.yaml`: mapless rolling costmaps
 - `config/nav2_params_ackermann_fastlio_mapped.yaml`: mapped navigation limits
-- `launch/`: NavSat, local FAST-LIO, mapping and pose-graph localization
+- `launch/`: NavSat, local FAST-LIO, 3D mapping and saved-map navigation
 - `test/`: captured-frame protocol and kinematics tests
 
 Both chassis transports run at 20 Hz, require valid feedback before permitting
@@ -57,26 +57,30 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   serial_port:=/dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C079857-if00
 ```
 
-For online Nav2 map construction with FAST-LIO odometry and 2D loop closure:
-
-```bash
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_mapping.launch.py \
-  enable_chassis_output:=false
-```
-
-The mapping entry point creates `/scan_mapping` from a configurable C16 height
-band for SLAM Toolbox. Navigation never consumes this synthetic scan; global
-and local obstacle layers continue to consume `/lidar/points` through STVL.
-Mapping defaults to no chassis output so the CAN GUI or another manual
-controller can drive the coverage route.
-
-After saving both the occupancy map and serialized pose graph, localize and
-navigate with:
+For 3D PCD map construction with FAST-LIO odometry:
 
 ```bash
 ros2 launch agribot_hardware_bringup \
-  ackermann_mppi_fastlio_localization.launch.py \
-  posegraph:=/home/sunrise/agribot_maps/test_site/map \
+  ackermann_mppi_fastlio_3d_mapping.launch.py \
+  map_base:=/home/sunrise/agribot_maps/test_site/map \
+  enable_chassis_output:=false
+```
+
+The mapping entry point accumulates `/cloud_registered` into a voxelized
+three-dimensional map. Mapping defaults to no chassis output so one manual
+controller can drive the coverage route. Save it before shutdown:
+
+```bash
+ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
+```
+
+The save operation writes `.pcd`, `.pgm`, and `.yaml` files in one coordinate
+system. Use the saved YAML projection for long-range planning:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_mapped.launch.py \
+  map_base:=/home/sunrise/agribot_maps/test_site/map \
   initial_pose:="[0.0, 0.0, 0.0]" \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
@@ -84,9 +88,10 @@ ros2 launch agribot_hardware_bringup \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-The pose-graph argument is the base path, not the `.posegraph` file name.
-Set an approximate initial map pose on the command line or with RViz's
-`2D Pose Estimate` tool before sending a goal.
+Set an approximate initial rear-axle map pose on the command line or with
+RViz's `2D Pose Estimate` tool before sending a goal. The map supplies planning
+only; FAST-LIO remains the pose source and is not continuously corrected by
+map matching.
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and
 telemetry is the 24-byte WHEELTEC packet also carried by the three CAN feedback

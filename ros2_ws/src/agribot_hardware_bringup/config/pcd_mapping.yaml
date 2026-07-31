@@ -1,0 +1,23 @@
+pcd_map_builder:
+  ros__parameters:
+    cloud_topic: /cloud_registered
+    cloud_frame: camera_init
+    odom_topic: /fastlio/odometry
+    map_frame: map
+    odom_frame: odom
+    map_base_path: /tmp/agribot_map
+
+    # Count a voxel at most once per scan so transient returns are suppressed.
+    voxel_size: 0.10
+    min_observations: 2
+    min_range: 0.50
+    max_range: 30.0
+    publish_period: 2.0
+
+    # Produce an aligned 2D map for Nav2 from the same 3D PCD coordinates.
+    occupancy_resolution: 0.05
+    occupancy_min_z: 0.05
+    occupancy_max_z: 1.80
+    occupancy_padding: 1.0
+    occupancy_dilation_radius: 0.05
+    save_on_shutdown: false
