@@ -105,6 +105,25 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /local_plan
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Name: Relocalized Vehicle Pose
+      Enabled: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /localization_pose
+      Queue Size: 10
+      Shape: Arrow
+      Color: 255; 30; 30
+      Axes Length: 1
+      Axes Radius: 0.08
+      Head Length: 0.35
+      Head Radius: 0.12
+      Shaft Length: 1.1
+      Shaft Radius: 0.06
+      Unreliable: false
     - Alpha: 0.8
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:

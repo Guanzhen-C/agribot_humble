@@ -117,6 +117,13 @@ def test_navigation_rviz_does_not_render_3d_clouds_or_legacy_scan():
     )
 
 
+def test_mapped_navigation_rviz_displays_relocalized_vehicle_pose():
+    config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
+    assert "Class: rviz_default_plugins/PoseWithCovariance" in config
+    assert "Name: Relocalized Vehicle Pose" in config
+    assert "Value: /localization_pose" in config
+
+
 def test_mapping_rviz_displays_voxelized_pcd_map():
     config = (PACKAGE_ROOT / "rviz" / "pcd_mapping.rviz").read_text()
     assert "Name: 3D PCD Map" in config
