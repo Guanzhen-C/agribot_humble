@@ -162,24 +162,29 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# Physical Ackermann vehicle: build a 3D PCD map on the RDK X5
-# Chassis and Nav2 stay disabled; drive with one external manual controller.
-# The first rear-axle pose becomes map (0, 0, 0).
+# Physical Ackermann vehicle: build a FAST-LIO2 3D map on the RDK X5
+# Terminal 1: wait for "Initialized map origin", then drive slowly with the
+# Bluetooth controller. Nav2 and ROS chassis output stay disabled.
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
+mkdir -p /home/sunrise/agribot_maps/test_site
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_3d_mapping.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang \
+  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
   rviz:=true \
   enable_chassis_output:=false
 
-# Save before stopping mapping. This creates map_zoulang.pcd plus the aligned
-# map_zoulang.pgm and map_zoulang.yaml used by Nav2.
+# Terminal 2: save before stopping Terminal 1. Wait for success: true.
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
+ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
 
 # Physical Ackermann vehicle: use the saved map for long-range Nav2 planning
 # FAST-LIO remains the localization source. The map does not correct its pose.
@@ -193,7 +198,7 @@ export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang \
+  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
   initial_pose:="[0.0, 0.0, 0.0]" \
   rviz:=true \
   enable_chassis_output:=true \
