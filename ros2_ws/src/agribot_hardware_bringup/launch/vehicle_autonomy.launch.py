@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -131,6 +132,9 @@ def _selection_condition(vehicle_type, controller, localization):
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    robot_description = Path(
+        os.path.join(hardware_share, "urdf", "ackermann_vehicle.urdf")
+    ).read_text(encoding="utf-8")
     navigation_launch = os.path.join(
         hardware_share, "launch", "include", "navigation_only.launch.py"
     )
@@ -579,7 +583,40 @@ def generate_launch_description():
                     hardware_share, "ackermann", "config", "chassis_serial.yaml"
                 ),
             ),
+            DeclareLaunchArgument(
+                "ackermann_joint_state_config",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "joint_state_publisher.yaml",
+                ),
+            ),
             OpaqueFunction(function=_validate_arguments),
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                name="ackermann_robot_state_publisher",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "robot_description": robot_description,
+                    }
+                ],
+                condition=LaunchConfigurationEquals("vehicle_type", "ackermann"),
+            ),
+            Node(
+                package="agribot_hardware_bringup",
+                executable="ackermann_joint_state_publisher",
+                name="ackermann_joint_state_publisher",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("ackermann_joint_state_config"),
+                    {"use_sim_time": use_sim_time},
+                ],
+                condition=LaunchConfigurationEquals("vehicle_type", "ackermann"),
+            ),
             sensors,
             navsat_localization,
             fastlio_localization,

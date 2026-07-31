@@ -91,7 +91,7 @@ controller_server:
       vx_max: 0.80
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 0.65
+      wz_max: 0.613854
       ax_max: 1.5
       ax_min: -1.5
       ay_min: 0.0
@@ -102,7 +102,7 @@ controller_server:
       gamma: 0.015
       motion_model: "Ackermann"
       AckermannConstraints:
-        min_turning_r: 1.30
+        min_turning_r: 1.303241
       visualize: false
       regenerate_noises: false
       reset_period: 1.0
@@ -177,7 +177,7 @@ global_costmap:
       transform_tolerance: 0.8
       resolution: 0.05
       track_unknown_space: true
-      footprint: "[[0.66, 0.33], [0.66, -0.33], [-0.12, -0.33], [-0.12, 0.33]]"
+      footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
@@ -238,7 +238,7 @@ local_costmap:
       height: 8
       resolution: 0.05
       transform_tolerance: 0.8
-      footprint: "[[0.66, 0.33], [0.66, -0.33], [-0.12, -0.33], [-0.12, 0.33]]"
+      footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
@@ -310,8 +310,8 @@ planner_server:
       motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
-      analytic_expansion_max_length: 5.2
-      minimum_turning_radius: 1.30
+      analytic_expansion_max_length: 5.22
+      minimum_turning_radius: 1.303241
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0

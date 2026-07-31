@@ -35,8 +35,40 @@ differential static-map entry points accept a real map with
 generated alongside its PCD map; the local rolling-map entry point requires
 none of these files.
 
-The installed executables are `differential_chassis_can_node` and
-`ackermann_chassis_can_node`; there is no mixed vehicle executable.
+The installed chassis executables remain vehicle-specific; there is no mixed
+vehicle executable.
+
+Ackermann launches publish `urdf/ackermann_vehicle.urdf` for RViz. Its
+multi-material GLB meshes are converted from the measured vehicle STEP assembly
+and retain the assembly colors and detailed suspension geometry. The body and
+four original wheel assemblies are separate visual meshes. The URDF
+converts it to ROS axes (`+X` forward, `+Y` left, `+Z` up) and centers it at
+the rear axle to match `base_link`. It is visual-only; Nav2 continues to use
+the configured footprint for collision checking.
+
+`ackermann_joint_state_publisher` uses measured `/wheel/odometry` velocity to
+animate the four wheel rotations and infer the left/right Ackermann steering
+angles. Its front-wheel joint hierarchy matches the simulation: steering about
+`+Z`, followed by rolling about `+Y`. The chassis protocol does not expose a
+standalone steering-position field, so the last inferred steering angle is held
+while stationary.
+
+The STEP/URDF geometry is the canonical source for physical Ackermann
+kinematics: mean wheelbase `0.5265855 m`, front/rear tracks `0.589931 m` and
+`0.590517 m`, nominal wheel radius `0.1275 m`, and maximum steering angle
+`0.384 rad`. This gives a `1.303241 m` minimum bicycle-model turning radius.
+The CAN, serial, MPPI, Smac Hybrid-A*, joint visualization, and Nav2 footprint
+configurations use these same values.
+
+The same robot description also displays the installed HiPNUC N300 Pro IMU
+and the side-outlet LeiShen C16 V4.0 lidar. Their model centers follow
+`config/sensor_mounts.yaml`: `imu_link` is at `(0.1425, 0, 0.143)` m and the
+C16 optical-center frame `lidar_link` is at `(0.48, 0, 0.233)` m relative to
+the rear-axle-centered `base_link`. The physical-navigation RViz profiles show
+both sensor axes; these visuals do not publish or replace the calibrated TFs.
+The vehicle mesh removes the STEP assembly's obsolete M10 lidar and the rear
+auxiliary assembly. The C16 uses the rear carrier-plate shape at its calibrated
+position, with four pillars extended down to the chassis mounting surface.
 
 The dedicated differential launch files default to CAN output disabled. The
 Nav2 command path is:

@@ -1,0 +1,17 @@
+/**:
+  ros__parameters:
+    odom_topic: /wheel/odometry
+    joint_states_topic: /joint_states
+
+    # Mean wheelbase derived from the left/right STEP wheel-center positions.
+    wheelbase_m: 0.5265855
+    max_steering_angle_rad: 0.384
+
+    # STEP-derived hub spacing and nominal 10-inch wheel radius.
+    front_track_m: 0.589931
+    rear_track_m: 0.590517
+    wheel_radius_m: 0.1275
+
+    min_linear_speed_mps: 0.02
+    feedback_timeout_sec: 0.6
+    publish_rate_hz: 30.0

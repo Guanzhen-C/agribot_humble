@@ -279,6 +279,15 @@ def test_vehicle_launch_uses_pcd_global_localization_only_in_mapped_mode():
     )
 
 
+def test_ackermann_vehicle_launch_publishes_robot_description():
+    source = VEHICLE_LAUNCH_PATH.read_text()
+    assert 'package="robot_state_publisher"' in source
+    assert 'name="ackermann_robot_state_publisher"' in source
+    assert '"urdf", "ackermann_vehicle.urdf"' in source
+    assert '"robot_description": robot_description' in source
+    assert 'condition=LaunchConfigurationEquals("vehicle_type", "ackermann")' in source
+
+
 def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():
     source = VEHICLE_LAUNCH_PATH.read_text()
     sensor_block = source[source.index("    sensors = GroupAction("):]

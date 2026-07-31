@@ -25,6 +25,18 @@ Visualization Manager:
       Show Arrows: true
       Show Axes: true
       Show Names: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.12
+      Name: N300 Pro IMU Axes
+      Radius: 0.008
+      Reference Frame: imu_link
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.16
+      Name: C16 Lidar Axes
+      Radius: 0.01
+      Reference Frame: lidar_link
     - Alpha: 0.7
       Class: rviz_default_plugins/Map
       Color Scheme: map
@@ -105,25 +117,29 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /local_plan
-    - Class: rviz_default_plugins/PoseWithCovariance
-      Name: Relocalized Vehicle Pose
-      Enabled: true
-      Topic:
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
         Depth: 5
-        Durability Policy: Volatile
+        Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /localization_pose
-      Queue Size: 10
-      Shape: Arrow
-      Color: 255; 30; 30
-      Axes Length: 1
-      Axes Radius: 0.08
-      Head Length: 0.35
-      Head Radius: 0.12
-      Shaft Length: 1.1
-      Shaft Radius: 0.06
-      Unreliable: false
+        Value: /robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+      Name: Physical Ackermann Vehicle
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
     - Alpha: 0.8
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -197,10 +213,16 @@ Visualization Manager:
       Topic: /clicked_point
   Views:
     Current:
-      Class: rviz_default_plugins/TopDownOrtho
+      Class: rviz_default_plugins/Orbit
+      Distance: 5
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
       Name: Current View
-      Scale: 30
+      Pitch: 0.7
       Target Frame: map
+      Yaw: 0.8
 Window Geometry:
   Height: 900
   Width: 1440

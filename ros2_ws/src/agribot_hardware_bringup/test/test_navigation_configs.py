@@ -1,9 +1,41 @@
+import math
+import xml.etree.ElementTree as element_tree
 from pathlib import Path
 
+import pytest
 import yaml
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
+URDF_ROOT = element_tree.parse(
+    PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
+).getroot()
+
+
+def joint_origin_x(name):
+    joint = URDF_ROOT.find(f"./joint[@name='{name}']")
+    return float(joint.find("origin").attrib["xyz"].split()[0])
+
+
+LEFT_WHEELBASE = joint_origin_x("front_left_steering_joint") - joint_origin_x(
+    "rear_left_wheel_joint"
+)
+RIGHT_WHEELBASE = joint_origin_x("front_right_steering_joint") - joint_origin_x(
+    "rear_right_wheel_joint"
+)
+MODEL_WHEELBASE = (LEFT_WHEELBASE + RIGHT_WHEELBASE) * 0.5
+MODEL_MAX_STEERING = float(
+    URDF_ROOT.find("./joint[@name='front_left_steering_joint']/limit").attrib[
+        "upper"
+    ]
+)
+MODEL_MIN_TURNING_RADIUS = MODEL_WHEELBASE / math.tan(MODEL_MAX_STEERING)
+MODEL_FOOTPRINT = [
+    [0.654818, 0.335974],
+    [0.654818, -0.335974],
+    [-0.127500, -0.335974],
+    [-0.127500, 0.335974],
+]
 
 
 def load_config(name, vehicle=None):
@@ -99,11 +131,18 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         assert follow_path["vx_min"] == 0.0
         assert follow_path["vy_max"] == 0.0
         assert follow_path["enforce_path_inversion"] is False
-        assert follow_path["AckermannConstraints"]["min_turning_r"] == 1.30
+        assert follow_path["AckermannConstraints"]["min_turning_r"] == pytest.approx(
+            MODEL_MIN_TURNING_RADIUS, abs=1e-6
+        )
+        assert follow_path["wz_max"] == pytest.approx(
+            max_velocity / MODEL_MIN_TURNING_RADIUS, abs=1e-6
+        )
         assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
         assert planner["motion_model_for_search"] == "DUBIN"
         assert "reverse_penalty" not in planner
-        assert planner["minimum_turning_radius"] == 1.30
+        assert planner["minimum_turning_radius"] == pytest.approx(
+            MODEL_MIN_TURNING_RADIUS, abs=1e-6
+        )
         assert planner["lookup_table_size"] == lookup_table_size
 
         behavior_server = config["behavior_server"]["ros__parameters"]
@@ -155,7 +194,7 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert mapping["min_observations"] >= 2
     assert mapping["rear_exclusion_enabled"] is True
     assert mapping["rear_exclusion_min_x"] == -4.0
-    assert mapping["rear_exclusion_max_x"] == -0.12
+    assert mapping["rear_exclusion_max_x"] == -0.1275
     assert mapping["rear_exclusion_half_width"] == 0.60
     assert mapping["occupancy_resolution"] == 0.05
     assert mapping["occupancy_min_z"] == 0.05
@@ -176,13 +215,7 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert localizer["minimum_overlap"] >= 0.20
 
 
-def test_ackermann_configs_use_measured_rear_axle_footprint():
-    expected = [
-        [0.66, 0.33],
-        [0.66, -0.33],
-        [-0.12, -0.33],
-        [-0.12, 0.33],
-    ]
+def test_ackermann_configs_use_step_model_rear_axle_footprint():
     for name in (
         "nav2_params_ackermann_navsat_static.yaml",
         "nav2_params_ackermann_fastlio_mapped.yaml",
@@ -191,7 +224,7 @@ def test_ackermann_configs_use_measured_rear_axle_footprint():
         config = load_config(name, "ackermann")
         for costmap_name in ("global_costmap", "local_costmap"):
             costmap = config[costmap_name][costmap_name]["ros__parameters"]
-            assert yaml.safe_load(costmap["footprint"]) == expected
+            assert yaml.safe_load(costmap["footprint"]) == MODEL_FOOTPRINT
 
 
 def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
@@ -222,7 +255,9 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
 
     assert planner["plugin"] == "nav2_smac_planner/SmacPlannerHybrid"
     assert planner["motion_model_for_search"] == "DUBIN"
-    assert planner["minimum_turning_radius"] == 1.30
+    assert planner["minimum_turning_radius"] == pytest.approx(
+        MODEL_MIN_TURNING_RADIUS, abs=1e-6
+    )
     assert planner["minimum_turning_radius"] == controller["AckermannConstraints"][
         "min_turning_r"
     ]
@@ -251,8 +286,12 @@ def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
     assert controller["vx_max"] == 0.30
     assert controller["vx_min"] == 0.0
     assert controller["batch_size"] == 1200
-    assert controller["AckermannConstraints"]["min_turning_r"] == 1.30
-    assert planner["minimum_turning_radius"] == 1.30
+    assert controller["AckermannConstraints"]["min_turning_r"] == pytest.approx(
+        MODEL_MIN_TURNING_RADIUS, abs=1e-6
+    )
+    assert planner["minimum_turning_radius"] == pytest.approx(
+        MODEL_MIN_TURNING_RADIUS, abs=1e-6
+    )
     assert planner["lookup_table_size"] == 10.0
     assert planner["downsample_costmap"] is True
     assert planner["downsampling_factor"] == 2
@@ -303,6 +342,26 @@ def test_ackermann_serial_config_limits_steering_rate():
     assert config["require_localization_ready"] is False
     assert config["localization_ready_topic"] == "/localization/ready"
     assert config["localization_ready_timeout_sec"] == 2.5
+
+
+def test_ackermann_chassis_and_visualization_match_urdf_kinematics():
+    expected_max_angular = 0.80 / MODEL_MIN_TURNING_RADIUS
+    for name in ("chassis_can.yaml", "chassis_serial.yaml"):
+        config = load_config(name, "ackermann")["/**"]["ros__parameters"]
+        assert config["wheelbase_m"] == pytest.approx(MODEL_WHEELBASE, abs=1e-7)
+        assert config["max_steering_angle_rad"] == MODEL_MAX_STEERING
+        assert config["max_angular_velocity"] == pytest.approx(
+            expected_max_angular, abs=1e-6
+        )
+
+    visualization = load_config("joint_state_publisher.yaml", "ackermann")["/**"][
+        "ros__parameters"
+    ]
+    assert visualization["wheelbase_m"] == pytest.approx(
+        MODEL_WHEELBASE, abs=1e-7
+    )
+    assert visualization["max_steering_angle_rad"] == MODEL_MAX_STEERING
+    assert visualization["wheel_radius_m"] == 0.1275
 
 
 def test_ackermann_can_supports_localization_readiness_gate():

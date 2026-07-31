@@ -111,13 +111,13 @@ public:
     localization_ready_timeout_sec_ =
       declare_parameter<double>("localization_ready_timeout_sec", 2.5);
 
-    kinematics_.wheelbase_m = declare_parameter<double>("wheelbase_m", 0.50);
+    kinematics_.wheelbase_m = declare_parameter<double>("wheelbase_m", 0.5265855);
     kinematics_.max_steering_angle_rad =
       declare_parameter<double>("max_steering_angle_rad", 0.384);
     kinematics_.max_linear_velocity =
       declare_parameter<double>("max_linear_velocity", 0.80);
     kinematics_.max_angular_velocity =
-      declare_parameter<double>("max_angular_velocity", 0.65);
+      declare_parameter<double>("max_angular_velocity", 0.613854);
     kinematics_.minimum_motion_speed =
       declare_parameter<double>("minimum_motion_speed", 0.02);
     max_steering_rate_rad_s_ =

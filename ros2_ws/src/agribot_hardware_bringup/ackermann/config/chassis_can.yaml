@@ -22,10 +22,10 @@
     localization_ready_timeout_sec: 2.5
     headlight: false
 
-    wheelbase_m: 0.50
+    wheelbase_m: 0.5265855
     max_steering_angle_rad: 0.384
     max_linear_velocity: 0.80
-    max_angular_velocity: 0.65
+    max_angular_velocity: 0.613854
     minimum_motion_speed: 0.02
 
     # WHEELTEC C50C classic CAN protocol, standard 11-bit IDs and 8-byte payloads.

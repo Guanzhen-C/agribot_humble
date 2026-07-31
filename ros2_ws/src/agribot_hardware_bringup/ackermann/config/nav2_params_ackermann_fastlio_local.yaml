@@ -91,7 +91,7 @@ controller_server:
       vx_max: 0.30
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 0.30
+      wz_max: 0.230195
       ax_max: 0.8
       ax_min: -0.8
       ay_min: 0.0
@@ -102,7 +102,7 @@ controller_server:
       gamma: 0.015
       motion_model: "Ackermann"
       AckermannConstraints:
-        min_turning_r: 1.30
+        min_turning_r: 1.303241
       visualize: false
       regenerate_noises: false
       reset_period: 1.0
@@ -186,7 +186,7 @@ global_costmap:
       update_frequency: 2.0
       publish_frequency: 1.0
       track_unknown_space: false
-      footprint: "[[0.66, 0.33], [0.66, -0.33], [-0.12, -0.33], [-0.12, 0.33]]"
+      footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [stvl_layer, inflation_layer]
       stvl_layer:
         plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
@@ -246,7 +246,7 @@ local_costmap:
       update_frequency: 5.0
       publish_frequency: 2.0
       transform_tolerance: 0.8
-      footprint: "[[0.66, 0.33], [0.66, -0.33], [-0.12, -0.33], [-0.12, 0.33]]"
+      footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [stvl_layer, inflation_layer]
       stvl_layer:
         plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
@@ -316,8 +316,8 @@ planner_server:
       motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
-      analytic_expansion_max_length: 5.2
-      minimum_turning_radius: 1.30
+      analytic_expansion_max_length: 5.22
+      minimum_turning_radius: 1.303241
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0

@@ -130,6 +130,16 @@ ament_target_dependencies(ackermann_chassis_serial_node
 )
 
 add_executable(
+  ackermann_joint_state_publisher
+  ackermann/src/ackermann_joint_state_publisher.cpp
+)
+ament_target_dependencies(ackermann_joint_state_publisher
+  nav_msgs
+  rclcpp
+  sensor_msgs
+)
+
+add_executable(
   rtk_eskf_localization
   localization/navsat/src/rtk_eskf_localization_node.cpp
   localization/navsat/src/rtk_gi_engine.cpp
@@ -197,7 +207,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config launch meshes rviz urdf DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
@@ -247,6 +257,7 @@ install(TARGETS
   differential_chassis_can_node
   ackermann_chassis_can_node
   ackermann_chassis_serial_node
+  ackermann_joint_state_publisher
   rtk_eskf_localization
   pcd_map_builder
   pcd_global_localizer

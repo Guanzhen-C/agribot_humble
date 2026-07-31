@@ -97,6 +97,26 @@ TEST(AckermannCanKinematics, ConvertsYawRateAndDoesNotRequestInPlaceRotation)
   EXPECT_DOUBLE_EQ(limited.steering_angle_rad, config.max_steering_angle_rad);
 }
 
+TEST(AckermannCanKinematics, DefaultLimitsMatchUrdfGeometry)
+{
+  const ackermann::Kinematics config;
+  const double turning_radius =
+    config.wheelbase_m / std::tan(config.max_steering_angle_rad);
+
+  EXPECT_NEAR(turning_radius, 1.303241, 1e-6);
+  EXPECT_NEAR(
+    config.max_angular_velocity,
+    config.max_linear_velocity / turning_radius,
+    1e-6);
+
+  const auto maximum_curvature = ackermann::fromTwist(
+    config.max_linear_velocity, config.max_angular_velocity, config);
+  EXPECT_NEAR(
+    maximum_curvature.steering_angle_rad,
+    config.max_steering_angle_rad,
+    1e-6);
+}
+
 TEST(AckermannCanKinematics, StopRequestProducesAllZeroCommand)
 {
   ackermann::Kinematics config;

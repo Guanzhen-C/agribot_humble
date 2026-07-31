@@ -23,6 +23,18 @@ Visualization Manager:
       Show Arrows: true
       Show Axes: true
       Show Names: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.12
+      Name: N300 Pro IMU Axes
+      Radius: 0.008
+      Reference Frame: imu_link
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.16
+      Name: C16 Lidar Axes
+      Radius: 0.01
+      Reference Frame: lidar_link
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:

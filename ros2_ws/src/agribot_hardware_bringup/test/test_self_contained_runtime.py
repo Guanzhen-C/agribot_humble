@@ -1,6 +1,10 @@
+import json
 import re
+import struct
 import xml.etree.ElementTree as element_tree
 from pathlib import Path
+
+import yaml
 
 PACKAGE_ROOT = Path(__file__).parents[1]
 FORBIDDEN_PROJECT_PACKAGES = {
@@ -64,8 +68,16 @@ def test_migrated_runtime_resources_exist_and_parse():
         "config/pcd_mapping.yaml",
         "localization/pcd/src/pcd_global_localizer.cpp",
         "localization/pcd/src/pcd_map_builder.cpp",
+        "meshes/ackermann_vehicle_body.glb",
+        "meshes/ackermann_front_left_wheel.glb",
+        "meshes/ackermann_front_right_wheel.glb",
+        "meshes/ackermann_rear_left_wheel.glb",
+        "meshes/ackermann_rear_right_wheel.glb",
+        "meshes/hipnuc_n300pro.glb",
+        "meshes/lslidar_c16_v4.glb",
         "rviz/navigation_local.rviz",
         "rviz/pcd_mapping.rviz",
+        "urdf/ackermann_vehicle.urdf",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
         "desktop/wheeltec-car-gui.desktop",
@@ -117,11 +129,195 @@ def test_navigation_rviz_does_not_render_3d_clouds_or_legacy_scan():
     )
 
 
-def test_mapped_navigation_rviz_displays_relocalized_vehicle_pose():
-    config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
-    assert "Class: rviz_default_plugins/PoseWithCovariance" in config
-    assert "Name: Relocalized Vehicle Pose" in config
-    assert "Value: /localization_pose" in config
+def test_physical_vehicle_rviz_profiles_display_vehicle_and_sensor_axes():
+    for name in ("navigation.rviz", "navigation_local.rviz", "pcd_mapping.rviz"):
+        config = (PACKAGE_ROOT / "rviz" / name).read_text()
+        assert "Class: rviz_default_plugins/RobotModel" in config
+        assert "Name: Physical Ackermann Vehicle" in config
+        assert "Value: /robot_description" in config
+        assert "Name: N300 Pro IMU Axes" in config
+        assert "Reference Frame: imu_link" in config
+        assert "Name: C16 Lidar Axes" in config
+        assert "Reference Frame: lidar_link" in config
+        assert "Class: rviz_default_plugins/PoseWithCovariance" not in config
+
+    sensor_config = (PACKAGE_ROOT / "rviz" / "sensors.rviz").read_text()
+    assert "Name: N300 Pro IMU Axes" in sensor_config
+    assert "Name: C16 Lidar Axes" in sensor_config
+
+
+def test_ackermann_vehicle_urdf_uses_rear_axle_centered_mesh():
+    urdf_path = PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
+    tree = element_tree.parse(urdf_path)
+    root = tree.getroot()
+    assert root.find("./link[@name='base_link']") is not None
+    body_visual = root.find("./link[@name='base_link']/visual[@name='step_vehicle_body']")
+    mesh = body_visual.find("geometry/mesh")
+    assert mesh is not None
+    assert mesh.attrib["filename"] == (
+        "package://agribot_hardware_bringup/meshes/ackermann_vehicle_body.glb"
+    )
+    assert "scale" not in mesh.attrib
+
+    origin = body_visual.find("origin")
+    assert origin is not None
+    assert origin.attrib["xyz"] == "0.2794632 0.1918975 -0.7587717"
+    assert origin.attrib["rpy"] == "0 0 1.5707963267948966"
+
+    # A URDF material would override the colors embedded in the STEP-derived GLB.
+    assert body_visual.find("material") is None
+
+
+def test_ackermann_vehicle_urdf_has_steering_and_rolling_wheel_joints():
+    root = element_tree.parse(
+        PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
+    ).getroot()
+
+    for side in ("left", "right"):
+        steering = root.find(f"./joint[@name='front_{side}_steering_joint']")
+        assert steering is not None
+        assert steering.attrib["type"] == "revolute"
+        assert steering.find("axis").attrib["xyz"] == "0 0 1"
+        assert steering.find("parent").attrib["link"] == "base_link"
+        assert steering.find("child").attrib["link"] == f"front_{side}_steering_link"
+
+        wheel = root.find(f"./joint[@name='front_{side}_wheel_joint']")
+        assert wheel is not None
+        assert wheel.attrib["type"] == "continuous"
+        assert wheel.find("axis").attrib["xyz"] == "0 1 0"
+        assert wheel.find("parent").attrib["link"] == f"front_{side}_steering_link"
+
+    for side in ("left", "right"):
+        wheel = root.find(f"./joint[@name='rear_{side}_wheel_joint']")
+        assert wheel is not None
+        assert wheel.attrib["type"] == "continuous"
+        assert wheel.find("axis").attrib["xyz"] == "0 1 0"
+        assert wheel.find("parent").attrib["link"] == "base_link"
+
+    assert not (PACKAGE_ROOT / "meshes" / "ackermann_vehicle.glb").exists()
+
+
+def test_ackermann_vehicle_urdf_places_calibrated_sensor_models():
+    urdf_path = PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
+    root = element_tree.parse(urdf_path).getroot()
+    mounts = yaml.safe_load(
+        (PACKAGE_ROOT / "config" / "sensor_mounts.yaml").read_text()
+    )
+    visuals = {
+        visual.attrib.get("name"): visual
+        for visual in root.findall("./link[@name='base_link']/visual")
+    }
+
+    imu = visuals["hipnuc_n300pro"]
+    assert imu.find("geometry/mesh").attrib["filename"] == (
+        "package://agribot_hardware_bringup/meshes/hipnuc_n300pro.glb"
+    )
+    assert [float(value) for value in imu.find("origin").attrib["xyz"].split()] == (
+        mounts["imu"]["xyz"]
+    )
+    assert [float(value) for value in imu.find("origin").attrib["rpy"].split()] == (
+        mounts["imu"]["rpy"]
+    )
+
+    lidar = visuals["lslidar_c16_v4"]
+    assert lidar.find("geometry/mesh").attrib["filename"] == (
+        "package://agribot_hardware_bringup/meshes/lslidar_c16_v4.glb"
+    )
+    lidar_visual_xyz = [
+        float(value) for value in lidar.find("origin").attrib["xyz"].split()
+    ]
+    assert lidar_visual_xyz == [
+        mounts["lidar"]["xyz"][0],
+        mounts["lidar"]["xyz"][1],
+        mounts["lidar"]["xyz"][2] - 0.04855,
+    ]
+    assert lidar.find("origin").attrib["rpy"] == "0 0 3.141592653589793"
+
+
+def test_ackermann_vehicle_mesh_retains_step_detail_and_materials():
+    mesh_names = (
+        "ackermann_vehicle_body.glb",
+        "ackermann_front_left_wheel.glb",
+        "ackermann_front_right_wheel.glb",
+        "ackermann_rear_left_wheel.glb",
+        "ackermann_rear_right_wheel.glb",
+    )
+    total_triangle_count = 0
+    body_document = None
+
+    for mesh_name in mesh_names:
+        mesh_path = PACKAGE_ROOT / "meshes" / mesh_name
+        with mesh_path.open("rb") as stream:
+            magic, version, total_length = struct.unpack("<4sII", stream.read(12))
+            json_length, json_type = struct.unpack("<II", stream.read(8))
+            document = json.loads(stream.read(json_length))
+
+        assert magic == b"glTF"
+        assert version == 2
+        assert total_length == mesh_path.stat().st_size
+        assert json_type == 0x4E4F534A
+        assert len(document["meshes"]) <= 40
+
+        for mesh in document["meshes"]:
+            for primitive in mesh["primitives"]:
+                assert primitive.get("mode", 4) == 4
+                index_accessor = document["accessors"][primitive["indices"]]
+                total_triangle_count += index_accessor["count"] // 3
+
+        if mesh_name == "ackermann_vehicle_body.glb":
+            body_document = document
+
+    materials = body_document["materials"]
+    colors = {
+        tuple(
+            material.get("pbrMetallicRoughness", {}).get(
+                "baseColorFactor", [1.0, 1.0, 1.0, 1.0]
+            )
+        )
+        for material in materials
+    }
+    assert len(materials) >= 30
+    assert len(colors) >= 30
+    assert 600_000 <= total_triangle_count <= 660_000
+
+
+def test_sensor_meshes_match_n300pro_and_c16_scale():
+    def inspect_glb(relative_path):
+        mesh_path = PACKAGE_ROOT / relative_path
+        with mesh_path.open("rb") as stream:
+            magic, version, total_length = struct.unpack("<4sII", stream.read(12))
+            json_length, json_type = struct.unpack("<II", stream.read(8))
+            document = json.loads(stream.read(json_length))
+        assert magic == b"glTF"
+        assert version == 2
+        assert total_length == mesh_path.stat().st_size
+        assert json_type == 0x4E4F534A
+
+        lower = [float("inf")] * 3
+        upper = [float("-inf")] * 3
+        triangle_count = 0
+        for mesh in document["meshes"]:
+            for primitive in mesh["primitives"]:
+                position = document["accessors"][primitive["attributes"]["POSITION"]]
+                lower = [min(old, new) for old, new in zip(lower, position["min"])]
+                upper = [max(old, new) for old, new in zip(upper, position["max"])]
+                indices = document["accessors"][primitive["indices"]]
+                triangle_count += indices["count"] // 3
+        return document, [high - low for low, high in zip(lower, upper)], triangle_count
+
+    n300, n300_size, n300_triangles = inspect_glb("meshes/hipnuc_n300pro.glb")
+    assert len(n300["materials"]) >= 5
+    assert 0.0265 <= n300_size[0] <= 0.028
+    assert 0.024 <= n300_size[1] <= 0.025
+    assert 0.0145 <= n300_size[2] <= 0.016
+    assert n300_triangles < 2_000
+
+    c16, c16_size, c16_triangles = inspect_glb("meshes/lslidar_c16_v4.glb")
+    assert len(c16["materials"]) >= 1
+    assert 0.101 <= c16_size[0] <= 0.103
+    assert 0.116 <= c16_size[1] <= 0.118
+    assert 0.077 <= c16_size[2] <= 0.079
+    assert 100_000 <= c16_triangles <= 140_000
 
 
 def test_mapping_rviz_displays_voxelized_pcd_map():
