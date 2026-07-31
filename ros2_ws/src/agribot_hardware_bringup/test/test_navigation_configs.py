@@ -153,6 +153,10 @@ def test_3d_mapping_and_mapped_navigation_keep_fastlio_as_pose_source():
     assert mapping["odom_frame"] == "odom"
     assert mapping["voxel_size"] == 0.10
     assert mapping["min_observations"] >= 2
+    assert mapping["rear_exclusion_enabled"] is True
+    assert mapping["rear_exclusion_min_x"] == -4.0
+    assert mapping["rear_exclusion_max_x"] == -0.12
+    assert mapping["rear_exclusion_half_width"] == 0.60
     assert mapping["occupancy_resolution"] == 0.05
     assert mapping["occupancy_min_z"] == 0.05
     assert mapping["occupancy_max_z"] == 1.80

@@ -68,7 +68,10 @@ ros2 launch agribot_hardware_bringup \
 
 The mapping entry point accumulates `/cloud_registered` into a voxelized
 three-dimensional map. Mapping defaults to no chassis output so one manual
-controller can drive the coverage route. Save it before shutdown:
+controller can drive the coverage route. By default, it excludes registered
+points in a `1.2 m` wide strip extending from the rear bumper to `4 m` behind
+`base_link`, allowing one operator to follow directly behind the vehicle
+without being accumulated into the map. Save it before shutdown:
 
 ```bash
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"

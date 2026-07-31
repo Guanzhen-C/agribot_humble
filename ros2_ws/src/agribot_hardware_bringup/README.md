@@ -242,7 +242,9 @@ ros2 launch agribot_hardware_bringup \
 This entry point accumulates FAST-LIO's registered 3D cloud into a filtered
 PCD map. The first rear-axle pose is the map origin. Chassis output and Nav2
 default to disabled during mapping so one external manual controller can own
-the chassis.
+the chassis. The default rear exclusion mask removes points between
+`x=-4.0..-0.12 m` and `y=-0.60..0.60 m` in the current `base_link` frame so a
+following operator is not written into the static map.
 
 Save the map before stopping the launch:
 

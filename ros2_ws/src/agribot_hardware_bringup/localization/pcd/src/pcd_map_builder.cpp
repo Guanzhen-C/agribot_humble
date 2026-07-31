@@ -164,6 +164,14 @@ public:
     min_range_ = declare_parameter<double>("min_range", 0.5);
     max_range_ = declare_parameter<double>("max_range", 30.0);
     publish_period_ = declare_parameter<double>("publish_period", 2.0);
+    rear_exclusion_enabled_ = declare_parameter<bool>(
+      "rear_exclusion_enabled", true);
+    rear_exclusion_min_x_ = declare_parameter<double>(
+      "rear_exclusion_min_x", -4.0);
+    rear_exclusion_max_x_ = declare_parameter<double>(
+      "rear_exclusion_max_x", -0.12);
+    rear_exclusion_half_width_ = declare_parameter<double>(
+      "rear_exclusion_half_width", 0.60);
     occupancy_resolution_ = declare_parameter<double>(
       "occupancy_resolution", 0.05);
     occupancy_min_z_ = declare_parameter<double>("occupancy_min_z", 0.05);
@@ -181,6 +189,14 @@ public:
     }
     if (min_range_ < 0.0 || max_range_ <= min_range_) {
       throw std::runtime_error("invalid mapping range limits");
+    }
+    if (
+      rear_exclusion_min_x_ >= rear_exclusion_max_x_ ||
+      rear_exclusion_max_x_ > 0.0 ||
+      rear_exclusion_half_width_ <= 0.0)
+    {
+      throw std::runtime_error(
+              "rear exclusion requires min_x < max_x <= 0 and positive half_width");
     }
     if (occupancy_max_z_ <= occupancy_min_z_) {
       throw std::runtime_error("occupancy_max_z must exceed occupancy_min_z");
@@ -217,6 +233,13 @@ public:
       get_logger(),
       "Building a voxelized 3D map from %s; save with /pcd_map_builder/save_map",
       cloud_topic_.c_str());
+    if (rear_exclusion_enabled_) {
+      RCLCPP_INFO(
+        get_logger(),
+        "Ignoring mapping points behind base_link in x=[%.2f, %.2f], |y|<=%.2f m",
+        rear_exclusion_min_x_, rear_exclusion_max_x_,
+        rear_exclusion_half_width_);
+    }
   }
 
   ~PcdMapBuilder() override
@@ -279,6 +302,7 @@ private:
     }
 
     Eigen::Isometry3d map_to_odom;
+    Eigen::Isometry3d base_to_map;
     Eigen::Vector3d sensor_origin;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -286,7 +310,10 @@ private:
         return;
       }
       map_to_odom = map_to_odom_;
-      sensor_origin = (map_to_odom_ * latest_odom_to_base_).translation();
+      const Eigen::Isometry3d map_to_base =
+        map_to_odom_ * latest_odom_to_base_;
+      base_to_map = map_to_base.inverse();
+      sensor_origin = map_to_base.translation();
     }
 
     PointCloud input;
@@ -302,6 +329,16 @@ private:
       }
       const Eigen::Vector3d odom_point(point.x, point.y, point.z);
       const Eigen::Vector3d map_point = map_to_odom * odom_point;
+      if (rear_exclusion_enabled_) {
+        const Eigen::Vector3d base_point = base_to_map * map_point;
+        if (
+          base_point.x() >= rear_exclusion_min_x_ &&
+          base_point.x() <= rear_exclusion_max_x_ &&
+          std::abs(base_point.y()) <= rear_exclusion_half_width_)
+        {
+          continue;
+        }
+      }
       const double range_squared = (map_point - sensor_origin).squaredNorm();
       if (range_squared < min_range_squared || range_squared > max_range_squared) {
         continue;
@@ -585,6 +622,10 @@ private:
   double min_range_{0.5};
   double max_range_{30.0};
   double publish_period_{2.0};
+  bool rear_exclusion_enabled_{true};
+  double rear_exclusion_min_x_{-4.0};
+  double rear_exclusion_max_x_{-0.12};
+  double rear_exclusion_half_width_{0.60};
   double occupancy_resolution_{0.05};
   double occupancy_min_z_{0.05};
   double occupancy_max_z_{1.80};

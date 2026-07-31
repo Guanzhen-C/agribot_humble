@@ -14,6 +14,13 @@ pcd_map_builder:
     max_range: 30.0
     publish_period: 2.0
 
+    # Suppress a person following directly behind the rear axle while mapping.
+    # Vehicle convention: +x forward, +y left, base_link at the rear axle.
+    rear_exclusion_enabled: true
+    rear_exclusion_min_x: -4.0
+    rear_exclusion_max_x: -0.12
+    rear_exclusion_half_width: 0.60
+
     # Produce an aligned 2D map for Nav2 from the same 3D PCD coordinates.
     occupancy_resolution: 0.05
     occupancy_min_z: 0.05
