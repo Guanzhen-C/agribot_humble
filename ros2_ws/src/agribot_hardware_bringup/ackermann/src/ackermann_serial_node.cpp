@@ -103,6 +103,13 @@ public:
     reconnect_interval_sec_ = declare_parameter<double>("reconnect_interval_sec", 1.0);
     require_feedback_before_motion_ =
       declare_parameter<bool>("require_feedback_before_motion", true);
+    require_localization_ready_ =
+      declare_parameter<bool>("require_localization_ready", false);
+    localization_ready_topic_ =
+      declare_parameter<std::string>(
+      "localization_ready_topic", "/localization/ready");
+    localization_ready_timeout_sec_ =
+      declare_parameter<double>("localization_ready_timeout_sec", 2.5);
 
     kinematics_.wheelbase_m = declare_parameter<double>("wheelbase_m", 0.50);
     kinematics_.max_steering_angle_rad =
@@ -120,6 +127,15 @@ public:
     command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
       command_topic_, 20,
       std::bind(&AckermannSerialNode::handleCommand, this, std::placeholders::_1));
+    if (require_localization_ready_) {
+      localization_ready_subscription_ =
+        create_subscription<std_msgs::msg::Bool>(
+        localization_ready_topic_,
+        rclcpp::QoS(1).reliable().transient_local(),
+        std::bind(
+          &AckermannSerialNode::handleLocalizationReady,
+          this, std::placeholders::_1));
+    }
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, 20);
     status_publisher_ = create_publisher<scout_msgs::msg::ScoutStatus>("/scout_status", 10);
     chassis_imu_publisher_ =
@@ -178,7 +194,8 @@ private:
     }
     (void)baudConstant(baud_rate_);
     if (send_rate_hz_ <= 0.0 || command_timeout_sec_ <= 0.0 ||
-      feedback_timeout_sec_ <= 0.0 || reconnect_interval_sec_ <= 0.0)
+      feedback_timeout_sec_ <= 0.0 || reconnect_interval_sec_ <= 0.0 ||
+      localization_ready_timeout_sec_ <= 0.0)
     {
       throw std::invalid_argument("serial timing parameters must be positive");
     }
@@ -286,6 +303,14 @@ private:
     command_received_ = true;
   }
 
+  void handleLocalizationReady(const std_msgs::msg::Bool::SharedPtr message)
+  {
+    std::lock_guard<std::mutex> guard(state_mutex_);
+    localization_ready_received_ = true;
+    localization_ready_ = message->data;
+    last_localization_ready_time_ = SteadyClock::now();
+  }
+
   bool commandFresh(SteadyClock::time_point current_time) const
   {
     return command_received_ &&
@@ -298,6 +323,17 @@ private:
     return feedback_received_ &&
            std::chrono::duration<double>(current_time - last_feedback_time_).count() <=
            feedback_timeout_sec_;
+  }
+
+  bool localizationAllowsMotion(SteadyClock::time_point current_time) const
+  {
+    if (!require_localization_ready_) {
+      return true;
+    }
+    return localization_ready_received_ && localization_ready_ &&
+           std::chrono::duration<double>(
+      current_time - last_localization_ready_time_).count() <=
+           localization_ready_timeout_sec_;
   }
 
   void writeFrame(const ackermann_serial::CommandFrame & frame)
@@ -323,7 +359,9 @@ private:
 
     const bool feedback_ready =
       !require_feedback_before_motion_ || feedbackFresh(current_time);
-    const bool motion_allowed = commandFresh(current_time) && feedback_ready;
+    const bool motion_allowed =
+      commandFresh(current_time) && feedback_ready &&
+      localizationAllowsMotion(current_time);
     try {
       auto command = ackermann_can::fromTwist(
         latest_command_.linear.x, latest_command_.angular.z,
@@ -495,6 +533,9 @@ private:
     } else if (!fresh) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
       status.message = "serial chassis feedback missing or stale";
+    } else if (!localizationAllowsMotion(current_time)) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "waiting for healthy map localization";
     } else {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
       status.message = "serial protocol and feedback healthy";
@@ -503,6 +544,10 @@ private:
     status.values.push_back(keyValue("feedback_fresh", fresh ? "true" : "false"));
     status.values.push_back(
       keyValue("command_active", motion_command_active_ ? "true" : "false"));
+    status.values.push_back(
+      keyValue(
+        "localization_ready",
+        localizationAllowsMotion(current_time) ? "true" : "false"));
     status.values.push_back(keyValue("received_frames", std::to_string(receive_frames_)));
     status.values.push_back(
       keyValue("transmitted_frames", std::to_string(transmit_frames_)));
@@ -569,8 +614,11 @@ private:
   double command_timeout_sec_{0.25};
   double feedback_timeout_sec_{0.6};
   double reconnect_interval_sec_{1.0};
+  double localization_ready_timeout_sec_{2.5};
   double max_steering_rate_rad_s_{0.60};
   bool require_feedback_before_motion_{true};
+  bool require_localization_ready_{false};
+  std::string localization_ready_topic_{"/localization/ready"};
   ackermann_can::Kinematics kinematics_;
 
   int serial_fd_{-1};
@@ -587,10 +635,13 @@ private:
   SteadyClock::time_point last_command_time_{};
   SteadyClock::time_point last_feedback_time_{};
   SteadyClock::time_point last_open_attempt_{};
+  SteadyClock::time_point last_localization_ready_time_{};
   SteadyClock::time_point last_steering_update_time_{};
   rclcpp::Time last_odom_time_{0, 0, RCL_ROS_TIME};
   bool command_received_{false};
   bool feedback_received_{false};
+  bool localization_ready_received_{false};
+  bool localization_ready_{false};
   bool motion_command_active_{false};
   bool steering_rate_limited_{false};
   bool stop_frames_sent_{false};
@@ -601,6 +652,8 @@ private:
   double yaw_{0.0};
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr command_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
+    localization_ready_subscription_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
   rclcpp::Publisher<scout_msgs::msg::ScoutStatus>::SharedPtr status_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr chassis_imu_publisher_;

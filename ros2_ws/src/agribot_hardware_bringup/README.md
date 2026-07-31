@@ -260,17 +260,28 @@ three-dimensional map. Start mapped navigation with the base path:
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map \
-  initial_pose:="[0.0, 0.0, 0.0]" \
   rviz:=true \
   enable_chassis_output:=true
 ```
 
-Set `initial_pose` to an approximate map pose, or use RViz's
-`2D Pose Estimate` before sending a navigation goal. As in the simulation,
-FAST-LIO remains the localization source. The map anchor establishes
-`map -> odom` at initialization and does not continuously scan-match or distort
-FAST-LIO in repetitive corridors. The saved map supplies long-range planning,
-while live C16 PointCloud2 data supplies STVL obstacle marking and clearing.
+Keep the vehicle still during startup. The localizer globally registers
+FAST-LIO's body-frame cloud against the saved PCD with FPFH feature hypotheses,
+refines the result with NDT, and requires another accepted scan before
+publishing `/localization/ready: true`. No manual initial pose is required.
+The CAN and serial drivers send stop commands until that readiness heartbeat is
+both true and fresh.
+
+After initialization, FAST-LIO remains the high-rate odometry source while NDT
+checks and smoothly corrects `map -> odom` at `0.25 Hz`. Three rejected updates
+inhibit chassis motion; five restart full-map relocalization. The saved YAML
+supplies long-range planning, while live C16 PointCloud2 data supplies STVL
+obstacle marking and clearing. Monitor or restart localization with:
+
+```bash
+ros2 topic echo /localization/status
+ros2 topic echo /localization/ready
+ros2 service call /localization/relocalize std_srvs/srv/Trigger "{}"
+```
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 

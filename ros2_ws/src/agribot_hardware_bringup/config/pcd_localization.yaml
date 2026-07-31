@@ -1,0 +1,56 @@
+pcd_global_localizer:
+  ros__parameters:
+    cloud_topic: /cloud_registered_body
+    cloud_frame: body
+    odom_topic: /fastlio/odometry
+    pose_topic: /localization_pose
+    ready_topic: /localization/ready
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+
+    # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
+    base_to_body_xyz: [0.1425, 0.0, 0.143]
+    base_to_body_rpy: [0.0, 0.0, 0.0]
+
+    map_voxel_size: 0.25
+    scan_voxel_size: 0.20
+    feature_voxel_size: 0.35
+    normal_radius: 0.70
+    feature_radius: 1.10
+    min_range: 0.50
+    max_range: 30.0
+    min_z: -0.50
+    max_z: 2.50
+    min_scan_points: 250
+    initial_scan_count: 3
+    max_odom_age: 0.10
+
+    # Initial pose: FPFH feature matching and sample-consensus hypotheses.
+    global_max_iterations: 40000
+    global_correspondence_randomness: 5
+    global_similarity_threshold: 0.85
+    global_max_correspondence_distance: 0.90
+    global_inlier_fraction: 0.12
+    global_retry_period: 5.0
+
+    # Fine registration and result validation.
+    ndt_resolution: 0.80
+    ndt_step_size: 0.10
+    ndt_transformation_epsilon: 0.01
+    ndt_max_iterations: 35
+    fitness_max_range: 1.50
+    max_fitness_score: 0.45
+    overlap_distance: 0.50
+    minimum_overlap: 0.20
+    maximum_tilt: 0.35
+    maximum_base_height: 0.50
+
+    # Low-rate map correction fused with high-rate FAST-LIO odometry.
+    matching_rate_hz: 0.25
+    required_consecutive_matches: 2
+    runtime_failure_limit: 3
+    relocalize_failure_limit: 5
+    maximum_translation_correction: 0.75
+    maximum_rotation_correction: 0.35
+    correction_alpha: 0.25

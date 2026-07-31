@@ -57,6 +57,13 @@ public:
     require_feedback_before_motion_ =
       declare_parameter<bool>("require_feedback_before_motion", true);
     require_autonomous_mode_ = declare_parameter<bool>("require_autonomous_mode", true);
+    require_localization_ready_ =
+      declare_parameter<bool>("require_localization_ready", false);
+    localization_ready_topic_ =
+      declare_parameter<std::string>(
+      "localization_ready_topic", "/localization/ready");
+    localization_ready_timeout_sec_ =
+      declare_parameter<double>("localization_ready_timeout_sec", 2.5);
     headlight_ = declare_parameter<bool>("headlight", false);
 
     adapter_ = adapter_factory(*this);
@@ -66,6 +73,15 @@ public:
     command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
       command_topic_, 20,
       std::bind(&ChassisCanNode::handleCommand, this, std::placeholders::_1));
+    if (require_localization_ready_) {
+      localization_ready_subscription_ =
+        create_subscription<std_msgs::msg::Bool>(
+        localization_ready_topic_,
+        rclcpp::QoS(1).reliable().transient_local(),
+        std::bind(
+          &ChassisCanNode::handleLocalizationReady,
+          this, std::placeholders::_1));
+    }
     odom_publisher_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, 20);
     status_publisher_ = create_publisher<scout_msgs::msg::ScoutStatus>("/scout_status", 10);
     emergency_stop_publisher_ =
@@ -110,7 +126,7 @@ private:
   void validateParameters()
   {
     if (send_rate_hz_ <= 0.0 || command_timeout_sec_ <= 0.0 ||
-      feedback_timeout_sec_ <= 0.0)
+      feedback_timeout_sec_ <= 0.0 || localization_ready_timeout_sec_ <= 0.0)
     {
       throw std::invalid_argument("CAN timing parameters must be positive");
     }
@@ -155,6 +171,14 @@ private:
     command_received_ = true;
   }
 
+  void handleLocalizationReady(const std_msgs::msg::Bool::SharedPtr message)
+  {
+    std::lock_guard<std::mutex> guard(state_mutex_);
+    localization_ready_received_ = true;
+    localization_ready_ = message->data;
+    last_localization_ready_time_ = now();
+  }
+
   bool feedbackFresh(const rclcpp::Time & current_time) const
   {
     return adapter_->feedbackFresh(current_time, feedback_timeout_sec_);
@@ -169,6 +193,18 @@ private:
            adapter_->feedbackAllowsMotion(require_autonomous_mode_);
   }
 
+  bool localizationAllowsMotion(const rclcpp::Time & current_time) const
+  {
+    if (!require_localization_ready_) {
+      return true;
+    }
+    if (!localization_ready_received_ || !localization_ready_) {
+      return false;
+    }
+    const double age = (current_time - last_localization_ready_time_).seconds();
+    return age >= 0.0 && age <= localization_ready_timeout_sec_;
+  }
+
   void sendCommand()
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
@@ -176,7 +212,9 @@ private:
     const double command_age = (current_time - last_command_time_).seconds();
     const bool command_fresh = command_received_ && command_age >= 0.0 &&
       command_age <= command_timeout_sec_;
-    const bool motion_allowed = command_fresh && feedbackAllowsMotion(current_time);
+    const bool motion_allowed =
+      command_fresh && feedbackAllowsMotion(current_time) &&
+      localizationAllowsMotion(current_time);
 
     try {
       const auto frame = adapter_->commandFromTwist(
@@ -336,6 +374,9 @@ private:
     } else if (!feedbackAllowsMotion(now())) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
       status.message = "feedback received but motion is inhibited";
+    } else if (!localizationAllowsMotion(now())) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "waiting for healthy map localization";
     } else {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
       status.message = "CAN protocol and feedback healthy";
@@ -345,6 +386,10 @@ private:
     status.values.push_back(keyValue("feedback_fresh", fresh ? "true" : "false"));
     status.values.push_back(
       keyValue("command_active", motion_command_active_ ? "true" : "false"));
+    status.values.push_back(
+      keyValue(
+        "localization_ready",
+        localizationAllowsMotion(now()) ? "true" : "false"));
     status.values.push_back(keyValue("checksum_errors", std::to_string(checksum_errors_)));
     status.values.push_back(keyValue("counter_errors", std::to_string(counter_errors_)));
     status.values.push_back(keyValue("replay_frames", std::to_string(replay_frames_)));
@@ -392,6 +437,9 @@ private:
   double feedback_timeout_sec_{1.2};
   bool require_feedback_before_motion_{true};
   bool require_autonomous_mode_{true};
+  bool require_localization_ready_{false};
+  std::string localization_ready_topic_{"/localization/ready"};
+  double localization_ready_timeout_sec_{2.5};
   bool headlight_{false};
 
   uint8_t transmit_counter_{0};
@@ -406,8 +454,11 @@ private:
   std::mutex state_mutex_;
   geometry_msgs::msg::Twist latest_command_;
   rclcpp::Time last_command_time_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time last_localization_ready_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time last_odom_time_{0, 0, RCL_ROS_TIME};
   bool command_received_{false};
+  bool localization_ready_received_{false};
+  bool localization_ready_{false};
   bool motion_command_active_{false};
   bool stop_frames_sent_{false};
   double measured_linear_velocity_{0.0};
@@ -417,6 +468,8 @@ private:
   double yaw_{0.0};
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr command_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr
+    localization_ready_subscription_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
   rclcpp::Publisher<scout_msgs::msg::ScoutStatus>::SharedPtr status_publisher_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr emergency_stop_publisher_;

@@ -17,6 +17,9 @@
     feedback_timeout_sec: 0.6
     require_feedback_before_motion: true
     require_autonomous_mode: false
+    require_localization_ready: false
+    localization_ready_topic: /localization/ready
+    localization_ready_timeout_sec: 2.5
     headlight: false
 
     wheelbase_m: 0.50

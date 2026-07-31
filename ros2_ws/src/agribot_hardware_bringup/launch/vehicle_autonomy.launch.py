@@ -1,5 +1,4 @@
 import os
-from typing import List
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -14,7 +13,6 @@ from launch.conditions import IfCondition, LaunchConfigurationEquals
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _validate_arguments(context):
@@ -26,6 +24,7 @@ def _validate_arguments(context):
     can_transport = LaunchConfiguration("can_transport").perform(context)
     map_path = LaunchConfiguration("map").perform(context)
     pcd_map_base_path = LaunchConfiguration("pcd_map_base").perform(context)
+    pcd_map_file = LaunchConfiguration("pcd_map_file").perform(context)
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
@@ -61,6 +60,11 @@ def _validate_arguments(context):
     if navigation_mode == "mapping" and not pcd_map_base_path:
         raise RuntimeError(
             "3D mapping requires pcd_map_base:=/absolute/path/to/map_name"
+        )
+    if navigation_mode == "localization" and not pcd_map_file:
+        raise RuntimeError(
+            "mapped 3D localization requires "
+            "pcd_map_file:=/absolute/path/to/map.pcd"
         )
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
@@ -282,17 +286,14 @@ def generate_launch_description():
         actions=[
             Node(
                 package="agribot_hardware_bringup",
-                executable="fastlio_map_anchor.py",
-                name="fastlio_map_anchor",
+                executable="pcd_global_localizer",
+                name="pcd_global_localizer",
                 output="screen",
                 parameters=[
-                    LaunchConfiguration("fastlio_map_anchor_config"),
+                    LaunchConfiguration("pcd_localization_config"),
                     {
                         "use_sim_time": use_sim_time,
-                        "initial_pose": ParameterValue(
-                            LaunchConfiguration("initial_pose"),
-                            value_type=List[float],
-                        ),
+                        "map_file_path": LaunchConfiguration("pcd_map_file"),
                     },
                 ],
             )
@@ -457,8 +458,14 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("pcd_map_base", default_value=""),
+            DeclareLaunchArgument("pcd_map_file", default_value=""),
             DeclareLaunchArgument(
-                "initial_pose", default_value="[0.0, 0.0, 0.0]"
+                "require_localization_ready",
+                default_value="false",
+                description=(
+                    "Inhibit physical chassis motion unless a fresh "
+                    "/localization/ready heartbeat is true"
+                ),
             ),
             DeclareLaunchArgument(
                 "rviz_config",
@@ -513,9 +520,9 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "fastlio_map_anchor_config",
+                "pcd_localization_config",
                 default_value=os.path.join(
-                    hardware_share, "config", "fastlio_map_anchor.yaml"
+                    hardware_share, "config", "pcd_localization.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -637,6 +644,9 @@ def generate_launch_description():
                                 "command_topic": LaunchConfiguration(
                                     "command_input_topic"
                                 ),
+                                "require_localization_ready": LaunchConfiguration(
+                                    "require_localization_ready"
+                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(
@@ -659,6 +669,9 @@ def generate_launch_description():
                                 "command_topic": LaunchConfiguration(
                                     "command_input_topic"
                                 ),
+                                "require_localization_ready": LaunchConfiguration(
+                                    "require_localization_ready"
+                                ),
                             },
                         ],
                         condition=LaunchConfigurationEquals(
@@ -676,6 +689,9 @@ def generate_launch_description():
                                 "port": LaunchConfiguration("serial_port"),
                                 "command_topic": LaunchConfiguration(
                                     "command_input_topic"
+                                ),
+                                "require_localization_ready": LaunchConfiguration(
+                                    "require_localization_ready"
                                 ),
                             },
                         ],

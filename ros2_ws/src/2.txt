@@ -186,10 +186,9 @@ export ROS_LOCALHOST_ONLY=0
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
 
-# Physical Ackermann vehicle: use the saved map for long-range Nav2 planning
-# FAST-LIO remains the localization source. The map does not correct its pose.
-# Start at the mapping origin or set the approximate rear-axle pose with
-# initial_pose / RViz 2D Pose Estimate before sending a goal.
+# Physical Ackermann vehicle: automatic 3D relocalization and mapped Nav2
+# Keep the vehicle still until /localization/ready reports data: true.
+# The chassis remains inhibited during initialization or unhealthy matching.
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -199,11 +198,14 @@ export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
-  initial_pose:="[0.0, 0.0, 0.0]" \
   rviz:=true \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# Optional status checks from a second terminal:
+ros2 topic echo /localization/status
+ros2 topic echo /localization/ready
 
 # Stop each physical stack with Ctrl+C before starting another mode.

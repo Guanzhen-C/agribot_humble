@@ -48,6 +48,7 @@ def context_with(**overrides):
         "enable_chassis_output": "false",
         "map": "/tmp/real_map.yaml",
         "pcd_map_base": "/tmp/real_map",
+        "pcd_map_file": "/tmp/real_map.pcd",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -177,6 +178,19 @@ def test_mapped_localization_requires_nav2_map():
         )
 
 
+def test_mapped_localization_requires_pcd_map():
+    with pytest.raises(RuntimeError, match="pcd_map_file"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="localization",
+                vehicle_type="ackermann",
+                controller="mppi",
+                pcd_map_file="",
+            )
+        )
+
+
 def test_removed_ackermann_fastlio_static_mode_is_rejected():
     with pytest.raises(RuntimeError, match="static mode was removed"):
         LAUNCH._validate_arguments(
@@ -199,12 +213,15 @@ def test_unknown_navigation_mode_is_rejected():
         LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))
 
 
-def test_chassis_uses_nav2_controller_output_without_manual_gate():
+def test_chassis_uses_nav2_output_with_only_localization_readiness_inhibition():
     source = VEHICLE_LAUNCH_PATH.read_text()
     assert "vehicle_command_gate" not in source
     assert "vehicle_preflight" not in source
     assert "nav2_collision_monitor" not in source
     assert 'default_value="/nav2/cmd_vel"' in source
+    assert source.count(
+        '"require_localization_ready": LaunchConfiguration('
+    ) == 3
     assert source.count(
         '"command_topic": LaunchConfiguration(\n'
         '                                    "command_input_topic"\n'
@@ -231,20 +248,25 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert 'DeclareLaunchArgument("enable_chassis_output", default_value="false")' in source
 
 
-def test_mapped_entry_uses_static_map_with_fastlio_anchor():
+def test_mapped_entry_uses_static_and_pcd_maps_with_automatic_localization():
     source = ACKERMANN_LAUNCH_PATHS[1].read_text()
     assert '"navigation_mode": "localization"' in source
     assert '"map": PythonExpression(' in source
     assert "map_base, \".yaml'\"]" in source
-    assert '"initial_pose": LaunchConfiguration("initial_pose")' in source
+    assert '"pcd_map_file": PythonExpression(' in source
+    assert "map_base, \".pcd'\"]" in source
+    assert '"require_localization_ready": "true"' in source
+    assert "initial_pose" not in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
     assert "posegraph" not in source
 
 
-def test_vehicle_launch_keeps_map_matching_out_of_fastlio_localization():
+def test_vehicle_launch_uses_pcd_global_localization_only_in_mapped_mode():
     source = VEHICLE_LAUNCH_PATH.read_text()
-    assert 'executable="fastlio_map_anchor.py"' in source
+    assert 'executable="fastlio_map_anchor.py"' not in source
+    assert 'executable="pcd_global_localizer"' in source
+    assert '"map_file_path": LaunchConfiguration("pcd_map_file")' in source
     assert 'executable="pcd_map_builder"' in source
     assert "slam_toolbox" not in source
     assert "pointcloud_to_laserscan" not in source

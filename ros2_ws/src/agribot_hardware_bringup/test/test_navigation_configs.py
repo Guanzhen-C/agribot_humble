@@ -140,9 +140,9 @@ def test_c16_driver_does_not_publish_legacy_scan():
     assert "scan_num" not in lidar
 
 
-def test_3d_mapping_and_mapped_navigation_keep_fastlio_as_pose_source():
+def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     mapping = load_config("pcd_mapping.yaml")["pcd_map_builder"]["ros__parameters"]
-    anchor = load_config("fastlio_map_anchor.yaml")["fastlio_map_anchor"][
+    localizer = load_config("pcd_localization.yaml")["pcd_global_localizer"][
         "ros__parameters"
     ]
 
@@ -161,12 +161,19 @@ def test_3d_mapping_and_mapped_navigation_keep_fastlio_as_pose_source():
     assert mapping["occupancy_min_z"] == 0.05
     assert mapping["occupancy_max_z"] == 1.80
 
-    assert anchor["odom_topic"] == "/fastlio/odometry"
-    assert anchor["initial_pose_topic"] == "/initialpose"
-    assert anchor["map_frame"] == "map"
-    assert anchor["odom_frame"] == "odom"
-    assert anchor["base_frame"] == "base_link"
-    assert anchor["allow_reinitialization"] is True
+    assert localizer["cloud_topic"] == "/cloud_registered_body"
+    assert localizer["cloud_frame"] == "body"
+    assert localizer["odom_topic"] == "/fastlio/odometry"
+    assert localizer["map_frame"] == "map"
+    assert localizer["odom_frame"] == "odom"
+    assert localizer["base_frame"] == "base_link"
+    assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
+    assert 0.2 <= localizer["matching_rate_hz"] <= 0.5
+    assert localizer["required_consecutive_matches"] >= 2
+    assert localizer["runtime_failure_limit"] < localizer[
+        "relocalize_failure_limit"
+    ]
+    assert localizer["minimum_overlap"] >= 0.20
 
 
 def test_ackermann_configs_use_measured_rear_axle_footprint():
@@ -293,6 +300,17 @@ def test_ackermann_serial_config_limits_steering_rate():
 
     assert config["send_rate_hz"] == 20.0
     assert config["max_steering_rate_rad_s"] == 0.60
+    assert config["require_localization_ready"] is False
+    assert config["localization_ready_topic"] == "/localization/ready"
+    assert config["localization_ready_timeout_sec"] == 2.5
+
+
+def test_ackermann_can_supports_localization_readiness_gate():
+    config = load_config("chassis_can.yaml", "ackermann")["/**"]["ros__parameters"]
+
+    assert config["require_localization_ready"] is False
+    assert config["localization_ready_topic"] == "/localization/ready"
+    assert config["localization_ready_timeout_sec"] == 2.5
 
 
 def test_ackermann_fastlio_local_uses_requested_inflation_radius():

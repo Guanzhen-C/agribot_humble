@@ -84,17 +84,19 @@ system. Use the saved YAML projection for long-range planning:
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map \
-  initial_pose:="[0.0, 0.0, 0.0]" \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-Set an approximate initial rear-axle map pose on the command line or with
-RViz's `2D Pose Estimate` tool before sending a goal. The map supplies planning
-only; FAST-LIO remains the pose source and is not continuously corrected by
-map matching.
+Keep the vehicle still until `/localization/ready` becomes `true`. The saved
+PCD provides automatic full-map FPFH initialization and NDT refinement, so
+RViz's `2D Pose Estimate` is not required. FAST-LIO remains the high-rate
+odometry source, with low-rate NDT correction at `0.25 Hz`. Both physical
+chassis drivers require a fresh localization heartbeat in this mapped mode and
+continue transmitting stop commands if initialization or runtime matching is
+unhealthy.
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and
 telemetry is the 24-byte WHEELTEC packet also carried by the three CAN feedback
