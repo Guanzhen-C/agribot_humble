@@ -148,49 +148,6 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# 阿克曼真机：在 RDK X5 上运行局部滚动导航和 RViz
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-export DISPLAY=:0
-export XAUTHORITY=/home/sunrise/.Xauthority
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
-  rviz:=true \
-  enable_chassis_output:=true \
-  chassis_driver:=ackermann_can \
-  can_transport:=zqwl_cdc \
-  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
-
-# 阿克曼真机分布式运行：RDK X5 运行算法，Jetson 显示 RViz 高精度车模
-# 终端 1（Jetson）：登录 RDK X5 后启动传感器、FAST-LIO 和 Nav2，不在 RDK 渲染 RViz
-# 仅查看时保持 enable_chassis_output:=false；确认需要真车运动时再改为 true
-ssh sunrise@10.147.55.3
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
-  rviz:=false \
-  enable_chassis_output:=false \
-  chassis_driver:=ackermann_can \
-  can_transport:=zqwl_cdc \
-  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00 \
-  use_detailed_vehicle_model:=true
-
-# 终端 2（Jetson）：刷新 DDS 发现并显示 RDK 发布的定位、地图和高精度车模
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 daemon stop || true
-ros2 daemon start
-ros2 run rviz2 rviz2 \
-  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation_local.rviz
-
-# 如需恢复原来的定位箭头显示，将终端 1 最后一项改为 use_detailed_vehicle_model:=false
-# 停止时先在终端 1 按 Ctrl+C 停止 RDK 算法，再在终端 2 按 Ctrl+C 关闭 Jetson RViz
-
 # 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
 # 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
 # 建图期间 Nav2 和 ROS 底盘输出保持关闭
@@ -232,6 +189,38 @@ ros2 launch agribot_hardware_bringup \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# 阿克曼真机分布式运行：RDK X5 使用已建地图导航，Jetson 显示 RViz 高精度车模
+# 终端 1（Jetson）：登录 RDK，启动传感器、FAST-LIO、三维重定位和 Nav2
+# 命令允许 Nav2 控制真车；车辆必须静止等待 /localization/ready 返回 data: true
+ssh sunrise@10.147.55.3
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_mapped.launch.py \
+  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
+  rviz:=false \
+  enable_chassis_output:=true \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00 \
+  use_detailed_vehicle_model:=true
+
+# 终端 2（Jetson）：刷新 DDS 发现并显示全局地图、重定位结果、规划路径和高精度车模
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 daemon stop || true
+ros2 daemon start
+ros2 run rviz2 rviz2 \
+  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation.rviz
+
+# 如果只查看而不允许车辆运动，将终端 1 中的 enable_chassis_output 改为 false
+# 如需恢复原来的定位箭头显示，将终端 1 中的 use_detailed_vehicle_model 改为 false
+# 停止时先在终端 1 按 Ctrl+C 停止 RDK 算法，再在终端 2 按 Ctrl+C 关闭 Jetson RViz
 
 # 可选：在第二个终端查看定位状态
 ros2 topic echo /localization/status
