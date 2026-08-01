@@ -38,19 +38,18 @@ none of these files.
 The installed chassis executables remain vehicle-specific; there is no mixed
 vehicle executable.
 
-Ackermann launches publish `urdf/ackermann_vehicle.urdf` for RViz. Its
-multi-material GLB meshes are converted from the measured vehicle STEP assembly
-and retain the assembly colors and detailed suspension geometry. The body and
-four original wheel assemblies are separate visual meshes. The URDF
-converts it to ROS axes (`+X` forward, `+Y` left, `+Z` up) and centers it at
-the rear axle to match `base_link`. It is visual-only; Nav2 continues to use
+When enabled, Ackermann launches publish `urdf/ackermann_vehicle.urdf` for
+RViz. Its multi-material GLB meshes are converted from the measured vehicle
+STEP assembly and retain the assembly colors and detailed suspension geometry.
+The body and four original wheel assemblies are separate visual meshes. The
+URDF converts it to ROS axes (`+X` forward, `+Y` left, `+Z` up) and centers it
+at the rear axle to match `base_link`. It is visual-only; Nav2 continues to use
 the configured footprint for collision checking.
 
-The detailed model remains the default. On a software-rendered display, pass
-`use_lightweight_vehicle_model:=true` to any physical Ackermann launch to use
-`urdf/ackermann_vehicle_lightweight.urdf` instead. The lightweight model uses
-URDF primitives while retaining the same wheel joints, calibrated sensor
-centers and `base_link`; this option changes visualization only.
+Physical Ackermann launches preserve the original pose/TF-only RViz display by
+default. Pass `use_detailed_vehicle_model:=true` to load the STEP-derived body,
+wheel and sensor visuals. This option changes visualization only; it does not
+change `base_link`, calibrated sensor transforms, Nav2 geometry or control.
 
 `ackermann_joint_state_publisher` uses measured `/wheel/odometry` velocity to
 animate the four wheel rotations and infer the left/right Ackermann steering

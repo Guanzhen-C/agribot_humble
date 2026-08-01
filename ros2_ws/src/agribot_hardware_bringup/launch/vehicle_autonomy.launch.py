@@ -29,8 +29,8 @@ def _validate_arguments(context):
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
-    lightweight_model = LaunchConfiguration(
-        "use_lightweight_vehicle_model"
+    detailed_model = LaunchConfiguration(
+        "use_detailed_vehicle_model"
     ).perform(context).lower()
     output_enabled = enable_chassis in ("true", "1", "yes", "on")
 
@@ -90,7 +90,7 @@ def _validate_arguments(context):
         )
     if can_transport not in ("socketcan", "zqwl_cdc"):
         raise RuntimeError("can_transport must be 'socketcan' or 'zqwl_cdc'")
-    if lightweight_model not in (
+    if detailed_model not in (
         "true",
         "false",
         "1",
@@ -100,7 +100,7 @@ def _validate_arguments(context):
         "on",
         "off",
     ):
-        raise RuntimeError("use_lightweight_vehicle_model must be a boolean")
+        raise RuntimeError("use_detailed_vehicle_model must be a boolean")
     if output_enabled and chassis_driver == "none":
         raise RuntimeError(
             "enable_chassis_output:=true requires an explicitly selected chassis_driver"
@@ -125,17 +125,14 @@ def _launch_ackermann_robot_state_publisher(
 ):
     if LaunchConfiguration("vehicle_type").perform(context) != "ackermann":
         return []
-
-    use_lightweight_model = LaunchConfiguration(
-        "use_lightweight_vehicle_model"
+    use_detailed_model = LaunchConfiguration(
+        "use_detailed_vehicle_model"
     ).perform(context).lower() in ("true", "1", "yes", "on")
-    urdf_name = (
-        "ackermann_vehicle_lightweight.urdf"
-        if use_lightweight_model
-        else "ackermann_vehicle.urdf"
-    )
+    if not use_detailed_model:
+        return []
+
     robot_description = Path(
-        os.path.join(hardware_share, "urdf", urdf_name)
+        os.path.join(hardware_share, "urdf", "ackermann_vehicle.urdf")
     ).read_text(encoding="utf-8")
     return [
         Node(
@@ -455,11 +452,11 @@ def generate_launch_description():
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
-                "use_lightweight_vehicle_model",
+                "use_detailed_vehicle_model",
                 default_value="false",
                 description=(
-                    "Use a low-complexity RViz vehicle model; false preserves "
-                    "the detailed STEP-derived model"
+                    "Display the detailed STEP-derived vehicle model in RViz; "
+                    "false preserves the original pose/TF-only display"
                 ),
             ),
             DeclareLaunchArgument("start_navigation", default_value="true"),
@@ -658,7 +655,17 @@ def generate_launch_description():
                     LaunchConfiguration("ackermann_joint_state_config"),
                     {"use_sim_time": use_sim_time},
                 ],
-                condition=LaunchConfigurationEquals("vehicle_type", "ackermann"),
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("vehicle_type"),
+                            "' == 'ackermann' and '",
+                            LaunchConfiguration("use_detailed_vehicle_model"),
+                            "'.lower() in ('true', '1', 'yes', 'on')",
+                        ]
+                    )
+                ),
             ),
             sensors,
             navsat_localization,

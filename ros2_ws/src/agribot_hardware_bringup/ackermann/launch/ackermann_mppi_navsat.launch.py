@@ -16,7 +16,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
-                "use_lightweight_vehicle_model", default_value="false"
+                "use_detailed_vehicle_model", default_value="false"
             ),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
             DeclareLaunchArgument(
@@ -65,8 +65,8 @@ def generate_launch_description():
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
-                    "use_lightweight_vehicle_model": LaunchConfiguration(
-                        "use_lightweight_vehicle_model"
+                    "use_detailed_vehicle_model": LaunchConfiguration(
+                        "use_detailed_vehicle_model"
                     ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "map": LaunchConfiguration("map"),

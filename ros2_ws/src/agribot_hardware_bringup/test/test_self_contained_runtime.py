@@ -78,7 +78,6 @@ def test_migrated_runtime_resources_exist_and_parse():
         "rviz/navigation_local.rviz",
         "rviz/pcd_mapping.rviz",
         "urdf/ackermann_vehicle.urdf",
-        "urdf/ackermann_vehicle_lightweight.urdf",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
         "desktop/wheeltec-car-gui.desktop",
@@ -233,49 +232,6 @@ def test_ackermann_vehicle_urdf_places_calibrated_sensor_models():
         mounts["lidar"]["xyz"][2] - 0.04855,
     ]
     assert lidar.find("origin").attrib["rpy"] == "0 0 3.141592653589793"
-
-
-def test_lightweight_vehicle_matches_detailed_model_kinematics_and_mounts():
-    detailed = element_tree.parse(
-        PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
-    ).getroot()
-    lightweight = element_tree.parse(
-        PACKAGE_ROOT / "urdf" / "ackermann_vehicle_lightweight.urdf"
-    ).getroot()
-
-    joint_names = (
-        "front_left_steering_joint",
-        "front_right_steering_joint",
-        "front_left_wheel_joint",
-        "front_right_wheel_joint",
-        "rear_left_wheel_joint",
-        "rear_right_wheel_joint",
-    )
-    for name in joint_names:
-        detailed_joint = detailed.find(f"./joint[@name='{name}']")
-        lightweight_joint = lightweight.find(f"./joint[@name='{name}']")
-        assert lightweight_joint is not None
-        assert element_tree.tostring(lightweight_joint) == element_tree.tostring(
-            detailed_joint
-        )
-
-    mounts = yaml.safe_load(
-        (PACKAGE_ROOT / "config" / "sensor_mounts.yaml").read_text()
-    )
-    visuals = {
-        visual.attrib.get("name"): visual
-        for visual in lightweight.findall("./link[@name='base_link']/visual")
-    }
-    for name, mount_name in (
-        ("hipnuc_n300pro", "imu"),
-        ("lslidar_c16_v4", "lidar"),
-    ):
-        origin = visuals[name].find("origin")
-        assert [float(value) for value in origin.attrib["xyz"].split()] == mounts[
-            mount_name
-        ]["xyz"]
-
-    assert not lightweight.findall(".//mesh")
 
 
 def test_ackermann_vehicle_mesh_retains_step_detail_and_materials():

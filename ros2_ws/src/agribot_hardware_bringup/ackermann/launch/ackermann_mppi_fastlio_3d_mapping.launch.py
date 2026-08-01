@@ -23,7 +23,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
-                "use_lightweight_vehicle_model", default_value="false"
+                "use_detailed_vehicle_model", default_value="false"
             ),
             DeclareLaunchArgument("map_start_delay", default_value="5.0"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
@@ -67,8 +67,8 @@ def generate_launch_description():
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
-                    "use_lightweight_vehicle_model": LaunchConfiguration(
-                        "use_lightweight_vehicle_model"
+                    "use_detailed_vehicle_model": LaunchConfiguration(
+                        "use_detailed_vehicle_model"
                     ),
                     "rviz_config": os.path.join(
                         hardware_share, "rviz", "pcd_mapping.rviz"
