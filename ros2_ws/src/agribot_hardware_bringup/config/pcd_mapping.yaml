@@ -21,11 +21,11 @@ pcd_map_builder:
     rear_exclusion_max_x: -0.1275
     rear_exclusion_half_width: 0.60
 
-    # FAST-LIO map z=0 is the initial IMU center. The calibrated lidar center is
-    # z=0.09, while 1.0 m above ground is z=0.7295 in this frame.
+    # The map z=0 plane is the rear-axle center. With a 0.1275 m wheel radius,
+    # this selects the physical band from the lidar center to 1.0 m above ground.
     occupancy_resolution: 0.05
-    occupancy_min_z: 0.09
-    occupancy_max_z: 0.7295
+    occupancy_min_z: 0.233
+    occupancy_max_z: 0.8725
     occupancy_padding: 1.0
     occupancy_dilation_radius: 0.05
     save_on_shutdown: false

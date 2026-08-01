@@ -171,7 +171,7 @@ def test_ackermann_configs_use_c16_stvl_for_obstacles():
         global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
         local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
 
-        height_band = (0.08, 1.8) if "navsat" in name else (0.09, 0.7295)
+        height_band = (0.08, 1.8) if "navsat" in name else (0.233, 0.8725)
         assert_c16_stvl(global_costmap, 8.0, *height_band)
         assert_c16_stvl(local_costmap, 4.0, *height_band)
 
@@ -203,8 +203,8 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert mapping["rear_exclusion_max_x"] == -0.1275
     assert mapping["rear_exclusion_half_width"] == 0.60
     assert mapping["occupancy_resolution"] == 0.05
-    assert mapping["occupancy_min_z"] == 0.09
-    assert mapping["occupancy_max_z"] == 0.7295
+    assert mapping["occupancy_min_z"] == 0.233
+    assert mapping["occupancy_max_z"] == 0.8725
 
     assert localizer["cloud_topic"] == "/cloud_registered_body"
     assert localizer["cloud_frame"] == "body"
@@ -249,8 +249,8 @@ def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
         assert_c16_stvl(
             costmap,
             8.0 if costmap_name == "global_costmap" else 4.0,
-            0.09,
-            0.7295,
+            0.233,
+            0.8725,
         )
 
     global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
