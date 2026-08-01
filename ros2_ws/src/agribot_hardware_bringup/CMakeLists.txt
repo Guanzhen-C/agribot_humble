@@ -199,6 +199,7 @@ ament_target_dependencies(pcd_global_localizer
 install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
+  scripts/pcd_to_nav2_map.py
   scripts/rtk_nmea_node.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
@@ -300,6 +301,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_chassis_can_transport chassis_can_common)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
+  ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
   ament_add_pytest_test(
     test_vehicle_directory_layout
