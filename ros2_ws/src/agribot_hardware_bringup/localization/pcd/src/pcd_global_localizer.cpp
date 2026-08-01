@@ -119,6 +119,12 @@ double rotationAngle(const Eigen::Matrix3d & rotation)
   return std::abs(angle_axis.angle());
 }
 
+double angularDistance(double first, double second)
+{
+  return std::abs(std::atan2(
+      std::sin(first - second), std::cos(first - second)));
+}
+
 Eigen::Vector3d rotationRpy(const Eigen::Matrix3d & rotation)
 {
   const double roll = std::atan2(rotation(2, 1), rotation(2, 2));
@@ -184,6 +190,12 @@ public:
     cloud_subscription_ = create_subscription<sensor_msgs::msg::PointCloud2>(
       cloud_topic_, rclcpp::SensorDataQoS(),
       std::bind(&PcdGlobalLocalizer::handleCloud, this, std::placeholders::_1));
+    initial_pose_subscription_ =
+      create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+      initial_pose_topic_, rclcpp::QoS(10),
+      std::bind(
+        &PcdGlobalLocalizer::handleInitialPose, this,
+        std::placeholders::_1));
 
     relocalize_service_ = create_service<std_srvs::srv::Trigger>(
       "/localization/relocalize",
@@ -199,7 +211,11 @@ public:
       create_wall_timer(1s, std::bind(&PcdGlobalLocalizer::publishDiagnostics, this));
 
     publishMap();
-    setStatus("waiting for synchronized FAST-LIO odometry and body-frame scans");
+    if (require_initial_pose_) {
+      setStatus("waiting for RViz 2D Pose Estimate on " + initial_pose_topic_);
+    } else {
+      setStatus("waiting for synchronized FAST-LIO odometry and body-frame scans");
+    }
     publishReady();
     RCLCPP_INFO(
       get_logger(),
@@ -245,6 +261,13 @@ private:
     map_frame_ = declare_parameter<std::string>("map_frame", "map");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
     base_frame_ = declare_parameter<std::string>("base_frame", "base_link");
+    initial_pose_topic_ =
+      declare_parameter<std::string>("initial_pose_topic", "/initialpose");
+    require_initial_pose_ = declare_parameter<bool>("require_initial_pose", true);
+    initial_pose_max_translation_error_ =
+      declare_parameter<double>("initial_pose_max_translation_error", 2.0);
+    initial_pose_max_yaw_error_ =
+      declare_parameter<double>("initial_pose_max_yaw_error", 0.7853981633974483);
 
     const auto base_to_body_xyz =
       declare_parameter<std::vector<double>>(
@@ -332,6 +355,12 @@ private:
       initial_scan_count_ < 1 || max_odom_age_ <= 0.0)
     {
       throw std::runtime_error("invalid scan filtering or synchronization parameters");
+    }
+    if (
+      initial_pose_topic_.empty() || initial_pose_max_translation_error_ <= 0.0 ||
+      initial_pose_max_yaw_error_ <= 0.0 || initial_pose_max_yaw_error_ > M_PI)
+    {
+      throw std::runtime_error("invalid RViz initial-pose prior parameters");
     }
     if (
       global_max_iterations_ < 1 || global_correspondence_randomness_ < 1 ||
@@ -586,6 +615,49 @@ private:
     }
   }
 
+  void handleInitialPose(
+    const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr message)
+  {
+    if (!message->header.frame_id.empty() && message->header.frame_id != map_frame_) {
+      RCLCPP_WARN(
+        get_logger(), "Ignoring initial pose in frame '%s'; expected '%s'",
+        message->header.frame_id.c_str(), map_frame_.c_str());
+      return;
+    }
+
+    Eigen::Isometry3d prior;
+    try {
+      const Eigen::Isometry3d input = poseToIsometry(message->pose.pose);
+      const double yaw = rotationRpy(input.linear()).z();
+      prior = Eigen::Isometry3d::Identity();
+      prior.translation() = Eigen::Vector3d(
+        input.translation().x(), input.translation().y(), 0.0);
+      prior.linear() =
+        Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+    } catch (const std::exception & exception) {
+      RCLCPP_WARN(get_logger(), "Ignoring invalid initial pose: %s", exception.what());
+      return;
+    }
+
+    {
+      std::lock_guard<std::mutex> guard(state_mutex_);
+      initial_pose_prior_ = prior;
+      initialized_ = false;
+      setReadyLocked(false);
+      consecutive_matches_ = 0;
+      consecutive_failures_ = 0;
+      global_attempts_ = 0;
+      initialization_scans_.clear();
+      last_global_attempt_time_ = rclcpp::Time(0, 0, get_clock()->get_clock_type());
+      setStatusLocked("RViz initial pose received; collecting scans for 3D refinement");
+    }
+    const Eigen::Vector3d rpy = rotationRpy(prior.linear());
+    RCLCPP_INFO(
+      get_logger(), "Accepted RViz pose prior: x=%.2f y=%.2f yaw=%.1f deg",
+      prior.translation().x(), prior.translation().y(),
+      rpy.z() * 180.0 / M_PI);
+  }
+
   ScanSample aggregateInitialScans(
     const std::deque<ScanSample> & scans) const
   {
@@ -644,6 +716,33 @@ private:
     const Eigen::Isometry3d global_guess(
       registration.getFinalTransformation().cast<double>());
     return refineNdt(sample.cloud_base, global_guess);
+  }
+
+  MatchResult priorRegistration(
+    const ScanSample & sample,
+    const Eigen::Isometry3d & initial_pose_prior)
+  {
+    setStatus("refining RViz initial pose with 3D NDT");
+    MatchResult result = refineNdt(sample.cloud_base, initial_pose_prior);
+    if (!result.accepted) {
+      return result;
+    }
+
+    const Eigen::Vector2d translation_error =
+      result.map_to_base.translation().head<2>() -
+      initial_pose_prior.translation().head<2>();
+    if (translation_error.norm() > initial_pose_max_translation_error_) {
+      result.accepted = false;
+      result.reason = "NDT result is too far from the RViz position prior";
+      return result;
+    }
+    const double result_yaw = rotationRpy(result.map_to_base.linear()).z();
+    const double prior_yaw = rotationRpy(initial_pose_prior.linear()).z();
+    if (angularDistance(result_yaw, prior_yaw) > initial_pose_max_yaw_error_) {
+      result.accepted = false;
+      result.reason = "NDT result disagrees with the RViz heading prior";
+    }
+    return result;
   }
 
   MatchResult refineNdt(
@@ -740,12 +839,14 @@ private:
     ScanSample sample;
     bool initialized = false;
     Eigen::Isometry3d map_to_odom = Eigen::Isometry3d::Identity();
+    std::optional<Eigen::Isometry3d> initial_pose_prior;
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
       if (!latest_scan_.has_value()) {
         return;
       }
       initialized = initialized_;
+      initial_pose_prior = initial_pose_prior_;
       if (initialized) {
         const double period = 1.0 / matching_rate_hz_;
         if (
@@ -757,6 +858,9 @@ private:
         sample = *latest_scan_;
         map_to_odom = map_to_odom_;
       } else {
+        if (require_initial_pose_ && !initial_pose_prior.has_value()) {
+          return;
+        }
         if (
           initialization_scans_.size() <
           static_cast<std::size_t>(initial_scan_count_))
@@ -778,7 +882,9 @@ private:
 
     MatchResult result;
     if (!initialized) {
-      result = globalRegistration(sample);
+      result = initial_pose_prior.has_value() ?
+        priorRegistration(sample, *initial_pose_prior) :
+        globalRegistration(sample);
     } else {
       setStatus("running low-rate NDT map correction");
       const Eigen::Isometry3d predicted_map_to_base =
@@ -880,14 +986,20 @@ private:
       std::lock_guard<std::mutex> guard(state_mutex_);
       initialized_ = false;
       setReadyLocked(false);
+      initial_pose_prior_.reset();
       consecutive_matches_ = 0;
       consecutive_failures_ = 0;
       initialization_scans_.clear();
       last_global_attempt_time_ = rclcpp::Time(0, 0, get_clock()->get_clock_type());
-      setStatusLocked("global relocalization requested");
+      setStatusLocked(
+        require_initial_pose_ ?
+        "relocalization requested; waiting for a new RViz initial pose" :
+        "global relocalization requested");
     }
     response->success = true;
-    response->message = "Automatic full-map relocalization restarted";
+    response->message = require_initial_pose_ ?
+      "Relocalization reset; set a new RViz 2D Pose Estimate" :
+      "Automatic full-map relocalization restarted";
   }
 
   void setReadyLocked(bool ready)
@@ -1013,6 +1125,10 @@ private:
         keyValue("initialized", initialized_ ? "true" : "false"));
       diagnostic.values.push_back(keyValue("ready", ready_ ? "true" : "false"));
       diagnostic.values.push_back(
+        keyValue("initial_pose_required", require_initial_pose_ ? "true" : "false"));
+      diagnostic.values.push_back(
+        keyValue("initial_pose_received", initial_pose_prior_.has_value() ? "true" : "false"));
+      diagnostic.values.push_back(
         keyValue("matching_rate_hz", std::to_string(matching_rate_hz_)));
       diagnostic.values.push_back(
         keyValue("fitness_score", std::to_string(last_fitness_)));
@@ -1039,6 +1155,10 @@ private:
   std::string map_frame_;
   std::string odom_frame_;
   std::string base_frame_;
+  std::string initial_pose_topic_;
+  bool require_initial_pose_{true};
+  double initial_pose_max_translation_error_{2.0};
+  double initial_pose_max_yaw_error_{0.7853981633974483};
   Eigen::Isometry3d base_to_body_{Eigen::Isometry3d::Identity()};
 
   double map_voxel_size_{0.25};
@@ -1091,6 +1211,7 @@ private:
   std::deque<TimedPose> odometry_buffer_;
   std::deque<ScanSample> initialization_scans_;
   std::optional<ScanSample> latest_scan_;
+  std::optional<Eigen::Isometry3d> initial_pose_prior_;
   Eigen::Isometry3d map_to_odom_{Eigen::Isometry3d::Identity()};
   bool initialized_{false};
   bool ready_{false};
@@ -1106,6 +1227,8 @@ private:
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+    initial_pose_subscription_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ready_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
     pose_publisher_;

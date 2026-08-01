@@ -197,8 +197,8 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert mapping["rear_exclusion_max_x"] == -0.1275
     assert mapping["rear_exclusion_half_width"] == 0.60
     assert mapping["occupancy_resolution"] == 0.05
-    assert mapping["occupancy_min_z"] == 0.05
-    assert mapping["occupancy_max_z"] == 1.80
+    assert mapping["occupancy_min_z"] == 0.10
+    assert mapping["occupancy_max_z"] == 1.20
 
     assert localizer["cloud_topic"] == "/cloud_registered_body"
     assert localizer["cloud_frame"] == "body"
@@ -206,6 +206,10 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert localizer["map_frame"] == "map"
     assert localizer["odom_frame"] == "odom"
     assert localizer["base_frame"] == "base_link"
+    assert localizer["initial_pose_topic"] == "/initialpose"
+    assert localizer["require_initial_pose"] is True
+    assert localizer["initial_pose_max_translation_error"] == 2.0
+    assert localizer["initial_pose_max_yaw_error"] == pytest.approx(math.pi / 4.0)
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
     assert 0.2 <= localizer["matching_rate_hz"] <= 0.5
     assert localizer["required_consecutive_matches"] >= 2

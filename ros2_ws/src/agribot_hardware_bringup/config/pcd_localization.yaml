@@ -9,6 +9,13 @@ pcd_global_localizer:
     odom_frame: odom
     base_frame: base_link
 
+    # In repetitive corridors, require an approximate RViz 2D Pose Estimate.
+    # NDT refines this 2D prior into a full 3D pose before navigation is enabled.
+    initial_pose_topic: /initialpose
+    require_initial_pose: true
+    initial_pose_max_translation_error: 2.0
+    initial_pose_max_yaw_error: 0.7853981633974483
+
     # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
     base_to_body_xyz: [0.1425, 0.0, 0.143]
     base_to_body_rpy: [0.0, 0.0, 0.0]
