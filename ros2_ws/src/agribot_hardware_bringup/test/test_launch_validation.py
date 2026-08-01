@@ -46,6 +46,7 @@ def context_with(**overrides):
         "can_transport": "socketcan",
         "enable_can_output": "false",
         "enable_chassis_output": "false",
+        "use_lightweight_vehicle_model": "false",
         "map": "/tmp/real_map.yaml",
         "pcd_map_base": "/tmp/real_map",
         "pcd_map_file": "/tmp/real_map.pcd",
@@ -283,9 +284,21 @@ def test_ackermann_vehicle_launch_publishes_robot_description():
     source = VEHICLE_LAUNCH_PATH.read_text()
     assert 'package="robot_state_publisher"' in source
     assert 'name="ackermann_robot_state_publisher"' in source
-    assert '"urdf", "ackermann_vehicle.urdf"' in source
+    assert 'else "ackermann_vehicle.urdf"' in source
+    assert '"ackermann_vehicle_lightweight.urdf"' in source
     assert '"robot_description": robot_description' in source
-    assert 'condition=LaunchConfigurationEquals("vehicle_type", "ackermann")' in source
+    assert 'LaunchConfiguration("vehicle_type").perform(context)' in source
+
+
+def test_ackermann_entry_points_expose_optional_lightweight_vehicle_model():
+    for launch_path in ACKERMANN_LAUNCH_PATHS:
+        source = launch_path.read_text()
+        assert (
+            '"use_lightweight_vehicle_model", default_value="false"' in source
+        )
+        assert (
+            '"use_lightweight_vehicle_model": LaunchConfiguration(' in source
+        )
 
 
 def test_sensor_launch_is_scoped_to_preserve_parent_rviz_selection():

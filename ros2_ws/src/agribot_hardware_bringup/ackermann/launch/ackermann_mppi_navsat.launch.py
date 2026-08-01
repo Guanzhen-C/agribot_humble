@@ -15,6 +15,9 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument(
+                "use_lightweight_vehicle_model", default_value="false"
+            ),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
             DeclareLaunchArgument(
                 "map", description="Absolute path to the real-vehicle Nav2 map YAML"
@@ -62,6 +65,9 @@ def generate_launch_description():
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
                     "rviz": LaunchConfiguration("rviz"),
+                    "use_lightweight_vehicle_model": LaunchConfiguration(
+                        "use_lightweight_vehicle_model"
+                    ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "map": LaunchConfiguration("map"),
                     "enable_ntrip": LaunchConfiguration("enable_ntrip"),

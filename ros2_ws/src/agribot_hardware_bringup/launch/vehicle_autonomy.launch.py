@@ -29,6 +29,9 @@ def _validate_arguments(context):
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
+    lightweight_model = LaunchConfiguration(
+        "use_lightweight_vehicle_model"
+    ).perform(context).lower()
     output_enabled = enable_chassis in ("true", "1", "yes", "on")
 
     if localization not in ("navsat", "fastlio"):
@@ -87,6 +90,17 @@ def _validate_arguments(context):
         )
     if can_transport not in ("socketcan", "zqwl_cdc"):
         raise RuntimeError("can_transport must be 'socketcan' or 'zqwl_cdc'")
+    if lightweight_model not in (
+        "true",
+        "false",
+        "1",
+        "0",
+        "yes",
+        "no",
+        "on",
+        "off",
+    ):
+        raise RuntimeError("use_lightweight_vehicle_model must be a boolean")
     if output_enabled and chassis_driver == "none":
         raise RuntimeError(
             "enable_chassis_output:=true requires an explicitly selected chassis_driver"
@@ -104,6 +118,39 @@ def _validate_arguments(context):
     ):
         raise RuntimeError("ackermann vehicle requires an Ackermann chassis driver")
     return []
+
+
+def _launch_ackermann_robot_state_publisher(
+    context, *, hardware_share, use_sim_time
+):
+    if LaunchConfiguration("vehicle_type").perform(context) != "ackermann":
+        return []
+
+    use_lightweight_model = LaunchConfiguration(
+        "use_lightweight_vehicle_model"
+    ).perform(context).lower() in ("true", "1", "yes", "on")
+    urdf_name = (
+        "ackermann_vehicle_lightweight.urdf"
+        if use_lightweight_model
+        else "ackermann_vehicle.urdf"
+    )
+    robot_description = Path(
+        os.path.join(hardware_share, "urdf", urdf_name)
+    ).read_text(encoding="utf-8")
+    return [
+        Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="ackermann_robot_state_publisher",
+            output="screen",
+            parameters=[
+                {
+                    "use_sim_time": use_sim_time,
+                    "robot_description": robot_description,
+                }
+            ],
+        )
+    ]
 
 
 def _selection_condition(vehicle_type, controller, localization):
@@ -132,19 +179,13 @@ def _selection_condition(vehicle_type, controller, localization):
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
-    robot_description = Path(
-        os.path.join(hardware_share, "urdf", "ackermann_vehicle.urdf")
-    ).read_text(encoding="utf-8")
     navigation_launch = os.path.join(
         hardware_share, "launch", "include", "navigation_only.launch.py"
     )
 
     use_sim_time = LaunchConfiguration("use_sim_time")
     autostart = LaunchConfiguration("autostart")
-    localization = LaunchConfiguration("localization")
-    vehicle_type = LaunchConfiguration("vehicle_type")
     enable_chassis_output = LaunchConfiguration("enable_chassis_output")
-    chassis_driver = LaunchConfiguration("chassis_driver")
 
     sensors = GroupAction(
         scoped=True,
@@ -413,6 +454,14 @@ def generate_launch_description():
             DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument(
+                "use_lightweight_vehicle_model",
+                default_value="false",
+                description=(
+                    "Use a low-complexity RViz vehicle model; false preserves "
+                    "the detailed STEP-derived model"
+                ),
+            ),
             DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="5.0"),
             DeclareLaunchArgument("map_start_delay", default_value="5.0"),
@@ -593,18 +642,12 @@ def generate_launch_description():
                 ),
             ),
             OpaqueFunction(function=_validate_arguments),
-            Node(
-                package="robot_state_publisher",
-                executable="robot_state_publisher",
-                name="ackermann_robot_state_publisher",
-                output="screen",
-                parameters=[
-                    {
-                        "use_sim_time": use_sim_time,
-                        "robot_description": robot_description,
-                    }
-                ],
-                condition=LaunchConfigurationEquals("vehicle_type", "ackermann"),
+            OpaqueFunction(
+                function=_launch_ackermann_robot_state_publisher,
+                kwargs={
+                    "hardware_share": hardware_share,
+                    "use_sim_time": use_sim_time,
+                },
             ),
             Node(
                 package="agribot_hardware_bringup",
