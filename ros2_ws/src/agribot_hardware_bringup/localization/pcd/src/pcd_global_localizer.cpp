@@ -32,6 +32,7 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/registration/gicp.h>
 #include <pcl/registration/ndt.h>
 #include <pcl/registration/sample_consensus_prerejective.h>
 #include <pcl/search/kdtree.h>
@@ -219,8 +220,10 @@ public:
     publishReady();
     RCLCPP_INFO(
       get_logger(),
-      "Automatic 3D relocalization ready: map=%s points=%zu update=%.2f Hz",
-      map_file_path_.c_str(), registration_map_->size(), matching_rate_hz_);
+      "3D relocalization ready: map=%s fine_points=%zu coarse_points=%zu "
+      "local_radius=%.1f m update=%.2f Hz",
+      map_file_path_.c_str(), registration_map_->size(),
+      coarse_registration_map_->size(), local_submap_radius_, matching_rate_hz_);
   }
 
 private:
@@ -277,8 +280,10 @@ private:
       "base_to_body_rpy", {0.0, 0.0, 0.0});
     base_to_body_ = xyzRpyToIsometry(base_to_body_xyz, base_to_body_rpy);
 
-    map_voxel_size_ = declare_parameter<double>("map_voxel_size", 0.25);
-    scan_voxel_size_ = declare_parameter<double>("scan_voxel_size", 0.20);
+    map_voxel_size_ = declare_parameter<double>("map_voxel_size", 0.15);
+    coarse_map_voxel_size_ =
+      declare_parameter<double>("coarse_map_voxel_size", 0.30);
+    scan_voxel_size_ = declare_parameter<double>("scan_voxel_size", 0.10);
     feature_voxel_size_ =
       declare_parameter<double>("feature_voxel_size", 0.35);
     normal_radius_ = declare_parameter<double>("normal_radius", 0.70);
@@ -288,8 +293,14 @@ private:
     min_z_ = declare_parameter<double>("min_z", -0.50);
     max_z_ = declare_parameter<double>("max_z", 2.50);
     min_scan_points_ = declare_parameter<int>("min_scan_points", 250);
-    initial_scan_count_ = declare_parameter<int>("initial_scan_count", 3);
+    initial_scan_count_ = declare_parameter<int>("initial_scan_count", 10);
     max_odom_age_ = declare_parameter<double>("max_odom_age", 0.10);
+
+    local_submap_radius_ =
+      declare_parameter<double>("local_submap_radius", 15.0);
+    local_scan_radius_ = declare_parameter<double>("local_scan_radius", 12.0);
+    local_submap_min_points_ =
+      declare_parameter<int>("local_submap_min_points", 300);
 
     global_max_iterations_ =
       declare_parameter<int>("global_max_iterations", 40000);
@@ -304,23 +315,46 @@ private:
     global_retry_period_ =
       declare_parameter<double>("global_retry_period", 5.0);
 
-    ndt_resolution_ = declare_parameter<double>("ndt_resolution", 0.80);
-    ndt_step_size_ = declare_parameter<double>("ndt_step_size", 0.10);
-    ndt_transformation_epsilon_ =
-      declare_parameter<double>("ndt_transformation_epsilon", 0.01);
-    ndt_max_iterations_ = declare_parameter<int>("ndt_max_iterations", 35);
+    coarse_ndt_resolution_ =
+      declare_parameter<double>("coarse_ndt_resolution", 0.80);
+    coarse_ndt_step_size_ =
+      declare_parameter<double>("coarse_ndt_step_size", 0.10);
+    coarse_ndt_transformation_epsilon_ =
+      declare_parameter<double>("coarse_ndt_transformation_epsilon", 0.01);
+    coarse_ndt_max_iterations_ =
+      declare_parameter<int>("coarse_ndt_max_iterations", 35);
+    fine_ndt_resolution_ =
+      declare_parameter<double>("fine_ndt_resolution", 0.40);
+    fine_ndt_step_size_ =
+      declare_parameter<double>("fine_ndt_step_size", 0.05);
+    fine_ndt_transformation_epsilon_ =
+      declare_parameter<double>("fine_ndt_transformation_epsilon", 0.002);
+    fine_ndt_max_iterations_ =
+      declare_parameter<int>("fine_ndt_max_iterations", 50);
+    gicp_max_correspondence_distance_ =
+      declare_parameter<double>("gicp_max_correspondence_distance", 0.30);
+    gicp_transformation_epsilon_ =
+      declare_parameter<double>("gicp_transformation_epsilon", 0.0001);
+    gicp_rotation_epsilon_ =
+      declare_parameter<double>("gicp_rotation_epsilon", 0.0001);
+    gicp_fitness_epsilon_ =
+      declare_parameter<double>("gicp_fitness_epsilon", 0.0001);
+    gicp_max_iterations_ =
+      declare_parameter<int>("gicp_max_iterations", 30);
+    gicp_correspondence_randomness_ =
+      declare_parameter<int>("gicp_correspondence_randomness", 20);
     fitness_max_range_ =
-      declare_parameter<double>("fitness_max_range", 1.50);
+      declare_parameter<double>("fitness_max_range", 0.50);
     max_fitness_score_ =
-      declare_parameter<double>("max_fitness_score", 0.45);
+      declare_parameter<double>("max_fitness_score", 0.12);
     overlap_distance_ =
-      declare_parameter<double>("overlap_distance", 0.50);
-    minimum_overlap_ = declare_parameter<double>("minimum_overlap", 0.20);
+      declare_parameter<double>("overlap_distance", 0.30);
+    minimum_overlap_ = declare_parameter<double>("minimum_overlap", 0.50);
     maximum_tilt_ = declare_parameter<double>("maximum_tilt", 0.35);
     maximum_base_height_ =
       declare_parameter<double>("maximum_base_height", 0.50);
 
-    matching_rate_hz_ = declare_parameter<double>("matching_rate_hz", 0.25);
+    matching_rate_hz_ = declare_parameter<double>("matching_rate_hz", 0.50);
     required_consecutive_matches_ =
       declare_parameter<int>("required_consecutive_matches", 2);
     runtime_failure_limit_ =
@@ -328,10 +362,10 @@ private:
     relocalize_failure_limit_ =
       declare_parameter<int>("relocalize_failure_limit", 5);
     maximum_translation_correction_ =
-      declare_parameter<double>("maximum_translation_correction", 0.75);
+      declare_parameter<double>("maximum_translation_correction", 0.50);
     maximum_rotation_correction_ =
-      declare_parameter<double>("maximum_rotation_correction", 0.35);
-    correction_alpha_ = declare_parameter<double>("correction_alpha", 0.25);
+      declare_parameter<double>("maximum_rotation_correction", 0.25);
+    correction_alpha_ = declare_parameter<double>("correction_alpha", 0.35);
   }
 
   void validateParameters() const
@@ -342,7 +376,8 @@ private:
       throw std::runtime_error("map_file_path must point to a PCD map");
     }
     if (
-      map_voxel_size_ <= 0.0 || scan_voxel_size_ <= 0.0 ||
+      map_voxel_size_ <= 0.0 || coarse_map_voxel_size_ < map_voxel_size_ ||
+      scan_voxel_size_ <= 0.0 ||
       feature_voxel_size_ <= 0.0 || normal_radius_ <= feature_voxel_size_ ||
       feature_radius_ <= normal_radius_)
     {
@@ -355,6 +390,12 @@ private:
       initial_scan_count_ < 1 || max_odom_age_ <= 0.0)
     {
       throw std::runtime_error("invalid scan filtering or synchronization parameters");
+    }
+    if (
+      local_submap_radius_ <= 0.0 || local_scan_radius_ <= 0.0 ||
+      local_scan_radius_ >= local_submap_radius_ || local_submap_min_points_ < 100)
+    {
+      throw std::runtime_error("invalid local registration region parameters");
     }
     if (
       initial_pose_topic_.empty() || initial_pose_max_translation_error_ <= 0.0 ||
@@ -372,13 +413,21 @@ private:
       throw std::runtime_error("invalid global registration parameters");
     }
     if (
-      ndt_resolution_ <= 0.0 || ndt_step_size_ <= 0.0 ||
-      ndt_transformation_epsilon_ <= 0.0 || ndt_max_iterations_ < 1 ||
+      coarse_ndt_resolution_ <= 0.0 || coarse_ndt_step_size_ <= 0.0 ||
+      coarse_ndt_transformation_epsilon_ <= 0.0 ||
+      coarse_ndt_max_iterations_ < 1 || fine_ndt_resolution_ <= 0.0 ||
+      fine_ndt_resolution_ >= coarse_ndt_resolution_ ||
+      fine_ndt_step_size_ <= 0.0 || fine_ndt_transformation_epsilon_ <= 0.0 ||
+      fine_ndt_max_iterations_ < 1 ||
+      gicp_max_correspondence_distance_ <= 0.0 ||
+      gicp_transformation_epsilon_ <= 0.0 || gicp_rotation_epsilon_ <= 0.0 ||
+      gicp_fitness_epsilon_ <= 0.0 || gicp_max_iterations_ < 1 ||
+      gicp_correspondence_randomness_ < 5 ||
       fitness_max_range_ <= 0.0 || max_fitness_score_ <= 0.0 ||
       overlap_distance_ <= 0.0 || minimum_overlap_ <= 0.0 ||
       minimum_overlap_ > 1.0)
     {
-      throw std::runtime_error("invalid NDT or match validation parameters");
+      throw std::runtime_error("invalid NDT, GICP, or match validation parameters");
     }
     if (
       matching_rate_hz_ < 0.2 || matching_rate_hz_ > 0.5 ||
@@ -434,6 +483,34 @@ private:
     return filtered;
   }
 
+  static PointCloud::Ptr cropAroundCenter(
+    const PointCloud::ConstPtr & input,
+    const Eigen::Vector3d & center,
+    double radius)
+  {
+    auto output = std::make_shared<PointCloud>();
+    output->reserve(input->size());
+    const double radius_squared = radius * radius;
+    for (const auto & point : input->points) {
+      const double delta_x = static_cast<double>(point.x) - center.x();
+      const double delta_y = static_cast<double>(point.y) - center.y();
+      if (delta_x * delta_x + delta_y * delta_y <= radius_squared) {
+        output->push_back(point);
+      }
+    }
+    output->width = static_cast<std::uint32_t>(output->size());
+    output->height = 1;
+    output->is_dense = true;
+    return output;
+  }
+
+  static PointCloud::Ptr cropScanByRange(
+    const PointCloud::ConstPtr & input,
+    double radius)
+  {
+    return cropAroundCenter(input, Eigen::Vector3d::Zero(), radius);
+  }
+
   std::pair<PointCloud::Ptr, FeatureCloud::Ptr> computeFeatures(
     const PointCloud::ConstPtr & input) const
   {
@@ -486,8 +563,9 @@ private:
     }
     std::vector<int> valid_indices;
     pcl::removeNaNFromPointCloud(*raw_map, *raw_map, valid_indices);
-    registration_map_ =
-      voxelize(filterByHeightAndRange(raw_map, false), map_voxel_size_);
+    const auto filtered_map = filterByHeightAndRange(raw_map, false);
+    registration_map_ = voxelize(filtered_map, map_voxel_size_);
+    coarse_registration_map_ = voxelize(filtered_map, coarse_map_voxel_size_);
     if (registration_map_->size() < 100U) {
       throw std::runtime_error("PCD map has too few usable points");
     }
@@ -715,15 +793,15 @@ private:
     }
     const Eigen::Isometry3d global_guess(
       registration.getFinalTransformation().cast<double>());
-    return refineNdt(sample.cloud_base, global_guess);
+    return refineRegistration(sample.cloud_base, global_guess);
   }
 
   MatchResult priorRegistration(
     const ScanSample & sample,
     const Eigen::Isometry3d & initial_pose_prior)
   {
-    setStatus("refining RViz initial pose with 3D NDT");
-    MatchResult result = refineNdt(sample.cloud_base, initial_pose_prior);
+    setStatus("refining RViz initial pose with local NDT and GICP");
+    MatchResult result = refineRegistration(sample.cloud_base, initial_pose_prior);
     if (!result.accepted) {
       return result;
     }
@@ -733,47 +811,128 @@ private:
       initial_pose_prior.translation().head<2>();
     if (translation_error.norm() > initial_pose_max_translation_error_) {
       result.accepted = false;
-      result.reason = "NDT result is too far from the RViz position prior";
+      result.reason = "registered pose is too far from the RViz position prior";
       return result;
     }
     const double result_yaw = rotationRpy(result.map_to_base.linear()).z();
     const double prior_yaw = rotationRpy(initial_pose_prior.linear()).z();
     if (angularDistance(result_yaw, prior_yaw) > initial_pose_max_yaw_error_) {
       result.accepted = false;
-      result.reason = "NDT result disagrees with the RViz heading prior";
+      result.reason = "registered pose disagrees with the RViz heading prior";
     }
     return result;
   }
 
-  MatchResult refineNdt(
+  std::optional<Eigen::Isometry3d> alignNdt(
     const PointCloud::ConstPtr & source,
-    const Eigen::Isometry3d & initial_guess)
+    const PointCloud::ConstPtr & target,
+    const Eigen::Isometry3d & initial_guess,
+    double resolution,
+    double step_size,
+    double transformation_epsilon,
+    int maximum_iterations,
+    const std::string & stage,
+    std::string & failure_reason)
   {
     pcl::NormalDistributionsTransform<Point, Point> ndt;
     ndt.setInputSource(source);
-    ndt.setInputTarget(registration_map_);
-    ndt.setResolution(static_cast<float>(ndt_resolution_));
-    ndt.setStepSize(ndt_step_size_);
-    ndt.setTransformationEpsilon(ndt_transformation_epsilon_);
-    ndt.setMaximumIterations(ndt_max_iterations_);
+    ndt.setInputTarget(target);
+    ndt.setResolution(static_cast<float>(resolution));
+    ndt.setStepSize(step_size);
+    ndt.setTransformationEpsilon(transformation_epsilon);
+    ndt.setMaximumIterations(maximum_iterations);
 
     PointCloud aligned;
     ndt.align(aligned, initial_guess.matrix().cast<float>());
     if (!ndt.hasConverged()) {
+      failure_reason = stage + " NDT did not converge";
+      return std::nullopt;
+    }
+    return Eigen::Isometry3d(ndt.getFinalTransformation().cast<double>());
+  }
+
+  MatchResult refineRegistration(
+    const PointCloud::ConstPtr & source,
+    const Eigen::Isometry3d & initial_guess)
+  {
+    const auto local_source = cropScanByRange(source, local_scan_radius_);
+    if (local_source->size() < static_cast<std::size_t>(min_scan_points_)) {
       return MatchResult{
         false, Eigen::Isometry3d::Identity(),
         std::numeric_limits<double>::infinity(), 0.0,
-        "NDT refinement did not converge"};
+        "local scan has too few points for registration"};
     }
+
+    const auto coarse_source = voxelize(local_source, coarse_map_voxel_size_);
+    const auto coarse_target = cropAroundCenter(
+      coarse_registration_map_, initial_guess.translation(), local_submap_radius_);
+    if (
+      coarse_target->size() < static_cast<std::size_t>(local_submap_min_points_))
+    {
+      return MatchResult{
+        false, initial_guess, std::numeric_limits<double>::infinity(), 0.0,
+        "coarse local submap has too few points"};
+    }
+
+    std::string failure_reason;
+    const auto coarse_transform = alignNdt(
+      coarse_source, coarse_target, initial_guess,
+      coarse_ndt_resolution_, coarse_ndt_step_size_,
+      coarse_ndt_transformation_epsilon_, coarse_ndt_max_iterations_,
+      "coarse", failure_reason);
+    if (!coarse_transform.has_value()) {
+      return MatchResult{
+        false, initial_guess, std::numeric_limits<double>::infinity(), 0.0,
+        failure_reason};
+    }
+
+    const auto fine_target = cropAroundCenter(
+      registration_map_, coarse_transform->translation(), local_submap_radius_);
+    if (fine_target->size() < static_cast<std::size_t>(local_submap_min_points_)) {
+      return MatchResult{
+        false, *coarse_transform, std::numeric_limits<double>::infinity(), 0.0,
+        "fine local submap has too few points"};
+    }
+    const auto fine_transform = alignNdt(
+      local_source, fine_target, *coarse_transform,
+      fine_ndt_resolution_, fine_ndt_step_size_,
+      fine_ndt_transformation_epsilon_, fine_ndt_max_iterations_,
+      "fine", failure_reason);
+    if (!fine_transform.has_value()) {
+      return MatchResult{
+        false, *coarse_transform, std::numeric_limits<double>::infinity(), 0.0,
+        failure_reason};
+    }
+
+    pcl::GeneralizedIterativeClosestPoint<Point, Point> gicp;
+    gicp.setCorrespondenceRandomness(gicp_correspondence_randomness_);
+    gicp.setInputSource(local_source);
+    gicp.setInputTarget(fine_target);
+    gicp.setMaxCorrespondenceDistance(gicp_max_correspondence_distance_);
+    gicp.setTransformationEpsilon(gicp_transformation_epsilon_);
+    gicp.setRotationEpsilon(gicp_rotation_epsilon_);
+    gicp.setEuclideanFitnessEpsilon(gicp_fitness_epsilon_);
+    gicp.setMaximumIterations(gicp_max_iterations_);
+
+    PointCloud aligned;
+    gicp.align(aligned, fine_transform->matrix().cast<float>());
+    if (!gicp.hasConverged()) {
+      return MatchResult{
+        false, *fine_transform, std::numeric_limits<double>::infinity(), 0.0,
+        "GICP refinement did not converge"};
+    }
+
     const Eigen::Isometry3d transform(
-      ndt.getFinalTransformation().cast<double>());
-    const double fitness = ndt.getFitnessScore(fitness_max_range_);
-    const double overlap = overlapRatio(source, transform);
+      gicp.getFinalTransformation().cast<double>());
+    const double fitness = gicp.getFitnessScore(fitness_max_range_);
+    const double overlap = overlapRatio(local_source, transform);
     const auto validation_error = validatePose(transform, fitness, overlap);
     if (validation_error.has_value()) {
       return MatchResult{false, transform, fitness, overlap, *validation_error};
     }
-    return MatchResult{true, transform, fitness, overlap, "match accepted"};
+    return MatchResult{
+      true, transform, fitness, overlap,
+      "local coarse/fine NDT and GICP match accepted"};
   }
 
   double overlapRatio(
@@ -886,10 +1045,10 @@ private:
         priorRegistration(sample, *initial_pose_prior) :
         globalRegistration(sample);
     } else {
-      setStatus("running low-rate NDT map correction");
+      setStatus("running local NDT and GICP map correction");
       const Eigen::Isometry3d predicted_map_to_base =
         map_to_odom * sample.odom_to_base;
-      result = refineNdt(sample.cloud_base, predicted_map_to_base);
+      result = refineRegistration(sample.cloud_base, predicted_map_to_base);
       if (result.accepted) {
         const Eigen::Isometry3d correction =
           predicted_map_to_base.inverse() * result.map_to_base;
@@ -1131,6 +1290,10 @@ private:
       diagnostic.values.push_back(
         keyValue("matching_rate_hz", std::to_string(matching_rate_hz_)));
       diagnostic.values.push_back(
+        keyValue("registration_pipeline", "local_coarse_ndt_fine_ndt_gicp"));
+      diagnostic.values.push_back(
+        keyValue("local_submap_radius", std::to_string(local_submap_radius_)));
+      diagnostic.values.push_back(
         keyValue("fitness_score", std::to_string(last_fitness_)));
       diagnostic.values.push_back(
         keyValue("overlap_ratio", std::to_string(last_overlap_)));
@@ -1161,8 +1324,9 @@ private:
   double initial_pose_max_yaw_error_{0.7853981633974483};
   Eigen::Isometry3d base_to_body_{Eigen::Isometry3d::Identity()};
 
-  double map_voxel_size_{0.25};
-  double scan_voxel_size_{0.20};
+  double map_voxel_size_{0.15};
+  double coarse_map_voxel_size_{0.30};
+  double scan_voxel_size_{0.10};
   double feature_voxel_size_{0.35};
   double normal_radius_{0.70};
   double feature_radius_{1.10};
@@ -1171,8 +1335,11 @@ private:
   double min_z_{-0.50};
   double max_z_{2.50};
   int min_scan_points_{250};
-  int initial_scan_count_{3};
+  int initial_scan_count_{10};
   double max_odom_age_{0.10};
+  double local_submap_radius_{15.0};
+  double local_scan_radius_{12.0};
+  int local_submap_min_points_{300};
 
   int global_max_iterations_{40000};
   int global_correspondence_randomness_{5};
@@ -1181,26 +1348,37 @@ private:
   double global_inlier_fraction_{0.12};
   double global_retry_period_{5.0};
 
-  double ndt_resolution_{0.80};
-  double ndt_step_size_{0.10};
-  double ndt_transformation_epsilon_{0.01};
-  int ndt_max_iterations_{35};
-  double fitness_max_range_{1.50};
-  double max_fitness_score_{0.45};
-  double overlap_distance_{0.50};
-  double minimum_overlap_{0.20};
+  double coarse_ndt_resolution_{0.80};
+  double coarse_ndt_step_size_{0.10};
+  double coarse_ndt_transformation_epsilon_{0.01};
+  int coarse_ndt_max_iterations_{35};
+  double fine_ndt_resolution_{0.40};
+  double fine_ndt_step_size_{0.05};
+  double fine_ndt_transformation_epsilon_{0.002};
+  int fine_ndt_max_iterations_{50};
+  double gicp_max_correspondence_distance_{0.30};
+  double gicp_transformation_epsilon_{0.0001};
+  double gicp_rotation_epsilon_{0.0001};
+  double gicp_fitness_epsilon_{0.0001};
+  int gicp_max_iterations_{30};
+  int gicp_correspondence_randomness_{20};
+  double fitness_max_range_{0.50};
+  double max_fitness_score_{0.12};
+  double overlap_distance_{0.30};
+  double minimum_overlap_{0.50};
   double maximum_tilt_{0.35};
   double maximum_base_height_{0.50};
 
-  double matching_rate_hz_{0.25};
+  double matching_rate_hz_{0.50};
   int required_consecutive_matches_{2};
   int runtime_failure_limit_{3};
   int relocalize_failure_limit_{5};
-  double maximum_translation_correction_{0.75};
-  double maximum_rotation_correction_{0.35};
-  double correction_alpha_{0.25};
+  double maximum_translation_correction_{0.50};
+  double maximum_rotation_correction_{0.25};
+  double correction_alpha_{0.35};
 
   PointCloud::Ptr registration_map_;
+  PointCloud::Ptr coarse_registration_map_;
   PointCloud::Ptr feature_map_;
   FeatureCloud::Ptr map_features_;
   pcl::KdTreeFLANN<Point> map_tree_;

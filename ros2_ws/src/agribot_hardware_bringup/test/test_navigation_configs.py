@@ -217,12 +217,37 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert localizer["initial_pose_max_translation_error"] == 2.0
     assert localizer["initial_pose_max_yaw_error"] == pytest.approx(math.pi / 4.0)
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
-    assert 0.2 <= localizer["matching_rate_hz"] <= 0.5
+    assert localizer["map_voxel_size"] == 0.15
+    assert localizer["coarse_map_voxel_size"] == 0.30
+    assert localizer["scan_voxel_size"] == 0.10
+    assert localizer["initial_scan_count"] >= 10
+    assert localizer["local_scan_radius"] < localizer["local_submap_radius"]
+    assert localizer["local_submap_min_points"] >= localizer["min_scan_points"]
+    assert localizer["coarse_ndt_resolution"] > localizer[
+        "fine_ndt_resolution"
+    ]
+    assert localizer["gicp_max_correspondence_distance"] <= localizer[
+        "fine_ndt_resolution"
+    ]
+    assert localizer["gicp_max_iterations"] >= 20
+    assert localizer["matching_rate_hz"] == 0.5
     assert localizer["required_consecutive_matches"] >= 2
     assert localizer["runtime_failure_limit"] < localizer[
         "relocalize_failure_limit"
     ]
-    assert localizer["minimum_overlap"] >= 0.20
+    assert localizer["max_fitness_score"] <= 0.12
+    assert localizer["minimum_overlap"] >= 0.50
+
+    localizer_source = (
+        PACKAGE_ROOT
+        / "localization"
+        / "pcd"
+        / "src"
+        / "pcd_global_localizer.cpp"
+    ).read_text()
+    assert "cropAroundCenter" in localizer_source
+    assert "coarse_registration_map_" in localizer_source
+    assert "GeneralizedIterativeClosestPoint" in localizer_source
 
 
 def test_ackermann_configs_use_step_model_rear_axle_footprint():

@@ -301,18 +301,20 @@ ros2 launch agribot_hardware_bringup \
   enable_chassis_output:=true
 ```
 
-Keep the vehicle still during startup. The localizer globally registers
-FAST-LIO's body-frame cloud against the saved PCD with FPFH feature hypotheses,
-refines the result with NDT, and requires another accepted scan before
-publishing `/localization/ready: true`. No manual initial pose is required.
-The CAN and serial drivers send stop commands until that readiness heartbeat is
-both true and fresh.
+Keep the vehicle still during startup and use RViz `2D Pose Estimate` to give a
+rough position and heading. This prior disambiguates repetitive corridors; it
+does not directly replace the measured pose. The localizer accumulates ten
+body-frame scans, crops a local PCD submap around the prior, then runs coarse
+NDT, fine NDT, and GICP surface registration. It requires another accepted
+scan before publishing `/localization/ready: true`. The CAN and serial drivers
+send stop commands until that readiness heartbeat is both true and fresh.
 
-After initialization, FAST-LIO remains the high-rate odometry source while NDT
-checks and smoothly corrects `map -> odom` at `0.25 Hz`. Three rejected updates
-inhibit chassis motion; five restart full-map relocalization. The saved YAML
-supplies long-range planning, while live C16 PointCloud2 data supplies STVL
-obstacle marking and clearing. Monitor or restart localization with:
+After initialization, FAST-LIO remains the high-rate odometry source while the
+same local-submap registration pipeline checks and smoothly corrects
+`map -> odom` at `0.5 Hz`. Three rejected updates inhibit chassis motion; five
+require a new RViz pose prior. The saved YAML supplies long-range planning,
+while live C16 PointCloud2 data supplies STVL obstacle marking and clearing.
+Monitor or restart localization with:
 
 ```bash
 ros2 topic echo /localization/status
