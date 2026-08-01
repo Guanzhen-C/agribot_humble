@@ -44,7 +44,12 @@ def load_config(name, vehicle=None):
         return yaml.safe_load(stream)
 
 
-def assert_c16_stvl(costmap, obstacle_range):
+def assert_c16_stvl(
+    costmap,
+    obstacle_range,
+    min_obstacle_height=0.08,
+    max_obstacle_height=1.8,
+):
     assert "obstacle_layer" not in costmap
     assert "stvl_layer" in costmap["plugins"]
     layer = costmap["stvl_layer"]
@@ -61,8 +66,8 @@ def assert_c16_stvl(costmap, obstacle_range):
     assert marking["marking"] is True
     assert marking["clearing"] is False
     assert marking["obstacle_range"] == obstacle_range
-    assert marking["min_obstacle_height"] == 0.08
-    assert marking["max_obstacle_height"] == 1.8
+    assert marking["min_obstacle_height"] == min_obstacle_height
+    assert marking["max_obstacle_height"] == max_obstacle_height
 
     clearing = layer["lidar_clear"]
     assert clearing["topic"] == "/lidar/points"
@@ -166,8 +171,9 @@ def test_ackermann_configs_use_c16_stvl_for_obstacles():
         global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
         local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
 
-        assert_c16_stvl(global_costmap, 8.0)
-        assert_c16_stvl(local_costmap, 4.0)
+        height_band = (0.08, 1.8) if "navsat" in name else (0.09, 0.7295)
+        assert_c16_stvl(global_costmap, 8.0, *height_band)
+        assert_c16_stvl(local_costmap, 4.0, *height_band)
 
 
 def test_c16_driver_does_not_publish_legacy_scan():
@@ -197,8 +203,8 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert mapping["rear_exclusion_max_x"] == -0.1275
     assert mapping["rear_exclusion_half_width"] == 0.60
     assert mapping["occupancy_resolution"] == 0.05
-    assert mapping["occupancy_min_z"] == 0.10
-    assert mapping["occupancy_max_z"] == 1.20
+    assert mapping["occupancy_min_z"] == 0.09
+    assert mapping["occupancy_max_z"] == 0.7295
 
     assert localizer["cloud_topic"] == "/cloud_registered_body"
     assert localizer["cloud_frame"] == "body"
@@ -241,7 +247,10 @@ def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():
         assert "static_layer" not in costmap["plugins"]
         assert costmap["plugins"] == ["stvl_layer", "inflation_layer"]
         assert_c16_stvl(
-            costmap, 8.0 if costmap_name == "global_costmap" else 4.0
+            costmap,
+            8.0 if costmap_name == "global_costmap" else 4.0,
+            0.09,
+            0.7295,
         )
 
     global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
