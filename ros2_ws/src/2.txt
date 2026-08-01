@@ -1,9 +1,9 @@
-# ROS 2 build (required before launch)
+# ROS 2 编译（首次运行或修改代码后执行）
 cd /home/cgz/agribot_ws/ros2_ws
 ./build_ros2_humble.sh
 source ./setup_ros2_humble.sh
 
-# Optional: set CPU to performance mode before launch
+# 可选：启动前将 CPU 设置为性能模式
 sudo bash -lc '
 for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
   [ -f "$f" ] && printf performance > "$f"
@@ -16,9 +16,9 @@ printf 100 > /sys/devices/system/cpu/intel_pstate/max_perf_pct
 printf 1 > /sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost
 '
 
-# Recommended on this machine: headless collection, no Gazebo GUI, no RViz
+# 本机建议：无界面采集，不打开 Gazebo 图形界面和 RViz
 
-# Close all related simulation/navigation processes before a clean restart
+# 全新重启前关闭所有相关仿真和导航进程
 pkill -f orchard_waypoint_depth_collect_sim.launch.py || true
 pkill -f orchard_waypoint_coverage_sim.launch.py || true
 pkill -f ackermann_waypoint_depth_collect_sim.launch.py || true
@@ -50,45 +50,45 @@ source /opt/ros/humble/setup.bash
 ros2 daemon stop || true
 ros2 daemon start || true
 
-# The simulations below publish /scan from the C16-style 3D cloud's horizontal ring 8; no separate 2D lidar is used.
+# 以下仿真从 C16 风格三维点云的第 8 条水平扫描线生成 /scan，不使用独立二维雷达
 
-# ROS 2 static map + ground truth (most stable)
+# ROS 2 静态地图 + 真值定位（最稳定）
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=ground_truth enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
 
-# ROS 2 static map + AMCL
+# ROS 2 静态地图 + AMCL 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=amcl enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
 
-# ROS 2 static map + navsat
+# ROS 2 静态地图 + NavSat 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=navsat enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
 
-# ROS 2 static map + RTK absolute pose + KF-GINS ESKF
-# pose_message_type supports: odometry | pose_with_covariance | pose_stamped | noah_gnss
-# If your RTK driver publishes noah_msgs/msg/GNSSValue, set:
-#   navsat_pose_message_type:=noah_gnss
-#   navsat_auto_reference_from_first_noah_gnss:=true
+# ROS 2 静态地图 + RTK 绝对位姿 + KF-GINS ESKF
+# pose_message_type 支持：odometry | pose_with_covariance | pose_stamped | noah_gnss
+# 如果 RTK 驱动发布 noah_msgs/msg/GNSSValue，请设置：
+# 参数一：navsat_pose_message_type:=noah_gnss
+# 参数二：navsat_auto_reference_from_first_noah_gnss:=true
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=true rviz:=true use_static_map:=true localization_mode:=navsat enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
 
-# Optional: RViz-only monitoring for ground truth
+# 可选：只用 RViz 查看真值定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=false headless:=false rviz:=true use_static_map:=true localization_mode:=ground_truth enable_slam_map:=false map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps map_file:=orchard_v2_map6.yaml
 
-# ROS 2 static map + fast_lio
-# Use this as the only FAST-LIO navigation entrypoint.
-# Do not start agribot_autonomy/fast_lio_sim.launch.py separately at the same time.
+# ROS 2 静态地图 + FAST-LIO 定位
+# 此命令应作为唯一的 FAST-LIO 导航入口
+# 不要同时单独启动 agribot_autonomy/fast_lio_sim.launch.py
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -96,7 +96,7 @@ ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py gui:=fal
 
 
 
-# Ackermann local simulation + RPP + navsat/ESKF localization
+# 阿克曼仿真 + RPP 控制器 + NavSat/ESKF 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -106,7 +106,7 @@ ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Ackermann local simulation + RPP + Fast-LIO localization
+# 阿克曼仿真 + RPP 控制器 + FAST-LIO 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -116,7 +116,7 @@ ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Ackermann local simulation + MPPI + navsat/ESKF localization
+# 阿克曼仿真 + MPPI 控制器 + NavSat/ESKF 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -126,7 +126,7 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Ackermann local simulation + MPPI + Fast-LIO localization
+# 阿克曼仿真 + MPPI 控制器 + FAST-LIO 定位
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -136,9 +136,9 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Ackermann local simulation + MPPI + FAST-LIVO2 localization
-# FAST-LIVO2 consumes the simulated C16 cloud, IMU, and RGB camera.
-# Keep Gazebo rendering enabled for the camera, while hiding the Gazebo GUI.
+# 阿克曼仿真 + MPPI 控制器 + FAST-LIVO2 定位
+# FAST-LIVO2 使用仿真的 C16 点云、IMU 和 RGB 相机
+# 相机需要 Gazebo 保持渲染，但可以隐藏 Gazebo 图形界面
 cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -148,7 +148,7 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# Physical Ackermann vehicle: local rolling navigation and RViz on the RDK X5
+# 阿克曼真机：在 RDK X5 上运行局部滚动导航和 RViz
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -162,9 +162,38 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# Physical Ackermann vehicle: build a FAST-LIO2 3D map on the RDK X5
-# Terminal 1: wait for "Initialized map origin", then drive slowly with the
-# Bluetooth controller. Nav2 and ROS chassis output stay disabled.
+# 阿克曼真机分布式运行：RDK X5 运行算法，Jetson 显示 RViz 高精度车模
+# 终端 1（Jetson）：登录 RDK X5 后启动传感器、FAST-LIO 和 Nav2，不在 RDK 渲染 RViz
+# 仅查看时保持 enable_chassis_output:=false；确认需要真车运动时再改为 true
+ssh sunrise@10.147.55.3
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 launch agribot_hardware_bringup ackermann_mppi_fastlio_local.launch.py \
+  rviz:=false \
+  enable_chassis_output:=false \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00 \
+  use_detailed_vehicle_model:=true
+
+# 终端 2（Jetson）：刷新 DDS 发现并显示 RDK 发布的定位、地图和高精度车模
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 daemon stop || true
+ros2 daemon start
+ros2 run rviz2 rviz2 \
+  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation_local.rviz
+
+# 如需恢复原来的定位箭头显示，将终端 1 最后一项改为 use_detailed_vehicle_model:=false
+# 停止时先在终端 1 按 Ctrl+C 停止 RDK 算法，再在终端 2 按 Ctrl+C 关闭 Jetson RViz
+
+# 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
+# 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
+# 建图期间 Nav2 和 ROS 底盘输出保持关闭
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -178,7 +207,7 @@ ros2 launch agribot_hardware_bringup \
   rviz:=true \
   enable_chassis_output:=false
 
-# Terminal 2: save before stopping Terminal 1. Wait for success: true.
+# 终端 2：停止终端 1 前先保存地图，并等待返回 success: true
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -186,9 +215,9 @@ export ROS_LOCALHOST_ONLY=0
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
 
-# Physical Ackermann vehicle: automatic 3D relocalization and mapped Nav2
-# Keep the vehicle still until /localization/ready reports data: true.
-# The chassis remains inhibited during initialization or unhealthy matching.
+# 阿克曼真机：自动三维重定位和基于已建地图的 Nav2 导航
+# 在 /localization/ready 返回 data: true 前保持车辆静止
+# 初始化期间或地图匹配异常时，底盘输出会被禁止
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -204,8 +233,8 @@ ros2 launch agribot_hardware_bringup \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# Optional status checks from a second terminal:
+# 可选：在第二个终端查看定位状态
 ros2 topic echo /localization/status
 ros2 topic echo /localization/ready
 
-# Stop each physical stack with Ctrl+C before starting another mode.
+# 启动另一种真机模式前，先按 Ctrl+C 停止当前整套程序
