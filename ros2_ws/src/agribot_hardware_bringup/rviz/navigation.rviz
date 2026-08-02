@@ -117,25 +117,6 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /local_plan
-    - Alpha: 0.35
-      Arrow Length: 0.20
-      Axes Length: 0.20
-      Axes Radius: 0.02
-      Class: rviz_default_plugins/PoseArray
-      Color: 255; 170; 0
-      Enabled: true
-      Head Length: 0.07
-      Head Radius: 0.03
-      Name: Localization Particles
-      Shaft Length: 0.13
-      Shaft Radius: 0.012
-      Shape: Arrow (Flat)
-      Topic:
-        Depth: 10
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /particlecloud
     - Alpha: 1
       Axes Length: 0.5
       Axes Radius: 0.05
@@ -159,7 +140,7 @@ Visualization Manager:
       Enabled: true
       Head Length: 0.18
       Head Radius: 0.07
-      Name: MRPT Localized Pose
+      Name: Initial Localized Pose
       Queue Size: 10
       Shaft Length: 0.35
       Shaft Radius: 0.035
@@ -169,7 +150,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /pf_pose
+        Value: /localization_pose
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false

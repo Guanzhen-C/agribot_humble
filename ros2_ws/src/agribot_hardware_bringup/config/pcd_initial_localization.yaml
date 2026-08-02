@@ -1,0 +1,49 @@
+pcd_initial_localizer:
+  ros__parameters:
+    cloud_topic: /cloud_registered_body
+    cloud_frame: body
+    odom_topic: /fastlio/odometry
+    initial_pose_topic: /initialpose
+    pose_topic: /localization_pose
+    ready_topic: /localization/ready
+    status_topic: /localization/status
+    map_frame: map
+    odom_frame: odom
+
+    # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
+    base_to_body_xyz: [0.1425, 0.0, 0.143]
+    base_to_body_rpy: [0.0, 0.0, 0.0]
+
+    map_voxel_size: 0.15
+    coarse_voxel_size: 0.30
+    scan_voxel_size: 0.10
+    min_range: 0.50
+    max_range: 30.0
+    min_z: -0.50
+    max_z: 2.50
+    min_scan_points: 250
+    initial_scan_count: 5
+    max_odom_age: 0.15
+    local_submap_radius: 8.0
+    local_submap_min_points: 300
+
+    # PCL NDT gives a fast local capture; PCL GICP refines the accepted pose.
+    coarse_ndt_resolution: 0.75
+    coarse_ndt_step_size: 0.25
+    coarse_ndt_max_iterations: 40
+    fine_ndt_resolution: 0.35
+    fine_ndt_step_size: 0.10
+    fine_ndt_max_iterations: 40
+    ndt_transformation_epsilon: 0.005
+    gicp_max_correspondence_distance: 0.50
+    gicp_max_iterations: 40
+    gicp_correspondence_randomness: 20
+
+    # The corridor is geometrically repetitive, so RViz provides the place/heading prior.
+    maximum_translation_refinement: 0.75
+    maximum_yaw_refinement: 0.35
+    overlap_distance: 0.50
+    minimum_overlap: 0.55
+    maximum_inlier_rmse: 0.20
+    maximum_tilt: 0.25
+    maximum_base_height: 0.50

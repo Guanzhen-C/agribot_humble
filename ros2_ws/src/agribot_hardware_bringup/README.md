@@ -25,8 +25,7 @@ localization/  NavSat/KF-GINS node and localization bridge scripts
 All project-owned runtime code and resources used by these entry points
 are contained in this package. The remaining package dependencies are ROS 2
 system components or third-party device/algorithm packages: Nav2, RViz,
-FAST-LIO, `hipnuc_imu`, `lslidar_driver`, PCL, STVL, MRPT particle-filter
-localization, MOLA relocalization, `mp2p_icp`, and their message packages.
+FAST-LIO, `hipnuc_imu`, `lslidar_driver`, PCL, STVL, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
 
 No simulation map is bundled with the physical-vehicle package. NavSat and
@@ -289,20 +288,19 @@ Save the map before stopping the launch:
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ```
 
-This creates `map.pcd` plus an aligned `map.pgm` and `map.yaml`. Convert the
-complete PCD once to the official MRPT metric-map format:
+This creates `map.pcd` plus an aligned `map.pgm` and `map.yaml`. The projection
+can also be regenerated from the PCD with a different height band:
 
 ```bash
 ros2 run agribot_hardware_bringup pcd_to_nav2_map.py \
   /home/sunrise/agribot_maps/test_site/map.pcd \
-  /home/sunrise/agribot_maps/test_site/map \
-  --write-mrpt-mm
+  /home/sunrise/agribot_maps/test_site/map
 ```
 
-The base path must then contain `.pcd`, `.pgm`, `.yaml`, and `.mm`. Nav2 uses
-the two-dimensional projection for planning, while the MRPT particle filter
-uses the complete three-dimensional metric map for localization. Start mapped
-navigation with the base path:
+The base path must contain `.pcd`, `.pgm`, and `.yaml`. Nav2 uses the
+two-dimensional projection for planning, while one-shot initial localization
+uses the complete three-dimensional PCD. Start mapped navigation with the base
+path:
 
 ```bash
 ros2 launch agribot_hardware_bringup \
@@ -312,24 +310,27 @@ ros2 launch agribot_hardware_bringup \
   enable_chassis_output:=true
 ```
 
-Keep the vehicle still during startup and use RViz `2D Pose Estimate` to give a
-rough position and heading. The tool publishes a `2 m` one-sigma XY prior and
-a `60 deg` one-sigma yaw prior. MOLA's official `RelocalizationICP_SE2`
-searches that lattice against the 3D map and retains every acceptable pose as
-particle groups. MRPT then combines continuous C16 point-cloud likelihoods with
-FAST-LIO odometry, so motion can resolve repeated-corridor candidates instead
-of accepting the first local optimum.
+Keep the vehicle still during startup and use RViz `2D Pose Estimate` to give an
+accurate nearby position and heading. The localizer aggregates five stationary
+FAST-LIO body scans, crops an `8 m` PCD submap around the prior, runs PCL NDT at
+two resolutions, and finishes with PCL GICP. A result is accepted only when its
+overlap, inlier RMSE, tilt, height, and correction from the RViz prior pass the
+configured limits. Repetitive corridors do not provide enough geometry to
+recover a large longitudinal or 180-degree prior error, so the RViz prior is a
+required place and direction constraint, not an optional hint.
 
-FAST-LIO remains the high-rate `odom -> base_link` source. MRPT publishes the
-global `map -> odom` correction, `/particlecloud`, and `/pf_pose` at `2 Hz`.
-Do not click a Nav2 goal until the particles form one stable cluster and the
-pose arrow matches the known location. The saved YAML supplies long-range
-planning, while live C16 PointCloud2 data supplies STVL obstacle marking and
-clearing. Monitor localization with:
+On success the node freezes `map -> odom`, publishes
+`/localization/ready=true`, and releases the point-cloud subscription and
+matching timer. FAST-LIO remains the only high-rate `odom -> base_link` source;
+there is no motion-time NDT, GICP, particle filtering, drift correction, or
+automatic relocalization. Restart the launch to perform a new initialization.
+The saved YAML supplies long-range planning, while live C16 PointCloud2 data
+supplies STVL obstacle marking and clearing. Monitor initialization with:
 
 ```bash
-ros2 topic echo /particlecloud --once
-ros2 topic echo /pf_pose --once
+ros2 topic echo /localization/ready --once
+ros2 topic echo /localization/status --once
+ros2 topic echo /localization_pose --once
 ros2 run tf2_ros tf2_echo map odom
 ```
 

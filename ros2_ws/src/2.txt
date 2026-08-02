@@ -172,13 +172,12 @@ export ROS_LOCALHOST_ONLY=0
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ros2 run agribot_hardware_bringup pcd_to_nav2_map.py \
   /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.pcd \
-  /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
-  --write-mrpt-mm
-ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml,mm}
+  /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio
+ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
 
-# 阿克曼真机：官方 MOLA/MRPT 三维重定位和基于已建地图的 Nav2 导航
-# 启动后保持车辆静止，在 RViz 用“2D Pose Estimate”给出附近位置和大致方向
-# 粒子云收敛成一个稳定簇且绿色定位箭头正确后，才可以下发 Nav2 目标
+# 阿克曼真机：一次性 NDT + GICP 三维初始定位和基于已建地图的 Nav2 导航
+# 启动后保持车辆静止，在 RViz 用“2D Pose Estimate”给出准确的附近位置和大致方向
+# /localization/ready 为 true 且绿色定位箭头正确后，才可以下发 Nav2 目标
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -195,8 +194,8 @@ ros2 launch agribot_hardware_bringup \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
 # 阿克曼真机分布式运行：RDK X5 使用已建地图导航，Jetson 显示 RViz 高精度车模
-# 终端 1（Jetson）：登录 RDK，启动传感器、FAST-LIO、MOLA/MRPT 重定位和 Nav2
-# 命令允许 Nav2 控制真车；必须先在 RViz 给初始先验并确认粒子云正确收敛
+# 终端 1（Jetson）：登录 RDK，启动传感器、FAST-LIO、一次性初始定位和 Nav2
+# 命令允许 Nav2 控制真车；定位就绪前底盘输出会被禁止
 ssh sunrise@10.147.55.3
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
@@ -226,9 +225,10 @@ ros2 run rviz2 rviz2 \
 # 如需恢复原来的定位箭头显示，将终端 1 中的 use_detailed_vehicle_model 改为 false
 # 停止时先在终端 1 按 Ctrl+C 停止 RDK 算法，再在终端 2 按 Ctrl+C 关闭 Jetson RViz
 
-# 可选：在第二个终端查看粒子滤波位姿、候选粒子和 map 到 odom 的修正
-ros2 topic echo /pf_pose --once
-ros2 topic echo /particlecloud --once
+# 可选：在第二个终端查看初始定位状态、位姿和固定的 map 到 odom 变换
+ros2 topic echo /localization/ready --once
+ros2 topic echo /localization/status --once
+ros2 topic echo /localization_pose --once
 ros2 run tf2_ros tf2_echo map odom
 
 # 启动另一种真机模式前，先按 Ctrl+C 停止当前整套程序

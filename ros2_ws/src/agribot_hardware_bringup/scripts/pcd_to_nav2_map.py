@@ -2,9 +2,6 @@
 
 import argparse
 import math
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -130,56 +127,6 @@ def write_nav2_map(cells, origin, output_base, resolution):
     return pgm_path, yaml_path
 
 
-def write_mrpt_map(points, output_base, converter="txt2mm"):
-    converter_path = shutil.which(converter)
-    if converter_path is None:
-        raise RuntimeError(
-            f"'{converter}' was not found; install ros-humble-mp2p-icp"
-        )
-
-    finite_points = points[np.isfinite(points).all(axis=1)]
-    if finite_points.size == 0:
-        raise ValueError("PCD contains no finite XYZ points for the MRPT map")
-
-    output_base.parent.mkdir(parents=True, exist_ok=True)
-    mm_path = output_base.with_suffix(".mm")
-    temporary_mm = Path(f"{mm_path}.tmp")
-    temporary_mm.unlink(missing_ok=True)
-
-    xyz_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="ascii",
-            suffix=".xyz",
-            prefix=f".{output_base.name}.",
-            dir=output_base.parent,
-            delete=False,
-        ) as stream:
-            xyz_path = Path(stream.name)
-            np.savetxt(stream, finite_points[:, :3], fmt="%.7g")
-
-        subprocess.run(
-            [
-                converter_path,
-                "--input",
-                str(xyz_path),
-                "--output",
-                str(temporary_mm),
-                "--format",
-                "xyz",
-            ],
-            check=True,
-        )
-        temporary_mm.replace(mm_path)
-    finally:
-        if xyz_path is not None:
-            xyz_path.unlink(missing_ok=True)
-        temporary_mm.unlink(missing_ok=True)
-
-    return mm_path
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Project an Agribot 3D PCD map into a Nav2 occupancy map"
@@ -191,11 +138,6 @@ def parse_arguments():
     parser.add_argument("--max-z", type=float, default=0.8725)
     parser.add_argument("--padding", type=float, default=1.0)
     parser.add_argument("--dilation", type=float, default=0.05)
-    parser.add_argument(
-        "--write-mrpt-mm",
-        action="store_true",
-        help="also convert the complete 3D cloud to an MRPT metric map",
-    )
     return parser.parse_args()
 
 
@@ -223,9 +165,6 @@ def main():
         f"Projected {selected_count} points into {cells.shape[1]}x{cells.shape[0]} "
         f"map with {occupied_count} occupied cells: {pgm_path}, {yaml_path}"
     )
-    if arguments.write_mrpt_mm:
-        mm_path = write_mrpt_map(points, arguments.output_base)
-        print(f"Created MRPT 3D metric map: {mm_path}")
 
 
 if __name__ == "__main__":

@@ -64,10 +64,9 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
         "ackermann/launch/ackermann_mppi_fastlio_mapped.launch.py",
         "ackermann/launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
-        "config/mrpt_pf_localization.yaml",
-        "config/mrpt_relocalization_pipeline.yaml",
+        "config/pcd_initial_localization.yaml",
         "config/pcd_mapping.yaml",
-        "localization/pcd/src/pointcloud_tf_adapter.cpp",
+        "localization/pcd/src/pcd_initial_localizer.cpp",
         "localization/pcd/src/pcd_map_builder.cpp",
         "meshes/ackermann_vehicle_body.glb",
         "meshes/ackermann_front_left_wheel.glb",
@@ -98,6 +97,9 @@ def test_migrated_runtime_resources_exist_and_parse():
         "config/slam_toolbox_c16.yaml",
         "config/pcd_localization.yaml",
         "localization/pcd/src/pcd_global_localizer.cpp",
+        "config/mrpt_pf_localization.yaml",
+        "config/mrpt_relocalization_pipeline.yaml",
+        "localization/pcd/src/pointcloud_tf_adapter.cpp",
     )
     for relative_path in obsolete:
         assert not (PACKAGE_ROOT / relative_path).exists()
@@ -146,10 +148,10 @@ def test_physical_vehicle_rviz_profiles_display_vehicle_and_sensor_axes():
 
     mapped_config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
     assert "Class: rviz_default_plugins/PoseWithCovariance" in mapped_config
-    assert "Name: MRPT Localized Pose" in mapped_config
-    assert "Value: /pf_pose" in mapped_config
-    assert "Class: rviz_default_plugins/PoseArray" in mapped_config
-    assert "Value: /particlecloud" in mapped_config
+    assert "Name: Initial Localized Pose" in mapped_config
+    assert "Value: /localization_pose" in mapped_config
+    assert "Class: rviz_default_plugins/PoseArray" not in mapped_config
+    assert "/particlecloud" not in mapped_config
 
     for name in ("navigation_local.rviz", "pcd_mapping.rviz"):
         config = (PACKAGE_ROOT / "rviz" / name).read_text()
