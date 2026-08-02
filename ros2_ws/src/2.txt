@@ -148,6 +148,36 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
+# RDK X5 真机：单独启动 RTK，并查看位置、航向和固定解状态
+# 终端 1：启动 RTK 串口驱动；停止时按 Ctrl+C 释放串口
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 run agribot_hardware_bringup rtk_nmea_node.py --ros-args \
+  --params-file /home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/config/rtk_nmea.yaml
+
+# 终端 2：查看 RTK 数据；以下命令每次任选一条，按 Ctrl+C 后再查看下一项
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+
+# 查看经度、纬度、高度和协方差
+ros2 topic echo /rtk/fix
+
+# 查看航向角，单位为度
+ros2 topic echo /rtk/heading_deg
+
+# 查看位置解质量；data: 4 表示 RTK 固定解
+ros2 topic echo /rtk/fix_quality
+
+# 查看航向解状态；SOL_COMPUTED,NARROW_INT 表示航向整数固定解
+ros2 topic echo /rtk/heading_solution
+
+# 查看航向是否有效；data: true 表示有效
+ros2 topic echo /rtk/heading_valid
+
 # 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
 # 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
 # 建图期间 Nav2 和 ROS 底盘输出保持关闭
