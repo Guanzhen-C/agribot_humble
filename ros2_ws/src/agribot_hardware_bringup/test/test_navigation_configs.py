@@ -222,6 +222,8 @@ def test_3d_mapping_and_mapped_navigation_use_mrpt_particle_localization():
     assert localizer["relocalization_initial_divisions_phi"] >= 12
     assert localizer["relocalization_min_sample_copies_per_candidate"] >= 8
     assert localizer["kld_options"]["KLD_minSampleSize"] >= 300
+    assert localizer["pf_options"]["adaptiveSampleSize"] is True
+    assert localizer["pf_options"]["resamplingMethod"] == "prMultinomial"
     assert localizer["motion_model_no_odom_2d"] == localizer["motion_model_2d"]
 
     assert pipeline["class_name"] == "mp2p_icp::ICP"

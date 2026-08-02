@@ -79,7 +79,8 @@
       adaptiveSampleSize: true
       BETA: 0.5
       PF_algorithm: pfStandardProposal
-      resamplingMethod: prSystematic
+      # MRPT requires multinomial resampling when KLD changes the particle count.
+      resamplingMethod: prMultinomial
       pfAuxFilterOptimal_MaximumSearchSamples: 100
       powFactor: 1.0
       max_loglikelihood_dyn_range: 15
