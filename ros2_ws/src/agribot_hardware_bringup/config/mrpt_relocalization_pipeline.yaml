@@ -1,0 +1,38 @@
+class_name: mp2p_icp::ICP
+
+params:
+  maxIterations: 60
+  minAbsStep_trans: 0.0005
+  minAbsStep_rot: 0.0002
+  generateDebugFiles: false
+  saveIterationDetails: false
+
+solvers:
+  - class: mp2p_icp::Solver_GaussNewton
+    params:
+      maxIterations: 2
+      robustKernel: RobustKernel::GemanMcClure
+      robustKernelParam: 0.30
+
+matchers:
+  - class: mp2p_icp::Matcher_Points_DistanceThreshold
+    params:
+      threshold: 1.0
+      thresholdAngularDeg: 1.0
+      pairingsPerPoint: 1
+      allowMatchAlreadyMatchedGlobalPoints: true
+      pointLayerMatches:
+        - {global: raw, local: decimated_for_icp, weight: 1.0}
+
+quality:
+  - class: mp2p_icp::QualityEvaluator_PairedRatio
+    params: ~
+
+relocalization_observation_pipeline:
+  - class_name: mp2p_icp_filters::FilterDecimateVoxels
+    params:
+      input_pointcloud_layer: raw
+      output_pointcloud_layer: decimated_for_icp
+      voxel_filter_resolution: 0.35
+      minimum_input_points_to_filter: 300
+      decimate_method: DecimateMethod::ClosestToAverage

@@ -117,6 +117,59 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /local_plan
+    - Alpha: 0.35
+      Arrow Length: 0.20
+      Axes Length: 0.20
+      Axes Radius: 0.02
+      Class: rviz_default_plugins/PoseArray
+      Color: 255; 170; 0
+      Enabled: true
+      Head Length: 0.07
+      Head Radius: 0.03
+      Name: Localization Particles
+      Shaft Length: 0.13
+      Shaft Radius: 0.012
+      Shape: Arrow (Flat)
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /particlecloud
+    - Alpha: 1
+      Axes Length: 0.5
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/PoseWithCovariance
+      Color: 0; 220; 80
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.25
+          Color: 0; 220; 80
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.18
+      Head Radius: 0.07
+      Name: MRPT Localized Pose
+      Queue Size: 10
+      Shaft Length: 0.35
+      Shaft Radius: 0.035
+      Shape: Arrow
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /pf_pose
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
@@ -207,7 +260,15 @@ Visualization Manager:
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
     - Class: rviz_default_plugins/SetInitialPose
-      Topic: /initialpose
+      Covariance x: 4.0
+      Covariance y: 4.0
+      Covariance yaw: 1.0966227112
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
     - Class: nav2_rviz_plugins/GoalTool
     - Class: rviz_default_plugins/PublishPoint
       Topic: /clicked_point

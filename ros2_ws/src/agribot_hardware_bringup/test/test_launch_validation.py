@@ -49,7 +49,7 @@ def context_with(**overrides):
         "use_detailed_vehicle_model": "false",
         "map": "/tmp/real_map.yaml",
         "pcd_map_base": "/tmp/real_map",
-        "pcd_map_file": "/tmp/real_map.pcd",
+        "metric_map_file": "/tmp/real_map.mm",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -179,15 +179,15 @@ def test_mapped_localization_requires_nav2_map():
         )
 
 
-def test_mapped_localization_requires_pcd_map():
-    with pytest.raises(RuntimeError, match="pcd_map_file"):
+def test_mapped_localization_requires_metric_map():
+    with pytest.raises(RuntimeError, match="metric_map_file"):
         LAUNCH._validate_arguments(
             context_with(
                 localization="fastlio",
                 navigation_mode="localization",
                 vehicle_type="ackermann",
                 controller="mppi",
-                pcd_map_file="",
+                metric_map_file="",
             )
         )
 
@@ -249,25 +249,30 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert 'DeclareLaunchArgument("enable_chassis_output", default_value="false")' in source
 
 
-def test_mapped_entry_uses_static_and_pcd_maps_with_automatic_localization():
+def test_mapped_entry_uses_nav2_and_mrpt_maps_with_particle_localization():
     source = ACKERMANN_LAUNCH_PATHS[1].read_text()
     assert '"navigation_mode": "localization"' in source
     assert '"map": PythonExpression(' in source
     assert "map_base, \".yaml'\"]" in source
-    assert '"pcd_map_file": PythonExpression(' in source
-    assert "map_base, \".pcd'\"]" in source
-    assert '"require_localization_ready": "true"' in source
+    assert '"metric_map_file": PythonExpression(' in source
+    assert "map_base, \".mm'\"]" in source
+    assert '"require_localization_ready": "true"' not in source
     assert "initial_pose" not in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
     assert "posegraph" not in source
 
 
-def test_vehicle_launch_uses_pcd_global_localization_only_in_mapped_mode():
+def test_vehicle_launch_uses_official_mrpt_localization_only_in_mapped_mode():
     source = VEHICLE_LAUNCH_PATH.read_text()
     assert 'executable="fastlio_map_anchor.py"' not in source
-    assert 'executable="pcd_global_localizer"' in source
-    assert '"map_file_path": LaunchConfiguration("pcd_map_file")' in source
+    assert 'executable="pcd_global_localizer"' not in source
+    assert 'executable="pointcloud_tf_adapter"' in source
+    assert 'package="mrpt_map_server"' in source
+    assert 'executable="map_server_node"' in source
+    assert 'package="mrpt_pf_localization"' in source
+    assert 'executable="mrpt_pf_localization_node"' in source
+    assert '"mm_file": LaunchConfiguration("metric_map_file")' in source
     assert 'executable="pcd_map_builder"' in source
     assert "slam_toolbox" not in source
     assert "pointcloud_to_laserscan" not in source

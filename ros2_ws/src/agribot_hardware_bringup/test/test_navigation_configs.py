@@ -185,11 +185,10 @@ def test_c16_driver_does_not_publish_legacy_scan():
     assert "scan_num" not in lidar
 
 
-def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
+def test_3d_mapping_and_mapped_navigation_use_mrpt_particle_localization():
     mapping = load_config("pcd_mapping.yaml")["pcd_map_builder"]["ros__parameters"]
-    localizer = load_config("pcd_localization.yaml")["pcd_global_localizer"][
-        "ros__parameters"
-    ]
+    localizer = load_config("mrpt_pf_localization.yaml")["/**"]["ros__parameters"]
+    pipeline = load_config("mrpt_relocalization_pipeline.yaml")
 
     assert mapping["cloud_topic"] == "/cloud_registered"
     assert mapping["cloud_frame"] == "camera_init"
@@ -206,48 +205,45 @@ def test_3d_mapping_and_mapped_navigation_use_automatic_pcd_localization():
     assert mapping["occupancy_min_z"] == 0.233
     assert mapping["occupancy_max_z"] == 0.8725
 
-    assert localizer["cloud_topic"] == "/cloud_registered_body"
-    assert localizer["cloud_frame"] == "body"
-    assert localizer["odom_topic"] == "/fastlio/odometry"
-    assert localizer["map_frame"] == "map"
-    assert localizer["odom_frame"] == "odom"
-    assert localizer["base_frame"] == "base_link"
-    assert localizer["initial_pose_topic"] == "/initialpose"
-    assert localizer["require_initial_pose"] is True
-    assert localizer["initial_pose_max_translation_error"] == 2.0
-    assert localizer["initial_pose_max_yaw_error"] == pytest.approx(math.pi / 4.0)
-    assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
-    assert localizer["map_voxel_size"] == 0.15
-    assert localizer["coarse_map_voxel_size"] == 0.30
-    assert localizer["scan_voxel_size"] == 0.10
-    assert localizer["initial_scan_count"] >= 10
-    assert localizer["local_scan_radius"] < localizer["local_submap_radius"]
-    assert localizer["local_submap_min_points"] >= localizer["min_scan_points"]
-    assert localizer["coarse_ndt_resolution"] > localizer[
-        "fine_ndt_resolution"
-    ]
-    assert localizer["gicp_max_correspondence_distance"] <= localizer[
-        "fine_ndt_resolution"
-    ]
-    assert localizer["gicp_max_iterations"] >= 20
-    assert localizer["matching_rate_hz"] == 0.5
-    assert localizer["required_consecutive_matches"] >= 2
-    assert localizer["runtime_failure_limit"] < localizer[
-        "relocalize_failure_limit"
-    ]
-    assert localizer["max_fitness_score"] <= 0.12
-    assert localizer["minimum_overlap"] >= 0.50
+    assert localizer["use_se3_pf"] is False
+    assert localizer["base_link_frame_id"] == "base_link"
+    assert localizer["odom_frame_id"] == "odom"
+    assert localizer["global_frame_id"] == "map"
+    assert localizer["topic_map"] == "/mrpt_map/metric_map"
+    assert localizer["topic_initialpose"] == "/initialpose"
+    assert localizer["topic_odometry"] == "/fastlio/odometry"
+    assert (
+        localizer["topic_sensors_point_clouds"]
+        == "/localization/lidar_points_base"
+    )
+    assert localizer["metric_map_use_only_these_layers"] == "raw"
+    assert "initial_pose" not in localizer
+    assert localizer["relocalize_num_sigmas"] == 3.0
+    assert localizer["relocalization_initial_divisions_phi"] >= 12
+    assert localizer["relocalization_min_sample_copies_per_candidate"] >= 8
+    assert localizer["kld_options"]["KLD_minSampleSize"] >= 300
+    assert localizer["motion_model_no_odom_2d"] == localizer["motion_model_2d"]
 
-    localizer_source = (
+    assert pipeline["class_name"] == "mp2p_icp::ICP"
+    assert pipeline["solvers"][0]["class"] == "mp2p_icp::Solver_GaussNewton"
+    matches = pipeline["matchers"][0]["params"]["pointLayerMatches"]
+    assert matches == [
+        {"global": "raw", "local": "decimated_for_icp", "weight": 1.0}
+    ]
+    assert pipeline["relocalization_observation_pipeline"][0]["class_name"] == (
+        "mp2p_icp_filters::FilterDecimateVoxels"
+    )
+
+    adapter_source = (
         PACKAGE_ROOT
         / "localization"
         / "pcd"
         / "src"
-        / "pcd_global_localizer.cpp"
+        / "pointcloud_tf_adapter.cpp"
     ).read_text()
-    assert "cropAroundCenter" in localizer_source
-    assert "coarse_registration_map_" in localizer_source
-    assert "GeneralizedIterativeClosestPoint" in localizer_source
+    assert "tf2::doTransform" in adapter_source
+    assert "output.header.frame_id = target_frame_" in adapter_source
+    assert "pcd_global_localizer" not in adapter_source
 
 
 def test_ackermann_configs_use_step_model_rear_axle_footprint():

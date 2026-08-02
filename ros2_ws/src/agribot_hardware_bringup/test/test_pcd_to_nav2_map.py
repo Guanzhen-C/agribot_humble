@@ -60,3 +60,28 @@ def test_binary_pcd_height_projection_and_nav2_output(tmp_path):
     assert pgm_path.read_bytes().startswith(b"P5\n3 3\n255\n")
     assert "image: projected.pgm" in yaml_path.read_text()
     assert "resolution: 0.5" in yaml_path.read_text()
+
+
+def test_mrpt_map_conversion_uses_official_txt2mm(tmp_path):
+    converter = tmp_path / "txt2mm"
+    converter.write_text(
+        "#!/bin/sh\n"
+        "while [ \"$#\" -gt 0 ]; do\n"
+        "  if [ \"$1\" = \"--output\" ]; then shift; output=$1; fi\n"
+        "  shift\n"
+        "done\n"
+        "printf metric-map > \"$output\"\n",
+        encoding="ascii",
+    )
+    converter.chmod(0o755)
+
+    points = np.array(
+        [[0.0, 1.0, 2.0], [np.nan, 0.0, 0.0], [3.0, 4.0, 5.0]]
+    )
+    mm_path = MODULE.write_mrpt_map(
+        points, tmp_path / "mapped", converter=str(converter)
+    )
+
+    assert mm_path == tmp_path / "mapped.mm"
+    assert mm_path.read_bytes() == b"metric-map"
+    assert list(tmp_path.glob("*.xyz")) == []

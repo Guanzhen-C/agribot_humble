@@ -25,8 +25,8 @@ localization/  NavSat/KF-GINS node and localization bridge scripts
 All project-owned runtime code and resources used by these entry points
 are contained in this package. The remaining package dependencies are ROS 2
 system components or third-party device/algorithm packages: Nav2, RViz,
-FAST-LIO, `hipnuc_imu`, `lslidar_driver`, PCL, STVL, and their message
-packages.
+FAST-LIO, `hipnuc_imu`, `lslidar_driver`, PCL, STVL, MRPT particle-filter
+localization, MOLA relocalization, `mp2p_icp`, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
 
 No simulation map is bundled with the physical-vehicle package. NavSat and
@@ -289,9 +289,20 @@ Save the map before stopping the launch:
 ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ```
 
-This creates `map.pcd` plus an aligned `map.pgm` and `map.yaml`. Nav2 consumes
-the two-dimensional projection for global planning; the PCD preserves the
-three-dimensional map. Start mapped navigation with the base path:
+This creates `map.pcd` plus an aligned `map.pgm` and `map.yaml`. Convert the
+complete PCD once to the official MRPT metric-map format:
+
+```bash
+ros2 run agribot_hardware_bringup pcd_to_nav2_map.py \
+  /home/sunrise/agribot_maps/test_site/map.pcd \
+  /home/sunrise/agribot_maps/test_site/map \
+  --write-mrpt-mm
+```
+
+The base path must then contain `.pcd`, `.pgm`, `.yaml`, and `.mm`. Nav2 uses
+the two-dimensional projection for planning, while the MRPT particle filter
+uses the complete three-dimensional metric map for localization. Start mapped
+navigation with the base path:
 
 ```bash
 ros2 launch agribot_hardware_bringup \
@@ -302,24 +313,24 @@ ros2 launch agribot_hardware_bringup \
 ```
 
 Keep the vehicle still during startup and use RViz `2D Pose Estimate` to give a
-rough position and heading. This prior disambiguates repetitive corridors; it
-does not directly replace the measured pose. The localizer accumulates ten
-body-frame scans, crops a local PCD submap around the prior, then runs coarse
-NDT, fine NDT, and GICP surface registration. It requires another accepted
-scan before publishing `/localization/ready: true`. The CAN and serial drivers
-send stop commands until that readiness heartbeat is both true and fresh.
+rough position and heading. The tool publishes a `2 m` one-sigma XY prior and
+a `60 deg` one-sigma yaw prior. MOLA's official `RelocalizationICP_SE2`
+searches that lattice against the 3D map and retains every acceptable pose as
+particle groups. MRPT then combines continuous C16 point-cloud likelihoods with
+FAST-LIO odometry, so motion can resolve repeated-corridor candidates instead
+of accepting the first local optimum.
 
-After initialization, FAST-LIO remains the high-rate odometry source while the
-same local-submap registration pipeline checks and smoothly corrects
-`map -> odom` at `0.5 Hz`. Three rejected updates inhibit chassis motion; five
-require a new RViz pose prior. The saved YAML supplies long-range planning,
-while live C16 PointCloud2 data supplies STVL obstacle marking and clearing.
-Monitor or restart localization with:
+FAST-LIO remains the high-rate `odom -> base_link` source. MRPT publishes the
+global `map -> odom` correction, `/particlecloud`, and `/pf_pose` at `2 Hz`.
+Do not click a Nav2 goal until the particles form one stable cluster and the
+pose arrow matches the known location. The saved YAML supplies long-range
+planning, while live C16 PointCloud2 data supplies STVL obstacle marking and
+clearing. Monitor localization with:
 
 ```bash
-ros2 topic echo /localization/status
-ros2 topic echo /localization/ready
-ros2 service call /localization/relocalize std_srvs/srv/Trigger "{}"
+ros2 topic echo /particlecloud --once
+ros2 topic echo /pf_pose --once
+ros2 run tf2_ros tf2_echo map odom
 ```
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:

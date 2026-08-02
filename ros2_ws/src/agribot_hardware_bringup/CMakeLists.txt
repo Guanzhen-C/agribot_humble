@@ -14,12 +14,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(PCL REQUIRED COMPONENTS
   common
-  features
-  filters
   io
-  kdtree
-  registration
-  search
 )
 find_package(pcl_conversions REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -28,6 +23,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_sensor_msgs REQUIRED)
 
 set(CHASSIS_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}/can/include
@@ -179,21 +175,14 @@ ament_target_dependencies(pcd_map_builder
 )
 
 add_executable(
-  pcd_global_localizer
-  localization/pcd/src/pcd_global_localizer.cpp
+  pointcloud_tf_adapter
+  localization/pcd/src/pointcloud_tf_adapter.cpp
 )
-target_include_directories(pcd_global_localizer SYSTEM PRIVATE ${PCL_INCLUDE_DIRS})
-target_link_libraries(pcd_global_localizer Eigen3::Eigen ${PCL_LIBRARIES})
-ament_target_dependencies(pcd_global_localizer
-  diagnostic_msgs
-  geometry_msgs
-  nav_msgs
-  pcl_conversions
+ament_target_dependencies(pointcloud_tf_adapter
   rclcpp
   sensor_msgs
-  std_msgs
-  std_srvs
   tf2_ros
+  tf2_sensor_msgs
 )
 
 install(PROGRAMS
@@ -261,7 +250,7 @@ install(TARGETS
   ackermann_joint_state_publisher
   rtk_eskf_localization
   pcd_map_builder
-  pcd_global_localizer
+  pointcloud_tf_adapter
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

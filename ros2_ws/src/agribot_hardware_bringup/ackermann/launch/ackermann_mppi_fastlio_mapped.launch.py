@@ -79,8 +79,7 @@ def generate_launch_description():
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "map_start_delay": LaunchConfiguration("map_start_delay"),
                     "map": PythonExpression(["'", map_base, ".yaml'"]),
-                    "pcd_map_file": PythonExpression(["'", map_base, ".pcd'"]),
-                    "require_localization_ready": "true",
+                    "metric_map_file": PythonExpression(["'", map_base, ".mm'"]),
                     "fastlio_nav2_params": os.path.join(
                         hardware_share,
                         "ackermann",

@@ -78,7 +78,17 @@ ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
 ```
 
 The save operation writes `.pcd`, `.pgm`, and `.yaml` files in one coordinate
-system. Use the saved YAML projection for long-range planning:
+system. Convert the PCD once to the official MRPT metric-map format:
+
+```bash
+ros2 run agribot_hardware_bringup pcd_to_nav2_map.py \
+  /home/sunrise/agribot_maps/test_site/map.pcd \
+  /home/sunrise/agribot_maps/test_site/map \
+  --write-mrpt-mm
+```
+
+Use the saved YAML projection for long-range planning and the `.mm` map for 3D
+particle-filter localization:
 
 ```bash
 ros2 launch agribot_hardware_bringup \
@@ -90,13 +100,13 @@ ros2 launch agribot_hardware_bringup \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-Keep the vehicle still until `/localization/ready` becomes `true`. The saved
-PCD provides automatic full-map FPFH initialization and NDT refinement, so
-RViz's `2D Pose Estimate` is not required. FAST-LIO remains the high-rate
-odometry source, with low-rate NDT correction at `0.25 Hz`. Both physical
-chassis drivers require a fresh localization heartbeat in this mapped mode and
-continue transmitting stop commands if initialization or runtime matching is
-unhealthy.
+Keep the vehicle still and use RViz `2D Pose Estimate` to provide a rough pose.
+MOLA's official lattice ICP relocalizer creates all acceptable candidates, and
+MRPT's particle filter uses subsequent 3D scans plus FAST-LIO odometry to
+disambiguate them. FAST-LIO publishes high-rate `odom -> base_link`; MRPT
+publishes `map -> odom`, `/particlecloud`, and `/pf_pose` at `2 Hz`. Do not send
+a Nav2 goal until the particles have converged to one stable cluster at the
+known vehicle location.
 
 USART3 uses 115200 baud. Commands are 11-byte `0x7b ... XOR 0x7d` packets and
 telemetry is the 24-byte WHEELTEC packet also carried by the three CAN feedback

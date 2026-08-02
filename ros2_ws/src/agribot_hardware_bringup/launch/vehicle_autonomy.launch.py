@@ -25,7 +25,7 @@ def _validate_arguments(context):
     can_transport = LaunchConfiguration("can_transport").perform(context)
     map_path = LaunchConfiguration("map").perform(context)
     pcd_map_base_path = LaunchConfiguration("pcd_map_base").perform(context)
-    pcd_map_file = LaunchConfiguration("pcd_map_file").perform(context)
+    metric_map_file = LaunchConfiguration("metric_map_file").perform(context)
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
@@ -65,10 +65,10 @@ def _validate_arguments(context):
         raise RuntimeError(
             "3D mapping requires pcd_map_base:=/absolute/path/to/map_name"
         )
-    if navigation_mode == "localization" and not pcd_map_file:
+    if navigation_mode == "localization" and not metric_map_file:
         raise RuntimeError(
             "mapped 3D localization requires "
-            "pcd_map_file:=/absolute/path/to/map.pcd"
+            "metric_map_file:=/absolute/path/to/map.mm"
         )
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
@@ -328,17 +328,47 @@ def generate_launch_description():
         actions=[
             Node(
                 package="agribot_hardware_bringup",
-                executable="pcd_global_localizer",
-                name="pcd_global_localizer",
+                executable="pointcloud_tf_adapter",
+                name="localization_pointcloud_tf_adapter",
                 output="screen",
                 parameters=[
-                    LaunchConfiguration("pcd_localization_config"),
                     {
                         "use_sim_time": use_sim_time,
-                        "map_file_path": LaunchConfiguration("pcd_map_file"),
+                        "input_topic": "/lidar/points",
+                        "output_topic": "/localization/lidar_points_base",
+                        "target_frame": "base_link",
                     },
                 ],
-            )
+            ),
+            Node(
+                package="mrpt_map_server",
+                executable="map_server_node",
+                name="mrpt_pointcloud_map_server",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "mm_file": LaunchConfiguration("metric_map_file"),
+                        "frame_id": "map",
+                        "pub_mm_topic": "/mrpt_map",
+                    }
+                ],
+            ),
+            Node(
+                package="mrpt_pf_localization",
+                executable="mrpt_pf_localization_node",
+                name="mrpt_pf_localization",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("mrpt_pf_localization_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "relocalization_params_file": LaunchConfiguration(
+                            "mrpt_relocalization_pipeline"
+                        ),
+                    },
+                ],
+            ),
         ],
         condition=LaunchConfigurationEquals("navigation_mode", "localization"),
     )
@@ -508,7 +538,7 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("pcd_map_base", default_value=""),
-            DeclareLaunchArgument("pcd_map_file", default_value=""),
+            DeclareLaunchArgument("metric_map_file", default_value=""),
             DeclareLaunchArgument(
                 "require_localization_ready",
                 default_value="false",
@@ -570,9 +600,15 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "pcd_localization_config",
+                "mrpt_pf_localization_config",
                 default_value=os.path.join(
-                    hardware_share, "config", "pcd_localization.yaml"
+                    hardware_share, "config", "mrpt_pf_localization.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "mrpt_relocalization_pipeline",
+                default_value=os.path.join(
+                    hardware_share, "config", "mrpt_relocalization_pipeline.yaml"
                 ),
             ),
             DeclareLaunchArgument(
