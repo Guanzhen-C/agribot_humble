@@ -117,6 +117,18 @@ def test_navsat_wrapper_converts_kf_gins_state_to_rear_axle_base_link():
     assert "navsat_frames::fluToFrd(antenna_lever_flu_m_)" in source
     assert "imuMapPositionToBaseMapPosition" in source
     assert "imuMapVelocityToBaseFluVelocity" in source
+    assert "imuPoseCovarianceToBaseMapPoseCovariance" in source
+    assert "independentImuTwistCovarianceToBaseFlu" in source
+    assert "baseMapPositionToSensorMapPosition" in source
+    assert "addEligiblePoseMeasurement" in source
+    assert "if (tryInitializeEngine())" in source
+    assert "resetFusionAfterImuDiscontinuity" in source
+    assert "candidate.time + time_tolerance_sec" in source
+    assert "has_parameter(name)" in source
+    assert "last_used_rtk_heading_time_" in source
+    assert "navsat_frames::shouldUseRtkHeading" in source
+    assert "use_pose_yaw_measurement_ && sample.has_yaw" in source
+    assert "Ignoring /initialpose" in source
 
 
 def test_ackermann_behavior_trees_never_request_backup():

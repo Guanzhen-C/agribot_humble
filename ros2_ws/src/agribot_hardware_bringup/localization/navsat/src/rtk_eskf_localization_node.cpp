@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <deque>
 #include <memory>
@@ -127,6 +128,7 @@ struct PoseSample {
     Eigen::Vector3d position_std = Eigen::Vector3d::Zero();
     double yaw = 0.0;
     double yaw_std = 0.0;
+    bool has_yaw = true;
     bool has_global_blh = false;
     Eigen::Vector3d global_blh = Eigen::Vector3d::Zero();
 };
@@ -162,7 +164,12 @@ public:
         require_rtk_heading_for_initialization_ = declare_parameter<bool>(
             "require_rtk_heading_for_initialization", true);
         rtk_heading_timeout_sec_ =
-            declare_parameter<double>("rtk_heading_timeout_sec", 2.0);
+            declare_parameter<double>("rtk_heading_timeout_sec", 0.25);
+        max_imu_gap_sec_ =
+            declare_parameter<double>("max_imu_gap_sec", 0.5);
+        if (!std::isfinite(max_imu_gap_sec_) || max_imu_gap_sec_ <= 0.0) {
+            throw std::runtime_error("max_imu_gap_sec must be finite and positive");
+        }
         rtk_heading_std_rad_ =
             declare_parameter<double>("rtk_heading_std_deg", 1.0) * D2R;
         auto_reference_from_first_navsat_fix_ =
@@ -253,15 +260,29 @@ public:
 
 private:
     Eigen::Vector3d loadVector3(const std::string &name, const std::vector<double> &defaults) {
-        auto values = declare_parameter<std::vector<double>>(name, defaults);
+        const std::vector<double> values = has_parameter(name)
+            ? get_parameter(name).as_double_array()
+            : declare_parameter<std::vector<double>>(name, defaults);
         if (values.size() != 3) {
             throw std::runtime_error("Parameter " + name + " must have exactly 3 elements");
         }
         return {values[0], values[1], values[2]};
     }
 
+    double loadDouble(const std::string &name, double default_value) {
+        return has_parameter(name)
+            ? get_parameter(name).as_double()
+            : declare_parameter<double>(name, default_value);
+    }
+
     void handleInitialPose(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
 
+        if (!align_measurement_to_initial_pose_) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 2000,
+                "Ignoring /initialpose because align_measurement_to_initial_pose is false");
+            return;
+        }
         if (alignment_initialized_) {
             return;
         }
@@ -338,7 +359,8 @@ private:
                 "Waiting for RTK heading before initializing from NavSatFix");
             return;
         }
-        if (!have_fresh_rtk_heading && !latest_imu_orientation_.has_value()) {
+        if (!engine_ && !have_fresh_rtk_heading &&
+            !latest_imu_orientation_.has_value()) {
             RCLCPP_WARN_THROTTLE(
                 get_logger(), *get_clock(), 2000,
                 "Waiting for RTK or IMU heading before accepting NavSatFix");
@@ -380,20 +402,33 @@ private:
         if (have_fresh_rtk_heading) {
             sample.yaw = *latest_rtk_heading_yaw_;
             sample.yaw_std = rtk_heading_std_rad_;
-        } else {
+        } else if (latest_imu_orientation_.has_value()) {
             const auto &orientation = *latest_imu_orientation_;
             sample.yaw = yawFromQuaternion(
                 orientation.x, orientation.y, orientation.z, orientation.w);
             sample.yaw_std = default_yaw_std_rad_;
             if (use_rtk_heading_) {
-                RCLCPP_WARN_THROTTLE(
+                RCLCPP_DEBUG_THROTTLE(
                     get_logger(), *get_clock(), 2000,
-                    "RTK heading is unavailable or stale; using IMU yaw");
+                    "RTK heading is unavailable or stale; updating position only");
             }
+        } else {
+            sample.yaw = 0.0;
+            sample.yaw_std = default_yaw_std_rad_;
         }
+        const bool have_new_rtk_heading =
+            have_fresh_rtk_heading && navsat_frames::shouldUseRtkHeading(
+                fix_time,
+                *latest_rtk_heading_time_,
+                last_used_rtk_heading_time_,
+                rtk_heading_timeout_sec_);
+        sample.has_yaw = have_new_rtk_heading;
         sample.has_global_blh = true;
         sample.global_blh = global_blh;
         processPoseSample(sample);
+        if (have_new_rtk_heading) {
+            last_used_rtk_heading_time_ = *latest_rtk_heading_time_;
+        }
     }
 
     void handleRtkHeading(
@@ -501,16 +536,31 @@ private:
         const double c = std::cos(alignment_yaw_);
         const double s = std::sin(alignment_yaw_);
 
+        const Eigen::Matrix3d map_from_base =
+            Eigen::AngleAxisd(
+                pending_initial_pose_.yaw, Eigen::Vector3d::UnitZ())
+                .toRotationMatrix();
+        const Eigen::Vector3d base_to_antenna_flu =
+            base_to_imu_flu_m_ + antenna_lever_flu_m_;
+        const Eigen::Vector3d desired_antenna_position =
+            navsat_frames::baseMapPositionToSensorMapPosition(
+                pending_initial_pose_.position,
+                map_from_base,
+                base_to_antenna_flu);
+
         alignment_translation_.x() =
-            pending_initial_pose_.position.x() - (c * sample.position.x() - s * sample.position.y());
+            desired_antenna_position.x() -
+            (c * sample.position.x() - s * sample.position.y());
         alignment_translation_.y() =
-            pending_initial_pose_.position.y() - (s * sample.position.x() + c * sample.position.y());
-        alignment_translation_.z() = pending_initial_pose_.position.z() - sample.position.z();
+            desired_antenna_position.y() -
+            (s * sample.position.x() + c * sample.position.y());
+        alignment_translation_.z() =
+            desired_antenna_position.z() - sample.position.z();
         alignment_initialized_ = true;
 
         RCLCPP_INFO(
             get_logger(),
-            "Aligned RTK frame to map using initial pose (x=%.3f y=%.3f yaw=%.3f)",
+            "Aligned RTK antenna so base_link starts at (x=%.3f y=%.3f yaw=%.3f)",
             pending_initial_pose_.position.x(),
             pending_initial_pose_.position.y(),
             pending_initial_pose_.yaw);
@@ -544,15 +594,59 @@ private:
         msg.pose.covariance[14] = sample.position_std.z() * sample.position_std.z();
         msg.pose.covariance[21] = 1e6;
         msg.pose.covariance[28] = 1e6;
-        msg.pose.covariance[35] = sample.yaw_std * sample.yaw_std;
+        msg.pose.covariance[35] =
+            sample.has_yaw ? sample.yaw_std * sample.yaw_std : 1e6;
         raw_pose_pub_->publish(msg);
     }
 
     void handleImu(const sensor_msgs::msg::Imu::SharedPtr msg) {
 
-        latest_imu_orientation_ = msg->orientation;
-
         const double time = rclcpp::Time(msg->header.stamp).seconds();
+        Eigen::Vector3d gyro(
+            msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
+        Eigen::Vector3d accel(
+            msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+        if (!std::isfinite(time) || !gyro.allFinite() || !accel.allFinite()) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 2000,
+                "Discarding IMU sample with a non-finite timestamp, gyro, or acceleration");
+            return;
+        }
+
+        const auto &orientation = msg->orientation;
+        const double orientation_norm_squared =
+            orientation.x * orientation.x + orientation.y * orientation.y +
+            orientation.z * orientation.z + orientation.w * orientation.w;
+        if (std::isfinite(orientation_norm_squared) &&
+            orientation_norm_squared > 1e-12 &&
+            msg->orientation_covariance[0] >= 0.0) {
+            latest_imu_orientation_ = orientation;
+        }
+
+        Eigen::Matrix3d angular_velocity_covariance;
+        bool covariance_is_finite = true;
+        for (int row = 0; row < 3; ++row) {
+            for (int col = 0; col < 3; ++col) {
+                angular_velocity_covariance(row, col) =
+                    msg->angular_velocity_covariance[row * 3 + col];
+                covariance_is_finite =
+                    covariance_is_finite &&
+                    std::isfinite(angular_velocity_covariance(row, col));
+            }
+        }
+        if (!covariance_is_finite ||
+            msg->angular_velocity_covariance[0] < 0.0 ||
+            angular_velocity_covariance.diagonal().minCoeff() < 0.0) {
+            angular_velocity_covariance.setZero();
+        }
+        if (imu_flu_frame_) {
+            const Eigen::Matrix3d frd_from_flu =
+                Eigen::DiagonalMatrix<double, 3>(1.0, -1.0, -1.0);
+            angular_velocity_covariance =
+                frd_from_flu * angular_velocity_covariance * frd_from_flu;
+        }
+        latest_raw_gyro_covariance_frd_ = angular_velocity_covariance;
+
         if (!have_prev_raw_imu_) {
             prev_raw_imu_ = msg;
             have_prev_raw_imu_ = true;
@@ -562,7 +656,15 @@ private:
         const double prev_time = rclcpp::Time(prev_raw_imu_->header.stamp).seconds();
         const double dt = time - prev_time;
         if (dt <= 0.0) {
+            if (dt < -0.001) {
+                resetFusionAfterImuDiscontinuity(msg, dt);
+                return;
+            }
             prev_raw_imu_ = msg;
+            return;
+        }
+        if (dt > max_imu_gap_sec_) {
+            resetFusionAfterImuDiscontinuity(msg, dt);
             return;
         }
 
@@ -571,10 +673,6 @@ private:
         imu_sample.dt = dt;
         imu_sample.odovel = 0.0;
 
-        Eigen::Vector3d gyro(
-            msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
-        Eigen::Vector3d accel(
-            msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
         if (imu_flu_frame_) {
             gyro = navsat_frames::fluToFrd(gyro);
             accel = navsat_frames::fluToFrd(accel);
@@ -587,7 +685,9 @@ private:
         latest_imu_sample_ = imu_sample;
         have_converted_imu_ = true;
 
-        tryInitializeEngine();
+        if (tryInitializeEngine()) {
+            return;
+        }
         if (!engine_) {
             return;
         }
@@ -595,24 +695,43 @@ private:
         if (!imu_primed_) {
             engine_->addImuData(imu_sample, true);
             imu_primed_ = true;
+            last_processed_imu_time_ = imu_sample.time;
             return;
         }
 
-        while (!pose_queue_.empty() && pose_queue_.front().time < imu_sample.time) {
-            engine_->addPoseMeasurement(pose_queue_.front());
-            pose_queue_.pop_front();
-        }
+        addEligiblePoseMeasurement(imu_sample.time);
 
         engine_->addImuData(imu_sample);
         engine_->newImuProcess();
+        last_processed_imu_time_ = imu_sample.time;
         publishFilteredState(imu_sample.time);
     }
 
-    void tryInitializeEngine() {
+    void resetFusionAfterImuDiscontinuity(
+        const sensor_msgs::msg::Imu::SharedPtr &current_sample,
+        double dt) {
+
+        RCLCPP_ERROR(
+            get_logger(),
+            "IMU timestamp discontinuity (dt=%.3f s); resetting ESKF and waiting for fresh RTK data",
+            dt);
+        engine_.reset();
+        imu_primed_ = false;
+        pose_queue_.clear();
+        last_processed_imu_time_.reset();
+        latest_measurement_for_init_.reset();
+        last_used_rtk_heading_time_.reset();
+        latest_imu_sample_.reset();
+        have_converted_imu_ = false;
+        prev_raw_imu_ = current_sample;
+        have_prev_raw_imu_ = true;
+    }
+
+    bool tryInitializeEngine() {
 
         if (engine_ || !have_converted_imu_ || !latest_measurement_for_init_.has_value() ||
             !reference_blh_initialized_) {
-            return;
+            return false;
         }
 
         GINSOptions options = buildOptions(*latest_measurement_for_init_);
@@ -620,6 +739,7 @@ private:
 
         engine_->addImuData(*latest_imu_sample_, true);
         imu_primed_ = true;
+        last_processed_imu_time_ = latest_imu_sample_->time;
         pose_queue_.clear();
 
         RCLCPP_INFO(
@@ -629,6 +749,48 @@ private:
             latest_measurement_for_init_->position.y(),
             latest_measurement_for_init_->position.z(),
             latest_measurement_for_init_->yaw);
+        return true;
+    }
+
+    void addEligiblePoseMeasurement(double current_imu_time) {
+
+        std::optional<RtkPoseMeasurement> selected;
+        std::size_t stale_count = 0;
+        std::size_t superseded_count = 0;
+        constexpr double time_tolerance_sec = 0.001;
+
+        while (!pose_queue_.empty() &&
+               pose_queue_.front().time <= current_imu_time) {
+            RtkPoseMeasurement candidate = pose_queue_.front();
+            pose_queue_.pop_front();
+
+            if (last_processed_imu_time_.has_value()) {
+                if (candidate.time + time_tolerance_sec <
+                    *last_processed_imu_time_) {
+                    ++stale_count;
+                    continue;
+                }
+                candidate.time =
+                    std::max(candidate.time, *last_processed_imu_time_);
+            }
+            if (selected.has_value()) {
+                ++superseded_count;
+            }
+            selected = candidate;
+        }
+
+        if (selected.has_value()) {
+            engine_->addPoseMeasurement(*selected);
+        }
+        if (stale_count > 0 || superseded_count > 0) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(),
+                *get_clock(),
+                2000,
+                "RTK queue dropped %zu stale and %zu superseded measurements",
+                stale_count,
+                superseded_count);
+        }
     }
 
     GINSOptions buildOptions(const PoseSample &initial_measurement) {
@@ -677,7 +839,8 @@ private:
         options.imunoise.accbias_std = loadVector3("imunoise_abstd_mgal", {250.0, 250.0, 250.0}) * 1e-5;
         options.imunoise.gyrscale_std = loadVector3("imunoise_gsstd_ppm", {1000.0, 1000.0, 1000.0}) * 1e-6;
         options.imunoise.accscale_std = loadVector3("imunoise_asstd_ppm", {1000.0, 1000.0, 1000.0}) * 1e-6;
-        options.imunoise.corr_time = declare_parameter<double>("imunoise_corrtime_hr", 1.0) * 3600.0;
+        options.imunoise.corr_time =
+            loadDouble("imunoise_corrtime_hr", 1.0) * 3600.0;
 
         return options;
     }
@@ -687,10 +850,11 @@ private:
         RtkPoseMeasurement measurement;
         measurement.time = sample.time;
         measurement.blh = mapPoseToBlh(sample.position);
-        measurement.std = sample.position_std;
+        measurement.std = navsat_frames::mapEnuStandardDeviationToNed(
+            sample.position_std, map_to_ned_yaw_rad_);
         measurement.yaw = mapYawToNedHeading(sample.yaw, map_to_ned_yaw_rad_);
         measurement.yaw_std = sample.yaw_std;
-        measurement.has_yaw = use_pose_yaw_measurement_;
+        measurement.has_yaw = use_pose_yaw_measurement_ && sample.has_yaw;
         measurement.isvalid = true;
         return measurement;
     }
@@ -732,22 +896,28 @@ private:
         msg.pose.pose.position.z = base_position_map.z();
         msg.pose.pose.orientation = nedFrdToMapEnuFlu(state.euler, map_to_ned_yaw_rad_);
 
-        Eigen::Matrix3d p_pos_ned = covariance.block<3, 3>(0, 0);
         const Eigen::Matrix3d r_map_from_ned =
             navsat_frames::mapEnuFromNed(map_to_ned_yaw_rad_);
-        Eigen::Matrix3d p_pos_map = r_map_from_ned * p_pos_ned * r_map_from_ned.transpose();
-
-        msg.pose.covariance[0] = p_pos_map(0, 0);
-        msg.pose.covariance[1] = p_pos_map(0, 1);
-        msg.pose.covariance[6] = p_pos_map(1, 0);
-        msg.pose.covariance[7] = p_pos_map(1, 1);
-        msg.pose.covariance[14] = p_pos_map(2, 2);
-        const Eigen::Matrix3d p_att_ned = covariance.block<3, 3>(6, 6);
-        const Eigen::Matrix3d p_att_map =
-            r_map_from_ned * p_att_ned * r_map_from_ned.transpose();
-        for (int row = 0; row < 3; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                msg.pose.covariance[(row + 3) * 6 + col + 3] = p_att_map(row, col);
+        navsat_frames::Matrix6d imu_pose_covariance_ned =
+            navsat_frames::Matrix6d::Zero();
+        imu_pose_covariance_ned.block<3, 3>(0, 0) =
+            covariance.block<3, 3>(0, 0);
+        imu_pose_covariance_ned.block<3, 3>(0, 3) =
+            covariance.block<3, 3>(0, 6);
+        imu_pose_covariance_ned.block<3, 3>(3, 0) =
+            covariance.block<3, 3>(6, 0);
+        imu_pose_covariance_ned.block<3, 3>(3, 3) =
+            covariance.block<3, 3>(6, 6);
+        const navsat_frames::Matrix6d base_pose_covariance_map =
+            navsat_frames::imuPoseCovarianceToBaseMapPoseCovariance(
+                imu_pose_covariance_ned,
+                r_map_from_ned,
+                r_ned_from_frd,
+                base_to_imu_flu_m_);
+        for (int row = 0; row < 6; ++row) {
+            for (int col = 0; col < 6; ++col) {
+                msg.pose.covariance[row * 6 + col] =
+                    base_pose_covariance_map(row, col);
             }
         }
 
@@ -773,6 +943,34 @@ private:
         msg.twist.twist.angular.x = angular_velocity_flu.x();
         msg.twist.twist.angular.y = angular_velocity_flu.y();
         msg.twist.twist.angular.z = angular_velocity_flu.z();
+
+        const Eigen::Matrix3d base_flu_from_ned =
+            r_map_from_base_flu.transpose() * r_map_from_ned;
+        Eigen::Matrix3d angular_velocity_covariance_frd =
+            latest_raw_gyro_covariance_frd_ + covariance.block<3, 3>(9, 9);
+        const Eigen::Matrix3d inverse_gyro_scale =
+            gyro_scale.cwiseInverse().asDiagonal();
+        angular_velocity_covariance_frd =
+            inverse_gyro_scale * angular_velocity_covariance_frd *
+            inverse_gyro_scale;
+        const Eigen::Matrix3d flu_from_frd =
+            Eigen::DiagonalMatrix<double, 3>(1.0, -1.0, -1.0);
+        const Eigen::Matrix3d angular_velocity_covariance_flu =
+            flu_from_frd * angular_velocity_covariance_frd * flu_from_frd;
+        const Eigen::Matrix3d velocity_covariance_flu =
+            base_flu_from_ned * covariance.block<3, 3>(3, 3) *
+            base_flu_from_ned.transpose();
+        const navsat_frames::Matrix6d twist_covariance =
+            navsat_frames::independentImuTwistCovarianceToBaseFlu(
+                velocity_covariance_flu,
+                angular_velocity_covariance_flu,
+                base_to_imu_flu_m_);
+        for (int row = 0; row < 6; ++row) {
+            for (int col = 0; col < 6; ++col) {
+                msg.twist.covariance[row * 6 + col] =
+                    twist_covariance(row, col);
+            }
+        }
         odom_pub_->publish(msg);
     }
 
@@ -801,6 +999,7 @@ private:
     double default_initial_pitch_deg_ = 0.0;
     double default_yaw_std_rad_ = 0.0;
     double rtk_heading_timeout_sec_ = 0.0;
+    double max_imu_gap_sec_ = 0.0;
     double rtk_heading_std_rad_ = 0.0;
     double reference_alt_param_m_ = 0.0;
     double map_to_ned_yaw_rad_ = 0.0;
@@ -833,10 +1032,13 @@ private:
     bool have_converted_imu_ = false;
     std::optional<geometry_msgs::msg::Quaternion> latest_imu_orientation_;
     std::optional<Eigen::Vector3d> latest_raw_gyro_frd_;
+    Eigen::Matrix3d latest_raw_gyro_covariance_frd_ = Eigen::Matrix3d::Zero();
     std::optional<double> latest_rtk_heading_yaw_;
     std::optional<double> latest_rtk_heading_time_;
+    std::optional<double> last_used_rtk_heading_time_;
     std::optional<IMU> latest_imu_sample_;
     std::optional<PoseSample> latest_measurement_for_init_;
+    std::optional<double> last_processed_imu_time_;
 
     std::unique_ptr<RtkGIEngine> engine_;
     bool imu_primed_ = false;
