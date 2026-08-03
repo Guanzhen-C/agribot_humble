@@ -71,8 +71,11 @@ C16 optical-center frame `lidar_link` is at `(0.48, 0, 0.233)` m relative to
 the rear-axle-centered `base_link`. The left RTK master antenna measurement
 point is currently approximated by the physical antenna top at
 `(-0.0884, 0.1480, 0.24476)` m, giving an IMU-to-antenna lever arm of
-`(-0.2309, 0.1480, 0.10176)` m. The physical-navigation RViz profiles show
-the sensor axes; these visuals do not publish or replace the calibrated TFs.
+`(-0.2309, 0.1480, 0.10176)` m. These configuration vectors use ROS FLU;
+the NavSat wrapper converts the antenna lever arm to KF-GINS FRD, initializes
+the filter state at the IMU center, and publishes the resulting pose and twist
+at the rear-axle-centered `base_link`. The physical-navigation RViz profiles
+show the sensor axes; these visuals do not publish or replace the calibrated TFs.
 The vehicle mesh removes the STEP assembly's obsolete M10 lidar and the rear
 auxiliary assembly. The C16 uses the rear carrier-plate shape at its calibrated
 position, with four pillars extended down to the chassis mounting surface.

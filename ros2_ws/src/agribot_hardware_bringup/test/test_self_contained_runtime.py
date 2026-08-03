@@ -66,6 +66,7 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
         "config/pcd_initial_localization.yaml",
         "config/pcd_mapping.yaml",
+        "localization/navsat/include/agribot_hardware_bringup/navsat_frame_conversions.hpp",
         "localization/pcd/src/pcd_initial_localizer.cpp",
         "localization/pcd/src/pcd_map_builder.cpp",
         "meshes/ackermann_vehicle_body.glb",
@@ -106,6 +107,16 @@ def test_migrated_runtime_resources_exist_and_parse():
 
     for path in (PACKAGE_ROOT / "ackermann" / "behavior_trees").glob("*.xml"):
         element_tree.parse(path)
+
+
+def test_navsat_wrapper_converts_kf_gins_state_to_rear_axle_base_link():
+    source = (
+        PACKAGE_ROOT
+        / "localization/navsat/src/rtk_eskf_localization_node.cpp"
+    ).read_text()
+    assert "navsat_frames::fluToFrd(antenna_lever_flu_m_)" in source
+    assert "imuMapPositionToBaseMapPosition" in source
+    assert "imuMapVelocityToBaseFluVelocity" in source
 
 
 def test_ackermann_behavior_trees_never_request_backup():

@@ -20,9 +20,12 @@
 #include "common/earth.h"
 #include "common/rotation.h"
 
+#include "agribot_hardware_bringup/navsat_frame_conversions.hpp"
 #include "agribot_hardware_bringup/rtk_gi_engine.hpp"
 
 namespace {
+
+namespace navsat_frames = agribot_hardware_bringup::navsat;
 
 double wrapAngle(double angle) {
 
@@ -47,10 +50,6 @@ geometry_msgs::msg::Quaternion quaternionFromYaw(double yaw) {
     q.z = std::sin(yaw / 2.0);
     q.w = std::cos(yaw / 2.0);
     return q;
-}
-
-Eigen::Vector3d fluToFrd(const Eigen::Vector3d &flu) {
-    return {flu.x(), -flu.y(), -flu.z()};
 }
 
 Eigen::Vector3d mapEnuToNed(
@@ -81,17 +80,6 @@ Eigen::Vector3d nedToMapEnu(
     return Eigen::Vector3d(ned_base.y(), ned_base.x(), -ned_base.z());
 }
 
-Eigen::Matrix3d mapEnuFromNed(double extra_yaw_rad) {
-
-    const double c = std::cos(extra_yaw_rad);
-    const double s = std::sin(extra_yaw_rad);
-    Eigen::Matrix3d transform;
-    transform << -s, c, 0.0,
-                  c, s, 0.0,
-                0.0, 0.0, -1.0;
-    return transform;
-}
-
 double mapYawToNedHeading(double map_yaw, double extra_yaw_rad) {
     return wrapAngle(M_PI / 2.0 - map_yaw + extra_yaw_rad);
 }
@@ -115,10 +103,8 @@ geometry_msgs::msg::Quaternion nedFrdToMapEnuFlu(
     double extra_yaw_rad) {
 
     const Eigen::Matrix3d r_ned_frd = Rotation::euler2matrix(euler);
-    const Eigen::Matrix3d t_frd_flu =
-        Eigen::DiagonalMatrix<double, 3>(1.0, -1.0, -1.0);
     const Eigen::Matrix3d r_map_flu =
-        mapEnuFromNed(extra_yaw_rad) * r_ned_frd * t_frd_flu;
+        navsat_frames::nedFrdToMapEnuFluMatrix(r_ned_frd, extra_yaw_rad);
     const Eigen::Quaterniond quaternion(r_map_flu);
     const Eigen::Quaterniond normalized = quaternion.normalized();
 
@@ -189,6 +175,9 @@ public:
 
         default_position_std_ = loadVector3("measurement_position_std_m", {0.03, 0.03, 0.05});
         default_yaw_std_rad_ = declare_parameter<double>("measurement_yaw_std_deg", 1.0) * D2R;
+        base_to_imu_flu_m_ = loadVector3("base_to_imu_m", {0.1425, 0.0, 0.143});
+        antenna_lever_flu_m_ =
+            loadVector3("antlever_m", {-0.2309, 0.1480, 0.10176});
 
         pending_initial_pose_.position = Eigen::Vector3d(
             declare_parameter<double>("initial_pose_x", 0.0),
@@ -587,9 +576,10 @@ private:
         Eigen::Vector3d accel(
             msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
         if (imu_flu_frame_) {
-            gyro = fluToFrd(gyro);
-            accel = fluToFrd(accel);
+            gyro = navsat_frames::fluToFrd(gyro);
+            accel = navsat_frames::fluToFrd(accel);
         }
+        latest_raw_gyro_frd_ = gyro;
         imu_sample.dtheta = gyro * dt;
         imu_sample.dvel = accel * dt;
 
@@ -645,7 +635,6 @@ private:
 
         GINSOptions options;
 
-        options.initstate.pos = mapPoseToBlh(initial_measurement.position);
         options.initstate.vel = loadVector3("init_velocity_mps", {0.0, 0.0, 0.0});
 
         Eigen::Vector3d initial_euler(default_initial_roll_deg_ * D2R, default_initial_pitch_deg_ * D2R, 0.0);
@@ -654,6 +643,15 @@ private:
         }
         initial_euler.z() = mapYawToNedHeading(initial_measurement.yaw, map_to_ned_yaw_rad_);
         options.initstate.euler = initial_euler;
+
+        // Package parameters use ROS FLU. KF-GINS mechanization uses body FRD.
+        options.antlever = navsat_frames::fluToFrd(antenna_lever_flu_m_);
+        const Eigen::Vector3d antenna_lever_ned =
+            Rotation::euler2matrix(initial_euler) * options.antlever;
+        const Eigen::Vector3d initial_imu_position_map =
+            initial_measurement.position -
+            nedToMapEnu(antenna_lever_ned, map_to_ned_yaw_rad_);
+        options.initstate.pos = mapPoseToBlh(initial_imu_position_map);
 
         options.initstate.imuerror.gyrbias = loadVector3("init_gyrbias_degph", {0.0, 0.0, 0.0}) * D2R / 3600.0;
         options.initstate.imuerror.accbias = loadVector3("init_accbias_mgal", {0.0, 0.0, 0.0}) * 1e-5;
@@ -680,8 +678,6 @@ private:
         options.imunoise.gyrscale_std = loadVector3("imunoise_gsstd_ppm", {1000.0, 1000.0, 1000.0}) * 1e-6;
         options.imunoise.accscale_std = loadVector3("imunoise_asstd_ppm", {1000.0, 1000.0, 1000.0}) * 1e-6;
         options.imunoise.corr_time = declare_parameter<double>("imunoise_corrtime_hr", 1.0) * 3600.0;
-
-        options.antlever = loadVector3("antlever_m", {0.136, -0.301, -0.184});
 
         return options;
     }
@@ -718,19 +714,27 @@ private:
         NavState state = engine_->getNavState();
         Eigen::MatrixXd covariance = engine_->getCovariance();
 
-        Eigen::Vector3d map_position = blhToMapPose(state.pos);
+        const Eigen::Matrix3d r_ned_from_frd = Rotation::euler2matrix(state.euler);
+        const Eigen::Matrix3d r_map_from_base_flu =
+            navsat_frames::nedFrdToMapEnuFluMatrix(
+                r_ned_from_frd, map_to_ned_yaw_rad_);
+        const Eigen::Vector3d imu_position_map = blhToMapPose(state.pos);
+        const Eigen::Vector3d base_position_map =
+            navsat_frames::imuMapPositionToBaseMapPosition(
+                imu_position_map, r_map_from_base_flu, base_to_imu_flu_m_);
 
         nav_msgs::msg::Odometry msg;
         msg.header.stamp = rclcpp::Time(static_cast<int64_t>(time * 1e9));
         msg.header.frame_id = map_frame_;
         msg.child_frame_id = base_frame_;
-        msg.pose.pose.position.x = map_position.x();
-        msg.pose.pose.position.y = map_position.y();
-        msg.pose.pose.position.z = map_position.z();
+        msg.pose.pose.position.x = base_position_map.x();
+        msg.pose.pose.position.y = base_position_map.y();
+        msg.pose.pose.position.z = base_position_map.z();
         msg.pose.pose.orientation = nedFrdToMapEnuFlu(state.euler, map_to_ned_yaw_rad_);
 
         Eigen::Matrix3d p_pos_ned = covariance.block<3, 3>(0, 0);
-        const Eigen::Matrix3d r_map_from_ned = mapEnuFromNed(map_to_ned_yaw_rad_);
+        const Eigen::Matrix3d r_map_from_ned =
+            navsat_frames::mapEnuFromNed(map_to_ned_yaw_rad_);
         Eigen::Matrix3d p_pos_map = r_map_from_ned * p_pos_ned * r_map_from_ned.transpose();
 
         msg.pose.covariance[0] = p_pos_map(0, 0);
@@ -747,10 +751,28 @@ private:
             }
         }
 
-        Eigen::Vector3d map_velocity = nedToMapEnu(state.vel, map_to_ned_yaw_rad_);
-        msg.twist.twist.linear.x = map_velocity.x();
-        msg.twist.twist.linear.y = map_velocity.y();
-        msg.twist.twist.linear.z = map_velocity.z();
+        Eigen::Vector3d angular_velocity_frd =
+            latest_raw_gyro_frd_.value_or(Eigen::Vector3d::Zero());
+        const Eigen::Vector3d gyro_scale =
+            Eigen::Vector3d::Ones() + state.imuerror.gyrscale;
+        angular_velocity_frd =
+            (angular_velocity_frd - state.imuerror.gyrbias).cwiseQuotient(gyro_scale);
+        const Eigen::Vector3d angular_velocity_flu =
+            navsat_frames::fluToFrd(angular_velocity_frd);
+        const Eigen::Vector3d imu_velocity_map =
+            navsat_frames::mapEnuFromNed(map_to_ned_yaw_rad_) * state.vel;
+        const Eigen::Vector3d base_velocity_flu =
+            navsat_frames::imuMapVelocityToBaseFluVelocity(
+                imu_velocity_map,
+                r_map_from_base_flu,
+                angular_velocity_flu,
+                base_to_imu_flu_m_);
+        msg.twist.twist.linear.x = base_velocity_flu.x();
+        msg.twist.twist.linear.y = base_velocity_flu.y();
+        msg.twist.twist.linear.z = base_velocity_flu.z();
+        msg.twist.twist.angular.x = angular_velocity_flu.x();
+        msg.twist.twist.angular.y = angular_velocity_flu.y();
+        msg.twist.twist.angular.z = angular_velocity_flu.z();
         odom_pub_->publish(msg);
     }
 
@@ -784,6 +806,8 @@ private:
     double map_to_ned_yaw_rad_ = 0.0;
 
     Eigen::Vector3d default_position_std_ = Eigen::Vector3d::Zero();
+    Eigen::Vector3d base_to_imu_flu_m_ = Eigen::Vector3d::Zero();
+    Eigen::Vector3d antenna_lever_flu_m_ = Eigen::Vector3d::Zero();
     InitialPose pending_initial_pose_;
     Eigen::Vector3d reference_map_position_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d reference_blh_ = Eigen::Vector3d::Zero();
@@ -808,6 +832,7 @@ private:
     bool have_prev_raw_imu_ = false;
     bool have_converted_imu_ = false;
     std::optional<geometry_msgs::msg::Quaternion> latest_imu_orientation_;
+    std::optional<Eigen::Vector3d> latest_raw_gyro_frd_;
     std::optional<double> latest_rtk_heading_yaw_;
     std::optional<double> latest_rtk_heading_time_;
     std::optional<IMU> latest_imu_sample_;

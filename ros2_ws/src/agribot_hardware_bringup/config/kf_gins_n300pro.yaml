@@ -57,5 +57,8 @@ rtk_eskf_localization:
     imunoise_asstd_ppm: [1000.0, 1000.0, 1000.0]
     imunoise_corrtime_hr: 1.0
 
+    # Extrinsics are ROS FLU vectors measured from the rear-axle-centered base_link.
+    # The wrapper converts the antenna lever arm to KF-GINS body FRD internally.
+    base_to_imu_m: [0.1425, 0.0, 0.143]
     # Left master antenna; use its physical top until a manufacturer PCO is known.
     antlever_m: [-0.2309, 0.1480, 0.10176]

@@ -297,6 +297,15 @@ if(BUILD_TESTING)
     can/test/test_chassis_can_transport.cpp
   )
   target_link_libraries(test_chassis_can_transport chassis_can_common)
+  ament_add_gtest(
+    test_navsat_frame_conversions
+    localization/navsat/test/test_navsat_frame_conversions.cpp
+  )
+  target_include_directories(test_navsat_frame_conversions PRIVATE
+    localization/navsat/include
+    ${EIGEN3_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_navsat_frame_conversions Eigen3::Eigen)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)

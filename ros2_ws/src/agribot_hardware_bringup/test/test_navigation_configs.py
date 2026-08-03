@@ -61,6 +61,7 @@ def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
     assert rtk_xyz == pytest.approx([-0.0884, 0.1480, 0.24476])
     assert mounts["rtk"]["rpy"] == [0.0, 0.0, 0.0]
     assert rtk_xyz[1] > 0.0
+    assert eskf["base_to_imu_m"] == pytest.approx(imu_xyz)
     assert eskf["antlever_m"] == pytest.approx(expected_lever_arm)
     assert eskf["antlever_m"] == pytest.approx([-0.2309, 0.1480, 0.10176])
     assert rtk["heading_offset_deg"] == -90.0
