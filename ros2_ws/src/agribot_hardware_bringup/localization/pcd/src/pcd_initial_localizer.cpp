@@ -169,9 +169,10 @@ public:
     publishMap();
     RCLCPP_INFO(
       get_logger(),
-      "3D map localizer ready: map=%s points=%zu; RViz-guided FPFH initialization "
-      "and %.2f Hz runtime correction enabled",
-      map_file_path_.c_str(), registration_map_->size(), runtime_matching_rate_hz_);
+      "3D map localizer ready: map=%s points=%zu; initial FPFH=%s; "
+      "%.2f Hz runtime correction enabled",
+      map_file_path_.c_str(), registration_map_->size(),
+      enable_fpfh_ ? "enabled" : "disabled", runtime_matching_rate_hz_);
   }
 
 private:
@@ -222,6 +223,7 @@ private:
       declare_parameter<std::string>("status_topic", "/localization/status");
     map_frame_ = declare_parameter<std::string>("map_frame", "map");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
+    enable_fpfh_ = declare_parameter<bool>("enable_fpfh", false);
 
     base_to_body_ = xyzRpyToIsometry(
       declare_parameter<std::vector<double>>(
@@ -242,7 +244,7 @@ private:
     min_scan_points_ = declare_parameter<int>("min_scan_points", 250);
     initial_scan_count_ = declare_parameter<int>("initial_scan_count", 5);
     max_odom_age_ = declare_parameter<double>("max_odom_age", 0.15);
-    initial_search_radius_ = declare_parameter<double>("initial_search_radius", 2.0);
+    initial_search_radius_ = declare_parameter<double>("initial_search_radius", 8.0);
     local_submap_radius_ = declare_parameter<double>("local_submap_radius", 8.0);
     local_submap_min_points_ =
       declare_parameter<int>("local_submap_min_points", 300);
@@ -471,12 +473,14 @@ private:
     if (registration_map_->size() < 100U) {
       throw std::runtime_error("PCD map has too few usable points");
     }
-    const auto feature_input = voxelize(registration_map_, feature_voxel_size_);
-    const auto feature_pair = computeFeatures(feature_input);
-    feature_map_ = feature_pair.first;
-    map_features_ = feature_pair.second;
-    if (feature_map_->size() < 100U) {
-      throw std::runtime_error("PCD map has too few valid FPFH features");
+    if (enable_fpfh_) {
+      const auto feature_input = voxelize(registration_map_, feature_voxel_size_);
+      const auto feature_pair = computeFeatures(feature_input);
+      feature_map_ = feature_pair.first;
+      map_features_ = feature_pair.second;
+      if (feature_map_->size() < 100U) {
+        throw std::runtime_error("PCD map has too few valid FPFH features");
+      }
     }
     map_tree_.setInputCloud(registration_map_);
   }
@@ -604,7 +608,10 @@ private:
       scan_buffer_.clear();
       initial_pose_prior_ = planar_pose;
       pending_attempt_ = true;
-      setStatusLocked("initial pose received; collecting scans for local FPFH initialization");
+      setStatusLocked(
+        enable_fpfh_ ?
+        "initial pose received; collecting scans for local FPFH initialization" :
+        "initial pose received; collecting scans for local NDT and GICP initialization");
     }
     const auto rpy = rotationRpy(planar_pose.linear());
     RCLCPP_INFO(
@@ -815,7 +822,10 @@ private:
         pose_seed = *initial_pose_prior_;
         pending_attempt_ = false;
         initializing = true;
-        setStatusLocked("running RViz-guided local FPFH coarse registration");
+        setStatusLocked(
+          enable_fpfh_ ?
+          "running RViz-guided local FPFH coarse registration" :
+          "running RViz-guided local NDT and GICP registration");
       } else {
         const auto now = std::chrono::steady_clock::now();
         const double period_seconds = 1.0 / runtime_matching_rate_hz_;
@@ -837,14 +847,18 @@ private:
     MatchResult result;
     if (initializing) {
       const auto started = std::chrono::steady_clock::now();
-      std::string failure_reason;
-      const auto feature_pose =
-        initialFeatureRegistration(sample, pose_seed, failure_reason);
-      if (feature_pose.has_value()) {
-        setStatus("refining local FPFH result with NDT and GICP");
-        result = runRegistration(sample, *feature_pose);
+      if (enable_fpfh_) {
+        std::string failure_reason;
+        const auto feature_pose =
+          initialFeatureRegistration(sample, pose_seed, failure_reason);
+        if (feature_pose.has_value()) {
+          setStatus("refining local FPFH result with NDT and GICP");
+          result = runRegistration(sample, *feature_pose);
+        } else {
+          result.reason = failure_reason;
+        }
       } else {
-        result.reason = failure_reason;
+        result = runRegistration(sample, pose_seed);
       }
       result.elapsed_seconds = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - started).count();
@@ -1018,6 +1032,7 @@ private:
   std::string status_topic_;
   std::string map_frame_;
   std::string odom_frame_;
+  bool enable_fpfh_{false};
   Eigen::Isometry3d base_to_body_{Eigen::Isometry3d::Identity()};
 
   double map_voxel_size_{0.15};
@@ -1033,7 +1048,7 @@ private:
   int min_scan_points_{250};
   int initial_scan_count_{5};
   double max_odom_age_{0.15};
-  double initial_search_radius_{2.0};
+  double initial_search_radius_{8.0};
   double local_submap_radius_{8.0};
   int local_submap_min_points_{300};
 

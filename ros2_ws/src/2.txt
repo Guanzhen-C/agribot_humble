@@ -207,6 +207,7 @@ ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
 
 # 阿克曼真机：一次性 NDT + GICP 三维初始定位和基于已建地图的 Nav2 导航
 # 启动后保持车辆静止，在 RViz 用“2D Pose Estimate”给出准确的附近位置和大致方向
+# 长走廊默认关闭 FPFH；需要测试 FPFH 粗定位时改为 enable_fpfh:=true
 # /localization/ready 为 true 且绿色定位箭头正确后，才可以下发 Nav2 目标
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
@@ -217,6 +218,7 @@ export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
+  enable_fpfh:=false \
   rviz:=true \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
@@ -234,6 +236,7 @@ export ROS_LOCALHOST_ONLY=0
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
+  enable_fpfh:=false \
   rviz:=false \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \

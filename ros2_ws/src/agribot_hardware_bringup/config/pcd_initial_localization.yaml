@@ -9,6 +9,7 @@ pcd_initial_localizer:
     status_topic: /localization/status
     map_frame: map
     odom_frame: odom
+    enable_fpfh: false
 
     # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
     base_to_body_xyz: [0.1425, 0.0, 0.143]
@@ -27,7 +28,7 @@ pcd_initial_localizer:
     min_scan_points: 250
     initial_scan_count: 5
     max_odom_age: 0.15
-    initial_search_radius: 2.0
+    initial_search_radius: 8.0
     local_submap_radius: 8.0
     local_submap_min_points: 300
 

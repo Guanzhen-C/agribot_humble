@@ -336,6 +336,7 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "map_file_path": LaunchConfiguration("pcd_map_file"),
+                        "enable_fpfh": LaunchConfiguration("enable_fpfh"),
                     },
                 ],
             )
@@ -509,6 +510,14 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("pcd_map_base", default_value=""),
             DeclareLaunchArgument("pcd_map_file", default_value=""),
+            DeclareLaunchArgument(
+                "enable_fpfh",
+                default_value="false",
+                description=(
+                    "Run RViz-guided FPFH coarse registration before initial "
+                    "NDT and GICP refinement"
+                ),
+            ),
             DeclareLaunchArgument(
                 "require_localization_ready",
                 default_value="false",

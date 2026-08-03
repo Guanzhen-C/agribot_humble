@@ -185,7 +185,7 @@ def test_c16_driver_does_not_publish_legacy_scan():
     assert "scan_num" not in lidar
 
 
-def test_3d_mapping_and_mapped_navigation_use_fpfh_ndt_gicp_localization():
+def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     mapping = load_config("pcd_mapping.yaml")["pcd_map_builder"]["ros__parameters"]
     localizer = load_config("pcd_initial_localization.yaml")[
         "pcd_initial_localizer"
@@ -213,9 +213,10 @@ def test_3d_mapping_and_mapped_navigation_use_fpfh_ndt_gicp_localization():
     assert localizer["ready_topic"] == "/localization/ready"
     assert localizer["map_frame"] == "map"
     assert localizer["odom_frame"] == "odom"
+    assert localizer["enable_fpfh"] is False
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
     assert localizer["initial_scan_count"] == 5
-    assert localizer["initial_search_radius"] == 2.0
+    assert localizer["initial_search_radius"] == 8.0
     assert localizer["local_submap_radius"] == 8.0
     assert localizer["feature_voxel_size"] == 0.35
     assert localizer["normal_radius"] > localizer["feature_voxel_size"]
@@ -242,6 +243,8 @@ def test_3d_mapping_and_mapped_navigation_use_fpfh_ndt_gicp_localization():
     ).read_text()
     assert "pcl::FPFHEstimation" in localizer_source
     assert "pcl::SampleConsensusPrerejective" in localizer_source
+    assert 'declare_parameter<bool>("enable_fpfh", false)' in localizer_source
+    assert "if (enable_fpfh_)" in localizer_source
     assert "pcl::NormalDistributionsTransform" in localizer_source
     assert "pcl::GeneralizedIterativeClosestPoint" in localizer_source
     assert "cloud_subscription_.reset()" not in localizer_source

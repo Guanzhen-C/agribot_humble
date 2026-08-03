@@ -249,7 +249,7 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert 'DeclareLaunchArgument("enable_chassis_output", default_value="false")' in source
 
 
-def test_mapped_entry_uses_nav2_and_pcd_maps_with_one_shot_localization():
+def test_mapped_entry_uses_nav2_and_pcd_maps_with_optional_fpfh_localization():
     source = ACKERMANN_LAUNCH_PATHS[1].read_text()
     assert '"navigation_mode": "localization"' in source
     assert '"map": PythonExpression(' in source
@@ -257,6 +257,8 @@ def test_mapped_entry_uses_nav2_and_pcd_maps_with_one_shot_localization():
     assert '"pcd_map_file": PythonExpression(' in source
     assert "map_base, \".pcd'\"]" in source
     assert '"require_localization_ready": "true"' in source
+    assert 'DeclareLaunchArgument("enable_fpfh", default_value="false")' in source
+    assert '"enable_fpfh": LaunchConfiguration("enable_fpfh")' in source
     assert "initial_pose" not in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source

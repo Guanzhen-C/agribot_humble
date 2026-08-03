@@ -27,6 +27,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             DeclareLaunchArgument("map_start_delay", default_value="5.0"),
+            DeclareLaunchArgument("enable_fpfh", default_value="false"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
@@ -80,6 +81,7 @@ def generate_launch_description():
                     "map_start_delay": LaunchConfiguration("map_start_delay"),
                     "map": PythonExpression(["'", map_base, ".yaml'"]),
                     "pcd_map_file": PythonExpression(["'", map_base, ".pcd'"]),
+                    "enable_fpfh": LaunchConfiguration("enable_fpfh"),
                     "require_localization_ready": "true",
                     "fastlio_nav2_params": os.path.join(
                         hardware_share,
