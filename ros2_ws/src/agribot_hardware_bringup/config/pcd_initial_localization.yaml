@@ -53,8 +53,3 @@ pcd_initial_localizer:
 
     overlap_distance: 0.50
     maximum_inlier_rmse: 0.20
-
-    # Runtime correction starts from FAST-LIO's predicted map pose; FPFH is not repeated.
-    runtime_matching_rate_hz: 0.25
-    runtime_correction_alpha: 0.25
-    runtime_failure_limit: 3

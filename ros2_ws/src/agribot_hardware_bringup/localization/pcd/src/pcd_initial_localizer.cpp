@@ -106,22 +106,6 @@ geometry_msgs::msg::Quaternion quaternionMessage(const Eigen::Matrix3d & rotatio
   return result;
 }
 
-Eigen::Isometry3d interpolateTransform(
-  const Eigen::Isometry3d & from,
-  const Eigen::Isometry3d & to,
-  double alpha)
-{
-  const double bounded_alpha = std::clamp(alpha, 0.0, 1.0);
-  Eigen::Quaterniond from_quaternion(from.linear());
-  Eigen::Quaterniond to_quaternion(to.linear());
-  Eigen::Isometry3d result = Eigen::Isometry3d::Identity();
-  result.linear() =
-    from_quaternion.slerp(bounded_alpha, to_quaternion).normalized().toRotationMatrix();
-  result.translation() =
-    (1.0 - bounded_alpha) * from.translation() + bounded_alpha * to.translation();
-  return result;
-}
-
 class PcdInitialLocalizer final : public rclcpp::Node
 {
 public:
@@ -170,9 +154,9 @@ public:
     RCLCPP_INFO(
       get_logger(),
       "3D map localizer ready: map=%s points=%zu; initial FPFH=%s; "
-      "%.2f Hz runtime correction enabled",
+      "one-shot initial localization enabled",
       map_file_path_.c_str(), registration_map_->size(),
-      enable_fpfh_ ? "enabled" : "disabled", runtime_matching_rate_hz_);
+      enable_fpfh_ ? "enabled" : "disabled");
   }
 
 private:
@@ -284,12 +268,6 @@ private:
     overlap_distance_ = declare_parameter<double>("overlap_distance", 0.50);
     maximum_inlier_rmse_ =
       declare_parameter<double>("maximum_inlier_rmse", 0.20);
-    runtime_matching_rate_hz_ =
-      declare_parameter<double>("runtime_matching_rate_hz", 0.25);
-    runtime_correction_alpha_ =
-      declare_parameter<double>("runtime_correction_alpha", 0.25);
-    runtime_failure_limit_ =
-      declare_parameter<int>("runtime_failure_limit", 3);
   }
 
   void validateParameters() const
@@ -326,11 +304,8 @@ private:
     {
       throw std::runtime_error("invalid NDT or GICP parameters");
     }
-    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0 ||
-      runtime_matching_rate_hz_ <= 0.0 || runtime_correction_alpha_ <= 0.0 ||
-      runtime_correction_alpha_ > 1.0 || runtime_failure_limit_ < 1)
-    {
-      throw std::runtime_error("invalid registration validation or runtime parameters");
+    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0) {
+      throw std::runtime_error("invalid registration validation parameters");
     }
   }
 
@@ -538,6 +513,12 @@ private:
 
   void handleCloud(const sensor_msgs::msg::PointCloud2::SharedPtr message)
   {
+    {
+      std::lock_guard<std::mutex> guard(state_mutex_);
+      if (localized_) {
+        return;
+      }
+    }
     if (!cloud_frame_.empty() && message->header.frame_id != cloud_frame_) {
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
@@ -603,8 +584,6 @@ private:
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
       localized_ = false;
-      runtime_failures_ = 0;
-      last_runtime_attempt_ = {};
       scan_buffer_.clear();
       initial_pose_prior_ = planar_pose;
       pending_attempt_ = true;
@@ -805,125 +784,69 @@ private:
   {
     std::deque<ScanSample> scans;
     Eigen::Isometry3d pose_seed = Eigen::Isometry3d::Identity();
-    Eigen::Isometry3d map_to_odom = Eigen::Isometry3d::Identity();
-    bool initializing = false;
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
-      if (matching_) {
+      if (matching_ || localized_) {
         return;
       }
-      if (!localized_) {
-        if (!pending_attempt_ || !initial_pose_prior_.has_value() ||
-          scan_buffer_.size() < static_cast<std::size_t>(initial_scan_count_))
-        {
-          return;
-        }
-        scans = scan_buffer_;
-        pose_seed = *initial_pose_prior_;
-        pending_attempt_ = false;
-        initializing = true;
-        setStatusLocked(
-          enable_fpfh_ ?
-          "running RViz-guided local FPFH coarse registration" :
-          "running RViz-guided local NDT and GICP registration");
-      } else {
-        const auto now = std::chrono::steady_clock::now();
-        const double period_seconds = 1.0 / runtime_matching_rate_hz_;
-        if (scan_buffer_.empty() ||
-          (last_runtime_attempt_.time_since_epoch().count() != 0 &&
-          std::chrono::duration<double>(now - last_runtime_attempt_).count() < period_seconds))
-        {
-          return;
-        }
-        scans = scan_buffer_;
-        map_to_odom = map_to_odom_;
-        last_runtime_attempt_ = now;
-        setStatusLocked("running low-rate local NDT and GICP map correction");
+      if (!pending_attempt_ || !initial_pose_prior_.has_value() ||
+        scan_buffer_.size() < static_cast<std::size_t>(initial_scan_count_))
+      {
+        return;
       }
+      scans = scan_buffer_;
+      pose_seed = *initial_pose_prior_;
+      pending_attempt_ = false;
+      setStatusLocked(
+        enable_fpfh_ ?
+        "running RViz-guided local FPFH coarse registration" :
+        "running RViz-guided local NDT and GICP registration");
       matching_ = true;
     }
 
     const ScanSample sample = aggregateScans(scans);
     MatchResult result;
-    if (initializing) {
-      const auto started = std::chrono::steady_clock::now();
-      if (enable_fpfh_) {
-        std::string failure_reason;
-        const auto feature_pose =
-          initialFeatureRegistration(sample, pose_seed, failure_reason);
-        if (feature_pose.has_value()) {
-          setStatus("refining local FPFH result with NDT and GICP");
-          result = runRegistration(sample, *feature_pose);
-        } else {
-          result.reason = failure_reason;
-        }
+    const auto started = std::chrono::steady_clock::now();
+    if (enable_fpfh_) {
+      std::string failure_reason;
+      const auto feature_pose =
+        initialFeatureRegistration(sample, pose_seed, failure_reason);
+      if (feature_pose.has_value()) {
+        setStatus("refining local FPFH result with NDT and GICP");
+        result = runRegistration(sample, *feature_pose);
       } else {
-        result = runRegistration(sample, pose_seed);
+        result.reason = failure_reason;
       }
-      result.elapsed_seconds = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - started).count();
     } else {
-      pose_seed = map_to_odom * sample.odom_to_base;
       result = runRegistration(sample, pose_seed);
     }
+    result.elapsed_seconds = std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - started).count();
 
-    Eigen::Isometry3d published_map_to_odom = map_to_odom;
-    bool localization_lost = false;
+    Eigen::Isometry3d published_map_to_odom = Eigen::Isometry3d::Identity();
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
       matching_ = false;
       if (result.accepted) {
-        const Eigen::Isometry3d candidate =
+        map_to_odom_ =
           result.map_to_base * sample.odom_to_base.inverse();
-        if (initializing) {
-          map_to_odom_ = candidate;
-          initial_pose_prior_.reset();
-          scan_buffer_.clear();
-          last_runtime_attempt_ = std::chrono::steady_clock::now();
-          setStatusLocked("initial localization accepted; low-rate map correction enabled");
-        } else {
-          map_to_odom_ = interpolateTransform(
-            map_to_odom_, candidate, runtime_correction_alpha_);
-          setStatusLocked("low-rate NDT and GICP map correction healthy");
-        }
+        initial_pose_prior_.reset();
+        scan_buffer_.clear();
+        setStatusLocked("initial localization accepted; map-to-odom correction fixed");
         localized_ = true;
-        runtime_failures_ = 0;
         published_map_to_odom = map_to_odom_;
       } else {
-        if (initializing) {
-          setStatusLocked(result.reason + "; set a new RViz initial pose to retry");
-        } else {
-          ++runtime_failures_;
-          if (runtime_failures_ >= runtime_failure_limit_) {
-            localized_ = false;
-            localization_lost = true;
-            initial_pose_prior_.reset();
-            pending_attempt_ = false;
-            scan_buffer_.clear();
-            setStatusLocked(
-              "runtime map correction repeatedly failed; set a new RViz initial pose");
-          } else {
-            setStatusLocked(
-              result.reason + "; retaining the previous map-to-odom correction");
-          }
-        }
+        setStatusLocked(result.reason + "; set a new RViz initial pose to retry");
       }
     }
 
     if (!result.accepted) {
       RCLCPP_WARN(
         get_logger(),
-        "%s registration rejected in %.3f s: overlap=%.3f "
-        "inlier_rmse=%.3f m (%s)",
-        initializing ? "Initial" : "Runtime", result.elapsed_seconds,
+        "Initial registration rejected in %.3f s: overlap=%.3f "
+        "inlier_rmse=%.3f m (%s)", result.elapsed_seconds,
         result.overlap, result.inlier_rmse,
         result.reason.c_str());
-      if (localization_lost) {
-        RCLCPP_ERROR(
-          get_logger(),
-          "Runtime map correction failed %d consecutive times; localization is not ready",
-          runtime_failure_limit_);
-      }
       publishHeartbeat();
       return;
     }
@@ -931,10 +854,9 @@ private:
     const auto localized_rpy = rotationRpy(result.map_to_base.linear());
     RCLCPP_INFO(
       get_logger(),
-      "%s registration accepted in %.3f s: pose=(%.3f, %.3f, %.3f, "
+      "Initial registration accepted in %.3f s: pose=(%.3f, %.3f, %.3f, "
       "yaw %.2f deg) overlap=%.3f inlier_rmse=%.3f m",
-      initializing ? "Initial" : "Runtime", result.elapsed_seconds,
-      result.map_to_base.translation().x(),
+      result.elapsed_seconds, result.map_to_base.translation().x(),
       result.map_to_base.translation().y(), result.map_to_base.translation().z(),
       localized_rpy.z() * 180.0 / M_PI, result.overlap, result.inlier_rmse);
 
@@ -1071,9 +993,6 @@ private:
 
   double overlap_distance_{0.50};
   double maximum_inlier_rmse_{0.20};
-  double runtime_matching_rate_hz_{0.25};
-  double runtime_correction_alpha_{0.25};
-  int runtime_failure_limit_{3};
 
   PointCloud::Ptr registration_map_;
   PointCloud::Ptr coarse_registration_map_;
@@ -1089,8 +1008,6 @@ private:
   bool pending_attempt_{false};
   bool matching_{false};
   bool localized_{false};
-  int runtime_failures_{0};
-  std::chrono::steady_clock::time_point last_runtime_attempt_{};
   std::string status_{"starting"};
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;

@@ -225,9 +225,9 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert localizer["coarse_ndt_resolution"] > localizer["fine_ndt_resolution"]
     assert localizer["gicp_max_correspondence_distance"] == 0.50
     assert localizer["maximum_inlier_rmse"] == 0.20
-    assert localizer["runtime_matching_rate_hz"] == 0.25
-    assert localizer["runtime_correction_alpha"] == 0.25
-    assert localizer["runtime_failure_limit"] == 3
+    assert "runtime_matching_rate_hz" not in localizer
+    assert "runtime_correction_alpha" not in localizer
+    assert "runtime_failure_limit" not in localizer
     assert "maximum_translation_refinement" not in localizer
     assert "maximum_yaw_refinement" not in localizer
     assert "minimum_overlap" not in localizer
@@ -250,8 +250,11 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert "cloud_subscription_.reset()" not in localizer_source
     assert "initial_pose_subscription_.reset()" not in localizer_source
     assert "matching_timer_->cancel()" not in localizer_source
-    assert "interpolateTransform" in localizer_source
-    assert "runtime map correction repeatedly failed" in localizer_source
+    assert "interpolateTransform" not in localizer_source
+    assert "Runtime registration" not in localizer_source
+    assert "runtime map correction" not in localizer_source
+    assert "if (matching_ || localized_)" in localizer_source
+    assert "initial localization accepted; map-to-odom correction fixed" in localizer_source
     assert "result.inlier_rmse > maximum_inlier_rmse_" in localizer_source
     assert "result moved too far from the RViz position prior" not in localizer_source
     assert "result disagrees with the RViz heading prior" not in localizer_source
