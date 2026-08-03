@@ -44,6 +44,28 @@ def load_config(name, vehicle=None):
         return yaml.safe_load(stream)
 
 
+def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
+    mounts = load_config("sensor_mounts.yaml")
+    eskf = load_config("kf_gins_n300pro.yaml")["rtk_eskf_localization"][
+        "ros__parameters"
+    ]
+    rtk = load_config("rtk_nmea.yaml")["rtk_nmea"]["ros__parameters"]
+
+    imu_xyz = mounts["imu"]["xyz"]
+    rtk_xyz = mounts["rtk"]["xyz"]
+    expected_lever_arm = [
+        rtk_coordinate - imu_coordinate
+        for rtk_coordinate, imu_coordinate in zip(rtk_xyz, imu_xyz)
+    ]
+
+    assert rtk_xyz == pytest.approx([-0.0884, 0.1480, 0.24476])
+    assert mounts["rtk"]["rpy"] == [0.0, 0.0, 0.0]
+    assert rtk_xyz[1] > 0.0
+    assert eskf["antlever_m"] == pytest.approx(expected_lever_arm)
+    assert eskf["antlever_m"] == pytest.approx([-0.2309, 0.1480, 0.10176])
+    assert rtk["heading_offset_deg"] == -90.0
+
+
 def assert_c16_stvl(
     costmap,
     obstacle_range,

@@ -57,5 +57,5 @@ rtk_eskf_localization:
     imunoise_asstd_ppm: [1000.0, 1000.0, 1000.0]
     imunoise_corrtime_hr: 1.0
 
-    # RTK antenna position in the IMU frame; measure before field use.
-    antlever_m: [0.0, 0.0, 0.0]
+    # Left master antenna; use its physical top until a manufacturer PCO is known.
+    antlever_m: [-0.2309, 0.1480, 0.10176]
