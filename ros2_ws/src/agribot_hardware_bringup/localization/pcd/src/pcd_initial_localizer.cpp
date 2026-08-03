@@ -20,6 +20,8 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <pcl/common/transforms.h>
+#include <pcl/features/fpfh.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/io/pcd_io.h>
@@ -28,6 +30,8 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/gicp.h>
 #include <pcl/registration/ndt.h>
+#include <pcl/registration/sample_consensus_prerejective.h>
+#include <pcl/search/kdtree.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -43,6 +47,8 @@ namespace
 using namespace std::chrono_literals;
 using Point = pcl::PointXYZI;
 using PointCloud = pcl::PointCloud<Point>;
+using Feature = pcl::FPFHSignature33;
+using FeatureCloud = pcl::PointCloud<Feature>;
 
 Eigen::Isometry3d poseToIsometry(const geometry_msgs::msg::Pose & pose)
 {
@@ -100,6 +106,22 @@ geometry_msgs::msg::Quaternion quaternionMessage(const Eigen::Matrix3d & rotatio
   return result;
 }
 
+Eigen::Isometry3d interpolateTransform(
+  const Eigen::Isometry3d & from,
+  const Eigen::Isometry3d & to,
+  double alpha)
+{
+  const double bounded_alpha = std::clamp(alpha, 0.0, 1.0);
+  Eigen::Quaterniond from_quaternion(from.linear());
+  Eigen::Quaterniond to_quaternion(to.linear());
+  Eigen::Isometry3d result = Eigen::Isometry3d::Identity();
+  result.linear() =
+    from_quaternion.slerp(bounded_alpha, to_quaternion).normalized().toRotationMatrix();
+  result.translation() =
+    (1.0 - bounded_alpha) * from.translation() + bounded_alpha * to.translation();
+  return result;
+}
+
 class PcdInitialLocalizer final : public rclcpp::Node
 {
 public:
@@ -147,8 +169,9 @@ public:
     publishMap();
     RCLCPP_INFO(
       get_logger(),
-      "One-shot 3D initial localizer ready: map=%s points=%zu; no runtime map matching",
-      map_file_path_.c_str(), registration_map_->size());
+      "3D map localizer ready: map=%s points=%zu; RViz-guided FPFH initialization "
+      "and %.2f Hz runtime correction enabled",
+      map_file_path_.c_str(), registration_map_->size(), runtime_matching_rate_hz_);
   }
 
 private:
@@ -209,6 +232,9 @@ private:
     map_voxel_size_ = declare_parameter<double>("map_voxel_size", 0.15);
     coarse_voxel_size_ = declare_parameter<double>("coarse_voxel_size", 0.30);
     scan_voxel_size_ = declare_parameter<double>("scan_voxel_size", 0.10);
+    feature_voxel_size_ = declare_parameter<double>("feature_voxel_size", 0.35);
+    normal_radius_ = declare_parameter<double>("normal_radius", 0.70);
+    feature_radius_ = declare_parameter<double>("feature_radius", 1.10);
     min_range_ = declare_parameter<double>("min_range", 0.50);
     max_range_ = declare_parameter<double>("max_range", 30.0);
     min_z_ = declare_parameter<double>("min_z", -0.50);
@@ -219,6 +245,17 @@ private:
     local_submap_radius_ = declare_parameter<double>("local_submap_radius", 8.0);
     local_submap_min_points_ =
       declare_parameter<int>("local_submap_min_points", 300);
+
+    fpfh_max_iterations_ =
+      declare_parameter<int>("fpfh_max_iterations", 12000);
+    fpfh_correspondence_randomness_ =
+      declare_parameter<int>("fpfh_correspondence_randomness", 5);
+    fpfh_similarity_threshold_ =
+      declare_parameter<double>("fpfh_similarity_threshold", 0.85);
+    fpfh_max_correspondence_distance_ =
+      declare_parameter<double>("fpfh_max_correspondence_distance", 0.90);
+    fpfh_inlier_fraction_ =
+      declare_parameter<double>("fpfh_inlier_fraction", 0.12);
 
     coarse_ndt_resolution_ =
       declare_parameter<double>("coarse_ndt_resolution", 0.75);
@@ -244,6 +281,12 @@ private:
     overlap_distance_ = declare_parameter<double>("overlap_distance", 0.50);
     maximum_inlier_rmse_ =
       declare_parameter<double>("maximum_inlier_rmse", 0.20);
+    runtime_matching_rate_hz_ =
+      declare_parameter<double>("runtime_matching_rate_hz", 0.25);
+    runtime_correction_alpha_ =
+      declare_parameter<double>("runtime_correction_alpha", 0.25);
+    runtime_failure_limit_ =
+      declare_parameter<int>("runtime_failure_limit", 3);
   }
 
   void validateParameters() const
@@ -254,12 +297,21 @@ private:
       throw std::runtime_error("map_file_path must point to a PCD map");
     }
     if (map_voxel_size_ <= 0.0 || coarse_voxel_size_ < map_voxel_size_ ||
-      scan_voxel_size_ <= 0.0 || min_range_ < 0.0 || max_range_ <= min_range_ ||
+      scan_voxel_size_ <= 0.0 || feature_voxel_size_ <= 0.0 ||
+      normal_radius_ <= feature_voxel_size_ || feature_radius_ <= normal_radius_ ||
+      min_range_ < 0.0 || max_range_ <= min_range_ ||
       max_z_ <= min_z_ || min_scan_points_ < 20 || initial_scan_count_ < 1 ||
       max_odom_age_ <= 0.0 || local_submap_radius_ <= 0.0 ||
       local_submap_min_points_ < 100)
     {
       throw std::runtime_error("invalid map, scan, or local-submap parameters");
+    }
+    if (fpfh_max_iterations_ < 1 || fpfh_correspondence_randomness_ < 1 ||
+      fpfh_similarity_threshold_ <= 0.0 || fpfh_similarity_threshold_ > 1.0 ||
+      fpfh_max_correspondence_distance_ <= 0.0 ||
+      fpfh_inlier_fraction_ <= 0.0 || fpfh_inlier_fraction_ > 1.0)
+    {
+      throw std::runtime_error("invalid FPFH prerejective registration parameters");
     }
     if (coarse_ndt_resolution_ <= fine_ndt_resolution_ ||
       fine_ndt_resolution_ <= 0.0 || coarse_ndt_step_size_ <= 0.0 ||
@@ -270,9 +322,11 @@ private:
     {
       throw std::runtime_error("invalid NDT or GICP parameters");
     }
-    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0)
+    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0 ||
+      runtime_matching_rate_hz_ <= 0.0 || runtime_correction_alpha_ <= 0.0 ||
+      runtime_correction_alpha_ > 1.0 || runtime_failure_limit_ < 1)
     {
-      throw std::runtime_error("invalid initial-pose validation parameters");
+      throw std::runtime_error("invalid registration validation or runtime parameters");
     }
   }
 
@@ -334,6 +388,74 @@ private:
     return output;
   }
 
+  std::pair<PointCloud::Ptr, FeatureCloud::Ptr> computeFeatures(
+    const PointCloud::ConstPtr & input) const
+  {
+    auto normals = std::make_shared<pcl::PointCloud<pcl::Normal>>();
+    pcl::NormalEstimation<Point, pcl::Normal> normal_estimation;
+    normal_estimation.setInputCloud(input);
+    normal_estimation.setSearchMethod(std::make_shared<pcl::search::KdTree<Point>>());
+    normal_estimation.setRadiusSearch(normal_radius_);
+    normal_estimation.compute(*normals);
+
+    auto raw_features = std::make_shared<FeatureCloud>();
+    pcl::FPFHEstimation<Point, pcl::Normal, Feature> feature_estimation;
+    feature_estimation.setInputCloud(input);
+    feature_estimation.setInputNormals(normals);
+    feature_estimation.setSearchMethod(std::make_shared<pcl::search::KdTree<Point>>());
+    feature_estimation.setRadiusSearch(feature_radius_);
+    feature_estimation.compute(*raw_features);
+
+    auto points = std::make_shared<PointCloud>();
+    auto features = std::make_shared<FeatureCloud>();
+    points->reserve(input->size());
+    features->reserve(input->size());
+    for (std::size_t index = 0; index < input->size(); ++index) {
+      const auto & normal = normals->points[index];
+      const auto & feature = raw_features->points[index];
+      bool finite = std::isfinite(normal.normal_x) &&
+        std::isfinite(normal.normal_y) && std::isfinite(normal.normal_z);
+      for (float value : feature.histogram) {
+        finite = finite && std::isfinite(value);
+      }
+      if (finite) {
+        points->push_back(input->points[index]);
+        features->push_back(feature);
+      }
+    }
+    points->width = static_cast<std::uint32_t>(points->size());
+    points->height = 1;
+    points->is_dense = true;
+    features->width = static_cast<std::uint32_t>(features->size());
+    features->height = 1;
+    features->is_dense = true;
+    return {points, features};
+  }
+
+  std::pair<PointCloud::Ptr, FeatureCloud::Ptr> cropFeatureMap(
+    const Eigen::Vector3d & center) const
+  {
+    auto points = std::make_shared<PointCloud>();
+    auto features = std::make_shared<FeatureCloud>();
+    const double radius_squared = local_submap_radius_ * local_submap_radius_;
+    for (std::size_t index = 0; index < feature_map_->size(); ++index) {
+      const auto & point = feature_map_->points[index];
+      const double delta_x = static_cast<double>(point.x) - center.x();
+      const double delta_y = static_cast<double>(point.y) - center.y();
+      if (delta_x * delta_x + delta_y * delta_y <= radius_squared) {
+        points->push_back(point);
+        features->push_back(map_features_->points[index]);
+      }
+    }
+    points->width = static_cast<std::uint32_t>(points->size());
+    points->height = 1;
+    points->is_dense = true;
+    features->width = static_cast<std::uint32_t>(features->size());
+    features->height = 1;
+    features->is_dense = true;
+    return {points, features};
+  }
+
   void loadMap()
   {
     auto raw_map = std::make_shared<PointCloud>();
@@ -346,6 +468,13 @@ private:
     coarse_registration_map_ = voxelize(raw_map, coarse_voxel_size_);
     if (registration_map_->size() < 100U) {
       throw std::runtime_error("PCD map has too few usable points");
+    }
+    const auto feature_input = voxelize(registration_map_, feature_voxel_size_);
+    const auto feature_pair = computeFeatures(feature_input);
+    feature_map_ = feature_pair.first;
+    map_features_ = feature_pair.second;
+    if (feature_map_->size() < 100U) {
+      throw std::runtime_error("PCD map has too few valid FPFH features");
     }
     map_tree_.setInputCloud(registration_map_);
   }
@@ -360,7 +489,7 @@ private:
       odometry_buffer_.begin(), odometry_buffer_.end(),
       [&stamp](const TimedPose & left, const TimedPose & right) {
         return std::abs((left.stamp - stamp).seconds()) <
-               std::abs((right.stamp - stamp).seconds());
+        std::abs((right.stamp - stamp).seconds());
       });
     if (std::abs((closest->stamp - stamp).seconds()) > max_odom_age_) {
       return std::nullopt;
@@ -403,12 +532,6 @@ private:
 
   void handleCloud(const sensor_msgs::msg::PointCloud2::SharedPtr message)
   {
-    {
-      std::lock_guard<std::mutex> guard(state_mutex_);
-      if (localized_) {
-        return;
-      }
-    }
     if (!cloud_frame_.empty() && message->header.frame_id != cloud_frame_) {
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
@@ -435,7 +558,7 @@ private:
     if (base_cloud->size() < static_cast<std::size_t>(min_scan_points_)) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Initial scan has only %zu usable points; need at least %d",
+        "Registration scan has only %zu usable points; need at least %d",
         base_cloud->size(), min_scan_points_);
       return;
     }
@@ -473,21 +596,20 @@ private:
 
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
-      if (localized_) {
-        RCLCPP_WARN(
-          get_logger(),
-          "Initial localization is already frozen; restart the stack to initialize again");
-        return;
-      }
+      localized_ = false;
+      runtime_failures_ = 0;
+      last_runtime_attempt_ = {};
+      scan_buffer_.clear();
       initial_pose_prior_ = planar_pose;
       pending_attempt_ = true;
-      setStatusLocked("initial pose received; collecting stationary scans");
+      setStatusLocked("initial pose received; collecting scans for local FPFH initialization");
     }
     const auto rpy = rotationRpy(planar_pose.linear());
     RCLCPP_INFO(
       get_logger(), "Initial pose prior: x=%.2f y=%.2f yaw=%.1f deg",
       planar_pose.translation().x(), planar_pose.translation().y(),
       rpy.z() * 180.0 / M_PI);
+    publishHeartbeat();
   }
 
   ScanSample aggregateScans(const std::deque<ScanSample> & scans) const
@@ -559,6 +681,46 @@ private:
     return {
       static_cast<double>(inliers) / static_cast<double>(source->size()),
       std::sqrt(squared_error / static_cast<double>(inliers))};
+  }
+
+  std::optional<Eigen::Isometry3d> initialFeatureRegistration(
+    const ScanSample & sample,
+    const Eigen::Isometry3d & initial_pose,
+    std::string & failure_reason) const
+  {
+    const auto feature_input = voxelize(sample.cloud_base, feature_voxel_size_);
+    const auto source_pair = computeFeatures(feature_input);
+    const auto target_pair = cropFeatureMap(initial_pose.translation());
+    if (source_pair.first->size() < 50U) {
+      failure_reason = "too few source FPFH features";
+      return std::nullopt;
+    }
+    if (target_pair.first->size() < 100U) {
+      failure_reason = "local PCD submap has too few FPFH features";
+      return std::nullopt;
+    }
+
+    pcl::SampleConsensusPrerejective<Point, Point, Feature> registration;
+    registration.setInputSource(source_pair.first);
+    registration.setSourceFeatures(source_pair.second);
+    registration.setInputTarget(target_pair.first);
+    registration.setTargetFeatures(target_pair.second);
+    registration.setMaximumIterations(fpfh_max_iterations_);
+    registration.setNumberOfSamples(3);
+    registration.setCorrespondenceRandomness(fpfh_correspondence_randomness_);
+    registration.setSimilarityThreshold(
+      static_cast<float>(fpfh_similarity_threshold_));
+    registration.setMaxCorrespondenceDistance(
+      static_cast<float>(fpfh_max_correspondence_distance_));
+    registration.setInlierFraction(static_cast<float>(fpfh_inlier_fraction_));
+
+    PointCloud aligned;
+    registration.align(aligned);
+    if (!registration.hasConverged()) {
+      failure_reason = "local FPFH prerejective registration did not converge";
+      return std::nullopt;
+    }
+    return Eigen::Isometry3d(registration.getFinalTransformation().cast<double>());
   }
 
   MatchResult runRegistration(
@@ -633,44 +795,119 @@ private:
   void tryInitialMatch()
   {
     std::deque<ScanSample> scans;
-    Eigen::Isometry3d initial_pose = Eigen::Isometry3d::Identity();
+    Eigen::Isometry3d pose_seed = Eigen::Isometry3d::Identity();
+    Eigen::Isometry3d map_to_odom = Eigen::Isometry3d::Identity();
+    bool initializing = false;
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
-      if (localized_ || matching_ || !pending_attempt_ ||
-        !initial_pose_prior_.has_value() ||
-        scan_buffer_.size() < static_cast<std::size_t>(initial_scan_count_))
-      {
+      if (matching_) {
         return;
       }
-      scans = scan_buffer_;
-      initial_pose = *initial_pose_prior_;
-      pending_attempt_ = false;
+      if (!localized_) {
+        if (!pending_attempt_ || !initial_pose_prior_.has_value() ||
+          scan_buffer_.size() < static_cast<std::size_t>(initial_scan_count_))
+        {
+          return;
+        }
+        scans = scan_buffer_;
+        pose_seed = *initial_pose_prior_;
+        pending_attempt_ = false;
+        initializing = true;
+        setStatusLocked("running RViz-guided local FPFH coarse registration");
+      } else {
+        const auto now = std::chrono::steady_clock::now();
+        const double period_seconds = 1.0 / runtime_matching_rate_hz_;
+        if (scan_buffer_.empty() ||
+          (last_runtime_attempt_.time_since_epoch().count() != 0 &&
+          std::chrono::duration<double>(now - last_runtime_attempt_).count() < period_seconds))
+        {
+          return;
+        }
+        scans = scan_buffer_;
+        map_to_odom = map_to_odom_;
+        last_runtime_attempt_ = now;
+        setStatusLocked("running low-rate local NDT and GICP map correction");
+      }
       matching_ = true;
-      setStatusLocked("running one-shot local NDT and GICP");
     }
 
     const ScanSample sample = aggregateScans(scans);
-    const MatchResult result = runRegistration(sample, initial_pose);
+    MatchResult result;
+    if (initializing) {
+      const auto started = std::chrono::steady_clock::now();
+      std::string failure_reason;
+      const auto feature_pose =
+        initialFeatureRegistration(sample, pose_seed, failure_reason);
+      if (feature_pose.has_value()) {
+        setStatus("refining local FPFH result with NDT and GICP");
+        result = runRegistration(sample, *feature_pose);
+      } else {
+        result.reason = failure_reason;
+      }
+      result.elapsed_seconds = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - started).count();
+    } else {
+      pose_seed = map_to_odom * sample.odom_to_base;
+      result = runRegistration(sample, pose_seed);
+    }
+
+    Eigen::Isometry3d published_map_to_odom = map_to_odom;
+    bool localization_lost = false;
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
       matching_ = false;
       if (result.accepted) {
-        map_to_odom_ = result.map_to_base * sample.odom_to_base.inverse();
+        const Eigen::Isometry3d candidate =
+          result.map_to_base * sample.odom_to_base.inverse();
+        if (initializing) {
+          map_to_odom_ = candidate;
+          initial_pose_prior_.reset();
+          scan_buffer_.clear();
+          last_runtime_attempt_ = std::chrono::steady_clock::now();
+          setStatusLocked("initial localization accepted; low-rate map correction enabled");
+        } else {
+          map_to_odom_ = interpolateTransform(
+            map_to_odom_, candidate, runtime_correction_alpha_);
+          setStatusLocked("low-rate NDT and GICP map correction healthy");
+        }
         localized_ = true;
-        scan_buffer_.clear();
-        setStatusLocked("initial localization frozen; runtime map matching is disabled");
+        runtime_failures_ = 0;
+        published_map_to_odom = map_to_odom_;
       } else {
-        setStatusLocked(result.reason + "; set a new RViz initial pose to retry");
+        if (initializing) {
+          setStatusLocked(result.reason + "; set a new RViz initial pose to retry");
+        } else {
+          ++runtime_failures_;
+          if (runtime_failures_ >= runtime_failure_limit_) {
+            localized_ = false;
+            localization_lost = true;
+            initial_pose_prior_.reset();
+            pending_attempt_ = false;
+            scan_buffer_.clear();
+            setStatusLocked(
+              "runtime map correction repeatedly failed; set a new RViz initial pose");
+          } else {
+            setStatusLocked(
+              result.reason + "; retaining the previous map-to-odom correction");
+          }
+        }
       }
     }
 
     if (!result.accepted) {
       RCLCPP_WARN(
         get_logger(),
-        "Initial registration rejected in %.3f s: overlap=%.3f "
+        "%s registration rejected in %.3f s: overlap=%.3f "
         "inlier_rmse=%.3f m (%s)",
-        result.elapsed_seconds, result.overlap, result.inlier_rmse,
+        initializing ? "Initial" : "Runtime", result.elapsed_seconds,
+        result.overlap, result.inlier_rmse,
         result.reason.c_str());
+      if (localization_lost) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "Runtime map correction failed %d consecutive times; localization is not ready",
+          runtime_failure_limit_);
+      }
       publishHeartbeat();
       return;
     }
@@ -678,19 +915,16 @@ private:
     const auto localized_rpy = rotationRpy(result.map_to_base.linear());
     RCLCPP_INFO(
       get_logger(),
-      "Initial registration accepted in %.3f s: pose=(%.3f, %.3f, %.3f, "
+      "%s registration accepted in %.3f s: pose=(%.3f, %.3f, %.3f, "
       "yaw %.2f deg) overlap=%.3f inlier_rmse=%.3f m",
-      result.elapsed_seconds, result.map_to_base.translation().x(),
+      initializing ? "Initial" : "Runtime", result.elapsed_seconds,
+      result.map_to_base.translation().x(),
       result.map_to_base.translation().y(), result.map_to_base.translation().z(),
       localized_rpy.z() * 180.0 / M_PI, result.overlap, result.inlier_rmse);
 
     publishAlignedCloud(sample, result.map_to_base);
-    publishTransform(sample.stamp, map_to_odom_);
+    publishTransform(sample.stamp, published_map_to_odom);
     publishHeartbeat();
-    cloud_subscription_.reset();
-    initial_pose_subscription_.reset();
-    matching_timer_->cancel();
-    coarse_registration_map_.reset();
   }
 
   void setStatusLocked(const std::string & status)
@@ -787,6 +1021,9 @@ private:
   double map_voxel_size_{0.15};
   double coarse_voxel_size_{0.30};
   double scan_voxel_size_{0.10};
+  double feature_voxel_size_{0.35};
+  double normal_radius_{0.70};
+  double feature_radius_{1.10};
   double min_range_{0.50};
   double max_range_{30.0};
   double min_z_{-0.50};
@@ -796,6 +1033,12 @@ private:
   double max_odom_age_{0.15};
   double local_submap_radius_{8.0};
   int local_submap_min_points_{300};
+
+  int fpfh_max_iterations_{12000};
+  int fpfh_correspondence_randomness_{5};
+  double fpfh_similarity_threshold_{0.85};
+  double fpfh_max_correspondence_distance_{0.90};
+  double fpfh_inlier_fraction_{0.12};
 
   double coarse_ndt_resolution_{0.75};
   double coarse_ndt_step_size_{0.25};
@@ -810,9 +1053,14 @@ private:
 
   double overlap_distance_{0.50};
   double maximum_inlier_rmse_{0.20};
+  double runtime_matching_rate_hz_{0.25};
+  double runtime_correction_alpha_{0.25};
+  int runtime_failure_limit_{3};
 
   PointCloud::Ptr registration_map_;
   PointCloud::Ptr coarse_registration_map_;
+  PointCloud::Ptr feature_map_;
+  FeatureCloud::Ptr map_features_;
   pcl::KdTreeFLANN<Point> map_tree_;
 
   std::mutex state_mutex_;
@@ -823,6 +1071,8 @@ private:
   bool pending_attempt_{false};
   bool matching_{false};
   bool localized_{false};
+  int runtime_failures_{0};
+  std::chrono::steady_clock::time_point last_runtime_attempt_{};
   std::string status_{"starting"};
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;

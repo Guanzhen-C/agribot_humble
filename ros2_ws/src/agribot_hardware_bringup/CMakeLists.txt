@@ -14,10 +14,12 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(PCL REQUIRED COMPONENTS
   common
+  features
   filters
   io
   kdtree
   registration
+  search
 )
 find_package(pcl_conversions REQUIRED)
 find_package(rclcpp REQUIRED)

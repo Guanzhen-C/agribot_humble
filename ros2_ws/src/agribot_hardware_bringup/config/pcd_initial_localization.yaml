@@ -17,6 +17,9 @@ pcd_initial_localizer:
     map_voxel_size: 0.15
     coarse_voxel_size: 0.30
     scan_voxel_size: 0.10
+    feature_voxel_size: 0.35
+    normal_radius: 0.70
+    feature_radius: 1.10
     min_range: 0.50
     max_range: 30.0
     min_z: -0.50
@@ -27,7 +30,14 @@ pcd_initial_localizer:
     local_submap_radius: 8.0
     local_submap_min_points: 300
 
-    # PCL NDT gives a fast local capture; PCL GICP refines the accepted pose.
+    # The RViz prior selects the local map; FPFH recovers the coarse 6-DoF pose once.
+    fpfh_max_iterations: 12000
+    fpfh_correspondence_randomness: 5
+    fpfh_similarity_threshold: 0.85
+    fpfh_max_correspondence_distance: 0.90
+    fpfh_inlier_fraction: 0.12
+
+    # PCL NDT gives a fast local capture; PCL GICP refines each accepted pose.
     coarse_ndt_resolution: 0.75
     coarse_ndt_step_size: 0.25
     coarse_ndt_max_iterations: 40
@@ -41,3 +51,8 @@ pcd_initial_localizer:
 
     overlap_distance: 0.50
     maximum_inlier_rmse: 0.20
+
+    # Runtime correction starts from FAST-LIO's predicted map pose; FPFH is not repeated.
+    runtime_matching_rate_hz: 0.25
+    runtime_correction_alpha: 0.25
+    runtime_failure_limit: 3

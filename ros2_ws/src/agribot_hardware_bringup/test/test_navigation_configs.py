@@ -185,7 +185,7 @@ def test_c16_driver_does_not_publish_legacy_scan():
     assert "scan_num" not in lidar
 
 
-def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
+def test_3d_mapping_and_mapped_navigation_use_fpfh_ndt_gicp_localization():
     mapping = load_config("pcd_mapping.yaml")["pcd_map_builder"]["ros__parameters"]
     localizer = load_config("pcd_initial_localization.yaml")[
         "pcd_initial_localizer"
@@ -216,9 +216,16 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
     assert localizer["initial_scan_count"] == 5
     assert localizer["local_submap_radius"] == 8.0
+    assert localizer["feature_voxel_size"] == 0.35
+    assert localizer["normal_radius"] > localizer["feature_voxel_size"]
+    assert localizer["feature_radius"] > localizer["normal_radius"]
+    assert localizer["fpfh_max_iterations"] == 12000
     assert localizer["coarse_ndt_resolution"] > localizer["fine_ndt_resolution"]
     assert localizer["gicp_max_correspondence_distance"] == 0.50
     assert localizer["maximum_inlier_rmse"] == 0.20
+    assert localizer["runtime_matching_rate_hz"] == 0.25
+    assert localizer["runtime_correction_alpha"] == 0.25
+    assert localizer["runtime_failure_limit"] == 3
     assert "maximum_translation_refinement" not in localizer
     assert "maximum_yaw_refinement" not in localizer
     assert "minimum_overlap" not in localizer
@@ -232,18 +239,21 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
         / "src"
         / "pcd_initial_localizer.cpp"
     ).read_text()
+    assert "pcl::FPFHEstimation" in localizer_source
+    assert "pcl::SampleConsensusPrerejective" in localizer_source
     assert "pcl::NormalDistributionsTransform" in localizer_source
     assert "pcl::GeneralizedIterativeClosestPoint" in localizer_source
-    assert "cloud_subscription_.reset()" in localizer_source
-    assert "initial_pose_subscription_.reset()" in localizer_source
-    assert "matching_timer_->cancel()" in localizer_source
+    assert "cloud_subscription_.reset()" not in localizer_source
+    assert "initial_pose_subscription_.reset()" not in localizer_source
+    assert "matching_timer_->cancel()" not in localizer_source
+    assert "interpolateTransform" in localizer_source
+    assert "runtime map correction repeatedly failed" in localizer_source
     assert "result.inlier_rmse > maximum_inlier_rmse_" in localizer_source
     assert "result moved too far from the RViz position prior" not in localizer_source
     assert "result disagrees with the RViz heading prior" not in localizer_source
     assert "scan-to-map overlap is below the acceptance limit" not in localizer_source
     assert "result has implausible roll or pitch" not in localizer_source
     assert "result has implausible rear-axle height" not in localizer_source
-    assert "SampleConsensusPrerejective" not in localizer_source
 
 
 def test_ackermann_configs_use_step_model_rear_axle_footprint():
