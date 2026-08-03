@@ -218,9 +218,12 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
     assert localizer["local_submap_radius"] == 8.0
     assert localizer["coarse_ndt_resolution"] > localizer["fine_ndt_resolution"]
     assert localizer["gicp_max_correspondence_distance"] == 0.50
-    assert localizer["maximum_translation_refinement"] == 0.75
-    assert localizer["minimum_overlap"] >= 0.55
-    assert localizer["maximum_inlier_rmse"] == 0.0
+    assert localizer["maximum_inlier_rmse"] == 0.20
+    assert "maximum_translation_refinement" not in localizer
+    assert "maximum_yaw_refinement" not in localizer
+    assert "minimum_overlap" not in localizer
+    assert "maximum_tilt" not in localizer
+    assert "maximum_base_height" not in localizer
 
     localizer_source = (
         PACKAGE_ROOT
@@ -234,7 +237,12 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
     assert "cloud_subscription_.reset()" in localizer_source
     assert "initial_pose_subscription_.reset()" in localizer_source
     assert "matching_timer_->cancel()" in localizer_source
-    assert "maximum_inlier_rmse_ > 0.0" in localizer_source
+    assert "result.inlier_rmse > maximum_inlier_rmse_" in localizer_source
+    assert "result moved too far from the RViz position prior" not in localizer_source
+    assert "result disagrees with the RViz heading prior" not in localizer_source
+    assert "scan-to-map overlap is below the acceptance limit" not in localizer_source
+    assert "result has implausible roll or pitch" not in localizer_source
+    assert "result has implausible rear-axle height" not in localizer_source
     assert "SampleConsensusPrerejective" not in localizer_source
 
 

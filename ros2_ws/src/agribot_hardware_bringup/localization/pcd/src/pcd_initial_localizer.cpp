@@ -88,12 +88,6 @@ Eigen::Vector3d rotationRpy(const Eigen::Matrix3d & rotation)
     std::atan2(rotation(1, 0), rotation(0, 0)));
 }
 
-double angularDistance(double first, double second)
-{
-  return std::abs(std::atan2(
-      std::sin(first - second), std::cos(first - second)));
-}
-
 geometry_msgs::msg::Quaternion quaternionMessage(const Eigen::Matrix3d & rotation)
 {
   Eigen::Quaterniond quaternion(rotation);
@@ -247,17 +241,9 @@ private:
     gicp_correspondence_randomness_ =
       declare_parameter<int>("gicp_correspondence_randomness", 20);
 
-    maximum_translation_refinement_ =
-      declare_parameter<double>("maximum_translation_refinement", 0.75);
-    maximum_yaw_refinement_ =
-      declare_parameter<double>("maximum_yaw_refinement", 0.35);
     overlap_distance_ = declare_parameter<double>("overlap_distance", 0.50);
-    minimum_overlap_ = declare_parameter<double>("minimum_overlap", 0.55);
     maximum_inlier_rmse_ =
       declare_parameter<double>("maximum_inlier_rmse", 0.20);
-    maximum_tilt_ = declare_parameter<double>("maximum_tilt", 0.25);
-    maximum_base_height_ =
-      declare_parameter<double>("maximum_base_height", 0.50);
   }
 
   void validateParameters() const
@@ -284,11 +270,7 @@ private:
     {
       throw std::runtime_error("invalid NDT or GICP parameters");
     }
-    if (maximum_translation_refinement_ <= 0.0 ||
-      maximum_yaw_refinement_ <= 0.0 || maximum_yaw_refinement_ > M_PI ||
-      overlap_distance_ <= 0.0 || minimum_overlap_ <= 0.0 ||
-      minimum_overlap_ > 1.0 ||
-      maximum_tilt_ <= 0.0 || maximum_base_height_ <= 0.0)
+    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0)
     {
       throw std::runtime_error("invalid initial-pose validation parameters");
     }
@@ -639,26 +621,7 @@ private:
     result.overlap = quality.overlap;
     result.inlier_rmse = quality.inlier_rmse;
 
-    const double translation_refinement =
-      (result.map_to_base.translation().head<2>() -
-      initial_pose.translation().head<2>()).norm();
-    const auto result_rpy = rotationRpy(result.map_to_base.linear());
-    const auto initial_rpy = rotationRpy(initial_pose.linear());
-    if (translation_refinement > maximum_translation_refinement_) {
-      result.reason = "result moved too far from the RViz position prior";
-    } else if (angularDistance(result_rpy.z(), initial_rpy.z()) > maximum_yaw_refinement_) {
-      result.reason = "result disagrees with the RViz heading prior";
-    } else if (std::abs(result_rpy.x()) > maximum_tilt_ ||
-      std::abs(result_rpy.y()) > maximum_tilt_)
-    {
-      result.reason = "result has implausible roll or pitch";
-    } else if (std::abs(result.map_to_base.translation().z()) > maximum_base_height_) {
-      result.reason = "result has implausible rear-axle height";
-    } else if (result.overlap < minimum_overlap_) {
-      result.reason = "scan-to-map overlap is below the acceptance limit";
-    } else if (maximum_inlier_rmse_ > 0.0 &&
-      result.inlier_rmse > maximum_inlier_rmse_)
-    {
+    if (result.inlier_rmse > maximum_inlier_rmse_) {
       result.reason = "scan-to-map inlier RMSE is above the acceptance limit";
     } else {
       result.accepted = true;
@@ -845,13 +808,8 @@ private:
   int gicp_max_iterations_{40};
   int gicp_correspondence_randomness_{20};
 
-  double maximum_translation_refinement_{0.75};
-  double maximum_yaw_refinement_{0.35};
   double overlap_distance_{0.50};
-  double minimum_overlap_{0.55};
   double maximum_inlier_rmse_{0.20};
-  double maximum_tilt_{0.25};
-  double maximum_base_height_{0.50};
 
   PointCloud::Ptr registration_map_;
   PointCloud::Ptr coarse_registration_map_;

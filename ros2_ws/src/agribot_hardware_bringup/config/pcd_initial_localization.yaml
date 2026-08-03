@@ -39,12 +39,5 @@ pcd_initial_localizer:
     gicp_max_iterations: 40
     gicp_correspondence_randomness: 20
 
-    # The corridor is geometrically repetitive, so RViz provides the place/heading prior.
-    maximum_translation_refinement: 0.75
-    maximum_yaw_refinement: 0.35
     overlap_distance: 0.50
-    minimum_overlap: 0.55
-    # A non-positive value disables the inlier-RMSE acceptance gate.
-    maximum_inlier_rmse: 0.0
-    maximum_tilt: 0.25
-    maximum_base_height: 0.50
+    maximum_inlier_rmse: 0.20
