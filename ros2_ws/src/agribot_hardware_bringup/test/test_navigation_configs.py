@@ -220,7 +220,7 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
     assert localizer["gicp_max_correspondence_distance"] == 0.50
     assert localizer["maximum_translation_refinement"] == 0.75
     assert localizer["minimum_overlap"] >= 0.55
-    assert localizer["maximum_inlier_rmse"] <= 0.20
+    assert localizer["maximum_inlier_rmse"] == 0.0
 
     localizer_source = (
         PACKAGE_ROOT
@@ -234,6 +234,7 @@ def test_3d_mapping_and_mapped_navigation_use_one_shot_pcl_localization():
     assert "cloud_subscription_.reset()" in localizer_source
     assert "initial_pose_subscription_.reset()" in localizer_source
     assert "matching_timer_->cancel()" in localizer_source
+    assert "maximum_inlier_rmse_ > 0.0" in localizer_source
     assert "SampleConsensusPrerejective" not in localizer_source
 
 

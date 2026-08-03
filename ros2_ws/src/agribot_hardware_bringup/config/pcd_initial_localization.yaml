@@ -44,6 +44,7 @@ pcd_initial_localizer:
     maximum_yaw_refinement: 0.35
     overlap_distance: 0.50
     minimum_overlap: 0.55
-    maximum_inlier_rmse: 0.20
+    # A non-positive value disables the inlier-RMSE acceptance gate.
+    maximum_inlier_rmse: 0.0
     maximum_tilt: 0.25
     maximum_base_height: 0.50

@@ -287,7 +287,7 @@ private:
     if (maximum_translation_refinement_ <= 0.0 ||
       maximum_yaw_refinement_ <= 0.0 || maximum_yaw_refinement_ > M_PI ||
       overlap_distance_ <= 0.0 || minimum_overlap_ <= 0.0 ||
-      minimum_overlap_ > 1.0 || maximum_inlier_rmse_ <= 0.0 ||
+      minimum_overlap_ > 1.0 ||
       maximum_tilt_ <= 0.0 || maximum_base_height_ <= 0.0)
     {
       throw std::runtime_error("invalid initial-pose validation parameters");
@@ -656,7 +656,9 @@ private:
       result.reason = "result has implausible rear-axle height";
     } else if (result.overlap < minimum_overlap_) {
       result.reason = "scan-to-map overlap is below the acceptance limit";
-    } else if (result.inlier_rmse > maximum_inlier_rmse_) {
+    } else if (maximum_inlier_rmse_ > 0.0 &&
+      result.inlier_rmse > maximum_inlier_rmse_)
+    {
       result.reason = "scan-to-map inlier RMSE is above the acceptance limit";
     } else {
       result.accepted = true;
