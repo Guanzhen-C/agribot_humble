@@ -179,7 +179,7 @@ export ROS_LOCALHOST_ONLY=0
 # 查看RTK主天线的原始经度、纬度、高度和协方差
 ros2 topic echo /rtk/fix
 
-# 查看经过实车验证的+90度安装修正后的车头航向；北0度、顺时针为正
+# 主天线在左、副天线在右；减90度后得到车头航向，北0度、顺时针为正
 ros2 topic echo /rtk/heading_deg
 
 # 查看同一车头航向的ROS ENU四元数；这是ESKF实际使用的话题
