@@ -10,8 +10,8 @@ rtk_nmea:
     heading_valid_topic: /rtk/heading_valid
     heading_solution_topic: /rtk/heading_solution
     heading_reference_frame: map
-    # Master antenna is left and secondary is right; verify the sign outdoors.
-    heading_offset_deg: -90.0
+    # Field-verified vehicle-forward correction for the installed antenna roles.
+    heading_offset_deg: 90.0
     reconnect_interval_sec: 1.0
     fixed_horizontal_std_m: 0.03
     float_horizontal_std_m: 0.30
