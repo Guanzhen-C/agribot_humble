@@ -242,6 +242,7 @@ private:
     min_scan_points_ = declare_parameter<int>("min_scan_points", 250);
     initial_scan_count_ = declare_parameter<int>("initial_scan_count", 5);
     max_odom_age_ = declare_parameter<double>("max_odom_age", 0.15);
+    initial_search_radius_ = declare_parameter<double>("initial_search_radius", 2.0);
     local_submap_radius_ = declare_parameter<double>("local_submap_radius", 8.0);
     local_submap_min_points_ =
       declare_parameter<int>("local_submap_min_points", 300);
@@ -301,7 +302,8 @@ private:
       normal_radius_ <= feature_voxel_size_ || feature_radius_ <= normal_radius_ ||
       min_range_ < 0.0 || max_range_ <= min_range_ ||
       max_z_ <= min_z_ || min_scan_points_ < 20 || initial_scan_count_ < 1 ||
-      max_odom_age_ <= 0.0 || local_submap_radius_ <= 0.0 ||
+      max_odom_age_ <= 0.0 || initial_search_radius_ <= 0.0 ||
+      initial_search_radius_ > local_submap_radius_ || local_submap_radius_ <= 0.0 ||
       local_submap_min_points_ < 100)
     {
       throw std::runtime_error("invalid map, scan, or local-submap parameters");
@@ -437,7 +439,7 @@ private:
   {
     auto points = std::make_shared<PointCloud>();
     auto features = std::make_shared<FeatureCloud>();
-    const double radius_squared = local_submap_radius_ * local_submap_radius_;
+    const double radius_squared = initial_search_radius_ * initial_search_radius_;
     for (std::size_t index = 0; index < feature_map_->size(); ++index) {
       const auto & point = feature_map_->points[index];
       const double delta_x = static_cast<double>(point.x) - center.x();
@@ -1031,6 +1033,7 @@ private:
   int min_scan_points_{250};
   int initial_scan_count_{5};
   double max_odom_age_{0.15};
+  double initial_search_radius_{2.0};
   double local_submap_radius_{8.0};
   int local_submap_min_points_{300};
 

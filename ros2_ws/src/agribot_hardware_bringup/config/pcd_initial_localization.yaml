@@ -27,6 +27,7 @@ pcd_initial_localizer:
     min_scan_points: 250
     initial_scan_count: 5
     max_odom_age: 0.15
+    initial_search_radius: 2.0
     local_submap_radius: 8.0
     local_submap_min_points: 300
 

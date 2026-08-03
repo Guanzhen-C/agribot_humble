@@ -215,6 +215,7 @@ def test_3d_mapping_and_mapped_navigation_use_fpfh_ndt_gicp_localization():
     assert localizer["odom_frame"] == "odom"
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
     assert localizer["initial_scan_count"] == 5
+    assert localizer["initial_search_radius"] == 2.0
     assert localizer["local_submap_radius"] == 8.0
     assert localizer["feature_voxel_size"] == 0.35
     assert localizer["normal_radius"] > localizer["feature_voxel_size"]
