@@ -148,26 +148,42 @@ ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.p
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 
-# RDK X5 真机：单独启动 RTK，并查看位置、航向和固定解状态
-# 终端 1：启动 RTK 串口驱动；停止时按 Ctrl+C 释放串口
+# RDK X5 真机：联合测试 RTK 原始输出和 RTK+IMU ESKF 定位输出
+# 本测试不启动激光雷达、Nav2或底盘输出，车辆保持静止即可安全执行
+# 不要同时运行下面其他会占用 RTK 或 IMU 串口的整套启动命令
+# 终端 1：启动 IMU、RTK 和已标定的传感器静态 TF
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-ros2 run agribot_hardware_bringup rtk_nmea_node.py --ros-args \
-  --params-file /home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/config/rtk_nmea.yaml
+ros2 launch agribot_hardware_bringup sensors.launch.py \
+  start_lidar:=false \
+  start_imu:=true \
+  start_rtk:=true \
+  rviz:=false
 
-# 终端 2：查看 RTK 数据；以下命令每次任选一条，按 Ctrl+C 后再查看下一项
+# 终端 2：启动 KF-GINS ESKF；输出位置已经过主天线到后轴中心的杆臂补偿
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 run agribot_hardware_bringup rtk_eskf_localization --ros-args \
+  --params-file /home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/config/kf_gins_n300pro.yaml
+
+# 终端 3：查看数据；以下命令每次任选一条，按 Ctrl+C 后再查看下一项
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 
-# 查看经度、纬度、高度和协方差
+# 查看RTK主天线的原始经度、纬度、高度和协方差
 ros2 topic echo /rtk/fix
 
-# 查看航向角，单位为度
+# 查看经过-90度安装修正后的车头航向；北0度、顺时针为正
 ros2 topic echo /rtk/heading_deg
+
+# 查看同一车头航向的ROS ENU四元数；这是ESKF实际使用的话题
+ros2 topic echo /rtk/heading
 
 # 查看位置解质量；data: 4 表示 RTK 固定解
 ros2 topic echo /rtk/fix_quality
@@ -177,6 +193,29 @@ ros2 topic echo /rtk/heading_solution
 
 # 查看航向是否有效；data: true 表示有效
 ros2 topic echo /rtk/heading_valid
+
+# 查看RTK测量转换到局部ENU后的原始位姿；第一帧固定解是当前临时原点
+ros2 topic echo /navsat_pose
+
+# 查看ESKF融合定位；pose是后轴中心位姿，twist是融合速度
+ros2 topic echo /odometry/filtered_navsat
+
+# 分别检查RTK、IMU和ESKF输出频率
+ros2 topic hz /rtk/fix
+ros2 topic hz /imu/data
+ros2 topic hz /odometry/filtered_navsat
+
+# 终端 4（可选）：记录5分钟数据，300秒后自动停止
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+mkdir -p /home/sunrise/agribot_bags
+timeout 300 ros2 bag record \
+  -o /home/sunrise/agribot_bags/navsat_eskf_$(date +%Y%m%d_%H%M%S) \
+  /rtk/fix /rtk/fix_quality /rtk/heading /rtk/heading_deg \
+  /rtk/heading_valid /rtk/heading_solution /imu/data \
+  /navsat_pose /odometry/filtered_navsat
 
 # 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
 # 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
