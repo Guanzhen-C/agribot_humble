@@ -315,7 +315,11 @@ def test_ackermann_fastlio_local_uses_kinematically_feasible_global_planner():
     assert controller["vx_min"] == 0.0
     assert controller["enforce_path_inversion"] is False
     assert controller["PathAlignCritic"]["use_path_orientations"] is True
+    assert controller["PathAlignCritic"]["offset_from_furthest"] == 6
+    assert controller["PathFollowCritic"]["offset_from_furthest"] == 6
     assert controller["PathAngleCritic"]["forward_preference"] is True
+    assert controller["PathAngleCritic"]["cost_weight"] == 4.0
+    assert controller["PathAngleCritic"]["offset_from_furthest"] == 8
     assert controller["PreferForwardCritic"]["enabled"] is True
 
 
@@ -330,6 +334,10 @@ def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
     assert controller["vx_max"] == 0.30
     assert controller["vx_min"] == 0.0
     assert controller["batch_size"] == 1200
+    assert controller["PathAlignCritic"]["offset_from_furthest"] == 6
+    assert controller["PathFollowCritic"]["offset_from_furthest"] == 6
+    assert controller["PathAngleCritic"]["cost_weight"] == 4.0
+    assert controller["PathAngleCritic"]["offset_from_furthest"] == 8
     assert controller["AckermannConstraints"]["min_turning_r"] == pytest.approx(
         MODEL_MIN_TURNING_RADIUS, abs=1e-6
     )
