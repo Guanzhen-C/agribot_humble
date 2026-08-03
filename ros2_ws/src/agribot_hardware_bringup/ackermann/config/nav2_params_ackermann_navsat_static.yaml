@@ -77,26 +77,26 @@ controller_server:
       movement_time_allowance: 120.0
     goal_checker:
       plugin: nav2_controller::SimpleGoalChecker
-      xy_goal_tolerance: 0.5
+      xy_goal_tolerance: 0.25
       yaw_goal_tolerance: 0.2
       stateful: true
     FollowPath:
       plugin: nav2_mppi_controller::MPPIController
       time_steps: 40
       model_dt: 0.1
-      batch_size: 2000
-      vx_std: 0.25
+      batch_size: 1200
+      vx_std: 0.15
       vy_std: 0.0
-      wz_std: 0.35
-      vx_max: 0.80
+      wz_std: 0.10
+      vx_max: 0.30
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 0.613854
-      ax_max: 1.5
-      ax_min: -1.5
+      wz_max: 0.230195
+      ax_max: 0.8
+      ax_min: -0.8
       ay_min: 0.0
       ay_max: 0.0
-      az_max: 0.8
+      az_max: 0.35
       iteration_count: 1
       temperature: 0.3
       gamma: 0.015
@@ -108,6 +108,8 @@ controller_server:
       reset_period: 1.0
       prune_distance: 4.0
       enforce_path_inversion: false
+      inversion_xy_tolerance: 0.2
+      inversion_yaw_tolerance: 0.4
       TrajectoryVisualizer:
         trajectory_step: 5
         time_step: 3
@@ -142,26 +144,26 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 10.0
+        cost_weight: 3.5
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
-        offset_from_furthest: 3
-        use_path_orientations: false
+        offset_from_furthest: 6
+        use_path_orientations: true
       PathFollowCritic:
         enabled: true
         cost_power: 1
         cost_weight: 7.0
-        offset_from_furthest: 3
+        offset_from_furthest: 6
         threshold_to_consider: 1.4
       PathAngleCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 2.0
-        offset_from_furthest: 3
+        cost_weight: 4.0
+        offset_from_furthest: 8
         threshold_to_consider: 0.5
         max_angle_to_furthest: 1.0
-        mode: 0
+        forward_preference: true
       PreferForwardCritic:
         enabled: true
         cost_power: 1
@@ -176,18 +178,21 @@ global_costmap:
       robot_base_frame: base_link
       transform_tolerance: 0.8
       resolution: 0.05
+      update_frequency: 2.0
+      publish_frequency: 1.0
       track_unknown_space: true
       footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
         map_subscribe_transient_local: true
+        subscribe_to_updates: true
       stvl_layer:
         plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
         enabled: true
-        voxel_decay: 15.0
+        voxel_decay: 5.0
         decay_model: 0
-        voxel_size: 0.05
+        voxel_size: 0.10
         track_unknown_space: false
         mark_threshold: 0
         update_footprint_enabled: true
@@ -203,8 +208,8 @@ global_costmap:
           marking: true
           clearing: false
           obstacle_range: 8.0
-          min_obstacle_height: 0.08
-          max_obstacle_height: 1.8
+          min_obstacle_height: 0.233
+          max_obstacle_height: 0.8725
           expected_update_rate: 0.0
           observation_persistence: 0.0
           filter: voxel
@@ -224,8 +229,8 @@ global_costmap:
           model_type: 1
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 1.0
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.2
 
 local_costmap:
   local_costmap:
@@ -237,18 +242,21 @@ local_costmap:
       width: 8
       height: 8
       resolution: 0.05
+      update_frequency: 5.0
+      publish_frequency: 2.0
       transform_tolerance: 0.8
       footprint: "[[0.654818, 0.335974], [0.654818, -0.335974], [-0.127500, -0.335974], [-0.127500, 0.335974]]"
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
         map_subscribe_transient_local: true
+        subscribe_to_updates: true
       stvl_layer:
         plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
         enabled: true
         voxel_decay: 3.0
         decay_model: 0
-        voxel_size: 0.05
+        voxel_size: 0.10
         track_unknown_space: false
         mark_threshold: 0
         update_footprint_enabled: true
@@ -264,8 +272,8 @@ local_costmap:
           marking: true
           clearing: false
           obstacle_range: 4.0
-          min_obstacle_height: 0.08
-          max_obstacle_height: 1.8
+          min_obstacle_height: 0.233
+          max_obstacle_height: 0.8725
           expected_update_rate: 0.0
           observation_persistence: 0.0
           filter: voxel
@@ -285,8 +293,8 @@ local_costmap:
           model_type: 1
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        cost_scaling_factor: 5.0
+        inflation_radius: 0.2
 
 map_server:
   ros__parameters:
@@ -300,8 +308,10 @@ planner_server:
     planner_plugins: [GridBased]
     GridBased:
       plugin: nav2_smac_planner/SmacPlannerHybrid
-      downsample_costmap: false
-      downsampling_factor: 1
+      # The map frame has a fixed origin, so Humble's costmap downsampler is
+      # safe here and keeps long Hybrid-A* searches practical on the RDK X5.
+      downsample_costmap: true
+      downsampling_factor: 2
       tolerance: 0.25
       allow_unknown: true
       max_iterations: 1000000
@@ -316,7 +326,7 @@ planner_server:
       non_straight_penalty: 1.2
       cost_penalty: 2.0
       retrospective_penalty: 0.015
-      lookup_table_size: 5.0
+      lookup_table_size: 10.0
       cache_obstacle_heuristic: false
       smooth_path: true
 

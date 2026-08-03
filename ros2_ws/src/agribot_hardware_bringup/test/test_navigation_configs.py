@@ -128,8 +128,8 @@ def test_ackermann_configs_use_mppi_and_ackermann_motion_model():
         (
             "nav2_params_ackermann_navsat_static.yaml",
             "/odometry/filtered_navsat",
-            0.8,
-            5.0,
+            0.3,
+            10.0,
         ),
         (
             "nav2_params_ackermann_fastlio_mapped.yaml",
@@ -193,9 +193,20 @@ def test_ackermann_configs_use_c16_stvl_for_obstacles():
         global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
         local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
 
-        height_band = (0.08, 1.8) if "navsat" in name else (0.233, 0.8725)
-        assert_c16_stvl(global_costmap, 8.0, *height_band)
-        assert_c16_stvl(local_costmap, 4.0, *height_band)
+        assert_c16_stvl(global_costmap, 8.0, 0.233, 0.8725)
+        assert_c16_stvl(local_costmap, 4.0, 0.233, 0.8725)
+
+
+def test_ackermann_navsat_navigation_matches_fastlio_mapped_except_odom():
+    navsat = load_config("nav2_params_ackermann_navsat_static.yaml", "ackermann")
+    fastlio = load_config("nav2_params_ackermann_fastlio_mapped.yaml", "ackermann")
+
+    for node_name in ("bt_navigator", "controller_server"):
+        navsat[node_name]["ros__parameters"]["odom_topic"] = fastlio[node_name][
+            "ros__parameters"
+        ]["odom_topic"]
+
+    assert navsat == fastlio
 
 
 def test_c16_driver_does_not_publish_legacy_scan():
