@@ -27,12 +27,18 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "auto_reference_from_first_fix", default_value="true"
             ),
-            DeclareLaunchArgument("reference_latitude_deg", default_value="0.0"),
-            DeclareLaunchArgument("reference_longitude_deg", default_value="0.0"),
+            DeclareLaunchArgument(
+                "reference_latitude_deg", default_value="0.0"
+            ),
+            DeclareLaunchArgument(
+                "reference_longitude_deg", default_value="0.0"
+            ),
             DeclareLaunchArgument("reference_altitude_m", default_value="0.0"),
             DeclareLaunchArgument(
                 "lio_sam_parameters",
-                default_value=os.path.join(package_share, "config", "lio_sam_c16.yaml"),
+                default_value=os.path.join(
+                    package_share, "config", "lio_sam_c16.yaml"
+                ),
             ),
             DeclareLaunchArgument(
                 "point_adapter_parameters",
@@ -92,7 +98,9 @@ def generate_launch_description():
                     LaunchConfiguration("georeference_parameters"),
                     common_parameters,
                     {
-                        "map_pcd_file": PythonExpression(["'", map_base, ".pcd'"]),
+                        "map_pcd_file": PythonExpression(
+                            ["'", map_base, ".pcd'"]
+                        ),
                         "output_file": PythonExpression(
                             ["'", map_base, "_georeference.yaml'"]
                         ),
@@ -113,11 +121,14 @@ def generate_launch_description():
             Node(
                 package="tf2_ros",
                 executable="static_transform_publisher",
-                name="offline_base_to_lidar",
+                name="offline_lidar_to_base",
                 arguments=[
-                    "--x", "0.48", "--y", "0.0", "--z", "0.233",
+                    "--x", "-0.48", "--y", "0.0", "--z", "-0.233",
                     "--roll", "0.0", "--pitch", "0.0", "--yaw", "0.0",
-                    "--frame-id", "base_link", "--child-frame-id", "lidar_link",
+                    "--frame-id",
+                    "lidar_link",
+                    "--child-frame-id",
+                    "base_link",
                 ],
             ),
             Node(

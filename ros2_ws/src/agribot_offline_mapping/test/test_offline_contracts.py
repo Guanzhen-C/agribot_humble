@@ -51,7 +51,42 @@ def test_rtk_factors_target_the_lidar_optical_center():
     )
     assert adapter["base_to_target_m"] == pytest.approx(mounts["lidar"]["xyz"])
     assert adapter["required_fix_quality"] == 4
-    assert set(adapter["allowed_heading_solutions"]) == {"L1_INT", "NARROW_INT"}
+    assert set(adapter["allowed_heading_solutions"]) == {
+        "L1_INT",
+        "NARROW_INT",
+    }
+
+
+def test_lio_sam_adapter_uses_measured_mount_and_mapping_rear_mask():
+    mounts = yaml.safe_load(
+        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    mapping = parameters(
+        HARDWARE_ROOT / "config" / "pcd_mapping.yaml", "pcd_map_builder"
+    )
+    c16 = parameters(
+        HARDWARE_ROOT / "config" / "c16.yaml", "lslidar_driver_node"
+    )
+    adapter = parameters(
+        PACKAGE_ROOT / "config" / "lslidar_lio_sam_adapter.yaml",
+        "lslidar_lio_sam_adapter",
+    )
+
+    assert adapter["base_to_lidar_xyz"] == pytest.approx(
+        mounts["lidar"]["xyz"]
+    )
+    assert adapter["base_to_lidar_rpy"] == pytest.approx(
+        mounts["lidar"]["rpy"]
+    )
+    assert c16["use_first_point_time"] is False
+    assert adapter["input_stamp_is_scan_end"] is True
+    assert adapter["rear_exclusion_enabled"] is True
+    for suffix in ("min_x", "max_x", "half_width"):
+        assert adapter[f"rear_exclusion_{suffix}"] == pytest.approx(
+            mapping[f"rear_exclusion_{suffix}"]
+        )
 
 
 def test_georeference_uses_final_optimized_key_pose_path():

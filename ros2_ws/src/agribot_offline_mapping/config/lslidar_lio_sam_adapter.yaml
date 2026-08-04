@@ -3,5 +3,17 @@ lslidar_lio_sam_adapter:
     input_topic: /lidar/points
     output_topic: /lio_sam/points
     output_frame: lidar_link
+    # The CX driver publishes 0..scan_duration point times while the cloud
+    # stamp marks the sweep end because use_first_point_time is false.
+    input_stamp_is_scan_end: true
     maximum_scan_duration: 0.20
     maximum_ring: 15
+
+    # Exclude a person following behind the vehicle before LIO-SAM consumes
+    # the scan. Bounds are expressed in rear-axle-centered base_link.
+    rear_exclusion_enabled: true
+    rear_exclusion_min_x: -4.0
+    rear_exclusion_max_x: -0.1275
+    rear_exclusion_half_width: 0.60
+    base_to_lidar_xyz: [0.48, 0.0, 0.233]
+    base_to_lidar_rpy: [0.0, 0.0, 0.0]

@@ -8,10 +8,14 @@
 #include <string>
 #include <vector>
 
+#include <Eigen/Geometry>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+
+#include "agribot_offline_mapping/c16_scan_time.hpp"
+#include "agribot_offline_mapping/rear_exclusion_filter.hpp"
 
 namespace agribot_offline_mapping
 {
@@ -27,6 +31,20 @@ struct Point
   std::uint16_t ring;
   float time;
 };
+
+Eigen::Vector3d vector3Parameter(
+  rclcpp::Node & node,
+  const std::string & name,
+  const std::vector<double> & default_value)
+{
+  const auto values = node.declare_parameter<std::vector<double>>(name, default_value);
+  if (values.size() != 3U ||
+    !std::all_of(values.begin(), values.end(), [](double value) {return std::isfinite(value);}))
+  {
+    throw std::runtime_error(name + " must contain three finite values");
+  }
+  return {values[0], values[1], values[2]};
+}
 
 const sensor_msgs::msg::PointField & fieldByName(
   const sensor_msgs::msg::PointCloud2 & cloud,
@@ -94,10 +112,26 @@ public:
     input_topic_ = declare_parameter<std::string>("input_topic", "/lidar/points");
     output_topic_ = declare_parameter<std::string>("output_topic", "/lio_sam/points");
     output_frame_ = declare_parameter<std::string>("output_frame", "lidar_link");
+    input_stamp_is_scan_end_ = declare_parameter<bool>("input_stamp_is_scan_end", true);
     maximum_scan_duration_ = declare_parameter<double>("maximum_scan_duration", 0.20);
     maximum_ring_ = declare_parameter<int>("maximum_ring", 15);
+    rear_exclusion_.enabled = declare_parameter<bool>("rear_exclusion_enabled", true);
+    rear_exclusion_.minimum_x = declare_parameter<double>("rear_exclusion_min_x", -4.0);
+    rear_exclusion_.maximum_x = declare_parameter<double>(
+      "rear_exclusion_max_x", -0.1275);
+    rear_exclusion_.half_width = declare_parameter<double>(
+      "rear_exclusion_half_width", 0.60);
+    const Eigen::Vector3d base_to_lidar_xyz = vector3Parameter(
+      *this, "base_to_lidar_xyz", {0.48, 0.0, 0.233});
+    const Eigen::Vector3d base_to_lidar_rpy = vector3Parameter(
+      *this, "base_to_lidar_rpy", {0.0, 0.0, 0.0});
+    base_from_lidar_ = transformFromXyzRpy(base_to_lidar_xyz, base_to_lidar_rpy);
     if (maximum_scan_duration_ <= 0.0 || maximum_ring_ < 0 || maximum_ring_ > 65535) {
       throw std::runtime_error("invalid scan duration or ring limit");
+    }
+    if (!rear_exclusion_.valid()) {
+      throw std::runtime_error(
+              "rear exclusion requires min_x < max_x <= 0 and positive half_width");
     }
 
     publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
@@ -109,6 +143,14 @@ public:
       get_logger(),
       "Normalizing C16 ring/time fields for LIO-SAM: %s -> %s",
       input_topic_.c_str(), output_topic_.c_str());
+    if (rear_exclusion_.enabled) {
+      RCLCPP_INFO(
+        get_logger(),
+        "Ignoring offline mapping points behind base_link in x=[%.4f, %.4f], "
+        "|y|<=%.2f m",
+        rear_exclusion_.minimum_x, rear_exclusion_.maximum_x,
+        rear_exclusion_.half_width);
+    }
   }
 
 private:
@@ -183,6 +225,11 @@ private:
         point.time = static_cast<float>(point_time);
         minimum_time = std::min(minimum_time, point_time);
         maximum_time = std::max(maximum_time, point_time);
+        if (shouldExcludeRearPoint(
+            Eigen::Vector3d(point.x, point.y, point.z), base_from_lidar_, rear_exclusion_))
+        {
+          continue;
+        }
         points.push_back(point);
       }
     }
@@ -206,8 +253,10 @@ private:
     sensor_msgs::msg::PointCloud2 output;
     output.header = input.header;
     output.header.frame_id = output_frame_;
+    const double scan_start_offset = normalizedScanStartOffset(
+      minimum_time, maximum_time, input_stamp_is_scan_end_);
     output.header.stamp =
-      rclcpp::Time(input.header.stamp) + rclcpp::Duration::from_seconds(minimum_time);
+      rclcpp::Time(input.header.stamp) + rclcpp::Duration::from_seconds(scan_start_offset);
     output.height = 1U;
     output.width = static_cast<std::uint32_t>(points.size());
     output.is_bigendian = false;
@@ -248,8 +297,11 @@ private:
   std::string input_topic_;
   std::string output_topic_;
   std::string output_frame_;
+  bool input_stamp_is_scan_end_{true};
   double maximum_scan_duration_{0.20};
   int maximum_ring_{15};
+  RearExclusionRegion rear_exclusion_;
+  Eigen::Isometry3d base_from_lidar_{Eigen::Isometry3d::Identity()};
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
 };

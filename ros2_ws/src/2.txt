@@ -310,11 +310,26 @@ export RDK_BAG=/home/sunrise/agribot_bags/这里改成实际数据包目录名
 mkdir -p /home/cgz/agribot_bags
 rsync -a sunrise@$RDK_IP:$RDK_BAG /home/cgz/agribot_bags/
 
-# 第4步终端1（Jetson）：启动C16适配、RTK因子、官方LIO-SAM和地理基准求解
+# 第4步终端1（Jetson）：先创建暂停状态的独立仿真时钟，不要立刻按空格
+# 使用独立域可避免RDK实时话题混入离线建图；同一次回放中不要让时钟倒退
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
+export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
+export ROS_DOMAIN_ID=71
+export ROS_LOCALHOST_ONLY=1
+export ROS2CLI_NO_DAEMON=1
+ros2 bag play "$BAG_PATH" \
+  --clock 100 \
+  --rate 0.5 \
+  --read-ahead-queue-size 1000 \
+  --start-paused
+
+# 第4步终端2（Jetson）：确认终端1已处于暂停状态后，再启动完整离线建图链
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=71
+export ROS_LOCALHOST_ONLY=1
+export ROS2CLI_NO_DAEMON=1
 export MAP_NAME=map_lio_sam_0804
 export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
 export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
@@ -324,14 +339,16 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_offline.launch.py \
   source_bag:=$BAG_PATH \
   use_sim_time:=true
 
-# 第4步终端2（Jetson）：以较慢速度完整回放，避免离线图优化丢帧
+# 终端2显示所有节点启动后，回到终端1按一次空格开始回放
+# 回放结束前不要关闭终端2；0.5倍速用于避免离线图优化丢帧
+
+# 第5步终端3（Jetson）：回放结束后保存LIO-SAM优化地图、二维地图和地理基准
+# 等待10秒，让最后一次回环检测和iSAM2更新完成后再调用保存服务
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
-ros2 bag play "$BAG_PATH" --clock --rate 0.5
-
-# 第5步（Jetson）：回放结束后先保存LIO-SAM优化地图，再生成二维地图和地理基准
-# 等待10秒，让最后一次回环检测和iSAM2更新完成后再调用保存服务
+export ROS_DOMAIN_ID=71
+export ROS_LOCALHOST_ONLY=1
+export ROS2CLI_NO_DAEMON=1
 sleep 10
 # 下面的destination由官方LIO-SAM自动拼接到/home/cgz后面
 export MAP_NAME=map_lio_sam_0804
@@ -342,8 +359,8 @@ ros2 run agribot_offline_mapping finalize_lio_sam_map.py \
   /home/cgz/agribot_maps/lio_sam_work/$MAP_NAME \
   $MAP_BASE
 ros2 service call /map_georeference_exporter/save std_srvs/srv/Trigger "{}"
-ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml \
-  ${MAP_BASE}_georeference.yaml
+ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml
+ls -lh ${MAP_BASE}_georeference.yaml
 
 # 地理基准服务必须返回success: true，并满足水平RMSE不大于0.20米、航向RMSE不大于2度
 # 如果验收失败，不要手工改YAML绕过检查，应检查固定解覆盖、时间同步和闭环路线后重新采集
