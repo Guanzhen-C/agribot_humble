@@ -94,11 +94,15 @@ def test_georeference_uses_final_optimized_key_pose_path():
         PACKAGE_ROOT / "config" / "map_georeference_exporter.yaml",
         "map_georeference_exporter",
     )
+    lio_sam = parameters(
+        PACKAGE_ROOT / "config" / "lio_sam_c16.yaml", "/**"
+    )
 
     assert exporter["optimized_path_topic"] == "/lio_sam/mapping/path"
     assert "map_odometry_topic" not in exporter
     assert exporter["maximum_horizontal_rmse_m"] == pytest.approx(0.20)
     assert exporter["maximum_yaw_rmse_deg"] == pytest.approx(2.0)
+    assert lio_sam["useGpsElevation"] is False
 
 
 def test_upstream_lio_sam_revision_is_pinned():

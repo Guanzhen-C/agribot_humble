@@ -19,6 +19,14 @@ transform from the final loop/GPS-optimized key-pose path rather than transient
 online odometry. The resulting `*_georeference.yaml` is verified against the
 PCD fingerprint before runtime automatic initialization.
 
+RTK factors constrain horizontal position only. The tested receiver's altitude
+failed to return to its initial value by about 3 m on a closed route, so map
+height remains governed by lidar, IMU and loop constraints.
+
+The Nav2 projection uses the final optimized LIO-SAM trajectory as its local
+height reference. This keeps the obstacle band tied to the lidar height on
+sloped terrain instead of cutting the ground with one global Z interval.
+
 The raw bag remains unchanged. During offline playback, the C16 adapter removes
 points in the rear-axle-frame region `x=[-4.0, -0.1275] m`, `|y|<=0.60 m`
 before LIO-SAM consumes them, suppressing a person following directly behind

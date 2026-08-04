@@ -20,6 +20,7 @@ def copy_global_map(source_directory: Path, map_base: Path) -> Path:
 
 def project_nav2_map(
     pcd_path: Path,
+    height_reference_pcd: Path,
     map_base: Path,
     resolution: float,
     minimum_z: float,
@@ -45,6 +46,8 @@ def project_nav2_map(
             str(padding),
             "--dilation",
             str(dilation),
+            "--height-reference-pcd",
+            str(height_reference_pcd),
         ],
         check=True,
     )
@@ -57,8 +60,8 @@ def parse_arguments():
     parser.add_argument("lio_sam_map_directory", type=Path)
     parser.add_argument("map_base", type=Path)
     parser.add_argument("--resolution", type=float, default=0.05)
-    # LIO-SAM's map origin is the first lidar pose. This is the calibrated
-    # physical band from the C16 optical center to 1 m above the ground.
+    # The projection measures this band from the nearest optimized C16 pose.
+    # It spans the optical-center plane to 1 m above the local ground.
     parser.add_argument("--min-z", type=float, default=0.0)
     parser.add_argument("--max-z", type=float, default=0.6395)
     parser.add_argument("--padding", type=float, default=1.0)
@@ -77,8 +80,17 @@ def main():
         arguments.lio_sam_map_directory, arguments.map_base
     )
     if not arguments.skip_projection:
+        height_reference_pcd = (
+            arguments.lio_sam_map_directory / "trajectory.pcd"
+        )
+        if not height_reference_pcd.is_file():
+            raise FileNotFoundError(
+                "LIO-SAM trajectory.pcd not found: "
+                f"{height_reference_pcd}"
+            )
         project_nav2_map(
             pcd_path,
+            height_reference_pcd,
             arguments.map_base,
             arguments.resolution,
             arguments.min_z,

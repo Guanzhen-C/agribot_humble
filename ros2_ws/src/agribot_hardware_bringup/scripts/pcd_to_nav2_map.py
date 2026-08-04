@@ -71,10 +71,51 @@ def read_pcd_xyz(path):
         raise ValueError(f"unsupported PCD DATA mode '{data_mode}'")
 
 
-def project_occupancy(points, resolution, min_z, max_z, padding, dilation):
-    finite = np.isfinite(points).all(axis=1)
-    selected = points[
-        finite & (points[:, 2] >= min_z) & (points[:, 2] <= max_z)
+def nearest_reference_heights(points_xy, height_reference_points, chunk_size=8192):
+    references = height_reference_points[
+        np.isfinite(height_reference_points).all(axis=1)
+    ]
+    if references.size == 0:
+        raise ValueError("height-reference PCD contains no finite points")
+    if chunk_size < 1:
+        raise ValueError("height-reference chunk size must be positive")
+
+    reference_xy = references[:, :2].astype(np.float64, copy=False)
+    reference_z = references[:, 2]
+    reference_norm = np.einsum("ij,ij->i", reference_xy, reference_xy)
+    result = np.empty(points_xy.shape[0], dtype=np.float64)
+    for start in range(0, points_xy.shape[0], chunk_size):
+        end = min(start + chunk_size, points_xy.shape[0])
+        query = points_xy[start:end].astype(np.float64, copy=False)
+        squared_distances = (
+            np.einsum("ij,ij->i", query, query)[:, None]
+            + reference_norm[None, :]
+            - 2.0 * query @ reference_xy.T
+        )
+        nearest = np.argmin(squared_distances, axis=1)
+        result[start:end] = reference_z[nearest]
+    return result
+
+
+def project_occupancy(
+    points,
+    resolution,
+    min_z,
+    max_z,
+    padding,
+    dilation,
+    height_reference_points=None,
+):
+    finite_points = points[np.isfinite(points).all(axis=1)]
+    if height_reference_points is None:
+        point_heights = finite_points[:, 2]
+    else:
+        reference_heights = nearest_reference_heights(
+            finite_points[:, :2], height_reference_points
+        )
+        point_heights = finite_points[:, 2] - reference_heights
+    selected = finite_points[
+        (point_heights >= min_z) & (point_heights <= max_z)
     ]
     if selected.size == 0:
         raise ValueError("no PCD points remain inside the requested height band")
@@ -138,6 +179,14 @@ def parse_arguments():
     parser.add_argument("--max-z", type=float, default=0.8725)
     parser.add_argument("--padding", type=float, default=1.0)
     parser.add_argument("--dilation", type=float, default=0.05)
+    parser.add_argument(
+        "--height-reference-pcd",
+        type=Path,
+        help=(
+            "optional optimized trajectory PCD; min-z/max-z are measured "
+            "relative to the nearest trajectory point"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -149,6 +198,11 @@ def main():
         raise SystemExit("padding and dilation must be non-negative")
 
     points = read_pcd_xyz(arguments.pcd)
+    height_reference_points = (
+        read_pcd_xyz(arguments.height_reference_pcd)
+        if arguments.height_reference_pcd is not None
+        else None
+    )
     cells, origin, selected_count = project_occupancy(
         points,
         arguments.resolution,
@@ -156,6 +210,7 @@ def main():
         arguments.max_z,
         arguments.padding,
         arguments.dilation,
+        height_reference_points,
     )
     pgm_path, yaml_path = write_nav2_map(
         cells, origin, arguments.output_base, arguments.resolution

@@ -60,3 +60,42 @@ def test_binary_pcd_height_projection_and_nav2_output(tmp_path):
     assert pgm_path.read_bytes().startswith(b"P5\n3 3\n255\n")
     assert "image: projected.pgm" in yaml_path.read_text()
     assert "resolution: 0.5" in yaml_path.read_text()
+
+
+def test_relative_height_projection_follows_optimized_trajectory():
+    points = np.array(
+        [
+            (0.0, 0.0, 0.30),
+            (10.0, 0.0, 2.30),
+            (10.0, 1.0, 2.00),
+            (0.0, 1.0, 1.30),
+        ]
+    )
+    trajectory = np.array(
+        [
+            (0.0, 0.0, 0.0),
+            (10.0, 0.0, 2.0),
+        ]
+    )
+
+    cells, _, selected_count = MODULE.project_occupancy(
+        points,
+        resolution=0.5,
+        min_z=0.10,
+        max_z=0.50,
+        padding=0.0,
+        dilation=0.0,
+        height_reference_points=trajectory,
+    )
+
+    assert selected_count == 2
+    assert np.count_nonzero(cells == 0) == 2
+
+
+def test_height_reference_requires_finite_trajectory_points():
+    with np.testing.assert_raises_regex(
+        ValueError, "height-reference PCD contains no finite points"
+    ):
+        MODULE.nearest_reference_heights(
+            np.array([[0.0, 0.0]]), np.array([[np.nan, 0.0, 0.0]])
+        )

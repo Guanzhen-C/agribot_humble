@@ -12,7 +12,9 @@
 
     # The exported map georeference supplies absolute yaw after optimization.
     useImuHeadingInitialization: false
-    useGpsElevation: true
+    # The tested RTK altitude failed to close by about 3 m after returning to
+    # the start, so RTK constrains XY only and lidar/IMU/loops retain map Z.
+    useGpsElevation: false
     gpsCovThreshold: 0.25
     # The official implementation otherwise skips GPS whenever the lidar-pose
     # covariance is already small. Zero keeps its built-in 5 m spacing but
