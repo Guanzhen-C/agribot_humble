@@ -256,28 +256,53 @@ rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
 colcon build --packages-select lio_sam agribot_offline_mapping \
   --symlink-install --parallel-workers "$(nproc)"
 
-# 第2步（RDK）：同时采集C16、IMU、RTK和FAST-LIO2数据，ROS底盘输出保持关闭
-# 修改MAP_NAME即可更换地图名；Recording出现后用蓝牙低速驾驶并完成闭环路线
+# 第2步终端1（RDK）：同时采集C16、IMU、RTK和FAST-LIO2原始数据
+# 先关闭其他整车、传感器和录包程序；修改MAP_NAME即可更换地图名
+# 为降低RDK负载，采集时不打开RViz；ROS底盘输出保持关闭，使用蓝牙低速驾驶
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-export DISPLAY=:0
-export XAUTHORITY=/home/sunrise/.Xauthority
-export MAP_NAME=map_zoulang_lio_sam
+export MAP_NAME=map_lio_sam_0804
 export BAG_PATH=/home/sunrise/agribot_bags/${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
 mkdir -p /home/sunrise/agribot_bags /home/sunrise/agribot_maps/test_site
+echo "本次数据包：$BAG_PATH"
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_3d_mapping.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/$MAP_NAME \
   start_rtk:=true \
   record_bag:=true \
   bag_output:=$BAG_PATH \
-  rviz:=true \
+  rviz:=false \
   enable_chassis_output:=false
 
-# 采集要求：位置质量连续为4，航向为SOL_COMPUTED,L1_INT或NARROW_INT
-# 路线至少覆盖5米，包含直线、左右转弯和一次回到已走区域的闭环；结束时按Ctrl+C
+# 看到Recording...后先不要动车，在终端2检查数据并保持车辆静止约30秒
+# 结束时在本终端按一次Ctrl+C，等待rosbag完成写盘后再断电，然后检查数据包
+ros2 bag info "$BAG_PATH"
+
+# 第2步终端2（RDK）：逐项检查采集数据；每条命令观察完成后按Ctrl+C，再执行下一条
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+
+# 位置质量应连续稳定为4
+ros2 topic echo /rtk/fix_quality --field data
+
+# 航向应为SOL_COMPUTED,L1_INT或SOL_COMPUTED,NARROW_INT
+ros2 topic echo /rtk/heading_solution --field data
+
+# C16应约为10Hz，IMU应持续稳定发布
+ros2 topic hz /lidar/points
+ros2 topic hz /imu/data
+
+# 数据检查通过并静止约30秒后，使用蓝牙以0.2至0.3m/s低速驾驶
+# 路线包含多段直行、左转、右转和至少一次返回已扫描区域的闭环
+# 转弯应平缓，不要急转或猛烈启停；雷达和IMU安装位置不能移动
+# 尽量全程保持RTK位置质量4和整数固定航向
+# 随行人员保持在车后中央约1.5至2.5米，不要走到车侧面或前方
+# 最后回到起点附近，以接近初始朝向停车并静置30秒，再到终端1结束采集
+# 原始bag保留完整点云，车后随行人员点云在Jetson离线建图前过滤
 
 # 第3步（Jetson）：把刚采集的数据包从RDK复制到Jetson
 export RDK_IP=10.147.55.3
@@ -290,7 +315,7 @@ source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-export MAP_NAME=map_zoulang_lio_sam
+export MAP_NAME=map_lio_sam_0804
 export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
 export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
 mkdir -p /home/cgz/agribot_maps/test_site /home/cgz/agribot_maps/lio_sam_work
@@ -309,7 +334,7 @@ ros2 bag play "$BAG_PATH" --clock --rate 0.5
 # 等待10秒，让最后一次回环检测和iSAM2更新完成后再调用保存服务
 sleep 10
 # 下面的destination由官方LIO-SAM自动拼接到/home/cgz后面
-export MAP_NAME=map_zoulang_lio_sam
+export MAP_NAME=map_lio_sam_0804
 export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
 ros2 service call /lio_sam/save_map lio_sam/srv/SaveMap \
   "{resolution: 0.1, destination: '/agribot_maps/lio_sam_work/$MAP_NAME'}"
@@ -325,7 +350,7 @@ ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml \
 
 # 第6步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
 export RDK_IP=10.147.55.3
-export MAP_NAME=map_zoulang_lio_sam
+export MAP_NAME=map_lio_sam_0804
 ssh sunrise@$RDK_IP 'mkdir -p /home/sunrise/agribot_maps/test_site'
 rsync -a /home/cgz/agribot_maps/test_site/${MAP_NAME}.pcd \
   /home/cgz/agribot_maps/test_site/${MAP_NAME}.pgm \
@@ -341,7 +366,7 @@ export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
-export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=$MAP_BASE \
@@ -373,7 +398,7 @@ export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
-export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=$MAP_BASE \
@@ -403,7 +428,7 @@ export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam \
+  map_base:=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804 \
   initialization_source:=rtk \
   rviz:=false \
   enable_chassis_output:=false \
@@ -429,7 +454,7 @@ export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
-export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804
 ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   map:=${MAP_BASE}.yaml \
   map_georeference:=${MAP_BASE}_georeference.yaml \
