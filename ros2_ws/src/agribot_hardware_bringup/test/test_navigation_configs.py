@@ -67,6 +67,13 @@ def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
     assert eskf["rtk_heading_timeout_sec"] <= 0.25
     assert 0.0 < eskf["max_imu_gap_sec"] <= 0.5
     assert rtk["heading_offset_deg"] == -90.0
+    assert eskf["use_rtk_heading_covariance"] is True
+    assert (
+        eskf["rtk_heading_covariance_topic"]
+        == rtk["heading_covariance_topic"]
+    )
+    assert rtk["fixed_heading_std_floor_deg"] == pytest.approx(1.0)
+    assert rtk["float_heading_std_floor_deg"] == pytest.approx(5.0)
 
 
 def assert_c16_stvl(

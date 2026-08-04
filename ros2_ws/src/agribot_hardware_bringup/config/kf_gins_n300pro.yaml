@@ -6,6 +6,8 @@ rtk_eskf_localization:
     imu_topic: /imu/data
     imu_flu_frame: true
     rtk_heading_topic: /rtk/heading
+    rtk_heading_covariance_topic: /rtk/heading_with_covariance
+    use_rtk_heading_covariance: true
     use_rtk_heading: true
     require_rtk_heading_for_initialization: true
     # Heading is 1 Hz and fix is 10 Hz. The next fix arrives within 180 ms in the
@@ -13,6 +15,7 @@ rtk_eskf_localization:
     rtk_heading_timeout_sec: 0.25
     # Reinitialize instead of integrating across a sensor outage or clock jump.
     max_imu_gap_sec: 0.5
+    # Fallback used only with the legacy QuaternionStamped heading input.
     rtk_heading_std_deg: 1.0
 
     pose_topic: /rtk/fix

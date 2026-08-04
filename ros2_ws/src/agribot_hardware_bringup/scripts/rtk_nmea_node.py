@@ -10,7 +10,7 @@ from typing import Optional
 
 import rclpy
 import serial
-from geometry_msgs.msg import QuaternionStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, QuaternionStamped
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix, NavSatStatus
 from std_msgs.msg import Bool, Float64, String, UInt8
@@ -125,6 +125,23 @@ def parse_uniheading_sentence(sentence: str) -> Optional[UniHeadingSolution]:
     )
 
 
+def heading_standard_deviation_deg(
+    solution: UniHeadingSolution,
+    fixed_floor_deg: float,
+    float_floor_deg: float,
+) -> Optional[float]:
+    """Return a conservative yaw standard deviation for a valid heading fix."""
+    if not solution.valid:
+        return None
+    if solution.position_type.endswith("_INT"):
+        floor_deg = fixed_floor_deg
+    elif solution.position_type.endswith("_FLOAT"):
+        floor_deg = float_floor_deg
+    else:
+        return None
+    return max(solution.heading_std_deg, floor_deg)
+
+
 class RtkNmeaNode(Node):
     def __init__(self) -> None:
         super().__init__("rtk_nmea")
@@ -147,11 +164,20 @@ class RtkNmeaNode(Node):
         heading_solution_topic = self.declare_parameter(
             "heading_solution_topic", "/rtk/heading_solution"
         ).value
+        heading_covariance_topic = self.declare_parameter(
+            "heading_covariance_topic", "/rtk/heading_with_covariance"
+        ).value
         self.heading_reference_frame = self.declare_parameter(
             "heading_reference_frame", "map"
         ).value
         self.heading_offset_deg = float(
             self.declare_parameter("heading_offset_deg", 0.0).value
+        )
+        self.fixed_heading_std_floor_deg = float(
+            self.declare_parameter("fixed_heading_std_floor_deg", 1.0).value
+        )
+        self.float_heading_std_floor_deg = float(
+            self.declare_parameter("float_heading_std_floor_deg", 5.0).value
         )
         self.reconnect_interval = float(
             self.declare_parameter("reconnect_interval_sec", 1.0).value
@@ -192,6 +218,9 @@ class RtkNmeaNode(Node):
         )
         self.heading_solution_publisher = self.create_publisher(
             String, heading_solution_topic, 10
+        )
+        self.heading_covariance_publisher = self.create_publisher(
+            PoseWithCovarianceStamped, heading_covariance_topic, 10
         )
         self.serial: Optional[serial.Serial] = None
         self.serial_lock = threading.Lock()
@@ -370,6 +399,27 @@ class RtkNmeaNode(Node):
         self.heading_solution_publisher.publish(
             String(data=f"{solution.solution_status},{solution.position_type}")
         )
+        heading_std_deg = heading_standard_deviation_deg(
+            solution,
+            self.fixed_heading_std_floor_deg,
+            self.float_heading_std_floor_deg,
+        )
+        if heading_std_deg is None:
+            return
+
+        vehicle_heading_deg = normalize_degrees(
+            solution.heading_deg + self.heading_offset_deg
+        )
+        yaw = gnss_heading_to_enu_yaw(vehicle_heading_deg)
+        heading = PoseWithCovarianceStamped()
+        heading.header.stamp = self.get_clock().now().to_msg()
+        heading.header.frame_id = self.heading_reference_frame
+        heading.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        heading.pose.pose.orientation.w = math.cos(yaw / 2.0)
+        for index in (0, 7, 14, 21, 28):
+            heading.pose.covariance[index] = 1e6
+        heading.pose.covariance[35] = math.radians(heading_std_deg) ** 2
+        self.heading_covariance_publisher.publish(heading)
 
     def horizontal_standard_deviation(self, quality: int, hdop: float) -> float:
         if quality == 4:

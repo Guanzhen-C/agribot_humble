@@ -49,4 +49,23 @@ def test_uniheading_crc_and_solution_parsing():
     assert solution.position_type == "NARROW_INT"
     assert math.isclose(solution.heading_deg, 179.0284)
     assert math.isclose(solution.baseline_length_m, 1.4773)
+    assert math.isclose(solution.heading_std_deg, 0.8259)
+    assert math.isclose(
+        RTK.heading_standard_deviation_deg(solution, 1.0, 5.0), 1.0
+    )
     assert not RTK.novatel_crc_valid(sentence[:-1] + "1")
+
+
+def test_float_heading_uses_conservative_uncertainty_floor():
+    solution = RTK.UniHeadingSolution(
+        solution_status="SOL_COMPUTED",
+        position_type="L1_FLOAT",
+        baseline_length_m=0.35,
+        heading_deg=120.0,
+        pitch_deg=0.0,
+        heading_std_deg=2.5,
+        pitch_std_deg=3.0,
+    )
+    assert math.isclose(
+        RTK.heading_standard_deviation_deg(solution, 1.0, 5.0), 5.0
+    )

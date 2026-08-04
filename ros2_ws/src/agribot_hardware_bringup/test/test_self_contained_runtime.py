@@ -127,6 +127,8 @@ def test_navsat_wrapper_converts_kf_gins_state_to_rear_axle_base_link():
     assert "has_parameter(name)" in source
     assert "last_used_rtk_heading_time_" in source
     assert "navsat_frames::shouldUseRtkHeading" in source
+    assert "handleRtkHeadingWithCovariance" in source
+    assert "latest_rtk_heading_std_rad_" in source
     assert "use_pose_yaw_measurement_ && sample.has_yaw" in source
     assert "Ignoring /initialpose" in source
 

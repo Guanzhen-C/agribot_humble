@@ -9,9 +9,13 @@ rtk_nmea:
     heading_deg_topic: /rtk/heading_deg
     heading_valid_topic: /rtk/heading_valid
     heading_solution_topic: /rtk/heading_solution
+    heading_covariance_topic: /rtk/heading_with_covariance
     heading_reference_frame: map
     # Master antenna is left and secondary is right: baseline heading minus 90 deg.
     heading_offset_deg: -90.0
+    # Use the receiver-reported uncertainty with a conservative floor per fix type.
+    fixed_heading_std_floor_deg: 1.0
+    float_heading_std_floor_deg: 5.0
     reconnect_interval_sec: 1.0
     fixed_horizontal_std_m: 0.03
     float_horizontal_std_m: 0.30

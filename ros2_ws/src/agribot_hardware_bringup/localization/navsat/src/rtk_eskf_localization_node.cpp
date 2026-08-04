@@ -147,6 +147,8 @@ public:
         imu_topic_ = declare_parameter<std::string>("imu_topic", "/imu/data");
         rtk_heading_topic_ =
             declare_parameter<std::string>("rtk_heading_topic", "/rtk/heading");
+        rtk_heading_covariance_topic_ = declare_parameter<std::string>(
+            "rtk_heading_covariance_topic", "/rtk/heading_with_covariance");
         pose_topic_ = declare_parameter<std::string>("pose_topic", "/rtk/odom");
         pose_message_type_ = declare_parameter<std::string>("pose_message_type", "odometry");
         output_odom_topic_ = declare_parameter<std::string>("output_odom_topic", "/odometry/filtered_navsat");
@@ -161,6 +163,8 @@ public:
         use_pose_yaw_measurement_ =
             declare_parameter<bool>("use_pose_yaw_measurement", true);
         use_rtk_heading_ = declare_parameter<bool>("use_rtk_heading", false);
+        use_rtk_heading_covariance_ =
+            declare_parameter<bool>("use_rtk_heading_covariance", false);
         require_rtk_heading_for_initialization_ = declare_parameter<bool>(
             "require_rtk_heading_for_initialization", true);
         rtk_heading_timeout_sec_ =
@@ -210,13 +214,24 @@ public:
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
             imu_topic_, 200, std::bind(&RtkEskfLocalizationNode::handleImu, this, std::placeholders::_1));
         if (use_rtk_heading_) {
-            rtk_heading_sub_ = create_subscription<geometry_msgs::msg::QuaternionStamped>(
-                rtk_heading_topic_,
-                20,
-                std::bind(
-                    &RtkEskfLocalizationNode::handleRtkHeading,
-                    this,
-                    std::placeholders::_1));
+            if (use_rtk_heading_covariance_) {
+                rtk_heading_covariance_sub_ = create_subscription<
+                    geometry_msgs::msg::PoseWithCovarianceStamped>(
+                    rtk_heading_covariance_topic_,
+                    20,
+                    std::bind(
+                        &RtkEskfLocalizationNode::handleRtkHeadingWithCovariance,
+                        this,
+                        std::placeholders::_1));
+            } else {
+                rtk_heading_sub_ = create_subscription<geometry_msgs::msg::QuaternionStamped>(
+                    rtk_heading_topic_,
+                    20,
+                    std::bind(
+                        &RtkEskfLocalizationNode::handleRtkHeading,
+                        this,
+                        std::placeholders::_1));
+            }
         }
         initial_pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
             initial_pose_topic_,
@@ -253,8 +268,12 @@ public:
             imu_topic_.c_str(),
             pose_topic_.c_str(),
             pose_message_type_.c_str(),
-            rtk_heading_topic_.c_str(),
-            use_rtk_heading_ ? "enabled" : "disabled",
+            (use_rtk_heading_covariance_
+                 ? rtk_heading_covariance_topic_
+                 : rtk_heading_topic_).c_str(),
+            use_rtk_heading_
+                ? (use_rtk_heading_covariance_ ? "covariance" : "legacy")
+                : "disabled",
             output_odom_topic_.c_str());
     }
 
@@ -401,7 +420,8 @@ private:
         }
         if (have_fresh_rtk_heading) {
             sample.yaw = *latest_rtk_heading_yaw_;
-            sample.yaw_std = rtk_heading_std_rad_;
+            sample.yaw_std = latest_rtk_heading_std_rad_.value_or(
+                rtk_heading_std_rad_);
         } else if (latest_imu_orientation_.has_value()) {
             const auto &orientation = *latest_imu_orientation_;
             sample.yaw = yawFromQuaternion(
@@ -434,11 +454,39 @@ private:
     void handleRtkHeading(
         const geometry_msgs::msg::QuaternionStamped::SharedPtr msg) {
 
-        const auto &orientation = msg->quaternion;
+        storeRtkHeading(
+            msg->quaternion,
+            rclcpp::Time(msg->header.stamp).seconds(),
+            rtk_heading_std_rad_);
+    }
+
+    void handleRtkHeadingWithCovariance(
+        const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
+
+        const double yaw_variance = msg->pose.covariance[35];
+        if (!std::isfinite(yaw_variance) || yaw_variance <= 0.0) {
+            RCLCPP_WARN_THROTTLE(
+                get_logger(), *get_clock(), 2000,
+                "Discarding RTK heading with invalid yaw covariance");
+            return;
+        }
+        storeRtkHeading(
+            msg->pose.pose.orientation,
+            rclcpp::Time(msg->header.stamp).seconds(),
+            std::sqrt(yaw_variance));
+    }
+
+    void storeRtkHeading(
+        const geometry_msgs::msg::Quaternion &orientation,
+        double time,
+        double yaw_std_rad) {
+
         const double norm_squared =
             orientation.x * orientation.x + orientation.y * orientation.y +
             orientation.z * orientation.z + orientation.w * orientation.w;
-        if (!std::isfinite(norm_squared) || norm_squared < 1e-12) {
+        if (!std::isfinite(time) || !std::isfinite(yaw_std_rad) ||
+            yaw_std_rad <= 0.0 || !std::isfinite(norm_squared) ||
+            norm_squared < 1e-12) {
             return;
         }
         const double inverse_norm = 1.0 / std::sqrt(norm_squared);
@@ -447,7 +495,8 @@ private:
             orientation.y * inverse_norm,
             orientation.z * inverse_norm,
             orientation.w * inverse_norm);
-        latest_rtk_heading_time_ = rclcpp::Time(msg->header.stamp).seconds();
+        latest_rtk_heading_time_ = time;
+        latest_rtk_heading_std_rad_ = yaw_std_rad;
     }
 
     Eigen::Vector3d extractPositionStd(const std::array<double, 36> &covariance) const {
@@ -980,6 +1029,7 @@ private:
     std::string base_frame_;
     std::string imu_topic_;
     std::string rtk_heading_topic_;
+    std::string rtk_heading_covariance_topic_;
     std::string pose_topic_;
     std::string pose_message_type_;
     std::string output_odom_topic_;
@@ -992,6 +1042,7 @@ private:
     bool use_imu_orientation_for_initial_roll_pitch_ = false;
     bool use_pose_yaw_measurement_ = true;
     bool use_rtk_heading_ = false;
+    bool use_rtk_heading_covariance_ = false;
     bool require_rtk_heading_for_initialization_ = true;
     bool auto_reference_from_first_navsat_fix_ = false;
 
@@ -1021,6 +1072,8 @@ private:
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<geometry_msgs::msg::QuaternionStamped>::SharedPtr rtk_heading_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+        rtk_heading_covariance_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr initial_pose_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_pose_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_cov_sub_;
@@ -1035,6 +1088,7 @@ private:
     Eigen::Matrix3d latest_raw_gyro_covariance_frd_ = Eigen::Matrix3d::Zero();
     std::optional<double> latest_rtk_heading_yaw_;
     std::optional<double> latest_rtk_heading_time_;
+    std::optional<double> latest_rtk_heading_std_rad_;
     std::optional<double> last_used_rtk_heading_time_;
     std::optional<IMU> latest_imu_sample_;
     std::optional<PoseSample> latest_measurement_for_init_;
