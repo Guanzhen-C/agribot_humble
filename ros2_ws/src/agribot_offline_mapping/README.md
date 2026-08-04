@@ -27,6 +27,18 @@ The Nav2 projection uses the final optimized LIO-SAM trajectory as its local
 height reference. This keeps the obstacle band tied to the lidar height on
 sloped terrain instead of cutting the ground with one global Z interval.
 
+For a site independently known to be horizontal, the finalizer accepts
+`--level-horizontal-trajectory`. It fits the optimized trajectory plane and
+applies one rigid rotation to both the final PCD and the projection reference.
+The option is deliberately disabled by default because flattening a real slope
+would destroy valid terrain geometry. The applied transform is recorded in a
+`*_leveling.yaml` sidecar.
+
+Leveling changes the map coordinate frame. A georeference generated from the
+unleveled optimized path must not be paired with a leveled PCD; apply the
+recorded leveling transform to the georeference first or regenerate it in the
+leveled frame.
+
 The raw bag remains unchanged. During offline playback, the C16 adapter removes
 points in the rear-axle-frame region `x=[-4.0, -0.1275] m`, `|y|<=0.60 m`
 before LIO-SAM consumes them, suppressing a person following directly behind

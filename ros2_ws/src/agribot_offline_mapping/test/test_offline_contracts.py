@@ -35,6 +35,41 @@ def test_lio_sam_translation_uses_lidar_to_imu_convention():
     assert lio_sam["poseCovThreshold"] == pytest.approx(0.0)
 
 
+def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
+    lio_sam = parameters(PACKAGE_ROOT / "config" / "lio_sam_c16.yaml")
+
+    def matrix(values):
+        return [
+            [values[row * 3 + column] for column in range(3)]
+            for row in range(3)
+        ]
+
+    vector_rotation = matrix(lio_sam["extrinsicRot"])
+    pose_rotation = matrix(lio_sam["extrinsicRPY"])
+
+    assert vector_rotation != [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    for row in range(3):
+        for column in range(3):
+            assert pose_rotation[row][column] == pytest.approx(
+                vector_rotation[column][row], abs=1.0e-9
+            )
+
+    for left in range(3):
+        for right in range(3):
+            dot_product = sum(
+                vector_rotation[left][index]
+                * vector_rotation[right][index]
+                for index in range(3)
+            )
+            assert dot_product == pytest.approx(
+                1.0 if left == right else 0.0, abs=1.0e-8
+            )
+
+
 def test_rtk_factors_target_the_lidar_optical_center():
     mounts = yaml.safe_load(
         (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
