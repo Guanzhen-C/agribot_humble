@@ -27,7 +27,19 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             DeclareLaunchArgument("map_start_delay", default_value="5.0"),
+            DeclareLaunchArgument("enable_ntrip", default_value="false"),
+            DeclareLaunchArgument(
+                "initialization_source",
+                default_value="manual",
+                description="Use manual, lidar or rtk for the initial map pose",
+            ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
+            DeclareLaunchArgument(
+                "map_georeference",
+                default_value=PythonExpression(
+                    ["'", map_base, "_georeference.yaml'"]
+                ),
+            ),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
             DeclareLaunchArgument(
                 "enable_chassis_output",
@@ -66,7 +78,13 @@ def generate_launch_description():
                     "controller": "mppi",
                     "localization": "fastlio",
                     "navigation_mode": "localization",
-                    "start_rtk": "false",
+                    "start_rtk": PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'rtk'",
+                        ]
+                    ),
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                     "autostart": LaunchConfiguration("autostart"),
                     "start_sensors": LaunchConfiguration("start_sensors"),
@@ -79,9 +97,38 @@ def generate_launch_description():
                     ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "map_start_delay": LaunchConfiguration("map_start_delay"),
+                    "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                     "map": PythonExpression(["'", map_base, ".yaml'"]),
                     "pcd_map_file": PythonExpression(["'", map_base, ".pcd'"]),
-                    "enable_fpfh": LaunchConfiguration("enable_fpfh"),
+                    "map_georeference_file": LaunchConfiguration(
+                        "map_georeference"
+                    ),
+                    "initialization_source": LaunchConfiguration(
+                        "initialization_source"
+                    ),
+                    "mapped_initial_pose_topic": PythonExpression(
+                        [
+                            "'/localization/rtk_initialpose' if '",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'rtk' else '/initialpose'",
+                        ]
+                    ),
+                    "enable_fpfh": PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'lidar' or '",
+                            LaunchConfiguration("enable_fpfh"),
+                            "'.lower() in ('true', '1', 'yes', 'on')",
+                        ]
+                    ),
+                    "automatic_global_localization": PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'lidar'",
+                        ]
+                    ),
                     "require_localization_ready": "true",
                     "fastlio_nav2_params": os.path.join(
                         hardware_share,

@@ -244,133 +244,158 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 LATEST_NAVSAT_BAG=$(ls -td /home/sunrise/agribot_bags/navsat_eskf_* | head -n 1)
 ros2 bag info "$LATEST_NAVSAT_BAG"
 
-# 第5步：NavSat ESKF通过后，接入Smac、MPPI、C16三维代价地图和CAN底盘
-# 该启动文件会同时启动RTK、IMU、C16、ESKF、Smac Hybrid-A*、MPPI和STVL三维雷达代价地图
-# 重要：当前NavSat坐标树使用map到odom恒等变换，下面的地图必须已经与NavSat局部ENU原点和方向对齐
-# FAST-LIO建立的地图不能直接假定已经对齐；未完成坐标对齐时只做阶段A，禁止进入阶段B
-# 启动前关闭其他整套ROS程序和桌面CAN GUI，避免重复占用传感器串口或USB-CAN
+# 使用RTK约束和回环优化建立可自动初始化的地图
+# 原始数据在RDK采集，LIO-SAM和GTSAM只在Jetson离线运行，不进入RDK实时导航链
 
-# 阶段A：RDK启动完整定位和导航，但不创建CAN底盘节点；车辆必须保持静止
+# 第1步（只需一次，Jetson）：拉取固定版本的官方LIO-SAM并编译离线包
+source /opt/ros/humble/setup.bash
+cd /home/cgz/agribot_ws/ros2_ws
+vcs import src < src/agribot_offline_mapping/third_party.repos
+rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
+  --ignore-src -r -y
+colcon build --packages-select lio_sam agribot_offline_mapping \
+  --symlink-install --parallel-workers "$(nproc)"
+
+# 第2步（RDK）：同时采集C16、IMU、RTK和FAST-LIO2数据，ROS底盘输出保持关闭
+# 修改MAP_NAME即可更换地图名；Recording出现后用蓝牙低速驾驶并完成闭环路线
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
-export NAVSAT_MAP=/home/sunrise/agribot_maps/test_site/map_navsat_aligned.yaml
-if [ ! -f "$NAVSAT_MAP" ]; then
-  echo "缺少已与NavSat ENU对齐的地图：$NAVSAT_MAP"
-else
-  ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
-    map:="$NAVSAT_MAP" \
-    rviz:=true \
-    enable_chassis_output:=false \
-    chassis_driver:=ackermann_can \
-    can_transport:=zqwl_cdc \
-    zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
-fi
-
-# 阶段A检查：另开终端逐项执行；生命周期必须active，定位和雷达必须持续发布
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 lifecycle get /planner_server
-ros2 lifecycle get /controller_server
-ros2 topic hz /odometry/filtered_navsat
-ros2 topic hz /lidar/points
-ros2 run tf2_ros tf2_echo map base_link
-
-# 在RViz设置目标后，应生成全局路径且/nav2/cmd_vel出现非零指令，但真车不得移动
-# 同时检查局部和全局代价地图能用C16点云标记、清除障碍物，且车体在静态地图中的位置和方向正确
-ros2 topic echo /nav2/cmd_vel
-
-# 确认没有启动底盘节点；没有输出表示正确
-ros2 node list | grep -E 'ackermann_chassis_can|ackermann_chassis_serial' || true
-
-# 阶段A全部通过后按Ctrl+C完整关闭，再执行阶段B；不要让两个整套启动命令同时运行
-# 阶段B：启用USB-CAN底盘，以0.15 m/s速度上限进行首次低速实车测试
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-export DISPLAY=:0
-export XAUTHORITY=/home/sunrise/.Xauthority
-export NAVSAT_MAP=/home/sunrise/agribot_maps/test_site/map_navsat_aligned.yaml
-if [ ! -f "$NAVSAT_MAP" ]; then
-  echo "缺少已与NavSat ENU对齐的地图：$NAVSAT_MAP"
-else
-  ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
-    map:="$NAVSAT_MAP" \
-    rviz:=true \
-    enable_chassis_output:=true \
-    chassis_driver:=ackermann_can \
-    can_transport:=zqwl_cdc \
-    zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
-fi
-
-# 阶段B启动完成后另开终端执行一次限速，再检查底盘反馈；每次重新启动整套程序都要重新发送限速
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
-  "{percentage: false, speed_limit: 0.15}"
-ros2 topic hz /wheel/odometry
-
-# 只选择前方近距离、无障碍目标；确认转向、跟踪和停止正常后再逐步扩大测试范围
-# 任一定位、TF、代价地图、规划、控制或CAN反馈异常时立即停止，不要继续下发目标
-
-# 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
-# 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
-# 建图期间 Nav2 和 ROS 底盘输出保持关闭
-source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-export DISPLAY=:0
-export XAUTHORITY=/home/sunrise/.Xauthority
-mkdir -p /home/sunrise/agribot_maps/test_site
+export MAP_NAME=map_zoulang_lio_sam
+export BAG_PATH=/home/sunrise/agribot_bags/${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
+mkdir -p /home/sunrise/agribot_bags /home/sunrise/agribot_maps/test_site
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_3d_mapping.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
+  map_base:=/home/sunrise/agribot_maps/test_site/$MAP_NAME \
+  start_rtk:=true \
+  record_bag:=true \
+  bag_output:=$BAG_PATH \
   rviz:=true \
   enable_chassis_output:=false
 
-# 终端 2：停止终端 1 前先保存地图，并等待返回 success: true
+# 采集要求：位置质量连续为4，航向为SOL_COMPUTED,L1_INT或NARROW_INT
+# 路线至少覆盖5米，包含直线、左右转弯和一次回到已走区域的闭环；结束时按Ctrl+C
+
+# 第3步（Jetson）：把刚采集的数据包从RDK复制到Jetson
+export RDK_IP=10.147.55.3
+export RDK_BAG=/home/sunrise/agribot_bags/这里改成实际数据包目录名
+mkdir -p /home/cgz/agribot_bags
+rsync -a sunrise@$RDK_IP:$RDK_BAG /home/cgz/agribot_bags/
+
+# 第4步终端1（Jetson）：启动C16适配、RTK因子、官方LIO-SAM和地理基准求解
 source /opt/ros/humble/setup.bash
-source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-ros2 service call /pcd_map_builder/save_map std_srvs/srv/Trigger "{}"
-ros2 run agribot_hardware_bringup pcd_to_nav2_map.py \
-  /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.pcd \
-  /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio
-ls -lh /home/sunrise/agribot_maps/test_site/map_zoulang_fastlio.{pcd,pgm,yaml}
+export MAP_NAME=map_zoulang_lio_sam
+export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
+export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
+mkdir -p /home/cgz/agribot_maps/test_site /home/cgz/agribot_maps/lio_sam_work
+ros2 launch agribot_offline_mapping lio_sam_rtk_offline.launch.py \
+  map_base:=$MAP_BASE \
+  source_bag:=$BAG_PATH \
+  use_sim_time:=true
 
-# 阿克曼真机：一次性 NDT + GICP 三维初始定位和基于已建地图的 Nav2 导航
-# 启动后保持车辆静止，在 RViz 用“2D Pose Estimate”给出准确的附近位置和大致方向
-# 长走廊默认关闭 FPFH；需要测试 FPFH 粗定位时改为 enable_fpfh:=true
-# /localization/ready 为 true 且绿色定位箭头正确后，才可以下发 Nav2 目标
+# 第4步终端2（Jetson）：以较慢速度完整回放，避免离线图优化丢帧
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
+ros2 bag play "$BAG_PATH" --clock --rate 0.5
+
+# 第5步（Jetson）：回放结束后先保存LIO-SAM优化地图，再生成二维地图和地理基准
+# 等待10秒，让最后一次回环检测和iSAM2更新完成后再调用保存服务
+sleep 10
+# 下面的destination由官方LIO-SAM自动拼接到/home/cgz后面
+export MAP_NAME=map_zoulang_lio_sam
+export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
+ros2 service call /lio_sam/save_map lio_sam/srv/SaveMap \
+  "{resolution: 0.1, destination: '/agribot_maps/lio_sam_work/$MAP_NAME'}"
+ros2 run agribot_offline_mapping finalize_lio_sam_map.py \
+  /home/cgz/agribot_maps/lio_sam_work/$MAP_NAME \
+  $MAP_BASE
+ros2 service call /map_georeference_exporter/save std_srvs/srv/Trigger "{}"
+ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml \
+  ${MAP_BASE}_georeference.yaml
+
+# 地理基准服务必须返回success: true，并满足水平RMSE不大于0.20米、航向RMSE不大于2度
+# 如果验收失败，不要手工改YAML绕过检查，应检查固定解覆盖、时间同步和闭环路线后重新采集
+
+# 第6步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
+export RDK_IP=10.147.55.3
+export MAP_NAME=map_zoulang_lio_sam
+ssh sunrise@$RDK_IP 'mkdir -p /home/sunrise/agribot_maps/test_site'
+rsync -a /home/cgz/agribot_maps/test_site/${MAP_NAME}.pcd \
+  /home/cgz/agribot_maps/test_site/${MAP_NAME}.pgm \
+  /home/cgz/agribot_maps/test_site/${MAP_NAME}.yaml \
+  /home/cgz/agribot_maps/test_site/${MAP_NAME}_georeference.yaml \
+  sunrise@$RDK_IP:/home/sunrise/agribot_maps/test_site/
+
+# FAST-LIO2加RTK自动初始定位：阶段A只检查定位、地图、规划和避障，不创建底盘节点
+# 启动后保持车辆静止；固定解出现后约5秒内/localization/ready应变为true
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
-  enable_fpfh:=false \
+  map_base:=$MAP_BASE \
+  initialization_source:=rtk \
+  rviz:=true \
+  enable_chassis_output:=false \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# 阶段A另开终端检查；地图指纹、RTK质量或配准不合格时ready必须保持false
+ros2 topic echo /localization/rtk_initializer_status --once
+ros2 topic echo /localization/rtk_seed_ready --once
+ros2 topic echo /localization/status --once
+ros2 topic echo /localization/ready --once
+ros2 topic echo /localization_pose --once
+ros2 run tf2_ros tf2_echo map odom
+ros2 lifecycle get /planner_server
+ros2 lifecycle get /controller_server
+ros2 node list | grep -E 'ackermann_chassis_can|ackermann_chassis_serial' || true
+
+# 在RViz给一个近距离目标；应生成路径和/nav2/cmd_vel，但阶段A真车不得移动
+ros2 topic echo /nav2/cmd_vel
+
+# 阶段A全部通过后按Ctrl+C完整关闭，再执行阶段B；首次实车测试限速0.15米每秒
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlio_mapped.launch.py \
+  map_base:=$MAP_BASE \
+  initialization_source:=rtk \
   rviz:=true \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# 阿克曼真机分布式运行：RDK X5 使用已建地图导航，Jetson 显示 RViz 高精度车模
-# 终端 1（Jetson）：登录 RDK，启动传感器、FAST-LIO、一次性初始定位和 Nav2
-# 命令允许 Nav2 控制真车；定位就绪前底盘输出会被禁止
+# 阶段B启动后另开终端限速；每次重启整套程序都要重新发送
+ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
+  "{percentage: false, speed_limit: 0.15}"
+ros2 topic hz /wheel/odometry
+
+# 可选初始定位方式：manual需要在RViz点击2D Pose Estimate，lidar会自动执行全图FPFH
+# 长走廊重复结构下优先使用rtk；全图FPFH计算较慢且可能匹配到相似位置
+# initialization_source:=manual
+# initialization_source:=lidar
+
+# 分布式显示：RDK运行算法但不渲染RViz，Jetson显示同一套话题
+# 终端1（Jetson登录RDK后执行）
 ssh sunrise@10.147.55.3
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
@@ -378,16 +403,16 @@ export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_fastlio \
-  enable_fpfh:=false \
+  map_base:=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam \
+  initialization_source:=rtk \
   rviz:=false \
-  enable_chassis_output:=true \
+  enable_chassis_output:=false \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00 \
-  use_detailed_vehicle_model:=false
+  use_detailed_vehicle_model:=true
 
-# 终端 2（Jetson）：刷新 DDS 发现并显示全局地图、重定位结果、规划路径和高精度车模
+# 终端2（Jetson）：显示全局地图、重定位结果、规划路径和高精度车模
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -397,14 +422,28 @@ ros2 daemon start
 ros2 run rviz2 rviz2 \
   -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation.rviz
 
-# 如果只查看而不允许车辆运动，将终端 1 中的 enable_chassis_output 改为 false
-# 如需恢复原来的定位箭头显示，将终端 1 中的 use_detailed_vehicle_model 改为 false
-# 停止时先在终端 1 按 Ctrl+C 停止 RDK 算法，再在终端 2 按 Ctrl+C 关闭 Jetson RViz
+# NavSat模式阶段A：使用同一地图地理基准，ESKF直接输出到地图坐标，不再以每次首帧为原点
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_zoulang_lio_sam
+ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
+  map:=${MAP_BASE}.yaml \
+  map_georeference:=${MAP_BASE}_georeference.yaml \
+  rviz:=true \
+  enable_chassis_output:=false \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# 可选：在第二个终端查看初始定位状态、位姿和固定的 map 到 odom 变换
-ros2 topic echo /localization/ready --once
-ros2 topic echo /localization/status --once
-ros2 topic echo /localization_pose --once
-ros2 run tf2_ros tf2_echo map odom
+# NavSat阶段A检查：只有位置质量4、航向整数固定且ESKF持续输出时ready才为true
+ros2 topic echo /localization/ready
+ros2 topic hz /odometry/filtered_navsat
+ros2 run tf2_ros tf2_echo map base_link
+ros2 topic echo /nav2/cmd_vel
 
-# 启动另一种真机模式前，先按 Ctrl+C 停止当前整套程序
+# NavSat阶段B：阶段A通过并完整关闭后，把enable_chassis_output改为true并再次限速0.15米每秒
+# 启动另一种真机模式前，先按Ctrl+C停止当前整套程序

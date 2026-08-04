@@ -66,7 +66,10 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
         "config/pcd_initial_localization.yaml",
         "config/pcd_mapping.yaml",
+        "config/rtk_map_initializer.yaml",
+        "localization/navsat/include/agribot_hardware_bringup/map_georeference.hpp",
         "localization/navsat/include/agribot_hardware_bringup/navsat_frame_conversions.hpp",
+        "localization/navsat/src/rtk_map_initializer.cpp",
         "localization/pcd/src/pcd_initial_localizer.cpp",
         "localization/pcd/src/pcd_map_builder.cpp",
         "meshes/ackermann_vehicle_body.glb",
@@ -131,6 +134,7 @@ def test_navsat_wrapper_converts_kf_gins_state_to_rear_axle_base_link():
     assert "latest_rtk_heading_std_rad_" in source
     assert "use_pose_yaw_measurement_ && sample.has_yaw" in source
     assert "Ignoring /initialpose" in source
+    assert "*latest_rtk_heading_yaw_ + map_to_ned_yaw_rad_" in source
 
 
 def test_ackermann_behavior_trees_never_request_backup():

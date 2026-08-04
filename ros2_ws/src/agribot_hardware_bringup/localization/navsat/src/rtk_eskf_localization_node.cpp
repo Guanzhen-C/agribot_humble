@@ -419,13 +419,18 @@ private:
             sample.position_std.z() = std::sqrt(msg->position_covariance[8]);
         }
         if (have_fresh_rtk_heading) {
-            sample.yaw = *latest_rtk_heading_yaw_;
+            // The receiver reports ENU yaw. Rotate it with the same map <- ENU
+            // calibration used for position before converting to KF-GINS NED.
+            sample.yaw = wrapAngle(
+                *latest_rtk_heading_yaw_ + map_to_ned_yaw_rad_);
             sample.yaw_std = latest_rtk_heading_std_rad_.value_or(
                 rtk_heading_std_rad_);
         } else if (latest_imu_orientation_.has_value()) {
             const auto &orientation = *latest_imu_orientation_;
-            sample.yaw = yawFromQuaternion(
-                orientation.x, orientation.y, orientation.z, orientation.w);
+            sample.yaw = wrapAngle(
+                yawFromQuaternion(
+                    orientation.x, orientation.y, orientation.z, orientation.w) +
+                map_to_ned_yaw_rad_);
             sample.yaw_std = default_yaw_std_rad_;
             if (use_rtk_heading_) {
                 RCLCPP_DEBUG_THROTTLE(

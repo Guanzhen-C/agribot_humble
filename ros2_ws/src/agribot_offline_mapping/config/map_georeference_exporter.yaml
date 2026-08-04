@@ -1,0 +1,21 @@
+map_georeference_exporter:
+  ros__parameters:
+    optimized_path_topic: /lio_sam/mapping/path
+    rtk_odometry_topic: /lio_sam/odometry/gps
+    reference_topic: /lio_sam/rtk_reference
+    map_frame: map
+    enu_frame: enu
+    target_frame: lidar_link
+    output_file: /tmp/agribot_map_georeference.yaml
+    map_pcd_file: /tmp/agribot_map.pcd
+    map_id: ""
+    source_bag: ""
+    calibration_version: lio_sam_rtk_v1
+    maximum_sync_offset_sec: 0.20
+    minimum_samples: 20
+    minimum_trajectory_span_m: 5.0
+    robust_minimum_inlier_m: 0.20
+    robust_mad_multiplier: 3.0
+    maximum_horizontal_rmse_m: 0.20
+    maximum_yaw_rmse_deg: 2.0
+    maximum_stored_samples: 200000

@@ -8,6 +8,8 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import TransformStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Bool, String, UInt8
 from tf2_ros import Buffer, TransformBroadcaster, TransformException, TransformListener
 
 
@@ -101,14 +103,79 @@ class NavSatPoseBridge(Node):
         self.odom_frame = self.declare_parameter("odom_frame", "odom").value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
         self.tf_mode = self.declare_parameter("tf_mode", "map_to_odom").value
+        self.publish_readiness = bool(
+            self.declare_parameter("publish_readiness", False).value
+        )
+        self.ready_topic = self.declare_parameter(
+            "ready_topic", "/localization/ready"
+        ).value
+        self.fix_quality_topic = self.declare_parameter(
+            "fix_quality_topic", "/rtk/fix_quality"
+        ).value
+        self.heading_solution_topic = self.declare_parameter(
+            "heading_solution_topic", "/rtk/heading_solution"
+        ).value
+        self.required_fix_quality = int(
+            self.declare_parameter("required_fix_quality", 4).value
+        )
+        self.allowed_heading_solutions = set(
+            self.declare_parameter(
+                "allowed_heading_solutions", ["L1_INT", "NARROW_INT"]
+            ).value
+        )
+        self.odom_timeout_sec = float(
+            self.declare_parameter("odom_timeout_sec", 0.5).value
+        )
+        self.quality_timeout_sec = float(
+            self.declare_parameter("quality_timeout_sec", 0.5).value
+        )
+        self.heading_timeout_sec = float(
+            self.declare_parameter("heading_timeout_sec", 2.0).value
+        )
+        if (
+            self.required_fix_quality < 1
+            or not self.allowed_heading_solutions
+            or min(
+                self.odom_timeout_sec,
+                self.quality_timeout_sec,
+                self.heading_timeout_sec,
+            )
+            <= 0.0
+        ):
+            raise ValueError("invalid NavSat readiness parameters")
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, self.pose_topic, 10)
         self.create_subscription(Odometry, self.odom_topic, self.handle_odom, 20)
+        self.latest_odom_receipt = None
+        self.latest_quality = None
+        self.latest_quality_receipt = None
+        self.latest_heading_solution = None
+        self.latest_heading_receipt = None
+        self.ready_pub = None
+        if self.publish_readiness:
+            ready_qos = QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            self.ready_pub = self.create_publisher(Bool, self.ready_topic, ready_qos)
+            self.create_subscription(
+                UInt8, self.fix_quality_topic, self.handle_quality, 20
+            )
+            self.create_subscription(
+                String,
+                self.heading_solution_topic,
+                self.handle_heading_solution,
+                20,
+            )
+            self.create_timer(0.1, self.publish_ready)
+            self.ready_pub.publish(Bool(data=False))
 
     def handle_odom(self, msg: Odometry) -> None:
+        self.latest_odom_receipt = self.get_clock().now()
         pose_msg = PoseWithCovarianceStamped()
         pose_msg.header = msg.header
         pose_msg.pose = msg.pose
@@ -168,6 +235,37 @@ class NavSatPoseBridge(Node):
         tf_msg.transform.rotation.z = map_to_odom_orientation[2]
         tf_msg.transform.rotation.w = map_to_odom_orientation[3]
         self.tf_broadcaster.sendTransform(tf_msg)
+
+    def handle_quality(self, msg: UInt8) -> None:
+        self.latest_quality = int(msg.data)
+        self.latest_quality_receipt = self.get_clock().now()
+
+    def handle_heading_solution(self, msg: String) -> None:
+        self.latest_heading_solution = msg.data
+        self.latest_heading_receipt = self.get_clock().now()
+
+    def publish_ready(self) -> None:
+        now = self.get_clock().now()
+
+        def fresh(receipt, timeout):
+            return (
+                receipt is not None
+                and (now - receipt).nanoseconds * 1e-9 <= timeout
+            )
+
+        heading_type = ""
+        if self.latest_heading_solution and self.latest_heading_solution.startswith(
+            "SOL_COMPUTED,"
+        ):
+            heading_type = self.latest_heading_solution.split(",", 1)[1]
+        ready = (
+            fresh(self.latest_odom_receipt, self.odom_timeout_sec)
+            and fresh(self.latest_quality_receipt, self.quality_timeout_sec)
+            and fresh(self.latest_heading_receipt, self.heading_timeout_sec)
+            and self.latest_quality == self.required_fix_quality
+            and heading_type in self.allowed_heading_solutions
+        )
+        self.ready_pub.publish(Bool(data=ready))
 
     def publish_identity_map_to_odom(self, msg: Odometry) -> None:
         tf_msg = TransformStamped()

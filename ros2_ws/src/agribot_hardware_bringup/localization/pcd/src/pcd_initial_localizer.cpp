@@ -148,15 +148,23 @@ public:
     heartbeat_timer_ =
       create_wall_timer(1s, std::bind(&PcdInitialLocalizer::publishHeartbeat, this));
 
-    setStatus("waiting for RViz 2D Pose Estimate on " + initial_pose_topic_);
+    if (automatic_global_localization_) {
+      initial_pose_prior_ = Eigen::Isometry3d::Identity();
+      pending_attempt_ = true;
+      pending_global_search_ = true;
+      setStatus("collecting scans for one-shot global FPFH initialization");
+    } else {
+      setStatus("waiting for RViz 2D Pose Estimate on " + initial_pose_topic_);
+    }
     publishHeartbeat();
     publishMap();
     RCLCPP_INFO(
       get_logger(),
       "3D map localizer ready: map=%s points=%zu; initial FPFH=%s; "
-      "one-shot initial localization enabled",
+      "one-shot initial localization enabled; automatic global search=%s",
       map_file_path_.c_str(), registration_map_->size(),
-      enable_fpfh_ ? "enabled" : "disabled");
+      enable_fpfh_ ? "enabled" : "disabled",
+      automatic_global_localization_ ? "enabled" : "disabled");
   }
 
 private:
@@ -208,6 +216,8 @@ private:
     map_frame_ = declare_parameter<std::string>("map_frame", "map");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
     enable_fpfh_ = declare_parameter<bool>("enable_fpfh", false);
+    automatic_global_localization_ =
+      declare_parameter<bool>("automatic_global_localization", false);
 
     base_to_body_ = xyzRpyToIsometry(
       declare_parameter<std::vector<double>>(
@@ -306,6 +316,10 @@ private:
     }
     if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0) {
       throw std::runtime_error("invalid registration validation parameters");
+    }
+    if (automatic_global_localization_ && !enable_fpfh_) {
+      throw std::runtime_error(
+              "automatic_global_localization requires enable_fpfh");
     }
   }
 
@@ -587,6 +601,7 @@ private:
       scan_buffer_.clear();
       initial_pose_prior_ = planar_pose;
       pending_attempt_ = true;
+      pending_global_search_ = false;
       setStatusLocked(
         enable_fpfh_ ?
         "initial pose received; collecting scans for local FPFH initialization" :
@@ -674,11 +689,14 @@ private:
   std::optional<Eigen::Isometry3d> initialFeatureRegistration(
     const ScanSample & sample,
     const Eigen::Isometry3d & initial_pose,
+    bool global_search,
     std::string & failure_reason) const
   {
     const auto feature_input = voxelize(sample.cloud_base, feature_voxel_size_);
     const auto source_pair = computeFeatures(feature_input);
-    const auto target_pair = cropFeatureMap(initial_pose.translation());
+    const auto target_pair = global_search ?
+      std::make_pair(feature_map_, map_features_) :
+      cropFeatureMap(initial_pose.translation());
     if (source_pair.first->size() < 50U) {
       failure_reason = "too few source FPFH features";
       return std::nullopt;
@@ -784,6 +802,7 @@ private:
   {
     std::deque<ScanSample> scans;
     Eigen::Isometry3d pose_seed = Eigen::Isometry3d::Identity();
+    bool global_feature_search = false;
     {
       std::lock_guard<std::mutex> guard(state_mutex_);
       if (matching_ || localized_) {
@@ -796,6 +815,7 @@ private:
       }
       scans = scan_buffer_;
       pose_seed = *initial_pose_prior_;
+      global_feature_search = pending_global_search_;
       pending_attempt_ = false;
       setStatusLocked(
         enable_fpfh_ ?
@@ -810,7 +830,8 @@ private:
     if (enable_fpfh_) {
       std::string failure_reason;
       const auto feature_pose =
-        initialFeatureRegistration(sample, pose_seed, failure_reason);
+        initialFeatureRegistration(
+        sample, pose_seed, global_feature_search, failure_reason);
       if (feature_pose.has_value()) {
         setStatus("refining local FPFH result with NDT and GICP");
         result = runRegistration(sample, *feature_pose);
@@ -955,6 +976,8 @@ private:
   std::string map_frame_;
   std::string odom_frame_;
   bool enable_fpfh_{false};
+  bool automatic_global_localization_{false};
+  bool pending_global_search_{false};
   Eigen::Isometry3d base_to_body_{Eigen::Isometry3d::Identity()};
 
   double map_voxel_size_{0.15};

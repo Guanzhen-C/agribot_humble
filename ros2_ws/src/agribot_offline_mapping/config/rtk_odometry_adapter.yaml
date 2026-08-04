@@ -1,0 +1,26 @@
+rtk_odometry_adapter:
+  ros__parameters:
+    fix_topic: /rtk/fix
+    quality_topic: /rtk/fix_quality
+    heading_topic: /rtk/heading_with_covariance
+    heading_solution_topic: /rtk/heading_solution
+    output_topic: /lio_sam/odometry/gps
+    reference_topic: /lio_sam/rtk_reference
+    status_topic: /lio_sam/rtk_adapter_status
+    enu_frame: enu
+    target_frame: lidar_link
+    required_fix_quality: 4
+    allowed_heading_solutions: [L1_INT, NARROW_INT]
+    heading_timeout_sec: 1.5
+    maximum_heading_std_deg: 3.0
+    default_horizontal_std_m: 0.03
+    default_vertical_std_m: 0.06
+    auto_reference_from_first_fix: true
+    reference_latitude_deg: 0.0
+    reference_longitude_deg: 0.0
+    reference_altitude_m: 0.0
+
+    # Rear-axle-centered base_link to the left master antenna measurement point.
+    base_to_master_antenna_m: [-0.0884, 0.1480, 0.24476]
+    # LIO-SAM key poses represent the C16 optical center, not the rear axle.
+    base_to_target_m: [0.48, 0.0, 0.233]

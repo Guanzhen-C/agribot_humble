@@ -257,6 +257,7 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert localizer["map_frame"] == "map"
     assert localizer["odom_frame"] == "odom"
     assert localizer["enable_fpfh"] is False
+    assert localizer["automatic_global_localization"] is False
     assert localizer["base_to_body_xyz"] == [0.1425, 0.0, 0.143]
     assert localizer["initial_scan_count"] == 5
     assert localizer["initial_search_radius"] == 8.0
@@ -287,6 +288,10 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert "pcl::FPFHEstimation" in localizer_source
     assert "pcl::SampleConsensusPrerejective" in localizer_source
     assert 'declare_parameter<bool>("enable_fpfh", false)' in localizer_source
+    assert 'declare_parameter<bool>("automatic_global_localization", false)' in (
+        localizer_source
+    )
+    assert "automatic_global_localization requires enable_fpfh" in localizer_source
     assert "if (enable_fpfh_)" in localizer_source
     assert "pcl::NormalDistributionsTransform" in localizer_source
     assert "pcl::GeneralizedIterativeClosestPoint" in localizer_source

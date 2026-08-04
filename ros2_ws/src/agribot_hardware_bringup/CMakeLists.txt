@@ -12,6 +12,7 @@ find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(PkgConfig REQUIRED)
 find_package(PCL REQUIRED COMPONENTS
   common
   features
@@ -28,6 +29,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(yaml-cpp REQUIRED)
+pkg_check_modules(GEOGRAPHICLIB REQUIRED IMPORTED_TARGET geographiclib)
 
 set(CHASSIS_INCLUDE_DIRS
   ${CMAKE_CURRENT_SOURCE_DIR}/can/include
@@ -145,6 +148,28 @@ add_executable(
   localization/navsat/src/rtk_gi_engine.cpp
   localization/navsat/third_party/kf_gins/kf-gins/insmech.cpp
 )
+
+add_executable(
+  rtk_map_initializer
+  localization/navsat/src/rtk_map_initializer.cpp
+)
+target_include_directories(rtk_map_initializer PRIVATE
+  localization/navsat/include
+  ${EIGEN3_INCLUDE_DIRS}
+)
+target_link_libraries(
+  rtk_map_initializer
+  Eigen3::Eigen
+  PkgConfig::GEOGRAPHICLIB
+  yaml-cpp
+)
+ament_target_dependencies(rtk_map_initializer
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  sensor_msgs
+  std_msgs
+)
 set_source_files_properties(
   localization/navsat/third_party/kf_gins/kf-gins/insmech.cpp
   PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter"
@@ -258,6 +283,7 @@ install(TARGETS
   ackermann_chassis_serial_node
   ackermann_joint_state_publisher
   rtk_eskf_localization
+  rtk_map_initializer
   pcd_map_builder
   pcd_initial_localizer
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -306,6 +332,15 @@ if(BUILD_TESTING)
     ${EIGEN3_INCLUDE_DIRS}
   )
   target_link_libraries(test_navsat_frame_conversions Eigen3::Eigen)
+  ament_add_gtest(
+    test_map_georeference
+    localization/navsat/test/test_map_georeference.cpp
+  )
+  target_include_directories(test_map_georeference PRIVATE
+    localization/navsat/include
+    ${EIGEN3_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_map_georeference Eigen3::Eigen yaml-cpp)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)

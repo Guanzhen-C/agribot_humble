@@ -26,6 +26,12 @@ def _validate_arguments(context):
     map_path = LaunchConfiguration("map").perform(context)
     pcd_map_base_path = LaunchConfiguration("pcd_map_base").perform(context)
     pcd_map_file = LaunchConfiguration("pcd_map_file").perform(context)
+    initialization_source = LaunchConfiguration("initialization_source").perform(
+        context
+    )
+    map_georeference_file = LaunchConfiguration("map_georeference_file").perform(
+        context
+    )
     enable_chassis = (
         LaunchConfiguration("enable_chassis_output").perform(context).lower()
     )
@@ -69,6 +75,18 @@ def _validate_arguments(context):
         raise RuntimeError(
             "mapped 3D localization requires "
             "pcd_map_file:=/absolute/path/to/map.pcd"
+        )
+    if initialization_source not in ("manual", "lidar", "rtk"):
+        raise RuntimeError(
+            "initialization_source must be 'manual', 'lidar' or 'rtk'"
+        )
+    if (
+        navigation_mode == "localization"
+        and initialization_source == "rtk"
+        and not map_georeference_file
+    ):
+        raise RuntimeError(
+            "RTK map initialization requires map_georeference_file"
         )
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
@@ -216,7 +234,33 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     LaunchConfiguration("navsat_localization_config"),
-                    {"use_sim_time": use_sim_time},
+                    {
+                        "use_sim_time": use_sim_time,
+                        "auto_reference_from_first_navsat_fix": LaunchConfiguration(
+                            "navsat_auto_reference_from_first_fix"
+                        ),
+                        "reference_lat_deg": LaunchConfiguration(
+                            "navsat_reference_latitude_deg"
+                        ),
+                        "reference_lon_deg": LaunchConfiguration(
+                            "navsat_reference_longitude_deg"
+                        ),
+                        "reference_alt_m": LaunchConfiguration(
+                            "navsat_reference_altitude_m"
+                        ),
+                        "initial_pose_x": LaunchConfiguration(
+                            "navsat_reference_map_x"
+                        ),
+                        "initial_pose_y": LaunchConfiguration(
+                            "navsat_reference_map_y"
+                        ),
+                        "initial_pose_z": LaunchConfiguration(
+                            "navsat_reference_map_z"
+                        ),
+                        "map_to_ned_yaw_deg": LaunchConfiguration(
+                            "navsat_map_from_enu_yaw_deg"
+                        ),
+                    },
                 ],
             ),
             Node(
@@ -233,6 +277,7 @@ def generate_launch_description():
                         "odom_frame": "odom",
                         "base_frame": "base_link",
                         "tf_mode": "odom_to_base",
+                        "publish_readiness": True,
                     }
                 ],
             ),
@@ -336,12 +381,54 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "map_file_path": LaunchConfiguration("pcd_map_file"),
+                        "initial_pose_topic": LaunchConfiguration(
+                            "mapped_initial_pose_topic"
+                        ),
                         "enable_fpfh": LaunchConfiguration("enable_fpfh"),
+                        "automatic_global_localization": LaunchConfiguration(
+                            "automatic_global_localization"
+                        ),
                     },
                 ],
             )
         ],
         condition=LaunchConfigurationEquals("navigation_mode", "localization"),
+    )
+
+    mapped_rtk_initializer = TimerAction(
+        period=LaunchConfiguration("map_start_delay"),
+        actions=[
+            Node(
+                package="agribot_hardware_bringup",
+                executable="rtk_map_initializer",
+                name="rtk_map_initializer",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("rtk_map_initializer_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "georeference_file": LaunchConfiguration(
+                            "map_georeference_file"
+                        ),
+                        "map_file": LaunchConfiguration("pcd_map_file"),
+                        "initial_pose_topic": LaunchConfiguration(
+                            "mapped_initial_pose_topic"
+                        ),
+                    },
+                ],
+            )
+        ],
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    LaunchConfiguration("navigation_mode"),
+                    "' == 'localization' and '",
+                    LaunchConfiguration("initialization_source"),
+                    "' == 'rtk'",
+                ]
+            )
+        ),
     )
 
     ackermann_navsat_navigation = TimerAction(
@@ -510,6 +597,28 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("pcd_map_base", default_value=""),
             DeclareLaunchArgument("pcd_map_file", default_value=""),
+            DeclareLaunchArgument("map_georeference_file", default_value=""),
+            DeclareLaunchArgument(
+                "mapped_initial_pose_topic", default_value="/initialpose"
+            ),
+            DeclareLaunchArgument(
+                "navsat_auto_reference_from_first_fix", default_value="true"
+            ),
+            DeclareLaunchArgument("navsat_reference_latitude_deg", default_value="0.0"),
+            DeclareLaunchArgument("navsat_reference_longitude_deg", default_value="0.0"),
+            DeclareLaunchArgument("navsat_reference_altitude_m", default_value="0.0"),
+            DeclareLaunchArgument("navsat_reference_map_x", default_value="0.0"),
+            DeclareLaunchArgument("navsat_reference_map_y", default_value="0.0"),
+            DeclareLaunchArgument("navsat_reference_map_z", default_value="0.0"),
+            DeclareLaunchArgument("navsat_map_from_enu_yaw_deg", default_value="0.0"),
+            DeclareLaunchArgument(
+                "initialization_source",
+                default_value="manual",
+                description=(
+                    "Initial map pose source: manual RViz pose, lidar global FPFH, "
+                    "or fixed RTK followed by NDT/GICP"
+                ),
+            ),
             DeclareLaunchArgument(
                 "enable_fpfh",
                 default_value="false",
@@ -517,6 +626,9 @@ def generate_launch_description():
                     "Run RViz-guided FPFH coarse registration before initial "
                     "NDT and GICP refinement"
                 ),
+            ),
+            DeclareLaunchArgument(
+                "automatic_global_localization", default_value="false"
             ),
             DeclareLaunchArgument(
                 "require_localization_ready",
@@ -582,6 +694,12 @@ def generate_launch_description():
                 "pcd_initial_localization_config",
                 default_value=os.path.join(
                     hardware_share, "config", "pcd_initial_localization.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "rtk_map_initializer_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "rtk_map_initializer.yaml"
                 ),
             ),
             DeclareLaunchArgument(
@@ -681,6 +799,7 @@ def generate_launch_description():
             fastlio_localization,
             pcd_mapping,
             mapped_localization,
+            mapped_rtk_initializer,
             Node(
                 package="nav2_map_server",
                 executable="map_server",

@@ -10,6 +10,7 @@ pcd_initial_localizer:
     map_frame: map
     odom_frame: odom
     enable_fpfh: false
+    automatic_global_localization: false
 
     # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
     base_to_body_xyz: [0.1425, 0.0, 0.143]

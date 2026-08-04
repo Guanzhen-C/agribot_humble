@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_offline_mapping</name>
+  <version>0.1.0</version>
+  <description>C16, RTK and LIO-SAM adapters for offline georeferenced Agribot mapping.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>GPL-3.0-only</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>agribot_hardware_bringup</depend>
+  <depend>eigen</depend>
+  <depend>geographiclib</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>yaml-cpp</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>lio_sam</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,7 @@
+lslidar_lio_sam_adapter:
+  ros__parameters:
+    input_topic: /lidar/points
+    output_topic: /lio_sam/points
+    output_frame: lidar_link
+    maximum_scan_duration: 0.20
+    maximum_ring: 15

@@ -7,6 +7,9 @@ from launch import LaunchContext
 
 PACKAGE_ROOT = Path(__file__).parents[1]
 VEHICLE_LAUNCH_PATH = PACKAGE_ROOT / "launch" / "vehicle_autonomy.launch.py"
+NAVSAT_LAUNCH_PATH = (
+    PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_navsat.launch.py"
+)
 ACKERMANN_LAUNCH_PATHS = (
     PACKAGE_ROOT / "ackermann" / "launch" / "ackermann_mppi_navsat.launch.py",
     PACKAGE_ROOT
@@ -36,6 +39,16 @@ def load_vehicle_launch():
 LAUNCH = load_vehicle_launch()
 
 
+def load_launch(path, module_name):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+NAVSAT_LAUNCH = load_launch(NAVSAT_LAUNCH_PATH, "ackermann_mppi_navsat_launch")
+
+
 def context_with(**overrides):
     values = {
         "localization": "navsat",
@@ -50,6 +63,8 @@ def context_with(**overrides):
         "map": "/tmp/real_map.yaml",
         "pcd_map_base": "/tmp/real_map",
         "pcd_map_file": "/tmp/real_map.pcd",
+        "initialization_source": "manual",
+        "map_georeference_file": "",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -192,6 +207,40 @@ def test_mapped_localization_requires_pcd_map():
         )
 
 
+def test_mapped_rtk_initialization_requires_georeference():
+    with pytest.raises(RuntimeError, match="requires map_georeference_file"):
+        LAUNCH._validate_arguments(
+            context_with(
+                localization="fastlio",
+                navigation_mode="localization",
+                vehicle_type="ackermann",
+                controller="mppi",
+                initialization_source="rtk",
+                map_georeference_file="",
+            )
+        )
+
+
+def test_mapped_rtk_initialization_accepts_georeference():
+    assert LAUNCH._validate_arguments(
+        context_with(
+            localization="fastlio",
+            navigation_mode="localization",
+            vehicle_type="ackermann",
+            controller="mppi",
+            initialization_source="rtk",
+            map_georeference_file="/tmp/real_map_georeference.yaml",
+        )
+    ) == []
+
+
+def test_unknown_initialization_source_is_rejected():
+    with pytest.raises(RuntimeError, match="initialization_source must be"):
+        LAUNCH._validate_arguments(
+            context_with(initialization_source="unsupported")
+        )
+
+
 def test_removed_ackermann_fastlio_static_mode_is_rejected():
     with pytest.raises(RuntimeError, match="static mode was removed"):
         LAUNCH._validate_arguments(
@@ -212,6 +261,70 @@ def test_static_navigation_requires_map():
 def test_unknown_navigation_mode_is_rejected():
     with pytest.raises(RuntimeError, match="navigation_mode must be"):
         LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))
+
+
+def write_test_georeference(tmp_path, fingerprint):
+    georeference = tmp_path / "map_georeference.yaml"
+    georeference.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "map:",
+                "  id: map",
+                f"  fingerprint_fnv1a64: {fingerprint}",
+                "reference:",
+                "  latitude_deg: 30.0",
+                "  longitude_deg: 114.0",
+                "  altitude_m: 20.0",
+                "map_from_enu:",
+                "  xyz: [1.0, 2.0, 0.0]",
+                "  rpy: [0.0, 0.0, 0.1]",
+                "calibration:",
+                "  horizontal_rmse_m: 0.05",
+                "  yaw_rmse_deg: 0.5",
+                "  sample_count: 20",
+                "  version: test-v1",
+                "  hash: test-hash",
+            ]
+        )
+    )
+    return georeference
+
+
+def test_navsat_entry_accepts_matching_pcd_fingerprint(tmp_path):
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("image: map.pgm\n")
+    pcd_path = tmp_path / "map.pcd"
+    pcd_path.write_bytes(b"optimized-map")
+    georeference = write_test_georeference(
+        tmp_path, NAVSAT_LAUNCH._fingerprint_file(pcd_path)
+    )
+    context = LaunchContext()
+    context.launch_configurations.update(
+        {"map": str(map_path), "map_georeference": str(georeference)}
+    )
+
+    actions = NAVSAT_LAUNCH._launch_georeferenced_navsat(
+        context, hardware_share=str(PACKAGE_ROOT)
+    )
+
+    assert len(actions) == 1
+
+
+def test_navsat_entry_rejects_mismatched_pcd_fingerprint(tmp_path):
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("image: map.pgm\n")
+    (tmp_path / "map.pcd").write_bytes(b"optimized-map")
+    georeference = write_test_georeference(tmp_path, "0000000000000000")
+    context = LaunchContext()
+    context.launch_configurations.update(
+        {"map": str(map_path), "map_georeference": str(georeference)}
+    )
+
+    with pytest.raises(RuntimeError, match="fingerprint"):
+        NAVSAT_LAUNCH._launch_georeferenced_navsat(
+            context, hardware_share=str(PACKAGE_ROOT)
+        )
 
 
 def test_chassis_uses_nav2_output_with_only_localization_readiness_inhibition():
@@ -258,8 +371,11 @@ def test_mapped_entry_uses_nav2_and_pcd_maps_with_optional_fpfh_localization():
     assert "map_base, \".pcd'\"]" in source
     assert '"require_localization_ready": "true"' in source
     assert 'DeclareLaunchArgument("enable_fpfh", default_value="false")' in source
-    assert '"enable_fpfh": LaunchConfiguration("enable_fpfh")' in source
-    assert "initial_pose" not in source
+    assert '"initialization_source": LaunchConfiguration(' in source
+    assert '"mapped_initial_pose_topic": PythonExpression(' in source
+    assert '"enable_fpfh": PythonExpression(' in source
+    assert '"automatic_global_localization": PythonExpression(' in source
+    assert '"map_georeference_file": LaunchConfiguration(' in source
     assert "nav2_params_ackermann_fastlio_mapped.yaml" in source
     assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
     assert "posegraph" not in source
