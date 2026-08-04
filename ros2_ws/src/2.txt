@@ -173,8 +173,8 @@ export ROS_LOCALHOST_ONLY=0
 # 位置解质量应连续稳定为 4，表示 RTK 整数固定解
 ros2 topic echo /rtk/fix_quality --field data
 
-# 航向解应连续稳定为 SOL_COMPUTED,L1_INT 或 SOL_COMPUTED,NARROW_INT
-# 如果显示 L1_FLOAT，继续保持静止并等待，不要启动 ESKF
+# 航向解优先连续稳定为 SOL_COMPUTED,L1_INT 或 SOL_COMPUTED,NARROW_INT
+# L1_FLOAT也可供ESKF使用，但会自动采用不小于5度的标准差降低权重；正式精度测试应等待整数固定解
 ros2 topic echo /rtk/heading_solution --field data
 
 # 航向有效标志应持续为 true；true 本身不代表已经达到整数固定解
@@ -183,6 +183,10 @@ ros2 topic echo /rtk/heading_valid --field data
 # 主天线在左、副天线在右；车头航向为北0度、顺时针为正
 # 车辆静止时航向角不应明显跳变
 ros2 topic echo /rtk/heading_deg --field data
+
+# 查看航向及其动态协方差；pose.covariance[35]是航向方差，单位为rad^2
+# 整数固定解下限约0.0003046（1度标准差），浮点解下限约0.0076154（5度标准差）
+ros2 topic echo /rtk/heading_with_covariance --once
 
 # 确认位置固定解、航向整数固定解和航向稳定后，再继续下面步骤
 
@@ -196,7 +200,8 @@ mkdir -p /home/sunrise/agribot_bags
 timeout 300 ros2 bag record \
   -o /home/sunrise/agribot_bags/navsat_eskf_$(date +%Y%m%d_%H%M%S) \
   /rtk/fix /rtk/fix_quality /rtk/heading /rtk/heading_deg \
-  /rtk/heading_valid /rtk/heading_solution /imu/data \
+  /rtk/heading_valid /rtk/heading_solution \
+  /rtk/heading_with_covariance /imu/data \
   /navsat_pose /odometry/filtered_navsat
 
 # 终端 4：启动 KF-GINS ESKF；输出位置已经过主天线到后轴中心的杆臂补偿
@@ -227,8 +232,9 @@ ros2 topic echo /navsat_pose
 # 查看ESKF融合定位；pose是后轴中心位姿，twist是融合速度
 ros2 topic echo /odometry/filtered_navsat
 
-# 分别检查RTK、IMU和ESKF输出频率；每查完一项按 Ctrl+C
+# 分别检查RTK位置、动态航向协方差、IMU和ESKF输出频率；每查完一项按 Ctrl+C
 ros2 topic hz /rtk/fix
+ros2 topic hz /rtk/heading_with_covariance
 ros2 topic hz /imu/data
 ros2 topic hz /odometry/filtered_navsat
 
@@ -237,6 +243,83 @@ source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 LATEST_NAVSAT_BAG=$(ls -td /home/sunrise/agribot_bags/navsat_eskf_* | head -n 1)
 ros2 bag info "$LATEST_NAVSAT_BAG"
+
+# 第5步：NavSat ESKF通过后，接入Smac、MPPI、C16三维代价地图和CAN底盘
+# 该启动文件会同时启动RTK、IMU、C16、ESKF、Smac Hybrid-A*、MPPI和STVL三维雷达代价地图
+# 重要：当前NavSat坐标树使用map到odom恒等变换，下面的地图必须已经与NavSat局部ENU原点和方向对齐
+# FAST-LIO建立的地图不能直接假定已经对齐；未完成坐标对齐时只做阶段A，禁止进入阶段B
+# 启动前关闭其他整套ROS程序和桌面CAN GUI，避免重复占用传感器串口或USB-CAN
+
+# 阶段A：RDK启动完整定位和导航，但不创建CAN底盘节点；车辆必须保持静止
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export NAVSAT_MAP=/home/sunrise/agribot_maps/test_site/map_navsat_aligned.yaml
+if [ ! -f "$NAVSAT_MAP" ]; then
+  echo "缺少已与NavSat ENU对齐的地图：$NAVSAT_MAP"
+else
+  ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
+    map:="$NAVSAT_MAP" \
+    rviz:=true \
+    enable_chassis_output:=false \
+    chassis_driver:=ackermann_can \
+    can_transport:=zqwl_cdc \
+    zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+fi
+
+# 阶段A检查：另开终端逐项执行；生命周期必须active，定位和雷达必须持续发布
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 lifecycle get /planner_server
+ros2 lifecycle get /controller_server
+ros2 topic hz /odometry/filtered_navsat
+ros2 topic hz /lidar/points
+ros2 run tf2_ros tf2_echo map base_link
+
+# 在RViz设置目标后，应生成全局路径且/nav2/cmd_vel出现非零指令，但真车不得移动
+# 同时检查局部和全局代价地图能用C16点云标记、清除障碍物，且车体在静态地图中的位置和方向正确
+ros2 topic echo /nav2/cmd_vel
+
+# 确认没有启动底盘节点；没有输出表示正确
+ros2 node list | grep -E 'ackermann_chassis_can|ackermann_chassis_serial' || true
+
+# 阶段A全部通过后按Ctrl+C完整关闭，再执行阶段B；不要让两个整套启动命令同时运行
+# 阶段B：启用USB-CAN底盘，以0.15 m/s速度上限进行首次低速实车测试
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export NAVSAT_MAP=/home/sunrise/agribot_maps/test_site/map_navsat_aligned.yaml
+if [ ! -f "$NAVSAT_MAP" ]; then
+  echo "缺少已与NavSat ENU对齐的地图：$NAVSAT_MAP"
+else
+  ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
+    map:="$NAVSAT_MAP" \
+    rviz:=true \
+    enable_chassis_output:=true \
+    chassis_driver:=ackermann_can \
+    can_transport:=zqwl_cdc \
+    zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+fi
+
+# 阶段B启动完成后另开终端执行一次限速，再检查底盘反馈；每次重新启动整套程序都要重新发送限速
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
+  "{percentage: false, speed_limit: 0.15}"
+ros2 topic hz /wheel/odometry
+
+# 只选择前方近距离、无障碍目标；确认转向、跟踪和停止正常后再逐步扩大测试范围
+# 任一定位、TF、代价地图、规划、控制或CAN反馈异常时立即停止，不要继续下发目标
 
 # 阿克曼真机：在 RDK X5 上建立 FAST-LIO2 三维地图
 # 终端 1：等待出现“Initialized map origin”，然后使用蓝牙控制器缓慢驾驶
