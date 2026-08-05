@@ -196,15 +196,9 @@ source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-# RDK数据统一保存在挂载硬盘中；未挂载时停止，避免写入系统盘
-export AGRIBOT_DATA_ROOT=/home/sunrise/agribot_data
-if [ "$(findmnt -rn -T "$(readlink -f "$AGRIBOT_DATA_ROOT")" -o TARGET)" != "/media/新加卷" ]; then
-  echo "错误：RDK数据硬盘未挂载到/media/新加卷"
-  return 1 2>/dev/null || exit 1
-fi
-mkdir -p "$AGRIBOT_DATA_ROOT"/{bags,calibration,logs}
+mkdir -p /home/sunrise/agribot_bags
 timeout 300 ros2 bag record \
-  -o /home/sunrise/agribot_data/bags/navsat_eskf_$(date +%Y%m%d_%H%M%S) \
+  -o /home/sunrise/agribot_bags/navsat_eskf_$(date +%Y%m%d_%H%M%S) \
   /rtk/fix /rtk/fix_quality /rtk/heading /rtk/heading_deg \
   /rtk/heading_valid /rtk/heading_solution \
   /rtk/heading_with_covariance /imu/data \
@@ -247,7 +241,7 @@ ros2 topic hz /odometry/filtered_navsat
 # bag 记录结束后：查看最新数据包的时长、话题和消息数量
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
-LATEST_NAVSAT_BAG=$(ls -td /home/sunrise/agribot_data/bags/navsat_eskf_* | head -n 1)
+LATEST_NAVSAT_BAG=$(ls -td /home/sunrise/agribot_bags/navsat_eskf_* | head -n 1)
 ros2 bag info "$LATEST_NAVSAT_BAG"
 
 # 使用RTK约束和回环优化建立可自动初始化的地图
@@ -270,43 +264,21 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export MAP_NAME=map_lio_sam_0804
-export AGRIBOT_DATA_ROOT=/home/sunrise/agribot_data
-if [ "$(findmnt -rn -T "$(readlink -f "$AGRIBOT_DATA_ROOT")" -o TARGET)" != "/media/新加卷" ]; then
-  echo "错误：RDK数据硬盘未挂载到/media/新加卷"
-  return 1 2>/dev/null || exit 1
-fi
-export BAG_NAME=${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
-export BAG_STAGE=/home/sunrise/agribot_bag_staging/$BAG_NAME
-export BAG_ARCHIVE=/home/sunrise/agribot_data/bags/$BAG_NAME
-mkdir -p /home/sunrise/agribot_bag_staging \
-  /home/sunrise/agribot_data/bags \
-  /home/sunrise/agribot_maps/test_site
-echo "采集临时目录：$BAG_STAGE"
-echo "停止后归档目录：$BAG_ARCHIVE"
+export BAG_PATH=/home/sunrise/agribot_bags/${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
+mkdir -p /home/sunrise/agribot_bags /home/sunrise/agribot_maps/test_site
+echo "本次数据包：$BAG_PATH"
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_3d_mapping.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/$MAP_NAME \
   start_rtk:=true \
   record_bag:=true \
-  bag_output:=$BAG_STAGE \
+  bag_output:=$BAG_PATH \
   rviz:=false \
   enable_chassis_output:=false
 
 # 看到Recording...后先不要动车，在终端2检查数据并保持车辆静止约30秒
-# 结束时在本终端按一次Ctrl+C，等待rosbag关闭，然后执行下面整段归档命令
-# C16高带宽数据先写系统盘，避免NTFS硬盘写速不足导致丢帧；归档成功后自动删除临时包
-ros2 bag info "$BAG_STAGE" && \
-mkdir -p "$BAG_ARCHIVE" && \
-rsync -r --size-only --no-perms --no-owner --no-group \
-  "$BAG_STAGE/" "$BAG_ARCHIVE/" && \
-diff -u \
-  <(cd "$BAG_STAGE" && find . -type f -printf '%P %s\n' | sort) \
-  <(cd "$BAG_ARCHIVE" && find . -type f -printf '%P %s\n' | sort) && \
-ros2 bag info "$BAG_ARCHIVE" && \
-rm -rf "$BAG_STAGE" && \
-sync && \
-export BAG_PATH="$BAG_ARCHIVE" && \
-echo "采集数据已归档：$BAG_PATH"
+# 结束时在本终端按一次Ctrl+C，等待rosbag完成写盘后再断电，然后检查数据包
+ros2 bag info "$BAG_PATH"
 
 # 第2步终端2（RDK）：逐项检查采集数据；每条命令观察完成后按Ctrl+C，再执行下一条
 source /opt/ros/humble/setup.bash
@@ -334,7 +306,7 @@ ros2 topic hz /imu/data
 
 # 第3步（Jetson）：把刚采集的数据包从RDK复制到Jetson
 export RDK_IP=10.147.55.3
-export RDK_BAG=/home/sunrise/agribot_data/bags/这里改成实际数据包目录名
+export RDK_BAG=/home/sunrise/agribot_bags/这里改成实际数据包目录名
 mkdir -p /home/cgz/agribot_bags
 rsync -a sunrise@$RDK_IP:$RDK_BAG /home/cgz/agribot_bags/
 
