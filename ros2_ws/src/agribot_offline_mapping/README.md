@@ -27,6 +27,12 @@ The Nav2 projection uses the final optimized LIO-SAM trajectory as its local
 height reference. This keeps the obstacle band tied to the lidar height on
 sloped terrain instead of cutting the ground with one global Z interval.
 
+The projection also treats the inner `0.28 m` on either side of the optimized
+rear-axle trajectory as observed free space. The measured vehicle half-width is
+about `0.336 m`, so this removes transient returns left by a person following
+the vehicle while retaining a margin before static walls. Override it with
+`--trajectory-clearance-half-width`, or set the value to zero to disable it.
+
 For a site independently known to be horizontal, the finalizer accepts
 `--level-horizontal-trajectory`. It fits the optimized trajectory plane and
 applies one rigid rotation to both the final PCD and the projection reference.

@@ -99,3 +99,34 @@ def test_height_reference_requires_finite_trajectory_points():
         MODULE.nearest_reference_heights(
             np.array([[0.0, 0.0]]), np.array([[np.nan, 0.0, 0.0]])
         )
+
+
+def test_trajectory_corridor_clears_only_driven_free_space():
+    cells = np.zeros((21, 21), dtype=np.uint8)
+    trajectory = np.array([[0.2, 0.5, 0.0], [0.8, 0.5, 0.0]])
+
+    cleared = MODULE.clear_trajectory_corridor(
+        cells,
+        origin=np.array([0.0, 0.0]),
+        resolution=0.05,
+        trajectory_points=trajectory,
+        half_width=0.10,
+    )
+
+    assert cleared > 0
+    assert cells[10, 10] == 254
+    assert cells[2, 10] == 0
+    assert cells[18, 10] == 0
+
+
+def test_trajectory_corridor_rejects_nonfinite_path():
+    with np.testing.assert_raises_regex(
+        ValueError, "clear-trajectory PCD contains no finite points"
+    ):
+        MODULE.clear_trajectory_corridor(
+            np.zeros((3, 3), dtype=np.uint8),
+            origin=np.array([0.0, 0.0]),
+            resolution=0.05,
+            trajectory_points=np.array([[np.nan, 0.0, 0.0]]),
+            half_width=0.10,
+        )

@@ -55,6 +55,7 @@ def test_nav2_projection_uses_optimized_trajectory_height(
         maximum_z=0.6395,
         padding=1.0,
         dilation=0.05,
+        trajectory_clearance_half_width=0.28,
     )
 
     assert len(commands) == 1
@@ -62,6 +63,10 @@ def test_nav2_projection_uses_optimized_trajectory_height(
     assert check is True
     reference_index = command.index("--height-reference-pcd")
     assert command[reference_index + 1] == str(trajectory_pcd)
+    clearance_index = command.index("--clear-trajectory-pcd")
+    assert command[clearance_index + 1] == str(trajectory_pcd)
+    width_index = command.index("--clear-trajectory-half-width")
+    assert command[width_index + 1] == "0.28"
 
 
 def write_test_pcd(path, xyz):

@@ -97,6 +97,54 @@ def nearest_reference_heights(points_xy, height_reference_points, chunk_size=819
     return result
 
 
+def clear_trajectory_corridor(
+    cells, origin, resolution, trajectory_points, half_width
+):
+    trajectory = trajectory_points[
+        np.isfinite(trajectory_points).all(axis=1)
+    ][:, :2].astype(np.float64, copy=False)
+    if trajectory.size == 0:
+        raise ValueError("clear-trajectory PCD contains no finite points")
+    if half_width <= 0.0:
+        raise ValueError("clear-trajectory half width must be positive")
+
+    # Rasterize a dense centerline, then clear only an inner portion of the
+    # vehicle's swept footprint. This records that the robot occupied free
+    # space without erasing nearby walls at the measured body boundary.
+    sample_spacing = resolution * 0.5
+    samples = [trajectory[:1]]
+    for start, end in zip(trajectory[:-1], trajectory[1:]):
+        segment = end - start
+        length = float(np.linalg.norm(segment))
+        if length == 0.0:
+            continue
+        count = max(1, int(math.ceil(length / sample_spacing)))
+        fractions = np.arange(1, count + 1, dtype=np.float64) / count
+        samples.append(start[None, :] + fractions[:, None] * segment[None, :])
+    sampled_path = np.vstack(samples)
+    path_indices = np.floor(
+        (sampled_path - origin) / resolution
+    ).astype(np.int64)
+
+    clear_mask = np.zeros(cells.shape, dtype=bool)
+    radius_cells = int(math.ceil(half_width / resolution))
+    for offset_y in range(-radius_cells, radius_cells + 1):
+        for offset_x in range(-radius_cells, radius_cells + 1):
+            if math.hypot(offset_x, offset_y) * resolution > half_width:
+                continue
+            x = path_indices[:, 0] + offset_x
+            y = path_indices[:, 1] + offset_y
+            valid = (
+                (x >= 0) & (x < cells.shape[1])
+                & (y >= 0) & (y < cells.shape[0])
+            )
+            clear_mask[y[valid], x[valid]] = True
+
+    cleared_count = int(np.count_nonzero((cells == 0) & clear_mask))
+    cells[clear_mask] = 254
+    return cleared_count
+
+
 def project_occupancy(
     points,
     resolution,
@@ -187,6 +235,20 @@ def parse_arguments():
             "relative to the nearest trajectory point"
         ),
     )
+    parser.add_argument(
+        "--clear-trajectory-pcd",
+        type=Path,
+        help=(
+            "optional optimized trajectory PCD whose swept corridor is "
+            "known free space"
+        ),
+    )
+    parser.add_argument(
+        "--clear-trajectory-half-width",
+        type=float,
+        default=0.0,
+        help="inner half-width of the driven corridor to clear in metres",
+    )
     return parser.parse_args()
 
 
@@ -196,6 +258,15 @@ def main():
         raise SystemExit("resolution must be positive and max-z must exceed min-z")
     if arguments.padding < 0.0 or arguments.dilation < 0.0:
         raise SystemExit("padding and dilation must be non-negative")
+    if arguments.clear_trajectory_half_width < 0.0:
+        raise SystemExit("clear-trajectory-half-width must be non-negative")
+    if (
+        arguments.clear_trajectory_pcd is None
+    ) != (arguments.clear_trajectory_half_width == 0.0):
+        raise SystemExit(
+            "clear-trajectory-pcd and a positive "
+            "clear-trajectory-half-width must be supplied together"
+        )
 
     points = read_pcd_xyz(arguments.pcd)
     height_reference_points = (
@@ -212,13 +283,26 @@ def main():
         arguments.dilation,
         height_reference_points,
     )
+    cleared_count = 0
+    if arguments.clear_trajectory_pcd is not None:
+        clear_trajectory_points = read_pcd_xyz(
+            arguments.clear_trajectory_pcd
+        )
+        cleared_count = clear_trajectory_corridor(
+            cells,
+            origin,
+            arguments.resolution,
+            clear_trajectory_points,
+            arguments.clear_trajectory_half_width,
+        )
     pgm_path, yaml_path = write_nav2_map(
         cells, origin, arguments.output_base, arguments.resolution
     )
     occupied_count = int(np.count_nonzero(cells == 0))
     print(
         f"Projected {selected_count} points into {cells.shape[1]}x{cells.shape[0]} "
-        f"map with {occupied_count} occupied cells: {pgm_path}, {yaml_path}"
+        f"map with {occupied_count} occupied cells; cleared {cleared_count} "
+        f"trajectory cells: {pgm_path}, {yaml_path}"
     )
 
 

@@ -256,30 +256,38 @@ def project_nav2_map(
     maximum_z: float,
     padding: float,
     dilation: float,
+    trajectory_clearance_half_width: float,
 ) -> None:
-    subprocess.run(
-        [
-            "ros2",
-            "run",
-            "agribot_hardware_bringup",
-            "pcd_to_nav2_map.py",
-            str(pcd_path),
-            str(map_base),
-            "--resolution",
-            str(resolution),
-            "--min-z",
-            str(minimum_z),
-            "--max-z",
-            str(maximum_z),
-            "--padding",
-            str(padding),
-            "--dilation",
-            str(dilation),
-            "--height-reference-pcd",
-            str(height_reference_pcd),
-        ],
-        check=True,
-    )
+    command = [
+        "ros2",
+        "run",
+        "agribot_hardware_bringup",
+        "pcd_to_nav2_map.py",
+        str(pcd_path),
+        str(map_base),
+        "--resolution",
+        str(resolution),
+        "--min-z",
+        str(minimum_z),
+        "--max-z",
+        str(maximum_z),
+        "--padding",
+        str(padding),
+        "--dilation",
+        str(dilation),
+        "--height-reference-pcd",
+        str(height_reference_pcd),
+    ]
+    if trajectory_clearance_half_width > 0.0:
+        command.extend(
+            [
+                "--clear-trajectory-pcd",
+                str(height_reference_pcd),
+                "--clear-trajectory-half-width",
+                str(trajectory_clearance_half_width),
+            ]
+        )
+    subprocess.run(command, check=True)
 
 
 def parse_arguments():
@@ -295,6 +303,15 @@ def parse_arguments():
     parser.add_argument("--max-z", type=float, default=0.6395)
     parser.add_argument("--padding", type=float, default=1.0)
     parser.add_argument("--dilation", type=float, default=0.05)
+    parser.add_argument(
+        "--trajectory-clearance-half-width",
+        type=float,
+        default=0.28,
+        help=(
+            "clear the driven corridor inside this half-width in the 2D "
+            "map; set to 0 to disable"
+        ),
+    )
     parser.add_argument(
         "--level-horizontal-trajectory",
         action="store_true",
@@ -318,6 +335,10 @@ def main():
         )
     if arguments.padding < 0.0 or arguments.dilation < 0.0:
         raise SystemExit("padding and dilation must be non-negative")
+    if arguments.trajectory_clearance_half_width < 0.0:
+        raise SystemExit(
+            "trajectory-clearance-half-width must be non-negative"
+        )
     if arguments.maximum_leveling_angle_deg <= 0.0:
         raise SystemExit("maximum-leveling-angle-deg must be positive")
 
@@ -363,6 +384,7 @@ def main():
             arguments.max_z,
             arguments.padding,
             arguments.dilation,
+            arguments.trajectory_clearance_half_width,
         )
         print(f"Finalized optimized map: {pcd_path}")
     finally:
