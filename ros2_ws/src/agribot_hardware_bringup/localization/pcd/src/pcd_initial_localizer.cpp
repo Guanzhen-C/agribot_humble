@@ -141,6 +141,13 @@ public:
       std::bind(
         &PcdInitialLocalizer::handleInitialPose, this,
         std::placeholders::_1));
+    if (!external_ready_topic_.empty()) {
+      external_ready_subscription_ = create_subscription<std_msgs::msg::Bool>(
+        external_ready_topic_, latched_qos,
+        std::bind(
+          &PcdInitialLocalizer::handleExternalReady, this,
+          std::placeholders::_1));
+    }
 
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
     matching_timer_ =
@@ -213,6 +220,10 @@ private:
       declare_parameter<std::string>("ready_topic", "/localization/ready");
     status_topic_ =
       declare_parameter<std::string>("status_topic", "/localization/status");
+    external_ready_topic_ =
+      declare_parameter<std::string>("external_ready_topic", "");
+    external_ready_timeout_sec_ =
+      declare_parameter<double>("external_ready_timeout_sec", 0.5);
     map_frame_ = declare_parameter<std::string>("map_frame", "map");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
     enable_fpfh_ = declare_parameter<bool>("enable_fpfh", false);
@@ -314,7 +325,9 @@ private:
     {
       throw std::runtime_error("invalid NDT or GICP parameters");
     }
-    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0) {
+    if (overlap_distance_ <= 0.0 || maximum_inlier_rmse_ <= 0.0 ||
+      external_ready_timeout_sec_ <= 0.0)
+    {
       throw std::runtime_error("invalid registration validation parameters");
     }
     if (automatic_global_localization_ && !enable_fpfh_) {
@@ -502,7 +515,7 @@ private:
     } catch (const std::exception & exception) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Ignoring invalid FAST-LIO odometry: %s", exception.what());
+        "Ignoring invalid localization odometry: %s", exception.what());
       return;
     }
 
@@ -545,7 +558,7 @@ private:
     if (!odometry.has_value()) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "No FAST-LIO odometry within %.3f s of the body-frame scan",
+        "No localization odometry within %.3f s of the registration scan",
         max_odom_age_);
       return;
     }
@@ -612,6 +625,16 @@ private:
       get_logger(), "Initial pose prior: x=%.2f y=%.2f yaw=%.1f deg",
       planar_pose.translation().x(), planar_pose.translation().y(),
       rpy.z() * 180.0 / M_PI);
+    publishHeartbeat();
+  }
+
+  void handleExternalReady(const std_msgs::msg::Bool::SharedPtr message)
+  {
+    {
+      std::lock_guard<std::mutex> guard(state_mutex_);
+      external_ready_ = message->data;
+      external_ready_stamp_ = now();
+    }
     publishHeartbeat();
   }
 
@@ -904,7 +927,15 @@ private:
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
     std_msgs::msg::Bool ready;
-    ready.data = localized_;
+    bool external_ready = true;
+    if (!external_ready_topic_.empty()) {
+      external_ready = external_ready_ && external_ready_stamp_.has_value();
+      if (external_ready) {
+        const double age = (now() - *external_ready_stamp_).seconds();
+        external_ready = age >= 0.0 && age <= external_ready_timeout_sec_;
+      }
+    }
+    ready.data = localized_ && external_ready;
     ready_publisher_->publish(ready);
     std_msgs::msg::String status;
     status.data = status_;
@@ -973,6 +1004,7 @@ private:
   std::string pose_topic_;
   std::string ready_topic_;
   std::string status_topic_;
+  std::string external_ready_topic_;
   std::string map_frame_;
   std::string odom_frame_;
   bool enable_fpfh_{false};
@@ -1016,6 +1048,7 @@ private:
 
   double overlap_distance_{0.50};
   double maximum_inlier_rmse_{0.20};
+  double external_ready_timeout_sec_{0.5};
 
   PointCloud::Ptr registration_map_;
   PointCloud::Ptr coarse_registration_map_;
@@ -1031,12 +1064,15 @@ private:
   bool pending_attempt_{false};
   bool matching_{false};
   bool localized_{false};
+  bool external_ready_{false};
+  std::optional<rclcpp::Time> external_ready_stamp_;
   std::string status_{"starting"};
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
     initial_pose_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr external_ready_subscription_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ready_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr

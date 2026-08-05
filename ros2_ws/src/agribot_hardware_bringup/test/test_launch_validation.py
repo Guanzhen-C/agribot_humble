@@ -181,6 +181,18 @@ def test_mapped_localization_accepts_fastlio():
     assert LAUNCH._validate_arguments(context) == []
 
 
+def test_mapped_localization_accepts_navsat():
+    context = context_with(
+        localization="navsat",
+        navigation_mode="localization",
+        vehicle_type="ackermann",
+        controller="mppi",
+        chassis_driver="ackermann_can",
+        map="/tmp/real_map.yaml",
+    )
+    assert LAUNCH._validate_arguments(context) == []
+
+
 def test_mapped_localization_requires_nav2_map():
     with pytest.raises(RuntimeError, match="localization navigation requires map"):
         LAUNCH._validate_arguments(
@@ -331,7 +343,7 @@ def test_navsat_entry_rejects_mismatched_pcd_fingerprint(tmp_path):
         )
 
 
-def test_navsat_entry_rejects_position_only_yaw_calibration(tmp_path):
+def test_navsat_entry_accepts_position_only_yaw_for_lidar_refinement(tmp_path):
     map_path = tmp_path / "map.yaml"
     map_path.write_text("image: map.pgm\n")
     pcd_path = tmp_path / "map.pcd"
@@ -346,10 +358,24 @@ def test_navsat_entry_rejects_position_only_yaw_calibration(tmp_path):
         {"map": str(map_path), "map_georeference": str(georeference)}
     )
 
-    with pytest.raises(RuntimeError, match="strict NavSat runtime limits"):
-        NAVSAT_LAUNCH._launch_georeferenced_navsat(
-            context, hardware_share=str(PACKAGE_ROOT)
-        )
+    actions = NAVSAT_LAUNCH._launch_georeferenced_navsat(
+        context, hardware_share=str(PACKAGE_ROOT)
+    )
+
+    assert len(actions) == 1
+
+
+def test_navsat_entry_uses_kf_gins_with_one_shot_pcd_refinement():
+    source = NAVSAT_LAUNCH_PATH.read_text()
+    assert '"localization": "navsat"' in source
+    assert '"navigation_mode": "localization"' in source
+    assert '"pcd_map_file": str(pcd_path)' in source
+    assert '"mapped_odometry_topic": "/odometry/filtered_navsat"' in source
+    assert '"navsat_output_frame": "odom"' in source
+    assert '"navsat_tf_mode": "odom_to_base_only"' in source
+    assert '"navsat_ready_topic": "/localization/navsat_ready"' in source
+    assert '"require_localization_ready": "true"' in source
+    assert '"enable_fpfh": "false"' in source
 
 
 def test_chassis_uses_nav2_output_with_only_localization_readiness_inhibition():
@@ -420,10 +446,27 @@ def test_vehicle_launch_uses_one_shot_pcl_localization_only_in_mapped_mode():
     assert "pcd_ndt_localizer" not in source
     assert "map_to_fastlio_odom" in source
     assert "odom_to_fastlio_world" in source
+    assert '"cloud_topic": "/lidar/points"' in source
+    assert '"cloud_frame": "lidar_link"' in source
+    assert '"odom_topic": "/odometry/filtered_navsat"' in source
+    assert '"base_to_body_xyz": [0.48, 0.0, 0.233]' in source
+    assert '"external_ready_topic": LaunchConfiguration(' in source
     assert (
         'condition=LaunchConfigurationEquals("navigation_mode", "static")'
         in source
     )
+
+
+def test_navsat_bridge_can_leave_map_to_odom_to_pcd_localizer():
+    source = (
+        PACKAGE_ROOT
+        / "localization"
+        / "navsat"
+        / "scripts"
+        / "navsat_pose_bridge.py"
+    ).read_text()
+    assert '"odom_to_base_only"' in source
+    assert 'if self.tf_mode == "odom_to_base_only":' in source
 
 
 def test_ackermann_vehicle_launch_publishes_robot_description():

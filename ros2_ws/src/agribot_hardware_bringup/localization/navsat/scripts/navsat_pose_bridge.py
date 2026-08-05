@@ -103,6 +103,12 @@ class NavSatPoseBridge(Node):
         self.odom_frame = self.declare_parameter("odom_frame", "odom").value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
         self.tf_mode = self.declare_parameter("tf_mode", "map_to_odom").value
+        if self.tf_mode not in (
+            "map_to_odom",
+            "odom_to_base",
+            "odom_to_base_only",
+        ):
+            raise ValueError(f"unsupported tf_mode: {self.tf_mode}")
         self.publish_readiness = bool(
             self.declare_parameter("publish_readiness", False).value
         )
@@ -183,6 +189,9 @@ class NavSatPoseBridge(Node):
 
         if self.tf_mode == "odom_to_base":
             self.publish_identity_map_to_odom(msg)
+            self.publish_odom_to_base(msg)
+            return
+        if self.tf_mode == "odom_to_base_only":
             self.publish_odom_to_base(msg)
             return
 

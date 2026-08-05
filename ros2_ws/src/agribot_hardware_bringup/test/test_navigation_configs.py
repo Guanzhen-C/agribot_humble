@@ -259,6 +259,8 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert localizer["odom_topic"] == "/fastlio/odometry"
     assert localizer["initial_pose_topic"] == "/initialpose"
     assert localizer["ready_topic"] == "/localization/ready"
+    assert localizer["external_ready_topic"] == ""
+    assert localizer["external_ready_timeout_sec"] == pytest.approx(0.5)
     assert localizer["map_frame"] == "map"
     assert localizer["odom_frame"] == "odom"
     assert localizer["enable_fpfh"] is False

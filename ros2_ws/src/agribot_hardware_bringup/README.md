@@ -340,6 +340,21 @@ ros2 topic echo /localization_pose --once
 ros2 run tf2_ros tf2_echo map odom
 ```
 
+The alternative Ackermann NavSat mapped entry keeps the same PCD initial
+registration, Nav2 map, Smac planner, MPPI controller and C16 STVL layers, but
+uses KF-GINS for continuous `odom -> base_link` instead of FAST-LIO:
+
+```bash
+ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
+  map:=/home/sunrise/agribot_maps/test_site/map.yaml \
+  map_georeference:=/home/sunrise/agribot_maps/test_site/map_georeference.yaml \
+  initialization_source:=rtk \
+  enable_chassis_output:=true
+```
+
+The NavSat entry accepts a position-only georeference yaw as a coarse prior;
+NDT/GICP must still accept the C16 scan before chassis motion is released.
+
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 
 ```bash

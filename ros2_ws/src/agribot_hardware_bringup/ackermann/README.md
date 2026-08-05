@@ -28,11 +28,22 @@ colcon build --packages-select agribot_hardware_bringup --symlink-install
 source install/setup.bash
 ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
   map:=/absolute/path/to/real_map.yaml \
+  map_georeference:=/absolute/path/to/real_map_georeference.yaml \
+  initialization_source:=rtk \
   enable_chassis_output:=true \
   chassis_driver:=ackermann_can \
   can_transport:=zqwl_cdc \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
+
+This mode keeps KF-GINS as the real-time `odom -> base_link` source. At
+startup, fixed RTK provides a coarse map pose and the C16 scan is refined
+against the matching PCD with the same one-shot NDT/GICP localizer used by the
+FAST-LIO mapped mode. The accepted correction supplies `map -> odom` and is
+then frozen. Smac Hybrid-A*, MPPI, STVL obstacle processing and the chassis
+command path are identical between the two mapped modes. FPFH is disabled.
+`/localization/ready` remains true only while both the PCD initialization and
+the NavSat fix/heading quality checks are valid.
 
 For short-range FAST-LIO navigation without a saved map, use:
 

@@ -46,10 +46,7 @@ def _validate_arguments(context):
         raise RuntimeError(
             "navigation_mode must be 'static', 'local', 'mapping' or 'localization'"
         )
-    if (
-        navigation_mode in ("local", "mapping", "localization")
-        and localization != "fastlio"
-    ):
+    if navigation_mode in ("local", "mapping") and localization != "fastlio":
         raise RuntimeError(
             f"{navigation_mode} navigation currently requires localization:=fastlio"
         )
@@ -236,6 +233,7 @@ def generate_launch_description():
                     LaunchConfiguration("navsat_localization_config"),
                     {
                         "use_sim_time": use_sim_time,
+                        "map_frame": LaunchConfiguration("navsat_output_frame"),
                         "auto_reference_from_first_navsat_fix": LaunchConfiguration(
                             "navsat_auto_reference_from_first_fix"
                         ),
@@ -272,12 +270,15 @@ def generate_launch_description():
                     {
                         "use_sim_time": use_sim_time,
                         "odom_topic": "/odometry/filtered_navsat",
-                        "pose_topic": "/localization_pose",
+                        "pose_topic": LaunchConfiguration("navsat_pose_topic"),
                         "map_frame": "map",
                         "odom_frame": "odom",
                         "base_frame": "base_link",
-                        "tf_mode": "odom_to_base",
-                        "publish_readiness": True,
+                        "tf_mode": LaunchConfiguration("navsat_tf_mode"),
+                        "publish_readiness": LaunchConfiguration(
+                            "navsat_publish_readiness"
+                        ),
+                        "ready_topic": LaunchConfiguration("navsat_ready_topic"),
                     }
                 ],
             ),
@@ -392,7 +393,60 @@ def generate_launch_description():
                 ],
             )
         ],
-        condition=LaunchConfigurationEquals("navigation_mode", "localization"),
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    LaunchConfiguration("navigation_mode"),
+                    "' == 'localization' and '",
+                    LaunchConfiguration("localization"),
+                    "' == 'fastlio'",
+                ]
+            )
+        ),
+    )
+
+    mapped_navsat_localization = TimerAction(
+        period=LaunchConfiguration("map_start_delay"),
+        actions=[
+            Node(
+                package="agribot_hardware_bringup",
+                executable="pcd_initial_localizer",
+                name="pcd_initial_localizer",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("pcd_initial_localization_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "map_file_path": LaunchConfiguration("pcd_map_file"),
+                        "initial_pose_topic": LaunchConfiguration(
+                            "mapped_initial_pose_topic"
+                        ),
+                        "enable_fpfh": False,
+                        "automatic_global_localization": False,
+                        "cloud_topic": "/lidar/points",
+                        "cloud_frame": "lidar_link",
+                        "odom_topic": "/odometry/filtered_navsat",
+                        "base_to_body_xyz": [0.48, 0.0, 0.233],
+                        "base_to_body_rpy": [0.0, 0.0, 0.0],
+                        "external_ready_topic": LaunchConfiguration(
+                            "navsat_ready_topic"
+                        ),
+                    },
+                ],
+            )
+        ],
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    LaunchConfiguration("navigation_mode"),
+                    "' == 'localization' and '",
+                    LaunchConfiguration("localization"),
+                    "' == 'navsat'",
+                ]
+            )
+        ),
     )
 
     mapped_rtk_initializer = TimerAction(
@@ -411,6 +465,9 @@ def generate_launch_description():
                             "map_georeference_file"
                         ),
                         "map_file": LaunchConfiguration("pcd_map_file"),
+                        "odometry_topic": LaunchConfiguration(
+                            "mapped_odometry_topic"
+                        ),
                         "initial_pose_topic": LaunchConfiguration(
                             "mapped_initial_pose_topic"
                         ),
@@ -600,6 +657,20 @@ def generate_launch_description():
             DeclareLaunchArgument("map_georeference_file", default_value=""),
             DeclareLaunchArgument(
                 "mapped_initial_pose_topic", default_value="/initialpose"
+            ),
+            DeclareLaunchArgument(
+                "mapped_odometry_topic", default_value="/fastlio/odometry"
+            ),
+            DeclareLaunchArgument("navsat_output_frame", default_value="map"),
+            DeclareLaunchArgument(
+                "navsat_pose_topic", default_value="/localization_pose"
+            ),
+            DeclareLaunchArgument("navsat_tf_mode", default_value="odom_to_base"),
+            DeclareLaunchArgument(
+                "navsat_publish_readiness", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "navsat_ready_topic", default_value="/localization/ready"
             ),
             DeclareLaunchArgument(
                 "navsat_auto_reference_from_first_fix", default_value="true"
@@ -799,6 +870,7 @@ def generate_launch_description():
             fastlio_localization,
             pcd_mapping,
             mapped_localization,
+            mapped_navsat_localization,
             mapped_rtk_initializer,
             Node(
                 package="nav2_map_server",

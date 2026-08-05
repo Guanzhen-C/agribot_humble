@@ -371,7 +371,7 @@ private:
     if (message->header.frame_id != odom_frame_ || message->child_frame_id != base_frame_) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
-        "Ignoring FAST-LIO odometry with frames %s -> %s; expected %s -> %s",
+        "Ignoring localization odometry with frames %s -> %s; expected %s -> %s",
         message->header.frame_id.c_str(), message->child_frame_id.c_str(),
         odom_frame_.c_str(), base_frame_.c_str());
       return;
@@ -382,7 +382,7 @@ private:
       tryPublishSeed();
     } catch (const std::exception & error) {
       RCLCPP_WARN_THROTTLE(
-        get_logger(), *get_clock(), 2000, "Ignoring FAST-LIO odometry: %s", error.what());
+        get_logger(), *get_clock(), 2000, "Ignoring localization odometry: %s", error.what());
     }
   }
 
@@ -458,7 +458,7 @@ private:
     if (!latest_odom_stamp_.has_value() ||
       std::abs((*latest_odom_stamp_ - averaged->stamp).seconds()) > maximum_odometry_age_sec_)
     {
-      setStatus("waiting for FAST-LIO odometry synchronized to the RTK seed");
+      setStatus("waiting for localization odometry synchronized to the RTK seed");
       return;
     }
 

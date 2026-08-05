@@ -8,7 +8,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 
 
 def _fingerprint_file(path):
@@ -26,6 +26,13 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
         LaunchConfiguration("map_georeference").perform(context)
     )
     map_path = Path(LaunchConfiguration("map").perform(context))
+    initialization_source = LaunchConfiguration(
+        "initialization_source", default="rtk"
+    ).perform(context)
+    if initialization_source not in ("manual", "rtk"):
+        raise RuntimeError(
+            "NavSat mapped localization supports initialization_source:=manual or rtk"
+        )
     if not georeference_path.is_file():
         raise RuntimeError(
             f"map georeference file does not exist: {georeference_path}"
@@ -80,11 +87,9 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
         or horizontal_rmse < 0.0
         or yaw_rmse < 0.0
         or horizontal_rmse > 0.20
-        or yaw_rmse > 2.0
-        or not yaw_validation_passed
     ):
         raise RuntimeError(
-            "map georeference does not meet strict NavSat runtime limits"
+            "map georeference does not meet the NavSat horizontal runtime limit"
         )
 
     return [
@@ -96,6 +101,7 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
                 "vehicle_type": "ackermann",
                 "controller": "mppi",
                 "localization": "navsat",
+                "navigation_mode": "localization",
                 "start_rtk": "true",
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
                 "autostart": LaunchConfiguration("autostart"),
@@ -105,9 +111,32 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
                     "use_detailed_vehicle_model"
                 ),
                 "navigation_delay": LaunchConfiguration("navigation_delay"),
+                "map_start_delay": LaunchConfiguration("map_start_delay"),
                 "map": LaunchConfiguration("map"),
+                "pcd_map_file": str(pcd_path),
+                "map_georeference_file": LaunchConfiguration(
+                    "map_georeference"
+                ),
+                "initialization_source": LaunchConfiguration(
+                    "initialization_source"
+                ),
+                "mapped_initial_pose_topic": PythonExpression(
+                    [
+                        "'/localization/rtk_initialpose' if '",
+                        LaunchConfiguration("initialization_source"),
+                        "' == 'rtk' else '/initialpose'",
+                    ]
+                ),
+                "mapped_odometry_topic": "/odometry/filtered_navsat",
+                "enable_fpfh": "false",
+                "automatic_global_localization": "false",
                 "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                 "require_localization_ready": "true",
+                "navsat_output_frame": "odom",
+                "navsat_pose_topic": "/navsat/filtered_pose",
+                "navsat_tf_mode": "odom_to_base_only",
+                "navsat_publish_readiness": "true",
+                "navsat_ready_topic": "/localization/navsat_ready",
                 "navsat_auto_reference_from_first_fix": "false",
                 "navsat_reference_latitude_deg": str(latitude),
                 "navsat_reference_longitude_deg": str(longitude),
@@ -144,13 +173,19 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_detailed_vehicle_model", default_value="false"
             ),
-            DeclareLaunchArgument("navigation_delay", default_value="5.0"),
+            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            DeclareLaunchArgument("map_start_delay", default_value="5.0"),
             DeclareLaunchArgument(
                 "map", description="Absolute path to the real-vehicle Nav2 map YAML"
             ),
             DeclareLaunchArgument(
                 "map_georeference",
                 description="Georeference YAML generated with the same PCD/Nav2 map",
+            ),
+            DeclareLaunchArgument(
+                "initialization_source",
+                default_value="rtk",
+                description="Use fixed RTK or RViz manual pose before NDT/GICP",
             ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("enable_can_output", default_value="false"),
