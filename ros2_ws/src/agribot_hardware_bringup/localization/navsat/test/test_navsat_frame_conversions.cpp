@@ -64,6 +64,27 @@ TEST(NavSatFrameConversions, ConvertsRosFluLeverArmToKfGinsFrd) {
         Eigen::Vector3d(0.0, -0.2952585, -0.14176));
 }
 
+TEST(NavSatFrameConversions, AppliesCalibratedImuMountBeforeKfGins) {
+    const Eigen::Vector3d mount_rpy(
+        0.000572424, -0.009139547, -0.000002616);
+    const Eigen::Matrix3d base_from_imu = navsat::rotationFromRpy(mount_rpy);
+    const Eigen::Vector3d vector_imu(0.3, -0.2, 9.7);
+    const Eigen::Matrix3d covariance_imu =
+        Eigen::Vector3d(0.01, 0.04, 0.09).asDiagonal();
+
+    expectVectorNear(
+        navsat::imuFluVectorToBaseFlu(vector_imu, base_from_imu),
+        base_from_imu * vector_imu);
+    expectMatrixNear(
+        navsat::imuFluCovarianceToBaseFlu(covariance_imu, base_from_imu),
+        base_from_imu * covariance_imu * base_from_imu.transpose());
+
+    const Eigen::Matrix3d enu_from_imu = yawRotation(0.7);
+    expectMatrixNear(
+        navsat::enuFromBaseFromEnuFromImu(enu_from_imu, base_from_imu),
+        enu_from_imu * base_from_imu.transpose());
+}
+
 TEST(NavSatFrameConversions, ConvertsNedHeadingsToRosBaseOrientation) {
     const Eigen::Matrix3d north = navsat::nedFrdToMapEnuFluMatrix(
         yawRotation(0.0), 0.0);

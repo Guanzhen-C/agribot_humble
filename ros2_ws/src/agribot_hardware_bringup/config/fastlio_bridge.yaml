@@ -11,4 +11,4 @@ fastlio_odom_bridge:
     is_simulation: false
     # FAST-LIO body is the IMU frame; base_link is the rear-axle center.
     base_to_body_xyz: [0.1425, 0.0, 0.143]
-    base_to_body_rpy: [0.0, 0.0, 0.0]
+    base_to_body_rpy: [0.000572424, -0.009139547, -0.000002616]

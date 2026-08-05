@@ -124,7 +124,7 @@ public:
     const Eigen::Vector3d base_to_lidar_xyz = vector3Parameter(
       *this, "base_to_lidar_xyz", {0.48, 0.0, 0.233});
     const Eigen::Vector3d base_to_lidar_rpy = vector3Parameter(
-      *this, "base_to_lidar_rpy", {0.0, 0.0, 0.0});
+      *this, "base_to_lidar_rpy", {-0.007648487, -0.001835661, 0.000007020});
     base_from_lidar_ = transformFromXyzRpy(base_to_lidar_xyz, base_to_lidar_rpy);
     if (maximum_scan_duration_ <= 0.0 || maximum_ring_ < 0 || maximum_ring_ > 65535) {
       throw std::runtime_error("invalid scan duration or ring limit");

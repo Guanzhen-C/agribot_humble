@@ -14,6 +14,35 @@ inline Eigen::Vector3d fluToFrd(const Eigen::Vector3d &flu) {
     return {flu.x(), -flu.y(), -flu.z()};
 }
 
+inline Eigen::Matrix3d rotationFromRpy(const Eigen::Vector3d &rpy) {
+    return (
+        Eigen::AngleAxisd(rpy.z(), Eigen::Vector3d::UnitZ()) *
+        Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
+        Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()))
+        .toRotationMatrix();
+}
+
+inline Eigen::Vector3d imuFluVectorToBaseFlu(
+    const Eigen::Vector3d &vector_imu,
+    const Eigen::Matrix3d &base_from_imu) {
+
+    return base_from_imu * vector_imu;
+}
+
+inline Eigen::Matrix3d imuFluCovarianceToBaseFlu(
+    const Eigen::Matrix3d &covariance_imu,
+    const Eigen::Matrix3d &base_from_imu) {
+
+    return base_from_imu * covariance_imu * base_from_imu.transpose();
+}
+
+inline Eigen::Matrix3d enuFromBaseFromEnuFromImu(
+    const Eigen::Matrix3d &enu_from_imu,
+    const Eigen::Matrix3d &base_from_imu) {
+
+    return enu_from_imu * base_from_imu.transpose();
+}
+
 inline Eigen::Matrix3d mapEnuFromNed(double extra_yaw_rad) {
     const double c = std::cos(extra_yaw_rad);
     const double s = std::sin(extra_yaw_rad);

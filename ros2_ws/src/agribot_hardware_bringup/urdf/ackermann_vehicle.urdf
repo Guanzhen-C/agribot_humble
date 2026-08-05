@@ -13,7 +13,9 @@
     </visual>
     <visual name="hipnuc_n300pro">
       <!-- N300 Pro measurement center; +X follows the installed forward mark. -->
-      <origin xyz="0.1425 0 0.143" rpy="0 0 0"/>
+      <origin
+        xyz="0.1425 0 0.143"
+        rpy="0.000572424 -0.009139547 -0.000002616"/>
       <geometry>
         <mesh
           filename="package://agribot_hardware_bringup/meshes/hipnuc_n300pro.glb"/>
@@ -24,7 +26,9 @@
         The C16 STEP origin is its mounting center. Offset it below the calibrated
         optical center and turn the side cable outlet toward vehicle-left (+Y).
       -->
-      <origin xyz="0.48 0 0.18445" rpy="0 0 3.141592653589793"/>
+      <origin
+        xyz="0.480089121 -0.000371330 0.184451502"
+        rpy="0.007648487 0.001835661 -3.141585634"/>
       <geometry>
         <mesh
           filename="package://agribot_hardware_bringup/meshes/lslidar_c16_v4.glb"/>

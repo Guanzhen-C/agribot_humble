@@ -3,11 +3,14 @@
 imu:
   child_frame: imu_link
   xyz: [0.1425, 0.0, 0.143]
-  rpy: [0.0, 0.0, 0.0]
+  # New rigid mount, calibrated on 2026-08-05 from two independent level-floor
+  # windows. Rotation maps imu_link into base_link.
+  rpy: [0.000572424, -0.009139547, -0.000002616]
 lidar:
   child_frame: lidar_link
   xyz: [0.48, 0.0, 0.233]
-  rpy: [0.0, 0.0, 0.0]
+  # Rotation maps the C16 optical frame into rear-axle-centered base_link.
+  rpy: [-0.007648487, -0.001835661, 0.000007020]
 rtk:
   child_frame: rtk_link
   # Left master antenna measurement point. The right secondary antenna is at

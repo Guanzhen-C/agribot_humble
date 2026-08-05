@@ -31,11 +31,13 @@
       fov_degree: 360.0
       det_range: 60.0
       extrinsic_est_en: false
-      # C16 optical center expressed in the N300Pro IMU FLU frame.
-      extrinsic_T: [0.3375, 0.0, 0.09]
-      extrinsic_R: [1.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0,
-                    0.0, 0.0, 1.0]
+      # C16 optical pose in the physical N300Pro frame, calibrated after the
+      # IMU mount replacement on 2026-08-05. FAST-LIO maps lidar points with
+      # p_imu = extrinsic_R * p_lidar + extrinsic_T.
+      extrinsic_T: [0.338308452, 0.000050633, 0.086911672]
+      extrinsic_R: [0.999973327, -0.000065498, 0.007303534,
+                    0.000005455, 0.999966209, 0.008220786,
+                    -0.007303826, -0.008220527, 0.999939537]
 
     publish:
       path_en: true

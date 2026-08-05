@@ -272,11 +272,13 @@ def test_ackermann_vehicle_urdf_places_calibrated_sensor_models():
         float(value) for value in lidar.find("origin").attrib["xyz"].split()
     ]
     assert lidar_visual_xyz == [
-        mounts["lidar"]["xyz"][0],
-        mounts["lidar"]["xyz"][1],
-        mounts["lidar"]["xyz"][2] - 0.04855,
+        0.480089121,
+        -0.000371330,
+        0.184451502,
     ]
-    assert lidar.find("origin").attrib["rpy"] == "0 0 3.141592653589793"
+    assert lidar.find("origin").attrib["rpy"] == (
+        "0.007648487 0.001835661 -3.141585634"
+    )
 
 
 def test_ackermann_vehicle_mesh_retains_step_detail_and_materials():

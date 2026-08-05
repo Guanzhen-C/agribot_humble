@@ -123,7 +123,11 @@ class FastLioOdomBridge(Node):
             base_to_body_xyz = vector_param(
                 self, "base_to_body_xyz", [0.1425, 0.0, 0.143]
             )
-            base_to_body_rpy = vector_param(self, "base_to_body_rpy", [0.0, 0.0, 0.0])
+            base_to_body_rpy = vector_param(
+                self,
+                "base_to_body_rpy",
+                [0.000572424, -0.009139547, -0.000002616],
+            )
 
         self.base_to_body = compose_matrix(base_to_body_xyz, base_to_body_rpy)
         self.body_to_base = inverse_transform(self.base_to_body)

@@ -68,7 +68,12 @@ The same robot description also displays the installed HiPNUC N300 Pro IMU
 and the side-outlet LeiShen C16 V4.0 lidar. Their model centers follow
 `config/sensor_mounts.yaml`: `imu_link` is at `(0.1425, 0, 0.143)` m and the
 C16 optical-center frame `lidar_link` is at `(0.48, 0, 0.233)` m relative to
-the rear-axle-centered `base_link`. The left RTK master antenna measurement
+the rear-axle-centered `base_link`. After the rigid IMU mount replacement, a
+2026-08-05 level-floor calibration set the IMU RPY to
+`(0.000572424, -0.009139547, -0.000002616)` rad and the C16 RPY to
+`(-0.007648487, -0.001835661, 0.000007020)` rad. FAST-LIO, LIO-SAM,
+the odometry bridge, sensor TFs and the KF-GINS wrapper use the corresponding
+rotations consistently. The left RTK master antenna measurement
 point is at `(0.1425, 0.2952585, 0.28476)` m. The right secondary antenna is
 at `(0.1425, -0.2952585, 0.28476)` m, giving a `0.590517 m` lateral baseline
 and an IMU-to-master-antenna lever arm of `(0, 0.2952585, 0.14176)` m. These

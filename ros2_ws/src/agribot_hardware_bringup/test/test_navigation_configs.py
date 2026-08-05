@@ -44,6 +44,66 @@ def load_config(name, vehicle=None):
         return yaml.safe_load(stream)
 
 
+def rpy_matrix(rpy):
+    roll, pitch, yaw = rpy
+    cr, sr = math.cos(roll), math.sin(roll)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return [
+        [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+        [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+        [-sp, cp * sr, cp * cr],
+    ]
+
+
+def transpose(matrix):
+    return [list(row) for row in zip(*matrix)]
+
+
+def matmul(left, right):
+    return [
+        [sum(left[row][k] * right[k][column] for k in range(3)) for column in range(3)]
+        for row in range(3)
+    ]
+
+
+def matvec(matrix, vector):
+    return [sum(row[index] * vector[index] for index in range(3)) for row in matrix]
+
+
+def flatten(matrix):
+    return [value for row in matrix for value in row]
+
+
+def test_lidar_imu_extrinsics_are_consistent_across_physical_runtime_configs():
+    mounts = load_config("sensor_mounts.yaml")
+    fastlio = load_config("fast_lio_c16.yaml")["/**"]["ros__parameters"]
+    bridge = load_config("fastlio_bridge.yaml")["fastlio_odom_bridge"][
+        "ros__parameters"
+    ]
+    eskf = load_config("kf_gins_n300pro.yaml")["rtk_eskf_localization"][
+        "ros__parameters"
+    ]
+
+    base_from_imu = rpy_matrix(mounts["imu"]["rpy"])
+    base_from_lidar = rpy_matrix(mounts["lidar"]["rpy"])
+    imu_from_lidar = matmul(transpose(base_from_imu), base_from_lidar)
+    base_delta = [
+        mounts["lidar"]["xyz"][index] - mounts["imu"]["xyz"][index]
+        for index in range(3)
+    ]
+
+    assert fastlio["mapping"]["extrinsic_R"] == pytest.approx(
+        flatten(imu_from_lidar), abs=1.0e-8
+    )
+    assert fastlio["mapping"]["extrinsic_T"] == pytest.approx(
+        matvec(transpose(base_from_imu), base_delta), abs=1.0e-8
+    )
+    assert bridge["base_to_body_xyz"] == pytest.approx(mounts["imu"]["xyz"])
+    assert bridge["base_to_body_rpy"] == pytest.approx(mounts["imu"]["rpy"])
+    assert eskf["base_to_imu_rpy_rad"] == pytest.approx(mounts["imu"]["rpy"])
+
+
 def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
     mounts = load_config("sensor_mounts.yaml")
     eskf = load_config("kf_gins_n300pro.yaml")["rtk_eskf_localization"][

@@ -7,7 +7,7 @@ map_georeference_exporter:
     map_frame: map
     enu_frame: enu
     antenna_frame: rtk_master_antenna
-    lidar_to_antenna_m: [-0.3375, 0.2952585, 0.05176]
+    lidar_to_antenna_m: [-0.337402340, 0.294851610, 0.054636190]
     output_file: /tmp/agribot_map_georeference.yaml
     map_pcd_file: /tmp/agribot_map.pcd
     map_id: ""

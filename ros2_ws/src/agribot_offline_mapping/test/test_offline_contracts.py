@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,37 @@ def parameters(path, node_name="/**"):
     ]
 
 
+def rpy_matrix(rpy):
+    roll, pitch, yaw = rpy
+    cr, sr = math.cos(roll), math.sin(roll)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return [
+        [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+        [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+        [-sp, cp * sr, cp * cr],
+    ]
+
+
+def transpose(matrix):
+    return [list(row) for row in zip(*matrix)]
+
+
+def matmul(left, right):
+    return [
+        [sum(left[row][k] * right[k][column] for k in range(3)) for column in range(3)]
+        for row in range(3)
+    ]
+
+
+def matvec(matrix, vector):
+    return [sum(row[index] * vector[index] for index in range(3)) for row in matrix]
+
+
+def flatten(matrix):
+    return [value for row in matrix for value in row]
+
+
 def test_lio_sam_translation_uses_lidar_to_imu_convention():
     mounts = yaml.safe_load(
         (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
@@ -21,13 +53,14 @@ def test_lio_sam_translation_uses_lidar_to_imu_convention():
         )
     )
     lio_sam = parameters(PACKAGE_ROOT / "config" / "lio_sam_c16.yaml")
-    imu_to_lidar = [
-        mounts["lidar"]["xyz"][index] - mounts["imu"]["xyz"][index]
+    lidar_to_imu_base = [
+        mounts["imu"]["xyz"][index] - mounts["lidar"]["xyz"][index]
         for index in range(3)
     ]
+    lidar_from_base = transpose(rpy_matrix(mounts["lidar"]["rpy"]))
 
     assert lio_sam["extrinsicTrans"] == pytest.approx(
-        [-value for value in imu_to_lidar]
+        matvec(lidar_from_base, lidar_to_imu_base), abs=1.0e-8
     )
     assert lio_sam["N_SCAN"] == 16
     assert lio_sam["downsampleRate"] == 1
@@ -37,6 +70,11 @@ def test_lio_sam_translation_uses_lidar_to_imu_convention():
 
 def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
     lio_sam = parameters(PACKAGE_ROOT / "config" / "lio_sam_c16.yaml")
+    mounts = yaml.safe_load(
+        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
 
     def matrix(values):
         return [
@@ -46,6 +84,10 @@ def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
 
     vector_rotation = matrix(lio_sam["extrinsicRot"])
     pose_rotation = matrix(lio_sam["extrinsicRPY"])
+    expected_pose_rotation = matmul(
+        transpose(rpy_matrix(mounts["imu"]["rpy"])),
+        rpy_matrix(mounts["lidar"]["rpy"]),
+    )
 
     assert vector_rotation != [
         [1.0, 0.0, 0.0],
@@ -54,6 +96,9 @@ def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
     ]
     for row in range(3):
         for column in range(3):
+            assert pose_rotation[row][column] == pytest.approx(
+                expected_pose_rotation[row][column], abs=1.0e-8
+            )
             assert pose_rotation[row][column] == pytest.approx(
                 vector_rotation[column][row], abs=1.0e-9
             )
@@ -148,10 +193,17 @@ def test_georeference_uses_final_optimized_key_pose_path():
     assert exporter["optimized_path_topic"] == "/lio_sam/mapping/path"
     assert exporter["rtk_heading_topic"] == "/lio_sam/odometry/heading"
     assert exporter["antenna_frame"] == "rtk_master_antenna"
-    assert exporter["lidar_to_antenna_m"] == pytest.approx([
-        mounts["rtk"]["xyz"][index] - mounts["lidar"]["xyz"][index]
-        for index in range(3)
-    ])
+    lidar_from_base = transpose(rpy_matrix(mounts["lidar"]["rpy"]))
+    assert exporter["lidar_to_antenna_m"] == pytest.approx(
+        matvec(
+            lidar_from_base,
+            [
+                mounts["rtk"]["xyz"][index] - mounts["lidar"]["xyz"][index]
+                for index in range(3)
+            ],
+        ),
+        abs=1.0e-8,
+    )
     assert "map_odometry_topic" not in exporter
     assert exporter["maximum_horizontal_rmse_m"] == pytest.approx(0.20)
     assert exporter["maximum_yaw_rmse_deg"] == pytest.approx(2.0)

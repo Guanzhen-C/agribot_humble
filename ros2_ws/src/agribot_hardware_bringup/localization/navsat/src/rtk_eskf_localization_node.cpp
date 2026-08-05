@@ -187,6 +187,10 @@ public:
         default_position_std_ = loadVector3("measurement_position_std_m", {0.03, 0.03, 0.05});
         default_yaw_std_rad_ = declare_parameter<double>("measurement_yaw_std_deg", 1.0) * D2R;
         base_to_imu_flu_m_ = loadVector3("base_to_imu_m", {0.1425, 0.0, 0.143});
+        base_from_imu_flu_ = navsat_frames::rotationFromRpy(
+            loadVector3(
+                "base_to_imu_rpy_rad",
+                {0.000572424, -0.009139547, -0.000002616}));
         antenna_lever_flu_m_ =
             loadVector3("antlever_m", {0.0, 0.2952585, 0.14176});
 
@@ -666,6 +670,8 @@ private:
                 "Discarding IMU sample with a non-finite timestamp, gyro, or acceleration");
             return;
         }
+        gyro = navsat_frames::imuFluVectorToBaseFlu(gyro, base_from_imu_flu_);
+        accel = navsat_frames::imuFluVectorToBaseFlu(accel, base_from_imu_flu_);
 
         const auto &orientation = msg->orientation;
         const double orientation_norm_squared =
@@ -674,7 +680,19 @@ private:
         if (std::isfinite(orientation_norm_squared) &&
             orientation_norm_squared > 1e-12 &&
             msg->orientation_covariance[0] >= 0.0) {
-            latest_imu_orientation_ = orientation;
+            const Eigen::Quaterniond enu_from_imu(
+                orientation.w, orientation.x, orientation.y, orientation.z);
+            const Eigen::Matrix3d enu_from_base =
+                navsat_frames::enuFromBaseFromEnuFromImu(
+                    enu_from_imu.normalized().toRotationMatrix(),
+                    base_from_imu_flu_);
+            const Eigen::Quaterniond corrected(enu_from_base);
+            geometry_msgs::msg::Quaternion corrected_msg;
+            corrected_msg.x = corrected.x();
+            corrected_msg.y = corrected.y();
+            corrected_msg.z = corrected.z();
+            corrected_msg.w = corrected.w();
+            latest_imu_orientation_ = corrected_msg;
         }
 
         Eigen::Matrix3d angular_velocity_covariance;
@@ -692,6 +710,10 @@ private:
             msg->angular_velocity_covariance[0] < 0.0 ||
             angular_velocity_covariance.diagonal().minCoeff() < 0.0) {
             angular_velocity_covariance.setZero();
+        } else {
+            angular_velocity_covariance =
+                navsat_frames::imuFluCovarianceToBaseFlu(
+                    angular_velocity_covariance, base_from_imu_flu_);
         }
         if (imu_flu_frame_) {
             const Eigen::Matrix3d frd_from_flu =
@@ -1062,6 +1084,7 @@ private:
 
     Eigen::Vector3d default_position_std_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d base_to_imu_flu_m_ = Eigen::Vector3d::Zero();
+    Eigen::Matrix3d base_from_imu_flu_ = Eigen::Matrix3d::Identity();
     Eigen::Vector3d antenna_lever_flu_m_ = Eigen::Vector3d::Zero();
     InitialPose pending_initial_pose_;
     Eigen::Vector3d reference_map_position_ = Eigen::Vector3d::Zero();

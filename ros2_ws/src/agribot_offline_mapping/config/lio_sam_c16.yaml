@@ -40,20 +40,17 @@
     imuGravity: 9.80665
     imuRPYWeight: 0.01
 
-    # N300Pro IMU origin expressed in the C16 lidar frame. LIO-SAM composes
-    # lidarPose * lidar2Imu internally, so this is the inverse of the measured
-    # IMU-to-lidar translation [0.3375, 0, 0.09] m.
-    extrinsicTrans: [-0.3375, 0.0, -0.09]
-    # Static level-floor calibration on 2026-08-04 used 1199 IMU samples and
-    # 119 C16 scans. extrinsicRot maps IMU vectors into the lidar frame. The
-    # ROS orientation is ENU<-IMU, so extrinsicRPY is the inverse rotation
-    # used on the right side of that orientation quaternion.
-    extrinsicRot: [0.999641422, 0.000025736, -0.026777346,
-                   -0.000596335, 0.999772925, -0.021301254,
-                   0.026770717, 0.021309584, 0.999414444]
-    extrinsicRPY: [0.999641422, -0.000596335, 0.026770717,
-                   0.000025736, 0.999772925, 0.021309584,
-                   -0.026777346, -0.021301254, 0.999414444]
+    # N300Pro IMU origin expressed in the C16 optical frame after applying the
+    # calibrated sensor rotations. LIO-SAM composes lidarPose * lidar2Imu.
+    extrinsicTrans: [-0.337664640, 0.000685990, -0.089377680]
+    # 2026-08-05 calibration after replacing the IMU mount. extrinsicRot maps
+    # IMU vectors into lidar; extrinsicRPY is its inverse for orientation.
+    extrinsicRot: [0.999973327, 0.000005455, -0.007303826,
+                   -0.000065498, 0.999966209, -0.008220527,
+                   0.007303534, 0.008220786, 0.999939537]
+    extrinsicRPY: [0.999973327, -0.000065498, 0.007303534,
+                   0.000005455, 0.999966209, 0.008220786,
+                   -0.007303826, -0.008220527, 0.999939537]
 
     edgeThreshold: 1.0
     surfThreshold: 0.1
