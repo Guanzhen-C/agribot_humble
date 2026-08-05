@@ -362,8 +362,9 @@ ros2 service call /map_georeference_exporter/save std_srvs/srv/Trigger "{}"
 ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml
 ls -lh ${MAP_BASE}_georeference.yaml
 
-# 地理基准服务必须返回success: true，并满足水平RMSE不大于0.20米、航向RMSE不大于2度
-# 如果验收失败，不要手工改YAML绕过检查，应检查固定解覆盖、时间同步和闭环路线后重新采集
+# 地理基准服务必须返回success: true，水平RMSE必须不大于0.20米
+# 航向RMSE不大于2度时yaw_validation_passed为true；超限时保留为警告，
+# 该文件只能用于下面FAST-LIO2加NDT/GICP精配准的RTK粗初始化，不能用于纯NavSat导航
 
 # 第6步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
 export RDK_IP=10.147.55.3
@@ -464,7 +465,8 @@ ros2 daemon start
 ros2 run rviz2 rviz2 \
   -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation.rviz
 
-# NavSat模式阶段A：使用同一地图地理基准，ESKF直接输出到地图坐标，不再以每次首帧为原点
+# NavSat模式阶段A：仅使用yaw_validation_passed为true且航向RMSE不大于2度的地理基准
+# 当前若为位置轨迹标定、航向仅告警的文件，应重新采集稳定航向后再运行本段
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0

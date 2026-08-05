@@ -75,6 +75,11 @@ def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
     assert rtk["fixed_heading_std_floor_deg"] == pytest.approx(1.0)
     assert rtk["float_heading_std_floor_deg"] == pytest.approx(5.0)
 
+    initializer = load_config("rtk_map_initializer.yaml")[
+        "rtk_map_initializer"
+    ]["ros__parameters"]
+    assert initializer["allow_unvalidated_georeference_yaw"] is True
+
 
 def assert_c16_stvl(
     costmap,

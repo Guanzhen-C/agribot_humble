@@ -19,6 +19,16 @@ transform from the final loop/GPS-optimized key-pose path rather than transient
 online odometry. The resulting `*_georeference.yaml` is verified against the
 PCD fingerprint before runtime automatic initialization.
 
+The planar `map <- ENU` transform is estimated from synchronized RTK and final
+optimized LIO-SAM positions. Horizontal RMSE remains a mandatory acceptance
+condition. Dual-antenna yaw is an independent quality check: when
+`require_yaw_validation` is false, an excessive yaw RMSE is stored as
+`yaw_validation_passed: false` instead of discarding an otherwise accurate
+position transform. Such a file is accepted only by the mapped FAST-LIO startup,
+where RTK supplies a coarse seed and the chassis remains inhibited until local
+NDT/GICP registration succeeds. Pure NavSat navigation continues to require a
+validated yaw.
+
 RTK factors constrain horizontal position only. The tested receiver's altitude
 failed to return to its initial value by about 3 m on a closed route, so map
 height remains governed by lidar, IMU and loop constraints.

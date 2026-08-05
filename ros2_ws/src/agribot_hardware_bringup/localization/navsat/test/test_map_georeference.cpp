@@ -34,6 +34,7 @@ TEST(MapGeoreference, RoundTripsAndFingerprintsMap)
   source.map_from_enu_rpy = {0.0, 0.0, 0.25};
   source.horizontal_rmse_m = 0.08;
   source.yaw_rmse_deg = 0.7;
+  source.yaw_validation_passed = false;
   source.sample_count = 120U;
   source.source_bag = "/bags/corridor";
   source.calibration_version = "test-v1";
@@ -48,6 +49,7 @@ TEST(MapGeoreference, RoundTripsAndFingerprintsMap)
   EXPECT_DOUBLE_EQ(loaded.reference_latitude_deg, source.reference_latitude_deg);
   EXPECT_DOUBLE_EQ(loaded.map_from_enu_xyz[1], source.map_from_enu_xyz[1]);
   EXPECT_EQ(loaded.sample_count, source.sample_count);
+  EXPECT_EQ(loaded.yaw_validation_passed, source.yaw_validation_passed);
   const Eigen::Isometry3d transform = navsat::mapFromEnuTransform(loaded);
   EXPECT_NEAR(transform.translation().x(), 10.0, 1.0e-12);
   EXPECT_NEAR(std::atan2(transform.linear()(1, 0), transform.linear()(0, 0)), 0.25, 1.0e-12);

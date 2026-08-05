@@ -31,6 +31,7 @@ struct MapGeoreference
   std::array<double, 3> map_from_enu_rpy{0.0, 0.0, 0.0};
   double horizontal_rmse_m{0.0};
   double yaw_rmse_deg{0.0};
+  bool yaw_validation_passed{true};
   std::size_t sample_count{0U};
   std::string source_bag;
   std::string calibration_version;
@@ -164,6 +165,8 @@ inline MapGeoreference loadMapGeoreference(const std::filesystem::path & path)
   result.map_from_enu_rpy = read_vector3(transform["rpy"], "map_from_enu.rpy");
   result.horizontal_rmse_m = calibration["horizontal_rmse_m"].as<double>();
   result.yaw_rmse_deg = calibration["yaw_rmse_deg"].as<double>();
+  result.yaw_validation_passed =
+    calibration["yaw_validation_passed"].as<bool>(true);
   result.sample_count = calibration["sample_count"].as<std::size_t>();
   result.source_bag = calibration["source_bag"].as<std::string>("");
   result.calibration_version = calibration["version"].as<std::string>();
@@ -206,6 +209,8 @@ inline void writeMapGeoreference(
   output << YAML::Key << "calibration" << YAML::Value << YAML::BeginMap;
   output << YAML::Key << "horizontal_rmse_m" << YAML::Value << georeference.horizontal_rmse_m;
   output << YAML::Key << "yaw_rmse_deg" << YAML::Value << georeference.yaw_rmse_deg;
+  output << YAML::Key << "yaw_validation_passed" << YAML::Value <<
+    georeference.yaw_validation_passed;
   output << YAML::Key << "sample_count" << YAML::Value << georeference.sample_count;
   output << YAML::Key << "source_bag" << YAML::Value << georeference.source_bag;
   output << YAML::Key << "version" << YAML::Value << georeference.calibration_version;

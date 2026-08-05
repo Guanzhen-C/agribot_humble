@@ -10,7 +10,7 @@ map_georeference_exporter:
     map_pcd_file: /tmp/agribot_map.pcd
     map_id: ""
     source_bag: ""
-    calibration_version: lio_sam_rtk_v1
+    calibration_version: lio_sam_rtk_position_v2
     maximum_sync_offset_sec: 0.20
     minimum_samples: 20
     minimum_trajectory_span_m: 5.0
@@ -18,4 +18,7 @@ map_georeference_exporter:
     robust_mad_multiplier: 3.0
     maximum_horizontal_rmse_m: 0.20
     maximum_yaw_rmse_deg: 2.0
+    # The transform itself is fitted from position pairs. A poor RTK heading
+    # remains recorded as a warning and must be refined by NDT/GICP at runtime.
+    require_yaw_validation: false
     maximum_stored_samples: 200000

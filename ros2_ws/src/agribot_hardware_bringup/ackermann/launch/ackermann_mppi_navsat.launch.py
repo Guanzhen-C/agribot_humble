@@ -46,6 +46,11 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
         altitude = float(reference["altitude_m"])
         horizontal_rmse = float(calibration["horizontal_rmse_m"])
         yaw_rmse = float(calibration["yaw_rmse_deg"])
+        yaw_validation_passed = calibration.get(
+            "yaw_validation_passed", True
+        )
+        if not isinstance(yaw_validation_passed, bool):
+            raise ValueError("yaw_validation_passed must be boolean")
         sample_count = int(calibration["sample_count"])
         calibration_version = str(calibration["version"])
         calibration_hash = str(calibration["hash"])
@@ -76,8 +81,11 @@ def _launch_georeferenced_navsat(context, *, hardware_share):
         or yaw_rmse < 0.0
         or horizontal_rmse > 0.20
         or yaw_rmse > 2.0
+        or not yaw_validation_passed
     ):
-        raise RuntimeError("map georeference does not meet NavSat runtime limits")
+        raise RuntimeError(
+            "map georeference does not meet strict NavSat runtime limits"
+        )
 
     return [
         IncludeLaunchDescription(

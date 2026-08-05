@@ -263,7 +263,9 @@ def test_unknown_navigation_mode_is_rejected():
         LAUNCH._validate_arguments(context_with(navigation_mode="unknown"))
 
 
-def write_test_georeference(tmp_path, fingerprint):
+def write_test_georeference(
+    tmp_path, fingerprint, yaw_validation_passed=True
+):
     georeference = tmp_path / "map_georeference.yaml"
     georeference.write_text(
         "\n".join(
@@ -282,6 +284,8 @@ def write_test_georeference(tmp_path, fingerprint):
                 "calibration:",
                 "  horizontal_rmse_m: 0.05",
                 "  yaw_rmse_deg: 0.5",
+                "  yaw_validation_passed: "
+                f"{'true' if yaw_validation_passed else 'false'}",
                 "  sample_count: 20",
                 "  version: test-v1",
                 "  hash: test-hash",
@@ -322,6 +326,27 @@ def test_navsat_entry_rejects_mismatched_pcd_fingerprint(tmp_path):
     )
 
     with pytest.raises(RuntimeError, match="fingerprint"):
+        NAVSAT_LAUNCH._launch_georeferenced_navsat(
+            context, hardware_share=str(PACKAGE_ROOT)
+        )
+
+
+def test_navsat_entry_rejects_position_only_yaw_calibration(tmp_path):
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("image: map.pgm\n")
+    pcd_path = tmp_path / "map.pcd"
+    pcd_path.write_bytes(b"optimized-map")
+    georeference = write_test_georeference(
+        tmp_path,
+        NAVSAT_LAUNCH._fingerprint_file(pcd_path),
+        yaw_validation_passed=False,
+    )
+    context = LaunchContext()
+    context.launch_configurations.update(
+        {"map": str(map_path), "map_georeference": str(georeference)}
+    )
+
+    with pytest.raises(RuntimeError, match="strict NavSat runtime limits"):
         NAVSAT_LAUNCH._launch_georeferenced_navsat(
             context, hardware_share=str(PACKAGE_ROOT)
         )

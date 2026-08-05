@@ -137,6 +137,7 @@ def test_georeference_uses_final_optimized_key_pose_path():
     assert "map_odometry_topic" not in exporter
     assert exporter["maximum_horizontal_rmse_m"] == pytest.approx(0.20)
     assert exporter["maximum_yaw_rmse_deg"] == pytest.approx(2.0)
+    assert exporter["require_yaw_validation"] is False
     assert lio_sam["useGpsElevation"] is False
 
 

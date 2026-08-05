@@ -99,6 +99,7 @@ public:
     maximum_horizontal_rmse_m_ = declare_parameter<double>(
       "maximum_horizontal_rmse_m", 0.20);
     maximum_yaw_rmse_deg_ = declare_parameter<double>("maximum_yaw_rmse_deg", 2.0);
+    require_yaw_validation_ = declare_parameter<bool>("require_yaw_validation", true);
     const int maximum_stored_samples =
       declare_parameter<int>("maximum_stored_samples", 200000);
 
@@ -246,7 +247,8 @@ private:
       message << "saved " << output_file_ << " from " << georeference.sample_count
               << " inliers; horizontal RMSE=" << std::fixed << std::setprecision(3)
               << georeference.horizontal_rmse_m << " m, yaw RMSE="
-              << georeference.yaw_rmse_deg << " deg";
+              << georeference.yaw_rmse_deg << " deg, yaw validation="
+              << (georeference.yaw_validation_passed ? "passed" : "warning");
       response->success = true;
       response->message = message.str();
       setStatus(response->message);
@@ -287,8 +289,17 @@ private:
     if (fit.horizontal_rmse_m > maximum_horizontal_rmse_m_) {
       throw std::runtime_error("horizontal georeference RMSE exceeds the acceptance limit");
     }
-    if (!std::isfinite(yaw_rmse_deg) || yaw_rmse_deg > maximum_yaw_rmse_deg_) {
+    const bool yaw_validation_passed =
+      std::isfinite(yaw_rmse_deg) && yaw_rmse_deg <= maximum_yaw_rmse_deg_;
+    if (require_yaw_validation_ && !yaw_validation_passed) {
       throw std::runtime_error("yaw georeference RMSE exceeds the acceptance limit");
+    }
+    if (!yaw_validation_passed) {
+      RCLCPP_WARN(
+        get_logger(),
+        "Yaw validation warning: RMSE %.3f deg exceeds %.3f deg; saving the "
+        "position-trajectory map<-ENU transform for NDT/GICP-refined initialization",
+        yaw_rmse_deg, maximum_yaw_rmse_deg_);
     }
     const std::filesystem::path map_path(map_pcd_file_);
     if (!std::filesystem::is_regular_file(map_path)) {
@@ -311,6 +322,7 @@ private:
       std::atan2(fit.map_from_enu.linear()(1, 0), fit.map_from_enu.linear()(0, 0))};
     result.horizontal_rmse_m = fit.horizontal_rmse_m;
     result.yaw_rmse_deg = yaw_rmse_deg;
+    result.yaw_validation_passed = yaw_validation_passed;
     result.sample_count = fit.inlier_indices.size();
     result.source_bag = source_bag_;
     result.calibration_version = calibration_version_;
@@ -326,6 +338,7 @@ private:
       hash_input << value;
     }
     hash_input << result.horizontal_rmse_m << result.yaw_rmse_deg
+               << result.yaw_validation_passed
                << result.sample_count << result.source_bag << result.calibration_version;
     result.calibration_hash =
       agribot_hardware_bringup::navsat::fnv1a64Text(hash_input.str());
@@ -369,6 +382,7 @@ private:
   double robust_mad_multiplier_{3.0};
   double maximum_horizontal_rmse_m_{0.20};
   double maximum_yaw_rmse_deg_{2.0};
+  bool require_yaw_validation_{true};
   std::size_t maximum_stored_samples_{200000U};
   std::mutex mutex_;
   std::deque<TimedRtkPose> rtk_history_;

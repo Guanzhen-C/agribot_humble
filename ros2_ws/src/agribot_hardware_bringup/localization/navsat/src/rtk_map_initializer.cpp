@@ -143,6 +143,8 @@ public:
       "maximum_georeference_horizontal_rmse_m", 0.20);
     maximum_georeference_yaw_rmse_deg_ = declare_parameter<double>(
       "maximum_georeference_yaw_rmse_deg", 2.0);
+    allow_unvalidated_georeference_yaw_ = declare_parameter<bool>(
+      "allow_unvalidated_georeference_yaw", false);
     base_to_antenna_ = vector3Parameter(
       *this, "base_to_master_antenna_m", {-0.0884, 0.1480, 0.24476});
 
@@ -231,10 +233,21 @@ private:
       if (navsat::fingerprintFile(map_path) != georeference_->map_fingerprint) {
         throw std::runtime_error("PCD map fingerprint does not match georeference metadata");
       }
-      if (georeference_->horizontal_rmse_m > maximum_georeference_horizontal_rmse_m_ ||
+      if (georeference_->horizontal_rmse_m > maximum_georeference_horizontal_rmse_m_) {
+        throw std::runtime_error(
+                "map georeference horizontal calibration does not meet runtime limits");
+      }
+      if (georeference_->yaw_validation_passed &&
         georeference_->yaw_rmse_deg > maximum_georeference_yaw_rmse_deg_)
       {
-        throw std::runtime_error("map georeference calibration does not meet runtime limits");
+        throw std::runtime_error(
+                "validated map georeference yaw does not meet runtime limits");
+      }
+      if (!georeference_->yaw_validation_passed &&
+        !allow_unvalidated_georeference_yaw_)
+      {
+        throw std::runtime_error(
+                "position-only map georeference yaw is not allowed by runtime configuration");
       }
       map_from_enu_ = navsat::mapFromEnuTransform(*georeference_);
       local_cartesian_.emplace(
@@ -242,7 +255,18 @@ private:
         georeference_->reference_longitude_deg,
         georeference_->reference_altitude_m);
       map_valid_ = true;
-      setStatus("map georeference verified; waiting for fixed RTK samples");
+      if (georeference_->yaw_validation_passed) {
+        setStatus("map georeference verified; waiting for fixed RTK samples");
+      } else {
+        setStatus(
+          "position-trajectory map georeference verified; RTK yaw will be a coarse "
+          "NDT/GICP prior");
+        RCLCPP_WARN(
+          get_logger(),
+          "Using position-trajectory map georeference with yaw RMSE %.3f deg; "
+          "localization readiness remains false until NDT/GICP accepts the pose",
+          georeference_->yaw_rmse_deg);
+      }
     } catch (const std::exception & error) {
       map_valid_ = false;
       setStatus("RTK initialization disabled: " + std::string(error.what()));
@@ -541,6 +565,7 @@ private:
   double maximum_odometry_age_sec_{0.50};
   double maximum_georeference_horizontal_rmse_m_{0.20};
   double maximum_georeference_yaw_rmse_deg_{2.0};
+  bool allow_unvalidated_georeference_yaw_{false};
   Eigen::Vector3d base_to_antenna_{Eigen::Vector3d::Zero()};
   bool map_valid_{false};
   bool localizer_available_{false};
