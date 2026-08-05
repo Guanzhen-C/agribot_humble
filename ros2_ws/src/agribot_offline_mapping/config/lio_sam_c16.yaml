@@ -10,16 +10,16 @@
     odometryFrame: map
     mapFrame: map
 
-    # The exported map georeference supplies absolute yaw after optimization.
+    # 使用官方 LIO-SAM 后端。RTK 航向不进入图优化。
     useImuHeadingInitialization: false
-    # The tested RTK altitude failed to close by about 3 m after returning to
-    # the start, so RTK constrains XY only and lidar/IMU/loops retain map Z.
+    # 实测 RTK 高度闭环误差约 3 m，因此只采用水平 x/y；官方实现会以当前
+    # LIO 高度构造中性的 z 测量，而不会使用 RTK 高程。
     useGpsElevation: false
     gpsCovThreshold: 0.25
-    # The official implementation otherwise skips GPS whenever the lidar-pose
-    # covariance is already small. Zero keeps its built-in 5 m spacing but
-    # guarantees that accepted fixed RTK measurements can constrain the graph.
+    # 设为 0，避免官方的位姿协方差门控跳过可用的 RTK 水平位置。
     poseCovThreshold: 0.0
+    # 初始化仍等待轨迹离开起点 5 m；初始化后每移动约 1 m 加一个 RTK 因子。
+    gpsFactorMinDistance: 1.0
 
     savePCD: false
     savePCDDirectory: /agribot_maps/lio_sam/

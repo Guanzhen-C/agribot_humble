@@ -67,6 +67,5 @@ rtk_eskf_localization:
     # ROS FLU vector from rear-axle-centered base_link to the IMU center.
     base_to_imu_m: [0.1425, 0.0, 0.143]
     # ROS FLU vector from the IMU center to the left master antenna measurement point.
-    # Use its physical top until a manufacturer PCO is known; the wrapper converts
-    # this vector to KF-GINS body FRD internally.
-    antlever_m: [-0.2309, 0.1480, 0.10176]
+    # The wrapper converts this vector to KF-GINS body FRD internally.
+    antlever_m: [0.0, 0.2952585, 0.14176]

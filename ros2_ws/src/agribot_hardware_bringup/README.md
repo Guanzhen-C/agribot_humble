@@ -69,9 +69,10 @@ and the side-outlet LeiShen C16 V4.0 lidar. Their model centers follow
 `config/sensor_mounts.yaml`: `imu_link` is at `(0.1425, 0, 0.143)` m and the
 C16 optical-center frame `lidar_link` is at `(0.48, 0, 0.233)` m relative to
 the rear-axle-centered `base_link`. The left RTK master antenna measurement
-point is currently approximated by the physical antenna top at
-`(-0.0884, 0.1480, 0.24476)` m, giving an IMU-to-antenna lever arm of
-`(-0.2309, 0.1480, 0.10176)` m. These configuration vectors use ROS FLU;
+point is at `(0.1425, 0.2952585, 0.28476)` m. The right secondary antenna is
+at `(0.1425, -0.2952585, 0.28476)` m, giving a `0.590517 m` lateral baseline
+and an IMU-to-master-antenna lever arm of `(0, 0.2952585, 0.14176)` m. These
+configuration vectors use ROS FLU;
 the NavSat wrapper converts the antenna lever arm to KF-GINS FRD, initializes
 the filter state at the IMU center, and publishes the resulting pose and twist
 at the rear-axle-centered `base_link`. The physical-navigation RViz profiles

@@ -31,4 +31,4 @@ rtk_map_initializer:
     # Position-only map calibration may supply a coarse yaw. The chassis stays
     # inhibited until the lidar NDT/GICP localizer accepts the refined pose.
     allow_unvalidated_georeference_yaw: true
-    base_to_master_antenna_m: [-0.0884, 0.1480, 0.24476]
+    base_to_master_antenna_m: [0.1425, 0.2952585, 0.28476]

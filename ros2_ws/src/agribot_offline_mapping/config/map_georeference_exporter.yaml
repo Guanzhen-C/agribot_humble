@@ -2,20 +2,24 @@ map_georeference_exporter:
   ros__parameters:
     optimized_path_topic: /lio_sam/mapping/path
     rtk_odometry_topic: /lio_sam/odometry/gps
+    rtk_heading_topic: /lio_sam/odometry/heading
     reference_topic: /lio_sam/rtk_reference
     map_frame: map
     enu_frame: enu
-    target_frame: lidar_link
+    antenna_frame: rtk_master_antenna
+    lidar_to_antenna_m: [-0.3375, 0.2952585, 0.05176]
     output_file: /tmp/agribot_map_georeference.yaml
     map_pcd_file: /tmp/agribot_map.pcd
     map_id: ""
     source_bag: ""
     calibration_version: lio_sam_rtk_position_v2
     maximum_sync_offset_sec: 0.20
+    maximum_heading_sync_offset_sec: 0.60
     minimum_samples: 20
     minimum_trajectory_span_m: 5.0
     robust_minimum_inlier_m: 0.20
     robust_mad_multiplier: 3.0
+    # 超限时仍保存配准文件，并在日志与服务响应中明确报告 warning。
     maximum_horizontal_rmse_m: 0.20
     maximum_yaw_rmse_deg: 2.0
     # The transform itself is fitted from position pairs. A poor RTK heading

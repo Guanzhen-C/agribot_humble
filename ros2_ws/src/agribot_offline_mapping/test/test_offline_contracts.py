@@ -70,26 +70,36 @@ def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
             )
 
 
-def test_rtk_factors_target_the_lidar_optical_center():
-    mounts = yaml.safe_load(
-        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
+def test_official_lio_sam_uses_only_rtk_horizontal_position():
     adapter = parameters(
         PACKAGE_ROOT / "config" / "rtk_odometry_adapter.yaml",
         "rtk_odometry_adapter",
     )
+    lio_sam = parameters(PACKAGE_ROOT / "config" / "lio_sam_c16.yaml")
+    lio_source = (
+        PACKAGE_ROOT.parent / "LIO-SAM" / "src" / "mapOptmization.cpp"
+    ).read_text(encoding="utf-8")
+    utility_source = (
+        PACKAGE_ROOT.parent / "LIO-SAM" / "include" / "lio_sam" / "utility.hpp"
+    ).read_text(encoding="utf-8")
 
-    assert adapter["base_to_master_antenna_m"] == pytest.approx(
-        mounts["rtk"]["xyz"]
-    )
-    assert adapter["base_to_target_m"] == pytest.approx(mounts["lidar"]["xyz"])
+    assert adapter["position_output_topic"] == "/lio_sam/odometry/gps"
+    assert adapter["antenna_frame"] == "rtk_master_antenna"
     assert adapter["required_fix_quality"] == 4
-    assert set(adapter["allowed_heading_solutions"]) == {
-        "L1_INT",
-        "NARROW_INT",
-    }
+    assert lio_sam["useGpsElevation"] is False
+    assert lio_sam["gpsFactorMinDistance"] == pytest.approx(1.0)
+    assert "headingTopic" not in lio_sam
+    assert "positionFactorMinDistance" not in lio_sam
+    assert "void addGPSFactor()" in lio_source
+    assert "gtsam::GPSFactor gps_factor" in lio_source
+    assert "headingHandler" not in lio_source
+    assert "YawFactor" not in lio_source
+    assert "AntennaPositionFactor" not in lio_source
+    assert (
+        "pointDistance(curGPSPoint, lastGPSPoint) < gpsFactorMinDistance"
+        in lio_source
+    )
+    assert 'declare_parameter("gpsFactorMinDistance", 5.0)' in utility_source
 
 
 def test_lio_sam_adapter_uses_measured_mount_and_mapping_rear_mask():
@@ -129,16 +139,32 @@ def test_georeference_uses_final_optimized_key_pose_path():
         PACKAGE_ROOT / "config" / "map_georeference_exporter.yaml",
         "map_georeference_exporter",
     )
-    lio_sam = parameters(
-        PACKAGE_ROOT / "config" / "lio_sam_c16.yaml", "/**"
+    mounts = yaml.safe_load(
+        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
+            encoding="utf-8"
+        )
     )
 
     assert exporter["optimized_path_topic"] == "/lio_sam/mapping/path"
+    assert exporter["rtk_heading_topic"] == "/lio_sam/odometry/heading"
+    assert exporter["antenna_frame"] == "rtk_master_antenna"
+    assert exporter["lidar_to_antenna_m"] == pytest.approx([
+        mounts["rtk"]["xyz"][index] - mounts["lidar"]["xyz"][index]
+        for index in range(3)
+    ])
     assert "map_odometry_topic" not in exporter
     assert exporter["maximum_horizontal_rmse_m"] == pytest.approx(0.20)
     assert exporter["maximum_yaw_rmse_deg"] == pytest.approx(2.0)
     assert exporter["require_yaw_validation"] is False
-    assert lio_sam["useGpsElevation"] is False
+
+    exporter_source = (
+        PACKAGE_ROOT / "src" / "map_georeference_exporter.cpp"
+    ).read_text(encoding="utf-8")
+    assert "Horizontal validation warning" in exporter_source
+    assert (
+        "horizontal georeference RMSE exceeds the acceptance limit"
+        not in exporter_source
+    )
 
 
 def test_upstream_lio_sam_revision_is_pinned():

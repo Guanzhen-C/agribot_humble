@@ -5,23 +5,32 @@ recordings to the official ROS 2 branch of LIO-SAM. It is intended for offline
 Jetson or workstation processing; the RDK runtime navigation stack does not
 depend on LIO-SAM or GTSAM.
 
-Import the pinned upstream source when offline mapping is required:
+The workspace vendors the pinned upstream source so mapping builds reproducibly
+without a second manual import. The origin revision remains recorded in
+`third_party.repos`. The local source carries one mapping-policy patch:
+`gpsFactorMinDistance` makes the upstream hard-coded 5 m GPS-factor spacing
+configurable while retaining 5 m as its default. The C16 configuration uses
+1 m spacing after the unchanged 5 m initialization distance.
+
+To compare or refresh the upstream tree independently:
 
 ```bash
 vcs import src < src/agribot_offline_mapping/third_party.repos
 ```
 
-The pipeline accepts only RTK quality 4 positions and integer-fixed
-`L1_INT`/`NARROW_INT` headings. It converts the C16 scan-end cloud stamp and
-point timing to the start-referenced `ring/time` layout required by LIO-SAM,
-supplies GPS factors at the lidar optical center, and estimates a robust `map <- ENU`
-transform from the final loop/GPS-optimized key-pose path rather than transient
+The pipeline accepts RTK quality 4 positions independently of heading. It
+converts the C16 scan-end cloud stamp and point timing to the start-referenced
+`ring/time` layout required by LIO-SAM and feeds position to the official
+`GPSFactor`. No RTK heading factor is added. A robust `map <- ENU` transform is
+estimated from the final loop/GPS-optimized key-pose path rather than transient
 online odometry. The resulting `*_georeference.yaml` is verified against the
 PCD fingerprint before runtime automatic initialization.
 
 The planar `map <- ENU` transform is estimated from synchronized RTK and final
-optimized LIO-SAM positions. Horizontal RMSE remains a mandatory acceptance
-condition. Dual-antenna yaw is an independent quality check: when
+optimized LIO-SAM positions. An excessive horizontal RMSE is recorded in the
+output file and reported as a warning, but it no longer prevents exporting the
+calibration for inspection. Runtime consumers retain their own quality limits.
+Dual-antenna yaw is an independent quality check: when
 `require_yaw_validation` is false, an excessive yaw RMSE is stored as
 `yaw_validation_passed: false` instead of discarding an otherwise accurate
 position transform. Such a file is accepted only by the mapped FAST-LIO startup,
@@ -29,9 +38,14 @@ where RTK supplies a coarse seed and the chassis remains inhibited until local
 NDT/GICP registration succeeds. Pure NavSat navigation continues to require a
 validated yaw.
 
-RTK factors constrain horizontal position only. The tested receiver's altitude
-failed to return to its initial value by about 3 m on a closed route, so map
-height remains governed by lidar, IMU and loop constraints.
+With `useGpsElevation: false`, RTK contributes horizontal position only; the
+tested receiver's altitude failed to return to its initial value by about 3 m
+on a closed route, so map height remains governed by lidar, IMU and loop
+constraints. The official `GPSFactor` has no antenna lever-arm state. Exact
+lever compensation would require a separate attitude estimate before the
+factor or a modified backend; neither is used in this official-source mode.
+The measured lever arm is still applied when comparing and georeferencing the
+finished lidar trajectory.
 
 The Nav2 projection uses the final optimized LIO-SAM trajectory as its local
 height reference. This keeps the obstacle band tied to the lidar height on

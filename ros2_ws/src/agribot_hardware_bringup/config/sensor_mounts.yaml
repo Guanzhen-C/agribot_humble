@@ -10,6 +10,7 @@ lidar:
   rpy: [0.0, 0.0, 0.0]
 rtk:
   child_frame: rtk_link
-  # Left master antenna; use its physical top until a manufacturer PCO is known.
-  xyz: [-0.0884, 0.1480, 0.24476]
+  # Left master antenna measurement point. The right secondary antenna is at
+  # [0.1425, -0.2952585, 0.28476], giving a 0.590517 m lateral baseline.
+  xyz: [0.1425, 0.2952585, 0.28476]
   rpy: [0.0, 0.0, 0.0]

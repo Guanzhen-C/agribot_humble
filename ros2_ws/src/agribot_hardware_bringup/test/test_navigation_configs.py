@@ -58,12 +58,12 @@ def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
         for rtk_coordinate, imu_coordinate in zip(rtk_xyz, imu_xyz)
     ]
 
-    assert rtk_xyz == pytest.approx([-0.0884, 0.1480, 0.24476])
+    assert rtk_xyz == pytest.approx([0.1425, 0.2952585, 0.28476])
     assert mounts["rtk"]["rpy"] == [0.0, 0.0, 0.0]
     assert rtk_xyz[1] > 0.0
     assert eskf["base_to_imu_m"] == pytest.approx(imu_xyz)
     assert eskf["antlever_m"] == pytest.approx(expected_lever_arm)
-    assert eskf["antlever_m"] == pytest.approx([-0.2309, 0.1480, 0.10176])
+    assert eskf["antlever_m"] == pytest.approx([0.0, 0.2952585, 0.14176])
     assert eskf["rtk_heading_timeout_sec"] <= 0.25
     assert 0.0 < eskf["max_imu_gap_sec"] <= 0.5
     assert rtk["heading_offset_deg"] == -90.0
@@ -78,6 +78,7 @@ def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():
     initializer = load_config("rtk_map_initializer.yaml")[
         "rtk_map_initializer"
     ]["ros__parameters"]
+    assert initializer["base_to_master_antenna_m"] == pytest.approx(rtk_xyz)
     assert initializer["allow_unvalidated_georeference_yaw"] is True
 
 

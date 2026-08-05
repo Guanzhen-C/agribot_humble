@@ -26,6 +26,7 @@ target_link_libraries(lslidar_lio_sam_adapter Eigen3::Eigen)
 ament_target_dependencies(lslidar_lio_sam_adapter rclcpp sensor_msgs)
 
 add_executable(rtk_odometry_adapter src/rtk_odometry_adapter.cpp)
+target_include_directories(rtk_odometry_adapter PRIVATE include)
 target_link_libraries(rtk_odometry_adapter Eigen3::Eigen PkgConfig::GEOGRAPHICLIB)
 ament_target_dependencies(
   rtk_odometry_adapter
@@ -71,6 +72,8 @@ if(BUILD_TESTING)
   ament_add_gtest(test_rear_exclusion_filter test/test_rear_exclusion_filter.cpp)
   target_include_directories(test_rear_exclusion_filter PRIVATE include)
   target_link_libraries(test_rear_exclusion_filter Eigen3::Eigen)
+  ament_add_gtest(test_rtk_heading_policy test/test_rtk_heading_policy.cpp)
+  target_include_directories(test_rtk_heading_policy PRIVATE include)
   ament_add_pytest_test(test_finalize_lio_sam_map test/test_finalize_lio_sam_map.py)
   ament_add_pytest_test(test_offline_contracts test/test_offline_contracts.py)
 endif()

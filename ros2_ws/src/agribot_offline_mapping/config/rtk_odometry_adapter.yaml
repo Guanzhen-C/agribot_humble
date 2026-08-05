@@ -4,23 +4,22 @@ rtk_odometry_adapter:
     quality_topic: /rtk/fix_quality
     heading_topic: /rtk/heading_with_covariance
     heading_solution_topic: /rtk/heading_solution
-    output_topic: /lio_sam/odometry/gps
+    position_output_topic: /lio_sam/odometry/gps
+    heading_output_topic: /lio_sam/odometry/heading
     reference_topic: /lio_sam/rtk_reference
     status_topic: /lio_sam/rtk_adapter_status
     enu_frame: enu
-    target_frame: lidar_link
+    antenna_frame: rtk_master_antenna
     required_fix_quality: 4
-    allowed_heading_solutions: [L1_INT, NARROW_INT]
-    heading_timeout_sec: 1.5
-    maximum_heading_std_deg: 3.0
+    fixed_heading_solutions: [L1_INT, NARROW_INT]
+    float_heading_solutions: [L1_FLOAT, NARROW_FLOAT]
+    # 与真机 NavSat/KF-GINS 的 RTK 驱动使用相同质量分级和噪声下限。
+    fixed_heading_std_floor_deg: 1.0
+    float_heading_std_floor_deg: 5.0
+    heading_solution_timeout_sec: 1.5
     default_horizontal_std_m: 0.03
     default_vertical_std_m: 0.06
     auto_reference_from_first_fix: true
     reference_latitude_deg: 0.0
     reference_longitude_deg: 0.0
     reference_altitude_m: 0.0
-
-    # Rear-axle-centered base_link to the left master antenna measurement point.
-    base_to_master_antenna_m: [-0.0884, 0.1480, 0.24476]
-    # LIO-SAM key poses represent the C16 optical center, not the rear axle.
-    base_to_target_m: [0.48, 0.0, 0.233]

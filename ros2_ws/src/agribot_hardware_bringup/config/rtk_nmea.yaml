@@ -11,7 +11,8 @@ rtk_nmea:
     heading_solution_topic: /rtk/heading_solution
     heading_covariance_topic: /rtk/heading_with_covariance
     heading_reference_frame: map
-    # Master antenna is left and secondary is right: baseline heading minus 90 deg.
+    # Master antenna is left and secondary is right on a 0.590517 m lateral
+    # baseline: receiver master-to-secondary heading minus 90 deg is vehicle yaw.
     heading_offset_deg: -90.0
     # Use the receiver-reported uncertainty with a conservative floor per fix type.
     fixed_heading_std_floor_deg: 1.0

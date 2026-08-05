@@ -188,7 +188,7 @@ public:
         default_yaw_std_rad_ = declare_parameter<double>("measurement_yaw_std_deg", 1.0) * D2R;
         base_to_imu_flu_m_ = loadVector3("base_to_imu_m", {0.1425, 0.0, 0.143});
         antenna_lever_flu_m_ =
-            loadVector3("antlever_m", {-0.2309, 0.1480, 0.10176});
+            loadVector3("antlever_m", {0.0, 0.2952585, 0.14176});
 
         pending_initial_pose_.position = Eigen::Vector3d(
             declare_parameter<double>("initial_pose_x", 0.0),
