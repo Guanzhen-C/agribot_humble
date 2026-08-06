@@ -18,6 +18,15 @@
     useGpsElevation: false                       # if GPS elevation is bad, set to "false"
     gpsCovThreshold: 2.0                         # m^2, threshold for using GPS data
     poseCovThreshold: 25.0                       # m^2, threshold for using GPS data
+    gpsHorizontalCovarianceFloor: 1.0            # m^2, keep upstream GPS-factor behavior
+    gpsRobustKernelDelta: 0.0                    # <= 0 keeps upstream Gaussian GPS factors
+
+    # Optional offline-map leveling constraints. Defaults preserve upstream behavior.
+    useGravityAttitudeFactor: false
+    gravityAttitudeSigma: 0.017453292519943295    # rad, 1 degree
+    gravityAttitudeRobustKernelDelta: 1.345       # whitened residual units
+    initialRollPitchSigma: 0.1                   # rad, upstream sqrt(1e-2)
+    initialZSigma: 10000.0                       # m, upstream sqrt(1e8)
 
     # Export settings
     savePCD: false                               # https://github.com/TixiaoShan/LIO-SAM/issues/3

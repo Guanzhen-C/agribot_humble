@@ -25,6 +25,12 @@ ACKERMANN_LAUNCH_PATHS = (
     / "launch"
     / "ackermann_mppi_fastlio_3d_mapping.launch.py",
 )
+SENSOR_COLLECTION_LAUNCH_PATH = (
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_sensor_data_collection.launch.py"
+)
 
 
 def load_vehicle_launch():
@@ -411,6 +417,36 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
     assert "pcd_mapping.rviz" in source
     assert 'DeclareLaunchArgument("map_start_delay", default_value="5.0")' in source
     assert 'DeclareLaunchArgument("enable_chassis_output", default_value="false")' in source
+
+
+def test_sensor_collection_records_raw_data_without_online_localization():
+    source = SENSOR_COLLECTION_LAUNCH_PATH.read_text()
+    assert '"launch", "sensors.launch.py"' in source
+    assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in source
+    assert 'DeclareLaunchArgument("record_bag", default_value="true")' in source
+    for topic in (
+        "/lidar/points",
+        "/lslidar_device_info",
+        "/time_topic",
+        "/imu/data",
+        "/imu/magnetic_field",
+        "/imu/temperature",
+        "/rtk/raw_sentence",
+        "/rtk/fix",
+        "/rtk/fix_quality",
+        "/rtk/gga_utc",
+        "/rtk/satellite_count",
+        "/rtk/hdop",
+        "/rtk/differential_age",
+        "/rtk/reference_station_id",
+        "/rtk/heading_with_covariance",
+        "/tf_static",
+    ):
+        assert f'"{topic}"' in source
+    assert "fast_lio" not in source.lower()
+    assert "vehicle_autonomy" not in source
+    assert "pcd_map_builder" not in source
+    assert "enable_chassis_output" not in source
 
 
 def test_mapped_entry_uses_nav2_and_pcd_maps_with_optional_fpfh_localization():

@@ -20,6 +20,18 @@
     poseCovThreshold: 0.0
     # 初始化仍等待轨迹离开起点 5 m；初始化后每移动约 1 m 加一个 RTK 因子。
     gpsFactorMinDistance: 1.0
+    # 固定解水平位置采用10厘米标准差下限；z仍保持官方1.0 m^2方差下限。
+    gpsHorizontalCovarianceFloor: 0.01
+    # 对偶发多路径固定解降权，防止单个RTK观测扭曲整条轨迹。
+    gpsRobustKernelDelta: 1.345
+
+    # 以N300Pro重力方向约束每个关键帧的roll/pitch，yaw保持自由。
+    useGravityAttitudeFactor: true
+    gravityAttitudeSigma: 0.017453292519943295
+    gravityAttitudeRobustKernelDelta: 1.345
+    # 首帧水平姿态标准差0.5度，高度原点标准差0.1米。
+    initialRollPitchSigma: 0.008726646259971648
+    initialZSigma: 0.10
 
     savePCD: false
     savePCDDirectory: /agribot_maps/lio_sam/

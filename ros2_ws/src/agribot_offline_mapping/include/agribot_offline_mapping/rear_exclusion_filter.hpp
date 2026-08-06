@@ -30,6 +30,25 @@ struct RearExclusionRegion
   }
 };
 
+struct AxisAlignedExclusionBox
+{
+  bool enabled{true};
+  Eigen::Vector3d center{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d half_extent{Eigen::Vector3d::Constant(0.05)};
+
+  bool valid() const
+  {
+    return center.allFinite() && half_extent.allFinite() &&
+           (half_extent.array() > 0.0).all();
+  }
+
+  bool contains(const Eigen::Vector3d & point_in_base) const
+  {
+    return enabled &&
+           ((point_in_base - center).array().abs() <= half_extent.array()).all();
+  }
+};
+
 inline Eigen::Isometry3d transformFromXyzRpy(
   const Eigen::Vector3d & translation,
   const Eigen::Vector3d & roll_pitch_yaw)
@@ -49,6 +68,19 @@ inline bool shouldExcludeRearPoint(
   const RearExclusionRegion & region)
 {
   return region.contains(base_from_lidar * point_in_lidar);
+}
+
+inline bool shouldExcludeSelfPoint(
+  const Eigen::Vector3d & point_in_lidar,
+  const Eigen::Isometry3d & base_from_lidar,
+  const RearExclusionRegion & rear_region,
+  const AxisAlignedExclusionBox & left_antenna,
+  const AxisAlignedExclusionBox & right_antenna)
+{
+  const Eigen::Vector3d point_in_base = base_from_lidar * point_in_lidar;
+  return rear_region.contains(point_in_base) ||
+         left_antenna.contains(point_in_base) ||
+         right_antenna.contains(point_in_base);
 }
 
 }  // namespace agribot_offline_mapping

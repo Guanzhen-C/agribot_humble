@@ -121,6 +121,18 @@ public:
       "rear_exclusion_max_x", -0.1275);
     rear_exclusion_.half_width = declare_parameter<double>(
       "rear_exclusion_half_width", 0.60);
+    const bool antenna_exclusion_enabled = declare_parameter<bool>(
+      "antenna_exclusion_enabled", true);
+    left_antenna_exclusion_.enabled = antenna_exclusion_enabled;
+    right_antenna_exclusion_.enabled = antenna_exclusion_enabled;
+    left_antenna_exclusion_.center = vector3Parameter(
+      *this, "left_antenna_center_xyz", {0.1425, 0.2952585, 0.28476});
+    right_antenna_exclusion_.center = vector3Parameter(
+      *this, "right_antenna_center_xyz", {0.1425, -0.2952585, 0.28476});
+    const Eigen::Vector3d antenna_half_extent = vector3Parameter(
+      *this, "antenna_exclusion_half_extent_xyz", {0.08, 0.08, 0.20});
+    left_antenna_exclusion_.half_extent = antenna_half_extent;
+    right_antenna_exclusion_.half_extent = antenna_half_extent;
     const Eigen::Vector3d base_to_lidar_xyz = vector3Parameter(
       *this, "base_to_lidar_xyz", {0.48, 0.0, 0.233});
     const Eigen::Vector3d base_to_lidar_rpy = vector3Parameter(
@@ -132,6 +144,9 @@ public:
     if (!rear_exclusion_.valid()) {
       throw std::runtime_error(
               "rear exclusion requires min_x < max_x <= 0 and positive half_width");
+    }
+    if (!left_antenna_exclusion_.valid() || !right_antenna_exclusion_.valid()) {
+      throw std::runtime_error("antenna exclusion boxes require finite centers and positive extents");
     }
 
     publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
@@ -150,6 +165,16 @@ public:
         "|y|<=%.2f m",
         rear_exclusion_.minimum_x, rear_exclusion_.maximum_x,
         rear_exclusion_.half_width);
+    }
+    if (left_antenna_exclusion_.enabled) {
+      RCLCPP_INFO(
+        get_logger(),
+        "Ignoring vehicle-mounted RTK antenna returns around y=%.4f and y=%.4f m "
+        "with half extents [%.2f, %.2f, %.2f] m",
+        left_antenna_exclusion_.center.y(), right_antenna_exclusion_.center.y(),
+        left_antenna_exclusion_.half_extent.x(),
+        left_antenna_exclusion_.half_extent.y(),
+        left_antenna_exclusion_.half_extent.z());
     }
   }
 
@@ -225,8 +250,9 @@ private:
         point.time = static_cast<float>(point_time);
         minimum_time = std::min(minimum_time, point_time);
         maximum_time = std::max(maximum_time, point_time);
-        if (shouldExcludeRearPoint(
-            Eigen::Vector3d(point.x, point.y, point.z), base_from_lidar_, rear_exclusion_))
+        if (shouldExcludeSelfPoint(
+            Eigen::Vector3d(point.x, point.y, point.z), base_from_lidar_,
+            rear_exclusion_, left_antenna_exclusion_, right_antenna_exclusion_))
         {
           continue;
         }
@@ -301,6 +327,8 @@ private:
   double maximum_scan_duration_{0.20};
   int maximum_ring_{15};
   RearExclusionRegion rear_exclusion_;
+  AxisAlignedExclusionBox left_antenna_exclusion_;
+  AxisAlignedExclusionBox right_antenna_exclusion_;
   Eigen::Isometry3d base_from_lidar_{Eigen::Isometry3d::Identity()};
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;

@@ -87,6 +87,15 @@ public:
     float gpsCovThreshold;
     float poseCovThreshold;
     float gpsFactorMinDistance;
+    float gpsHorizontalCovarianceFloor;
+    float gpsRobustKernelDelta;
+
+    // Offline map leveling
+    bool useGravityAttitudeFactor;
+    float gravityAttitudeSigma;
+    float gravityAttitudeRobustKernelDelta;
+    float initialRollPitchSigma;
+    float initialZSigma;
 
     // Save pcd
     bool savePCD;
@@ -183,6 +192,29 @@ public:
         get_parameter("poseCovThreshold", poseCovThreshold);
         declare_parameter("gpsFactorMinDistance", 5.0);
         get_parameter("gpsFactorMinDistance", gpsFactorMinDistance);
+        declare_parameter("gpsHorizontalCovarianceFloor", 1.0);
+        get_parameter("gpsHorizontalCovarianceFloor", gpsHorizontalCovarianceFloor);
+        declare_parameter("gpsRobustKernelDelta", 0.0);
+        get_parameter("gpsRobustKernelDelta", gpsRobustKernelDelta);
+
+        declare_parameter("useGravityAttitudeFactor", false);
+        get_parameter("useGravityAttitudeFactor", useGravityAttitudeFactor);
+        declare_parameter("gravityAttitudeSigma", 0.017453292519943295);
+        get_parameter("gravityAttitudeSigma", gravityAttitudeSigma);
+        declare_parameter("gravityAttitudeRobustKernelDelta", 1.345);
+        get_parameter(
+            "gravityAttitudeRobustKernelDelta", gravityAttitudeRobustKernelDelta);
+        declare_parameter("initialRollPitchSigma", 0.1);
+        get_parameter("initialRollPitchSigma", initialRollPitchSigma);
+        declare_parameter("initialZSigma", 10000.0);
+        get_parameter("initialZSigma", initialZSigma);
+
+        if (gpsHorizontalCovarianceFloor <= 0.0 || gpsRobustKernelDelta < 0.0 ||
+            gravityAttitudeSigma <= 0.0 || gravityAttitudeRobustKernelDelta <= 0.0 ||
+            initialRollPitchSigma <= 0.0 || initialZSigma <= 0.0)
+        {
+            throw std::invalid_argument("LIO-SAM factor noise parameters must be positive");
+        }
 
         declare_parameter("savePCD", false);
         get_parameter("savePCD", savePCD);

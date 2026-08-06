@@ -10,6 +10,12 @@ rtk_nmea:
     heading_valid_topic: /rtk/heading_valid
     heading_solution_topic: /rtk/heading_solution
     heading_covariance_topic: /rtk/heading_with_covariance
+    raw_sentence_topic: /rtk/raw_sentence
+    gga_utc_topic: /rtk/gga_utc
+    satellite_count_topic: /rtk/satellite_count
+    hdop_topic: /rtk/hdop
+    differential_age_topic: /rtk/differential_age
+    reference_station_topic: /rtk/reference_station_id
     heading_reference_frame: map
     # Master antenna is left and secondary is right on a 0.590517 m lateral
     # baseline: receiver master-to-secondary heading minus 90 deg is vehicle yaw.

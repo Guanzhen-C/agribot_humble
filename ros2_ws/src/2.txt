@@ -256,25 +256,22 @@ rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
 colcon build --packages-select lio_sam agribot_offline_mapping \
   --symlink-install --parallel-workers "$(nproc)"
 
-# 第2步终端1（RDK）：同时采集C16、IMU、RTK和FAST-LIO2原始数据
+# 第2步终端1（RDK）：只启动C16、IMU、RTK并采集原始数据，不运行FAST-LIO2
 # 先关闭其他整车、传感器和录包程序；修改MAP_NAME即可更换地图名
-# 为降低RDK负载，采集时不打开RViz；ROS底盘输出保持关闭，使用蓝牙低速驾驶
+# 本入口不启动FAST-LIO2、Nav2、在线建图、RViz或底盘输出，使用蓝牙低速驾驶
+# bag额外保留雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
 export MAP_NAME=map_lio_sam_0804
 export BAG_PATH=/home/sunrise/agribot_bags/${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
-mkdir -p /home/sunrise/agribot_bags /home/sunrise/agribot_maps/test_site
+mkdir -p /home/sunrise/agribot_bags
 echo "本次数据包：$BAG_PATH"
 ros2 launch agribot_hardware_bringup \
-  ackermann_mppi_fastlio_3d_mapping.launch.py \
-  map_base:=/home/sunrise/agribot_maps/test_site/$MAP_NAME \
-  start_rtk:=true \
+  ackermann_sensor_data_collection.launch.py \
   record_bag:=true \
-  bag_output:=$BAG_PATH \
-  rviz:=false \
-  enable_chassis_output:=false
+  bag_output:=$BAG_PATH
 
 # 看到Recording...后先不要动车，在终端2检查数据并保持车辆静止约30秒
 # 结束时在本终端按一次Ctrl+C，等待rosbag完成写盘后再断电，然后检查数据包
@@ -292,6 +289,14 @@ ros2 topic echo /rtk/fix_quality --field data
 # 航向应为SOL_COMPUTED,L1_INT或SOL_COMPUTED,NARROW_INT
 ros2 topic echo /rtk/heading_solution --field data
 
+# 同时观察卫星数、HDOP和差分龄期；空差分龄期会显示nan
+ros2 topic echo /rtk/satellite_count --field data
+ros2 topic echo /rtk/hdop --field data
+ros2 topic echo /rtk/differential_age --field data
+
+# 确认接收机原始语句也在发布，离线分析可直接复核GGA和UNIHEADING字段
+ros2 topic echo /rtk/raw_sentence --field data
+
 # C16应约为10Hz，IMU应持续稳定发布
 ros2 topic hz /lidar/points
 ros2 topic hz /imu/data
@@ -302,7 +307,8 @@ ros2 topic hz /imu/data
 # 尽量全程保持RTK位置质量4和整数固定航向
 # 随行人员保持在车后中央约1.5至2.5米，不要走到车侧面或前方
 # 最后回到起点附近，以接近初始朝向停车并静置30秒，再到终端1结束采集
-# 原始bag保留完整点云，车后随行人员点云在Jetson离线建图前过滤
+# 原始bag保留完整点云；FAST-LIO2和LIO-SAM均在Jetson离线阶段运行
+# 车后随行人员点云在Jetson离线建图前过滤
 
 # 第3步（Jetson）：把刚采集的数据包从RDK复制到Jetson
 export RDK_IP=10.147.55.3
@@ -310,63 +316,57 @@ export RDK_BAG=/home/sunrise/agribot_bags/这里改成实际数据包目录名
 mkdir -p /home/cgz/agribot_bags
 rsync -a sunrise@$RDK_IP:$RDK_BAG /home/cgz/agribot_bags/
 
-# 第4步终端1（Jetson）：先创建暂停状态的独立仿真时钟，不要立刻按空格
-# 使用独立域可避免RDK实时话题混入离线建图；同一次回放中不要让时钟倒退
+# 第4步（Jetson）：单命令完成RTK强约束建图、二维投影、地理配准和轨迹保存
+# 只修改BAG_PATH和MAP_NAME；独立ROS域、回放、保存和进程清理由脚本统一管理
+# 水平RTK因子方差下限为0.01 m^2（标准差10 cm），不使用RTK高度
+# 每个关键帧使用N300Pro重力方向约束横滚和俯仰，并用Huber核抑制异常RTK观测
+# 首帧横滚/俯仰标准差为0.5度，高度原点标准差为0.1米，防止整幅地图被水平RTK拉斜
+# 建图输入会在base_link坐标系中删除车后随行人员和左右两个RTK天线的点云
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
-export ROS_DOMAIN_ID=71
-export ROS_LOCALHOST_ONLY=1
-export ROS2CLI_NO_DAEMON=1
-ros2 bag play "$BAG_PATH" \
-  --clock 100 \
-  --rate 0.5 \
-  --read-ahead-queue-size 1000 \
-  --start-paused
-
-# 第4步终端2（Jetson）：确认终端1已处于暂停状态后，再启动完整离线建图链
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=71
-export ROS_LOCALHOST_ONLY=1
-export ROS2CLI_NO_DAEMON=1
-export MAP_NAME=map_lio_sam_0804
-export BAG_PATH=/home/cgz/agribot_bags/这里改成实际数据包目录名
+export MAP_NAME=map_lio_sam_这里改成新地图名
 export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
-mkdir -p /home/cgz/agribot_maps/test_site /home/cgz/agribot_maps/lio_sam_work
-ros2 launch agribot_offline_mapping lio_sam_rtk_offline.launch.py \
+ros2 run agribot_offline_mapping run_rtk_mapping_pipeline.py \
+  "$BAG_PATH" \
+  "$MAP_BASE" \
+  --domain-id 71 \
+  --playback-rate 0.5
+
+# 成功后会生成同名前缀的一套结果，禁止把不同名称的地图和轨迹混用
+ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml \
+  ${MAP_BASE}_georeference.yaml ${MAP_BASE}_manifest.yaml
+ros2 bag info ${MAP_BASE}_result
+
+# 已存在同名结果时脚本会拒绝覆盖；确认必须重做时才在命令末尾增加--force
+
+# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2和KF-GINS轨迹
+# 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
+ros2 run agribot_offline_mapping run_localization_comparison.py \
+  "$BAG_PATH" \
+  "${MAP_BASE}_comparison" \
+  --domain-id 74 \
+  --playback-rate 1.0
+
+# 第6步（Jetson）：显示同名二维图、三维图和四条后轴中心定位轨迹
+# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；黄：重算KF-GINS
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   map_base:=$MAP_BASE \
-  source_bag:=$BAG_PATH \
-  use_sim_time:=true
+  rviz:=true \
+  show_3d_map:=true \
+  show_comparison_paths:=true
 
-# 终端2显示所有节点启动后，回到终端1按一次空格开始回放
-# 回放结束前不要关闭终端2；0.5倍速用于避免离线图优化丢帧
+# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和四条定位轨迹
 
-# 第5步终端3（Jetson）：回放结束后保存LIO-SAM优化地图、二维地图和地理基准
-# 等待10秒，让最后一次回环检测和iSAM2更新完成后再调用保存服务
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=71
-export ROS_LOCALHOST_ONLY=1
-export ROS2CLI_NO_DAEMON=1
-sleep 10
-# 下面的destination由官方LIO-SAM自动拼接到/home/cgz后面
-export MAP_NAME=map_lio_sam_0804
-export MAP_BASE=/home/cgz/agribot_maps/test_site/$MAP_NAME
-ros2 service call /lio_sam/save_map lio_sam/srv/SaveMap \
-  "{resolution: 0.1, destination: '/agribot_maps/lio_sam_work/$MAP_NAME'}"
-ros2 run agribot_offline_mapping finalize_lio_sam_map.py \
-  /home/cgz/agribot_maps/lio_sam_work/$MAP_NAME \
-  $MAP_BASE
-ros2 service call /map_georeference_exporter/save std_srvs/srv/Trigger "{}"
-ls -lh ${MAP_BASE}.pcd ${MAP_BASE}.pgm ${MAP_BASE}.yaml
-ls -lh ${MAP_BASE}_georeference.yaml
-
-# 地理基准服务必须返回success: true，水平RMSE必须不大于0.20米
-# 航向RMSE不大于2度时yaw_validation_passed为true；超限时保留为警告，
+# 地理基准服务必须返回success: true；水平RMSE超过0.20米时记录警告并保留结果供检查
+# 航向RMSE不大于2度时yaw_validation_passed为true；超限时同样保留为警告，
 # 该文件只能用于下面FAST-LIO2加NDT/GICP精配准的RTK粗初始化，不能用于纯NavSat导航
 
-# 第6步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
+# 第7步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
 export RDK_IP=10.147.55.3
 export MAP_NAME=map_lio_sam_0804
 ssh sunrise@$RDK_IP 'mkdir -p /home/sunrise/agribot_maps/test_site'

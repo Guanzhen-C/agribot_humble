@@ -56,8 +56,14 @@ install(TARGETS
   map_georeference_exporter
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
-install(PROGRAMS scripts/finalize_lio_sam_map.py DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/finalize_lio_sam_map.py
+  scripts/mapping_result_trajectory_publisher.py
+  scripts/run_localization_comparison.py
+  scripts/run_rtk_mapping_pipeline.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
 install(FILES third_party.repos README.md DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 
@@ -74,8 +80,13 @@ if(BUILD_TESTING)
   target_link_libraries(test_rear_exclusion_filter Eigen3::Eigen)
   ament_add_gtest(test_rtk_heading_policy test/test_rtk_heading_policy.cpp)
   target_include_directories(test_rtk_heading_policy PRIVATE include)
+  ament_add_gtest(test_rtk_lever_arm test/test_rtk_lever_arm.cpp)
+  target_include_directories(test_rtk_lever_arm PRIVATE include)
+  target_link_libraries(test_rtk_lever_arm Eigen3::Eigen)
   ament_add_pytest_test(test_finalize_lio_sam_map test/test_finalize_lio_sam_map.py)
   ament_add_pytest_test(test_offline_contracts test/test_offline_contracts.py)
+  ament_add_pytest_test(test_rtk_mapping_pipeline test/test_rtk_mapping_pipeline.py)
+  ament_add_pytest_test(test_trajectory_comparison test/test_trajectory_comparison.py)
 endif()
 
 ament_export_include_directories(include)

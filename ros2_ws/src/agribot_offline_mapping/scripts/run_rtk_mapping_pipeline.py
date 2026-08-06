@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+import yaml
+
+
+RESULT_TOPICS = (
+    "/lio_sam/mapping/odometry",
+    "/lio_sam/mapping/path",
+    "/lio_sam/odometry/gps",
+    "/lio_sam/odometry/heading",
+    "/lio_sam/odometry/rtk_antenna",
+    "/lio_sam/rtk_adapter_status",
+    "/lio_sam/rtk_reference",
+)
+
+
+class PipelineError(RuntimeError):
+    pass
+
+
+def command_text(command):
+    return " ".join(shlex.quote(str(value)) for value in command)
+
+
+def run(command, environment, *, timeout=None, capture=False):
+    print(f"\n$ {command_text(command)}", flush=True)
+    result = subprocess.run(
+        [str(value) for value in command],
+        env=environment,
+        check=False,
+        timeout=timeout,
+        text=True,
+        stdout=subprocess.PIPE if capture else None,
+        stderr=subprocess.STDOUT if capture else None,
+    )
+    if capture and result.stdout:
+        print(result.stdout.rstrip(), flush=True)
+    if result.returncode != 0:
+        raise PipelineError(
+            f"command failed with exit code {result.returncode}: "
+            f"{command_text(command)}"
+        )
+    return result.stdout or ""
+
+
+def start(command, environment):
+    print(f"\n$ {command_text(command)}", flush=True)
+    return subprocess.Popen([str(value) for value in command], env=environment)
+
+
+def stop(process, name, timeout=30.0):
+    if process is None or process.poll() is not None:
+        return
+    print(f"Stopping {name} ...", flush=True)
+    process.send_signal(signal.SIGINT)
+    try:
+        process.wait(timeout=timeout)
+        return
+    except subprocess.TimeoutExpired:
+        process.terminate()
+    try:
+        process.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5.0)
+
+
+def wait_for_service(service_name, environment, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["ros2", "service", "type", service_name],
+            env=environment,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return
+        time.sleep(0.5)
+    raise PipelineError(f"service did not become ready: {service_name}")
+
+
+def service_succeeded(output):
+    normalized = " ".join(output.lower().split())
+    return "success: true" in normalized or "success=true" in normalized
+
+
+def output_paths(map_base):
+    return {
+        "pcd": map_base.with_suffix(".pcd"),
+        "pgm": map_base.with_suffix(".pgm"),
+        "yaml": map_base.with_suffix(".yaml"),
+        "georeference": map_base.parent / f"{map_base.name}_georeference.yaml",
+        "manifest": map_base.parent / f"{map_base.name}_manifest.yaml",
+        "result_bag": map_base.parent / f"{map_base.name}_result",
+    }
+
+
+def validate_inputs(arguments):
+    bag = arguments.bag.resolve()
+    if not arguments.map_base.expanduser().is_absolute():
+        raise PipelineError("map_base must be an absolute path")
+    map_base = arguments.map_base.expanduser().resolve()
+    if not bag.is_dir() or not (bag / "metadata.yaml").is_file():
+        raise PipelineError(f"ROS bag directory is invalid: {bag}")
+    if map_base.suffix:
+        raise PipelineError("map_base must not contain .pcd, .pgm or .yaml")
+    if re.fullmatch(r"[A-Za-z0-9_-]+", map_base.name) is None:
+        raise PipelineError(
+            "map name may contain only letters, digits, underscores and hyphens"
+        )
+    if arguments.playback_rate <= 0.0:
+        raise PipelineError("playback_rate must be positive")
+    if arguments.settle_seconds < 0.0:
+        raise PipelineError("settle_seconds must not be negative")
+    if arguments.save_resolution < 0.0:
+        raise PipelineError("save_resolution must not be negative")
+    if not 0 <= arguments.domain_id <= 232:
+        raise PipelineError("domain_id must be in [0, 232]")
+    if shutil.which("ros2") is None:
+        raise PipelineError("ros2 is not available; source the ROS and workspace setup files")
+    return bag, map_base
+
+
+def remove_existing(paths, work_directory, force):
+    existing = [path for path in paths.values() if path.exists()]
+    if work_directory.exists():
+        existing.append(work_directory)
+    if existing and not force:
+        formatted = "\n".join(f"  - {path}" for path in existing)
+        raise PipelineError(
+            "output already exists; choose another map name or pass --force:\n"
+            + formatted
+        )
+    if not force:
+        return
+    for path in existing:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
+def write_manifest(path, bag, map_base, work_directory, paths, arguments):
+    document = {
+        "schema_version": 1,
+        "pipeline": "lio_sam_rtk_gravity_robust_xy_v2",
+        "source_bag": str(bag),
+        "map_base": str(map_base),
+        "work_directory": str(work_directory),
+        "result_bag": str(paths["result_bag"]),
+        "artifacts": {
+            key: str(paths[key])
+            for key in ("pcd", "pgm", "yaml", "georeference")
+        },
+        "rtk_factor": {
+            "horizontal_variance_floor_m2": 0.01,
+            "horizontal_standard_deviation_floor_m": 0.1,
+            "factor_minimum_distance_m": 1.0,
+            "use_gps_elevation": False,
+            "huber_delta": 1.345,
+        },
+        "map_leveling": {
+            "gravity_attitude_factor": True,
+            "gravity_attitude_sigma_deg": 1.0,
+            "gravity_attitude_huber_delta": 1.345,
+            "initial_roll_pitch_sigma_deg": 0.5,
+            "initial_z_sigma_m": 0.1,
+        },
+        "point_exclusion": {
+            "rear_person_region_base_link": {
+                "minimum_x_m": -4.0,
+                "maximum_x_m": -0.1275,
+                "half_width_m": 0.60,
+            },
+            "rtk_antenna_boxes_base_link": {
+                "left_center_xyz_m": [0.1425, 0.2952585, 0.28476],
+                "right_center_xyz_m": [0.1425, -0.2952585, 0.28476],
+                "half_extent_xyz_m": [0.08, 0.08, 0.20],
+            },
+        },
+        "playback_rate": arguments.playback_rate,
+        "level_horizontal_trajectory": False,
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        yaml.safe_dump(document, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def parse_arguments(argv=None):
+    parser = argparse.ArgumentParser(
+        description=(
+            "Build a strongly RTK-constrained LIO-SAM map, georeference it, "
+            "and retain the matching trajectories in one reproducible run"
+        )
+    )
+    parser.add_argument("bag", type=Path, help="input ROS 2 bag directory")
+    parser.add_argument(
+        "map_base", type=Path, help="absolute output map path without an extension"
+    )
+    parser.add_argument("--domain-id", type=int, default=71)
+    parser.add_argument("--playback-rate", type=float, default=0.5)
+    parser.add_argument("--settle-seconds", type=float, default=10.0)
+    parser.add_argument("--save-resolution", type=float, default=0.1)
+    parser.add_argument(
+        "--work-root",
+        type=Path,
+        default=Path.home() / "agribot_maps" / "lio_sam_work",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="replace outputs with the same map name"
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    arguments = parse_arguments(argv)
+    launch_process = None
+    record_process = None
+    try:
+        bag, map_base = validate_inputs(arguments)
+        paths = output_paths(map_base)
+        work_directory = arguments.work_root.expanduser().resolve() / map_base.name
+        try:
+            work_relative_to_home = work_directory.relative_to(Path.home().resolve())
+        except ValueError as error:
+            raise PipelineError("work_root must be inside the current user's home") from error
+        remove_existing(paths, work_directory, arguments.force)
+        map_base.parent.mkdir(parents=True, exist_ok=True)
+        work_directory.parent.mkdir(parents=True, exist_ok=True)
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "ROS_DOMAIN_ID": str(arguments.domain_id),
+                "ROS_LOCALHOST_ONLY": "1",
+                "ROS2CLI_NO_DAEMON": "1",
+            }
+        )
+
+        launch_process = start(
+            [
+                "ros2", "launch", "agribot_offline_mapping",
+                "lio_sam_rtk_offline.launch.py",
+                f"map_base:={map_base}",
+                f"source_bag:={bag}",
+                "use_sim_time:=true",
+            ],
+            environment,
+        )
+        wait_for_service("/lio_sam/save_map", environment, 45.0)
+
+        record_process = start(
+            [
+                "ros2", "bag", "record", "-o", str(paths["result_bag"]),
+                *RESULT_TOPICS,
+            ],
+            environment,
+        )
+        time.sleep(2.0)
+        if record_process.poll() is not None:
+            raise PipelineError("result bag recorder exited before playback")
+
+        run(
+            [
+                "ros2", "bag", "play", str(bag),
+                "--clock", "100",
+                "--rate", str(arguments.playback_rate),
+                "--read-ahead-queue-size", "1000",
+            ],
+            environment,
+        )
+        print(
+            f"Playback complete; waiting {arguments.settle_seconds:.1f} s for final optimization ...",
+            flush=True,
+        )
+        time.sleep(arguments.settle_seconds)
+
+        save_output = run(
+            [
+                "ros2", "service", "call", "/lio_sam/save_map",
+                "lio_sam/srv/SaveMap",
+                (
+                    "{resolution: " + str(arguments.save_resolution)
+                    + ", destination: '/" + str(work_relative_to_home) + "'}"
+                ),
+            ],
+            environment,
+            timeout=900.0,
+            capture=True,
+        )
+        if not service_succeeded(save_output):
+            raise PipelineError("LIO-SAM save_map service did not report success")
+
+        finalize_command = [
+            "ros2", "run", "agribot_offline_mapping",
+            "finalize_lio_sam_map.py", str(work_directory), str(map_base),
+        ]
+        run(finalize_command, environment, timeout=900.0)
+
+        georeference_output = run(
+            [
+                "ros2", "service", "call", "/map_georeference_exporter/save",
+                "std_srvs/srv/Trigger", "{}",
+            ],
+            environment,
+            timeout=120.0,
+            capture=True,
+        )
+        if not service_succeeded(georeference_output):
+            raise PipelineError("map georeference service did not report success")
+
+        stop(record_process, "result bag recorder")
+        record_process = None
+        required = [
+            paths["pcd"], paths["pgm"], paths["yaml"],
+            paths["georeference"], paths["result_bag"] / "metadata.yaml",
+        ]
+        missing = [path for path in required if not path.exists()]
+        if missing:
+            raise PipelineError(
+                "pipeline completed but required artifacts are missing:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+        write_manifest(
+            paths["manifest"], bag, map_base, work_directory, paths, arguments
+        )
+        print("\nPipeline completed successfully:", flush=True)
+        for key in ("pcd", "pgm", "yaml", "georeference", "result_bag", "manifest"):
+            print(f"  {key}: {paths[key]}", flush=True)
+        return 0
+    except KeyboardInterrupt:
+        print("\nInterrupted by user", file=sys.stderr)
+        return 130
+    except (PipelineError, subprocess.TimeoutExpired) as error:
+        print(f"\nERROR: {error}", file=sys.stderr)
+        return 1
+    finally:
+        stop(record_process, "result bag recorder")
+        stop(launch_process, "LIO-SAM launch")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

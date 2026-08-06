@@ -1,7 +1,9 @@
 map_georeference_exporter:
   ros__parameters:
     optimized_path_topic: /lio_sam/mapping/path
-    rtk_odometry_topic: /lio_sam/odometry/gps
+    # 地理配准仍使用未经杆臂补偿的主天线轨迹，并在地图侧把 lidar
+    # 位姿转换到同一主天线测量点。
+    rtk_odometry_topic: /lio_sam/odometry/rtk_antenna
     rtk_heading_topic: /lio_sam/odometry/heading
     reference_topic: /lio_sam/rtk_reference
     map_frame: map

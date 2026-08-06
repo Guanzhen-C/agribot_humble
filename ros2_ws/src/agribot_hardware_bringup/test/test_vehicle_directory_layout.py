@@ -46,6 +46,7 @@ def test_vehicle_specific_code_is_separated():
             "launch/ackermann_mppi_fastlio_mapped.launch.py",
             "launch/ackermann_mppi_fastlio_local.launch.py",
             "launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
+            "launch/ackermann_sensor_data_collection.launch.py",
             "launch/ackermann_mppi_navsat.launch.py",
             "src/ackermann_can_protocol.cpp",
             "src/ackermann_chassis_adapter.cpp",

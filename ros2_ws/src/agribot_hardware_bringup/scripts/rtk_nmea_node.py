@@ -38,6 +38,47 @@ def nmea_coordinate(value: str, hemisphere: str) -> float:
     return coordinate
 
 
+@dataclass(frozen=True)
+class GgaMetadata:
+    utc_time: str
+    quality: int
+    satellite_count: int
+    hdop: Optional[float]
+    differential_age_sec: Optional[float]
+    reference_station_id: str
+
+
+def parse_gga_metadata(sentence: str) -> Optional[GgaMetadata]:
+    """Parse quality fields without discarding a valid no-fix GGA sentence."""
+    if not nmea_checksum_valid(sentence):
+        return None
+    fields = sentence.split("*", 1)[0].split(",")
+    if len(fields) < 15 or not fields[0].endswith("GGA"):
+        return None
+    try:
+        quality = int(fields[6] or 0)
+        satellite_count = int(fields[7] or 0)
+        hdop = float(fields[8]) if fields[8] else None
+        differential_age_sec = float(fields[13]) if fields[13] else None
+    except ValueError:
+        return None
+    numeric_values = (
+        value for value in (hdop, differential_age_sec) if value is not None
+    )
+    if quality < 0 or satellite_count < 0 or not all(
+        math.isfinite(value) for value in numeric_values
+    ):
+        return None
+    return GgaMetadata(
+        utc_time=fields[1],
+        quality=quality,
+        satellite_count=satellite_count,
+        hdop=hdop,
+        differential_age_sec=differential_age_sec,
+        reference_station_id=fields[14],
+    )
+
+
 def normalize_degrees(angle_deg: float) -> float:
     return angle_deg % 360.0
 
@@ -167,6 +208,22 @@ class RtkNmeaNode(Node):
         heading_covariance_topic = self.declare_parameter(
             "heading_covariance_topic", "/rtk/heading_with_covariance"
         ).value
+        raw_sentence_topic = self.declare_parameter(
+            "raw_sentence_topic", "/rtk/raw_sentence"
+        ).value
+        gga_utc_topic = self.declare_parameter(
+            "gga_utc_topic", "/rtk/gga_utc"
+        ).value
+        satellite_count_topic = self.declare_parameter(
+            "satellite_count_topic", "/rtk/satellite_count"
+        ).value
+        hdop_topic = self.declare_parameter("hdop_topic", "/rtk/hdop").value
+        differential_age_topic = self.declare_parameter(
+            "differential_age_topic", "/rtk/differential_age"
+        ).value
+        reference_station_topic = self.declare_parameter(
+            "reference_station_topic", "/rtk/reference_station_id"
+        ).value
         self.heading_reference_frame = self.declare_parameter(
             "heading_reference_frame", "map"
         ).value
@@ -221,6 +278,20 @@ class RtkNmeaNode(Node):
         )
         self.heading_covariance_publisher = self.create_publisher(
             PoseWithCovarianceStamped, heading_covariance_topic, 10
+        )
+        self.raw_sentence_publisher = self.create_publisher(
+            String, raw_sentence_topic, 100
+        )
+        self.gga_utc_publisher = self.create_publisher(String, gga_utc_topic, 10)
+        self.satellite_count_publisher = self.create_publisher(
+            UInt8, satellite_count_topic, 10
+        )
+        self.hdop_publisher = self.create_publisher(Float64, hdop_topic, 10)
+        self.differential_age_publisher = self.create_publisher(
+            Float64, differential_age_topic, 10
+        )
+        self.reference_station_publisher = self.create_publisher(
+            String, reference_station_topic, 10
         )
         self.serial: Optional[serial.Serial] = None
         self.serial_lock = threading.Lock()
@@ -311,6 +382,9 @@ class RtkNmeaNode(Node):
             self.handle_sentence(line)
 
     def handle_sentence(self, sentence: str) -> None:
+        if not sentence:
+            return
+        self.raw_sentence_publisher.publish(String(data=sentence))
         if sentence.startswith("#"):
             self.handle_uniheading(sentence)
             return
@@ -325,14 +399,31 @@ class RtkNmeaNode(Node):
         if not fields[0].endswith("GGA"):
             return
         self.latest_gga = (sentence + "\r\n").encode("ascii")
-        if len(fields) < 15:
+        metadata = parse_gga_metadata(sentence)
+        if metadata is None:
             return
 
-        try:
-            quality = int(fields[6] or 0)
-        except ValueError:
-            return
+        quality = metadata.quality
         self.quality_publisher.publish(UInt8(data=max(0, min(quality, 255))))
+        self.gga_utc_publisher.publish(String(data=metadata.utc_time))
+        self.satellite_count_publisher.publish(
+            UInt8(data=max(0, min(metadata.satellite_count, 255)))
+        )
+        self.hdop_publisher.publish(
+            Float64(data=metadata.hdop if metadata.hdop is not None else math.nan)
+        )
+        self.differential_age_publisher.publish(
+            Float64(
+                data=(
+                    metadata.differential_age_sec
+                    if metadata.differential_age_sec is not None
+                    else math.nan
+                )
+            )
+        )
+        self.reference_station_publisher.publish(
+            String(data=metadata.reference_station_id)
+        )
         if quality == 0 or not fields[2] or not fields[4]:
             return
 

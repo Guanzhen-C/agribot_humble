@@ -16,6 +16,7 @@
 #include <std_msgs/msg/u_int8.hpp>
 
 #include "agribot_offline_mapping/rtk_heading_policy.hpp"
+#include "agribot_offline_mapping/rtk_lever_arm.hpp"
 
 namespace agribot_offline_mapping
 {
@@ -53,6 +54,8 @@ public:
       "heading_solution_topic", "/rtk/heading_solution");
     position_output_topic_ = declare_parameter<std::string>(
       "position_output_topic", "/lio_sam/odometry/gps");
+    antenna_output_topic_ = declare_parameter<std::string>(
+      "antenna_output_topic", "/lio_sam/odometry/rtk_antenna");
     heading_output_topic_ = declare_parameter<std::string>(
       "heading_output_topic", "/lio_sam/odometry/heading");
     reference_topic_ = declare_parameter<std::string>(
@@ -62,6 +65,20 @@ public:
     enu_frame_ = declare_parameter<std::string>("enu_frame", "enu");
     antenna_frame_ = declare_parameter<std::string>(
       "antenna_frame", "rtk_master_antenna");
+    lidar_frame_ = declare_parameter<std::string>("lidar_frame", "lidar_link");
+    const auto antenna_to_lidar = declare_parameter<std::vector<double>>(
+      "antenna_to_lidar_flu_m", {0.3375, -0.2952585, -0.05176});
+    if (antenna_to_lidar.size() != 3U ||
+      !std::all_of(
+        antenna_to_lidar.begin(), antenna_to_lidar.end(),
+        [](double value) {return std::isfinite(value);}))
+    {
+      throw std::runtime_error("antenna_to_lidar_flu_m must contain three finite values");
+    }
+    antenna_to_lidar_flu_ = Eigen::Vector3d(
+      antenna_to_lidar[0], antenna_to_lidar[1], antenna_to_lidar[2]);
+    maximum_lever_heading_age_sec_ = declare_parameter<double>(
+      "maximum_lever_heading_age_sec", 1.5);
     required_fix_quality_ = declare_parameter<int>("required_fix_quality", 4);
     heading_policy_.fixed_solutions = declare_parameter<std::vector<std::string>>(
       "fixed_heading_solutions", {"L1_INT", "NARROW_INT"});
@@ -85,7 +102,8 @@ public:
       heading_policy_.float_solutions.empty() || heading_solution_timeout_sec_ <= 0.0 ||
       heading_policy_.fixed_std_floor_deg <= 0.0 ||
       heading_policy_.float_std_floor_deg <= 0.0 || default_horizontal_std_m_ <= 0.0 ||
-      default_vertical_std_m_ <= 0.0)
+      default_vertical_std_m_ <= 0.0 || maximum_lever_heading_age_sec_ <= 0.0 ||
+      position_output_topic_ == antenna_output_topic_)
     {
       throw std::runtime_error("invalid RTK adapter quality or covariance parameters");
     }
@@ -95,6 +113,7 @@ public:
     }
 
     position_publisher_ = create_publisher<nav_msgs::msg::Odometry>(position_output_topic_, 20);
+    antenna_publisher_ = create_publisher<nav_msgs::msg::Odometry>(antenna_output_topic_, 20);
     heading_publisher_ =
       create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(heading_output_topic_, 20);
     const auto latched_qos = rclcpp::QoS(1).reliable().transient_local();
@@ -189,6 +208,9 @@ private:
       }
       output.pose.covariance[35] = *variance;
       heading_publisher_->publish(output);
+      latest_lever_heading_yaw_ = yaw;
+      latest_lever_heading_variance_ = *variance;
+      latest_lever_heading_stamp_ = rclcpp::Time(message->header.stamp);
       setStatus("publishing independent RTK position and quality-weighted heading");
     } catch (const std::exception & error) {
       rejectHeading(std::string("ignoring RTK heading: ") + error.what());
@@ -222,35 +244,70 @@ private:
     local_cartesian_->Forward(
       message->latitude, message->longitude, message->altitude, east, north, up);
 
-    nav_msgs::msg::Odometry output;
-    output.header = message->header;
-    output.header.frame_id = enu_frame_;
-    output.child_frame_id = antenna_frame_;
-    output.pose.pose.position.x = east;
-    output.pose.pose.position.y = north;
-    output.pose.pose.position.z = up;
-    output.pose.pose.orientation.w = 1.0;
-    output.pose.covariance.fill(0.0);
+    nav_msgs::msg::Odometry antenna_output;
+    antenna_output.header = message->header;
+    antenna_output.header.frame_id = enu_frame_;
+    antenna_output.child_frame_id = antenna_frame_;
+    antenna_output.pose.pose.position.x = east;
+    antenna_output.pose.pose.position.y = north;
+    antenna_output.pose.pose.position.z = up;
+    antenna_output.pose.pose.orientation.w = 1.0;
+    antenna_output.pose.covariance.fill(0.0);
     if (message->position_covariance_type !=
       sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_UNKNOWN &&
       message->position_covariance[0] > 0.0 && message->position_covariance[4] > 0.0)
     {
       for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 3; ++column) {
-          output.pose.covariance[static_cast<std::size_t>(row * 6 + column)] =
+          antenna_output.pose.covariance[static_cast<std::size_t>(row * 6 + column)] =
             message->position_covariance[static_cast<std::size_t>(row * 3 + column)];
         }
       }
     } else {
-      output.pose.covariance[0] = default_horizontal_std_m_ * default_horizontal_std_m_;
-      output.pose.covariance[7] = default_horizontal_std_m_ * default_horizontal_std_m_;
-      output.pose.covariance[14] = default_vertical_std_m_ * default_vertical_std_m_;
+      antenna_output.pose.covariance[0] =
+        default_horizontal_std_m_ * default_horizontal_std_m_;
+      antenna_output.pose.covariance[7] =
+        default_horizontal_std_m_ * default_horizontal_std_m_;
+      antenna_output.pose.covariance[14] =
+        default_vertical_std_m_ * default_vertical_std_m_;
     }
-    output.pose.covariance[21] = 1.0e6;
-    output.pose.covariance[28] = 1.0e6;
-    output.pose.covariance[35] = 1.0e6;
+    antenna_output.pose.covariance[21] = 1.0e6;
+    antenna_output.pose.covariance[28] = 1.0e6;
+    antenna_output.pose.covariance[35] = 1.0e6;
+    antenna_publisher_->publish(antenna_output);
+
+    const rclcpp::Time fix_stamp(message->header.stamp);
+    if (!latest_lever_heading_yaw_.has_value() ||
+      !latest_lever_heading_variance_.has_value() ||
+      !latest_lever_heading_stamp_.has_value() ||
+      std::abs((fix_stamp - *latest_lever_heading_stamp_).seconds()) >
+      maximum_lever_heading_age_sec_)
+    {
+      rejectPosition("RTK fixed position has no fresh heading for lidar lever compensation");
+      return;
+    }
+
+    nav_msgs::msg::Odometry output = antenna_output;
+    output.child_frame_id = lidar_frame_;
+    const Eigen::Vector3d lidar_position = antennaToSensorPosition(
+      {east, north, up}, *latest_lever_heading_yaw_, antenna_to_lidar_flu_);
+    output.pose.pose.position.x = lidar_position.x();
+    output.pose.pose.position.y = lidar_position.y();
+    output.pose.pose.position.z = lidar_position.z();
+    output.pose.pose.orientation.z = std::sin(*latest_lever_heading_yaw_ / 2.0);
+    output.pose.pose.orientation.w = std::cos(*latest_lever_heading_yaw_ / 2.0);
+
+    const Eigen::Vector2d yaw_jacobian = leverArmYawJacobian(
+      *latest_lever_heading_yaw_, antenna_to_lidar_flu_);
+    const Eigen::Matrix2d added_position_covariance =
+      yaw_jacobian * *latest_lever_heading_variance_ * yaw_jacobian.transpose();
+    output.pose.covariance[0] += added_position_covariance(0, 0);
+    output.pose.covariance[1] += added_position_covariance(0, 1);
+    output.pose.covariance[6] += added_position_covariance(1, 0);
+    output.pose.covariance[7] += added_position_covariance(1, 1);
+    output.pose.covariance[35] = *latest_lever_heading_variance_;
     position_publisher_->publish(output);
-    setStatus("publishing independent RTK fixed position");
+    setStatus("publishing lever-compensated RTK lidar position");
   }
 
   void rejectPosition(const std::string & reason)
@@ -282,16 +339,20 @@ private:
   std::string heading_topic_;
   std::string heading_solution_topic_;
   std::string position_output_topic_;
+  std::string antenna_output_topic_;
   std::string heading_output_topic_;
   std::string reference_topic_;
   std::string status_topic_;
   std::string enu_frame_;
   std::string antenna_frame_;
+  std::string lidar_frame_;
   int required_fix_quality_{4};
   HeadingNoisePolicy heading_policy_;
   double heading_solution_timeout_sec_{1.5};
   double default_horizontal_std_m_{0.03};
   double default_vertical_std_m_{0.06};
+  Eigen::Vector3d antenna_to_lidar_flu_{Eigen::Vector3d::Zero()};
+  double maximum_lever_heading_age_sec_{1.5};
   bool auto_reference_from_first_fix_{true};
   double reference_latitude_deg_{0.0};
   double reference_longitude_deg_{0.0};
@@ -300,9 +361,13 @@ private:
   std::optional<int> latest_quality_;
   std::optional<std::string> latest_heading_solution_;
   std::optional<rclcpp::Time> latest_solution_receipt_;
+  std::optional<double> latest_lever_heading_yaw_;
+  std::optional<double> latest_lever_heading_variance_;
+  std::optional<rclcpp::Time> latest_lever_heading_stamp_;
   std::optional<sensor_msgs::msg::NavSatFix> pending_reference_message_;
   std::string last_status_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr position_publisher_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr antenna_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr heading_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr reference_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_publisher_;

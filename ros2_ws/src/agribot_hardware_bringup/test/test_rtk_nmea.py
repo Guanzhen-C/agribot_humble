@@ -24,6 +24,35 @@ def test_nmea_checksum_and_coordinate_conversion():
     )
 
 
+def test_gga_quality_metadata_is_preserved():
+    sentence = (
+        "$GNGGA,081402.00,3958.66107245,N,11619.62194811,E,4,20,1.5,"
+        "86.0899,M,-8.4292,M,1.0,439*4D"
+    )
+    metadata = RTK.parse_gga_metadata(sentence)
+    assert metadata is not None
+    assert metadata.utc_time == "081402.00"
+    assert metadata.quality == 4
+    assert metadata.satellite_count == 20
+    assert math.isclose(metadata.hdop, 1.5)
+    assert math.isclose(metadata.differential_age_sec, 1.0)
+    assert metadata.reference_station_id == "439"
+
+
+def test_gga_metadata_preserves_missing_optional_fields():
+    body = "GNGGA,081402.00,,,,,0,0,,,M,,M,,"
+    checksum = 0
+    for character in body:
+        checksum ^= ord(character)
+    metadata = RTK.parse_gga_metadata(f"${body}*{checksum:02X}")
+    assert metadata is not None
+    assert metadata.quality == 0
+    assert metadata.satellite_count == 0
+    assert metadata.hdop is None
+    assert metadata.differential_age_sec is None
+    assert metadata.reference_station_id == ""
+
+
 def test_ths_parsing_and_heading_conversion():
     heading_deg, valid = RTK.parse_ths_sentence("$GNTHS,179.0284,A*18")
     assert valid

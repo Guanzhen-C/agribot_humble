@@ -1,0 +1,149 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: 显示
+  - Class: rviz_common/Views
+    Name: 视角
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.35
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 130; 130; 130
+      Enabled: true
+      Name: 网格
+      Plane: XY
+      Plane Cell Count: 80
+      Reference Frame: <Fixed Frame>
+    - Alpha: 0.55
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: 同名二维地图
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+    - Alpha: 0.45
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 4
+        Min Value: -1
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: true
+      Name: 同名三维地图
+      Position Transformer: XYZ
+      Queue Size: 2
+      Selectable: false
+      Size (Pixels): 1
+      Size (m): 0.03
+      Style: Points
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /pcd_map
+      Use Fixed Frame: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 35; 35
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.16
+      Name: RTK后轴中心轨迹（红）
+      Offset: {X: 0, Y: 0, Z: 0.08}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/rtk_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 30; 255; 80
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.20
+      Name: 强RTK约束LIO-SAM后轴中心轨迹（绿）
+      Offset: {X: 0, Y: 0, Z: 0.13}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/lio_sam_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 25; 125; 255
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.18
+      Name: 重算FAST-LIO2后轴中心轨迹（蓝）
+      Offset: {X: 0, Y: 0, Z: 0.18}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/fastlio_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 210; 35
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.18
+      Name: 重算KF-GINS后轴中心轨迹（黄）
+      Offset: {X: 0, Y: 0, Z: 0.23}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/kf_gins_path
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 35
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 70
+      Focal Point: {X: 0, Y: 22, Z: 0}
+      Name: Current View
+      Pitch: 0.95
+      Target Frame: map
+      Yaw: 0.0
+Window Geometry:
+  Height: 900
+  Width: 1440

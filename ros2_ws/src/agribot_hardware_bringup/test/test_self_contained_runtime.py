@@ -64,6 +64,7 @@ def test_migrated_runtime_resources_exist_and_parse():
         "ackermann/config/nav2_params_ackermann_fastlio_local.yaml",
         "ackermann/launch/ackermann_mppi_fastlio_mapped.launch.py",
         "ackermann/launch/ackermann_mppi_fastlio_3d_mapping.launch.py",
+        "ackermann/launch/ackermann_sensor_data_collection.launch.py",
         "config/pcd_initial_localization.yaml",
         "config/pcd_mapping.yaml",
         "config/rtk_map_initializer.yaml",

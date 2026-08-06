@@ -49,5 +49,27 @@ TEST(RearExclusionFilter, AppliesSensorRotation)
       Eigen::Vector3d(0.0, 1.0, 0.0), base_from_lidar, region));
 }
 
+TEST(RearExclusionFilter, RemovesBothVehicleMountedRtkAntennas)
+{
+  const RearExclusionRegion rear{true, -4.0, -0.1275, 0.60};
+  const AxisAlignedExclusionBox left{
+    true, Eigen::Vector3d(0.1425, 0.2952585, 0.28476),
+    Eigen::Vector3d(0.08, 0.08, 0.20)};
+  const AxisAlignedExclusionBox right{
+    true, Eigen::Vector3d(0.1425, -0.2952585, 0.28476),
+    Eigen::Vector3d(0.08, 0.08, 0.20)};
+
+  EXPECT_TRUE(
+    shouldExcludeSelfPoint(left.center, Eigen::Isometry3d::Identity(), rear, left, right));
+  EXPECT_TRUE(
+    shouldExcludeSelfPoint(right.center, Eigen::Isometry3d::Identity(), rear, left, right));
+  EXPECT_TRUE(
+    shouldExcludeSelfPoint(
+      Eigen::Vector3d(-1.0, 0.0, 0.0), Eigen::Isometry3d::Identity(), rear, left, right));
+  EXPECT_FALSE(
+    shouldExcludeSelfPoint(
+      Eigen::Vector3d(1.0, 1.0, 1.0), Eigen::Isometry3d::Identity(), rear, left, right));
+}
+
 }  // namespace
 }  // namespace agribot_offline_mapping

@@ -5,6 +5,7 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/navigation/AttitudeFactor.h>
 #include <gtsam/navigation/GPSFactor.h>
 #include <gtsam/navigation/ImuFactor.h>
 #include <gtsam/navigation/CombinedImuFactor.h>
@@ -1385,7 +1386,13 @@ public:
     {
         if (cloudKeyPoses3D->points.empty())
         {
-            noiseModel::Diagonal::shared_ptr priorNoise = noiseModel::Diagonal::Variances((Vector(6) << 1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8).finished()); // rad*rad, meter*meter
+            const double rollPitchVariance =
+                initialRollPitchSigma * initialRollPitchSigma;
+            const double zVariance = initialZSigma * initialZSigma;
+            noiseModel::Diagonal::shared_ptr priorNoise =
+                noiseModel::Diagonal::Variances(
+                (Vector(6) << rollPitchVariance, rollPitchVariance, M_PI * M_PI,
+                1e8, 1e8, zVariance).finished()); // rad*rad, meter*meter
             gtSAMgraph.add(PriorFactor<Pose3>(0, trans2gtsamPose(transformTobeMapped), priorNoise));
             initialEstimate.insert(0, trans2gtsamPose(transformTobeMapped));
         }else{
@@ -1395,6 +1402,34 @@ public:
             gtSAMgraph.add(BetweenFactor<Pose3>(cloudKeyPoses3D->size()-1, cloudKeyPoses3D->size(), poseFrom.between(poseTo), odometryNoise));
             initialEstimate.insert(cloudKeyPoses3D->size(), poseTo);
         }
+    }
+
+    void addGravityAttitudeFactor()
+    {
+        if (!useGravityAttitudeFactor || !cloudInfo.imu_available)
+            return;
+
+        // imuConverter has already expressed the IMU orientation in lidar axes.
+        // Convert navigation up into the measured lidar frame so the factor
+        // constrains gravity (roll/pitch) without constraining yaw.
+        const Rot3 navigationRLidar = Rot3::RzRyRx(
+            cloudInfo.imu_roll_init,
+            cloudInfo.imu_pitch_init,
+            cloudInfo.imu_yaw_init);
+        const Unit3 navigationUp(0.0, 0.0, 1.0);
+        const Unit3 measuredUpInLidar(
+            navigationRLidar.unrotate(navigationUp.unitVector()));
+
+        SharedNoiseModel attitudeNoise =
+            noiseModel::Isotropic::Sigma(2, gravityAttitudeSigma);
+        attitudeNoise = noiseModel::Robust::Create(
+            noiseModel::mEstimator::Huber::Create(
+                gravityAttitudeRobustKernelDelta),
+            attitudeNoise);
+
+        gtSAMgraph.add(Pose3AttitudeFactor(
+            cloudKeyPoses3D->size(), navigationUp, attitudeNoise,
+            measuredUpInLidar));
     }
 
     void addGPSFactor()
@@ -1465,8 +1500,16 @@ public:
                     lastGPSPoint = curGPSPoint;
 
                 gtsam::Vector Vector3(3);
-                Vector3 << max(noise_x, 1.0f), max(noise_y, 1.0f), max(noise_z, 1.0f);
-                noiseModel::Diagonal::shared_ptr gps_noise = noiseModel::Diagonal::Variances(Vector3);
+                Vector3 << max(noise_x, gpsHorizontalCovarianceFloor),
+                           max(noise_y, gpsHorizontalCovarianceFloor),
+                           max(noise_z, 1.0f);
+                SharedNoiseModel gps_noise = noiseModel::Diagonal::Variances(Vector3);
+                if (gpsRobustKernelDelta > 0.0)
+                {
+                    gps_noise = noiseModel::Robust::Create(
+                        noiseModel::mEstimator::Huber::Create(gpsRobustKernelDelta),
+                        gps_noise);
+                }
                 gtsam::GPSFactor gps_factor(cloudKeyPoses3D->size(), gtsam::Point3(gps_x, gps_y, gps_z), gps_noise);
                 gtSAMgraph.add(gps_factor);
 
@@ -1503,6 +1546,9 @@ public:
 
         // odom factor
         addOdomFactor();
+
+        // gravity direction factor (roll and pitch only)
+        addGravityAttitudeFactor();
 
         // gps factor
         addGPSFactor();

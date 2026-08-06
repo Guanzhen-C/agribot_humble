@@ -12,6 +12,7 @@ navigation selections:
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 | Ackermann | MPPI | FAST-LIO + 3D PCD mapping | `ackermann_mppi_fastlio_3d_mapping.launch.py` |
 | Ackermann | MPPI | FAST-LIO + saved-map planning | `ackermann_mppi_fastlio_mapped.launch.py` |
+| Ackermann | None | Raw C16 + IMU + RTK collection | `ackermann_sensor_data_collection.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -287,6 +288,21 @@ ros2 launch agribot_hardware_bringup \
   enable_chassis_output:=false
 ```
 
+For offline mapping datasets, collect only the physical sensor streams on the
+RDK. This entry does not start FAST-LIO, Nav2, the online PCD builder, RViz, or
+the chassis driver:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_sensor_data_collection.launch.py \
+  bag_output:=/home/sunrise/agribot_bags/test_$(date +%Y%m%d_%H%M%S)
+```
+
+The bag includes the full C16 point cloud, lidar timing/device information,
+IMU, magnetic field, temperature, every raw RTK serial sentence, parsed RTK
+quality fields, headings, and static sensor transforms. Run FAST-LIO or LIO-SAM
+later on the Jetson from this bag.
+
 This entry point accumulates FAST-LIO's registered 3D cloud into a filtered
 PCD map. The first rear-axle pose is the map origin. Chassis output and Nav2
 default to disabled during mapping so one external manual controller can own
@@ -375,9 +391,13 @@ ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
 - Leishen C16: `/lidar/points` at about 10 Hz
 - Voxelized mapping output: `/pcd_map`
 - N300Pro: `/imu/data` at about 100 Hz
+- N300Pro auxiliary data: `/imu/magnetic_field` and `/imu/temperature`
 - RTK position: `/rtk/fix` and `/rtk/fix_quality`
 - RTK heading: `/rtk/heading`, `/rtk/heading_deg`, `/rtk/heading_valid`, and
   `/rtk/heading_solution`
+- RTK raw and quality data: `/rtk/raw_sentence`, `/rtk/gga_utc`,
+  `/rtk/satellite_count`, `/rtk/hdop`, `/rtk/differential_age`, and
+  `/rtk/reference_station_id`
 
 The RTK driver reads `$GNGGA`, `$GNTHS`, and `#UNIHEADINGA`, verifies their
 checksums, and converts clockwise-from-north heading to an ENU quaternion.
