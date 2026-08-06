@@ -340,16 +340,27 @@ ros2 bag info ${MAP_BASE}_result
 
 # 已存在同名结果时脚本会拒绝覆盖；确认必须重做时才在命令末尾增加--force
 
-# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2和KF-GINS轨迹
+# 可选：手工清理二维PGM地图中确认属于人员或瞬时物体的黑色噪点
+# 每次编辑前生成带时间戳的备份；不要缩放、裁剪或改变图像尺寸
+cp "${MAP_BASE}.pgm" \
+  "${MAP_BASE}_manual_backup_$(date +%Y%m%d_%H%M%S).pgm"
+gimp "${MAP_BASE}.pgm"
+
+# 在GIMP中放大噪点区域，按P选择画笔，按X把前景色切换为白色后再涂除
+# 完成后必须按Ctrl+E覆盖导出原PGM；不要按Ctrl+S，Ctrl+S只会保存为XCF工程文件
+# 导出后确认仍为原尺寸的PGM灰度图，再重启下面的RViz显示或导航程序
+file "${MAP_BASE}.pgm"
+
+# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、KF-GINS和robot_localization轨迹
 # 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
 ros2 run agribot_offline_mapping run_localization_comparison.py \
   "$BAG_PATH" \
   "${MAP_BASE}_comparison" \
   --domain-id 74 \
-  --playback-rate 1.0
+  --playback-rate 0.5
 
-# 第6步（Jetson）：显示同名二维图、三维图和四条后轴中心定位轨迹
-# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；黄：重算KF-GINS
+# 第6步（Jetson）：显示同名二维图、三维图和五条后轴中心定位轨迹
+# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；黄：重算KF-GINS；紫：robot_localization
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export DISPLAY=:1
@@ -360,7 +371,7 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   show_3d_map:=true \
   show_comparison_paths:=true
 
-# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和四条定位轨迹
+# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和五条定位轨迹
 
 # 地理基准服务必须返回success: true；水平RMSE超过0.20米时记录警告并保留结果供检查
 # 航向RMSE不大于2度时yaw_validation_passed为true；超限时同样保留为警告，

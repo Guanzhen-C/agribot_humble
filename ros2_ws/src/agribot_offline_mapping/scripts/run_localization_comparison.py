@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import math
 import os
 from pathlib import Path
 import shutil
@@ -23,6 +24,11 @@ RAW_TOPICS = (
 )
 FASTLIO_TOPIC = "/comparison/fastlio/odometry"
 KF_GINS_TOPIC = "/comparison/kf_gins/odometry"
+ROBOT_LOCALIZATION_FASTLIO_TOPIC = "/comparison/robot_localization/fastlio_odom"
+ROBOT_LOCALIZATION_RTK_TOPIC = "/comparison/robot_localization/rtk_odom"
+ROBOT_LOCALIZATION_TOPIC = "/comparison/robot_localization/odometry"
+COMPARISON_SUFFIX = "_comparison"
+GEOREFERENCE_SUFFIX = "_georeference.yaml"
 
 
 class ComparisonError(RuntimeError):
@@ -31,7 +37,11 @@ class ComparisonError(RuntimeError):
 
 def start(command, environment):
     print("\n$ " + " ".join(str(value) for value in command), flush=True)
-    return subprocess.Popen([str(value) for value in command], env=environment)
+    return subprocess.Popen(
+        [str(value) for value in command],
+        env=environment,
+        start_new_session=True,
+    )
 
 
 def run(command, environment):
@@ -50,16 +60,25 @@ def stop(process, name, timeout=20.0):
     if process is None or process.poll() is not None:
         return
     print(f"Stopping {name} ...", flush=True)
-    process.send_signal(signal.SIGINT)
+    try:
+        os.killpg(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        return
     try:
         process.wait(timeout=timeout)
         return
     except subprocess.TimeoutExpired:
-        process.terminate()
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
     try:
         process.wait(timeout=5.0)
     except subprocess.TimeoutExpired:
-        process.kill()
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
         process.wait(timeout=5.0)
 
 
@@ -75,14 +94,23 @@ def topic_counts(bag):
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Recompute FAST-LIO2 and KF-GINS from raw sensor topics in one ROS bag"
+            "Recompute FAST-LIO2, KF-GINS and robot_localization from raw "
+            "sensor topics in one ROS bag"
         )
     )
     parser.add_argument("source_bag", type=Path)
     parser.add_argument("output_bag", type=Path)
     parser.add_argument("--domain-id", type=int, default=74)
-    parser.add_argument("--playback-rate", type=float, default=1.0)
+    parser.add_argument("--playback-rate", type=float, default=0.5)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--georeference",
+        type=Path,
+        help=(
+            "map georeference YAML used to fix the KF-GINS ENU origin; "
+            "inferred for an output bag ending in _comparison"
+        ),
+    )
     parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
@@ -116,11 +144,50 @@ def validate(arguments):
     return source_bag, output_bag
 
 
+def resolve_kf_reference(arguments):
+    output_bag = arguments.output_bag.expanduser().resolve()
+    georeference = arguments.georeference
+    if georeference is None:
+        if not output_bag.name.endswith(COMPARISON_SUFFIX):
+            return None
+        map_name = output_bag.name[: -len(COMPARISON_SUFFIX)]
+        georeference = output_bag.parent / f"{map_name}{GEOREFERENCE_SUFFIX}"
+    else:
+        georeference = georeference.expanduser().resolve()
+
+    if not georeference.is_file():
+        raise ComparisonError(f"georeference file not found: {georeference}")
+    try:
+        document = yaml.safe_load(georeference.read_text(encoding="utf-8"))
+        reference = document["reference"]
+        values = (
+            float(reference["latitude_deg"]),
+            float(reference["longitude_deg"]),
+            float(reference["altitude_m"]),
+        )
+    except (KeyError, TypeError, ValueError, yaml.YAMLError) as error:
+        raise ComparisonError(
+            f"invalid georeference reference in {georeference}: {error}"
+        ) from error
+    if not all(math.isfinite(value) for value in values):
+        raise ComparisonError(
+            f"georeference reference contains non-finite values: {georeference}"
+        )
+    latitude, longitude, altitude = values
+    if abs(latitude) > 90.0 or abs(longitude) > 180.0:
+        raise ComparisonError(
+            f"georeference reference is outside valid latitude/longitude bounds: "
+            f"{georeference}"
+        )
+    return georeference, latitude, longitude, altitude
+
+
 def main(argv=None):
     arguments = parse_arguments(argv)
     processes = []
     recorder = None
     try:
+        kf_reference = resolve_kf_reference(arguments)
         source_bag, output_bag = validate(arguments)
         hardware_share = Path(
             get_package_share_directory("agribot_hardware_bringup")
@@ -128,7 +195,22 @@ def main(argv=None):
         fastlio_config = hardware_share / "config" / "fast_lio_c16.yaml"
         bridge_config = hardware_share / "config" / "fastlio_bridge.yaml"
         kf_gins_config = hardware_share / "config" / "kf_gins_n300pro.yaml"
-        for path in (fastlio_config, bridge_config, kf_gins_config):
+        offline_share = Path(
+            get_package_share_directory("agribot_offline_mapping")
+        )
+        robot_localization_config = (
+            offline_share / "config" / "robot_localization_ekf.yaml"
+        )
+        robot_localization_rtk_config = (
+            offline_share / "config" / "robot_localization_rtk_adapter.yaml"
+        )
+        for path in (
+            fastlio_config,
+            bridge_config,
+            kf_gins_config,
+            robot_localization_config,
+            robot_localization_rtk_config,
+        ):
             if not path.is_file():
                 raise ComparisonError(f"configuration file not found: {path}")
 
@@ -156,16 +238,66 @@ def main(argv=None):
             ],
             environment,
         ), "FAST-LIO2 odometry bridge"))
+        kf_gins_command = [
+            "ros2", "run", "agribot_hardware_bringup",
+            "rtk_eskf_localization", "--ros-args", "--params-file",
+            kf_gins_config, "-p", "use_sim_time:=true", "-p",
+            f"output_odom_topic:={KF_GINS_TOPIC}", "-p",
+            "raw_pose_topic:=/comparison/kf_gins/raw_pose",
+        ]
+        if kf_reference is not None:
+            georeference, latitude, longitude, altitude = kf_reference
+            print(
+                "KF-GINS ENU reference fixed from "
+                f"{georeference}: {latitude:.10f}, {longitude:.10f}, "
+                f"{altitude:.3f} m",
+                flush=True,
+            )
+            kf_gins_command.extend(
+                [
+                    "-p", "auto_reference_from_first_navsat_fix:=false",
+                    "-p", f"reference_lat_deg:={latitude:.12f}",
+                    "-p", f"reference_lon_deg:={longitude:.12f}",
+                    "-p", f"reference_alt_m:={altitude:.6f}",
+                ]
+            )
+        processes.append((start(kf_gins_command, environment), "KF-GINS"))
+        rtk_adapter_command = [
+            "ros2", "run", "agribot_offline_mapping", "rtk_odometry_adapter",
+            "--ros-args", "--params-file", robot_localization_rtk_config,
+            "-p", "use_sim_time:=true",
+        ]
+        if kf_reference is not None:
+            _, latitude, longitude, altitude = kf_reference
+            rtk_adapter_command.extend(
+                [
+                    "-p", "auto_reference_from_first_fix:=false",
+                    "-p", f"reference_latitude_deg:={latitude:.12f}",
+                    "-p", f"reference_longitude_deg:={longitude:.12f}",
+                    "-p", f"reference_altitude_m:={altitude:.6f}",
+                ]
+            )
+        processes.append((start(
+            rtk_adapter_command, environment
+        ), "robot_localization RTK adapter"))
         processes.append((start(
             [
-                "ros2", "run", "agribot_hardware_bringup",
-                "rtk_eskf_localization", "--ros-args", "--params-file",
-                kf_gins_config, "-p", "use_sim_time:=true", "-p",
-                f"output_odom_topic:={KF_GINS_TOPIC}", "-p",
-                "raw_pose_topic:=/comparison/kf_gins/raw_pose",
+                "ros2", "run", "agribot_offline_mapping",
+                "odometry_reference_aligner.py", "--ros-args",
+                "-p", "use_sim_time:=true",
             ],
             environment,
-        ), "KF-GINS"))
+        ), "robot_localization FAST-LIO2 ENU aligner"))
+        processes.append((start(
+            [
+                "ros2", "run", "robot_localization", "ekf_node",
+                "--ros-args", "-r", "__node:=robot_localization_ekf",
+                "--params-file", robot_localization_config,
+                "-p", "use_sim_time:=true", "-r",
+                f"odometry/filtered:={ROBOT_LOCALIZATION_TOPIC}",
+            ],
+            environment,
+        ), "robot_localization EKF"))
 
         time.sleep(3.0)
         failed = [name for process, name in processes if process.poll() is not None]
@@ -175,7 +307,11 @@ def main(argv=None):
         recorder = start(
             [
                 "ros2", "bag", "record", "-o", output_bag,
-                FASTLIO_TOPIC, KF_GINS_TOPIC,
+                FASTLIO_TOPIC,
+                KF_GINS_TOPIC,
+                ROBOT_LOCALIZATION_FASTLIO_TOPIC,
+                ROBOT_LOCALIZATION_RTK_TOPIC,
+                ROBOT_LOCALIZATION_TOPIC,
             ],
             environment,
         )
@@ -197,7 +333,9 @@ def main(argv=None):
 
         counts = topic_counts(output_bag)
         missing = [
-            topic for topic in (FASTLIO_TOPIC, KF_GINS_TOPIC)
+            topic for topic in (
+                FASTLIO_TOPIC, KF_GINS_TOPIC, ROBOT_LOCALIZATION_TOPIC
+            )
             if counts.get(topic, 0) < 1
         ]
         if missing:
@@ -208,6 +346,11 @@ def main(argv=None):
         print(f"  output_bag: {output_bag}", flush=True)
         print(f"  FAST-LIO2 poses: {counts[FASTLIO_TOPIC]}", flush=True)
         print(f"  KF-GINS poses: {counts[KF_GINS_TOPIC]}", flush=True)
+        print(
+            "  robot_localization EKF poses: "
+            f"{counts[ROBOT_LOCALIZATION_TOPIC]}",
+            flush=True,
+        )
         return 0
     except KeyboardInterrupt:
         print("\nInterrupted by user", file=sys.stderr)

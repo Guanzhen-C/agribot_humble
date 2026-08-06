@@ -123,6 +123,22 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /mapping_result/kf_gins_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 70; 220
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.18
+      Name: robot_localization融合轨迹（紫）
+      Offset: {X: 0, Y: 0, Z: 0.28}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/robot_localization_path
   Enabled: true
   Global Options:
     Background Color: 35; 35; 35

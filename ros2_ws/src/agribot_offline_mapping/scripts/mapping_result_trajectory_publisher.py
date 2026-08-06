@@ -270,9 +270,9 @@ def load_fastlio_base_path(comparison_bag, lio_path, flatten):
     return path
 
 
-def load_kf_gins_base_path(comparison_bag, georeference, flatten):
+def load_enu_base_path(comparison_bag, topic_name, georeference, flatten):
     odometry = topic_messages(
-        comparison_bag, "/comparison/kf_gins/odometry"
+        comparison_bag, topic_name
     )
     map_from_enu = (
         tuple(float(value) for value in georeference["map_from_enu"]["xyz"]),
@@ -288,6 +288,15 @@ def load_kf_gins_base_path(comparison_bag, georeference, flatten):
         source.header = message.header
         path.poses.append(pose_stamped(source, *map_pose, flatten))
     return path
+
+
+def load_kf_gins_base_path(comparison_bag, georeference, flatten):
+    return load_enu_base_path(
+        comparison_bag,
+        "/comparison/kf_gins/odometry",
+        georeference,
+        flatten,
+    )
 
 
 class MappingResultTrajectoryPublisher(Node):
@@ -325,6 +334,7 @@ class MappingResultTrajectoryPublisher(Node):
         )
         self.fastlio_path = None
         self.kf_gins_path = None
+        self.robot_localization_path = None
         if comparison_bag_value:
             comparison_bag = Path(comparison_bag_value).expanduser()
             if not (comparison_bag / "metadata.yaml").is_file():
@@ -334,6 +344,12 @@ class MappingResultTrajectoryPublisher(Node):
             )
             self.kf_gins_path = load_kf_gins_base_path(
                 comparison_bag, georeference, flatten
+            )
+            self.robot_localization_path = load_enu_base_path(
+                comparison_bag,
+                "/comparison/robot_localization/odometry",
+                georeference,
+                flatten,
             )
 
         qos = QoSProfile(
@@ -349,12 +365,16 @@ class MappingResultTrajectoryPublisher(Node):
         )
         self.fastlio_publisher = None
         self.kf_gins_publisher = None
+        self.robot_localization_publisher = None
         if self.fastlio_path is not None:
             self.fastlio_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/fastlio_path", qos
             )
             self.kf_gins_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/kf_gins_path", qos
+            )
+            self.robot_localization_publisher = self.create_publisher(
+                PathMessage, "/mapping_result/robot_localization_path", qos
             )
         self.create_timer(1.0, self.publish)
         counts = (
@@ -364,7 +384,9 @@ class MappingResultTrajectoryPublisher(Node):
         if self.fastlio_path is not None:
             counts += (
                 f", recomputed FAST-LIO2={len(self.fastlio_path.poses)} poses, "
-                f"recomputed KF-GINS={len(self.kf_gins_path.poses)} poses"
+                f"recomputed KF-GINS={len(self.kf_gins_path.poses)} poses, "
+                "robot_localization EKF="
+                f"{len(self.robot_localization_path.poses)} poses"
             )
         self.get_logger().info("Loaded rear-axle paths: " + counts)
 
@@ -377,8 +399,12 @@ class MappingResultTrajectoryPublisher(Node):
         if self.fastlio_path is not None:
             self.fastlio_path.header.stamp = stamp
             self.kf_gins_path.header.stamp = stamp
+            self.robot_localization_path.header.stamp = stamp
             self.fastlio_publisher.publish(self.fastlio_path)
             self.kf_gins_publisher.publish(self.kf_gins_path)
+            self.robot_localization_publisher.publish(
+                self.robot_localization_path
+            )
 
 
 def main():
@@ -389,8 +415,11 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.try_shutdown()
+        try:
+            node.destroy_node()
+            rclpy.try_shutdown()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
