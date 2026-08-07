@@ -925,7 +925,10 @@ void VIOManager::updateVisualMapPoints(cv::Mat img)
     
     // TODO: condition: distance and view_angle
     // Step 1: time
-    Feature *last_feature = pt->obs_.back();
+    // addFrameRef() inserts at the front, so compare against the newest
+    // observation. Using back() repeatedly retained a full image every frame
+    // after the vehicle had moved beyond the keyframe threshold.
+    Feature *last_feature = pt->obs_.front();
     // if(new_frame_->id_ >= last_feature->id_ + 10) add_flag = true; // 10
 
     // Step 2: delta_pose
