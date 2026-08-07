@@ -34,6 +34,9 @@
       exposure_time_init: 0.0
 
     preprocess:
+      # Astra publishes at 30 Hz. Ten visual updates per second keep the RDK X5
+      # real-time while retaining camera constraints between C16 scans.
+      image_filter_num: 3
       point_filter_num: 2
       filter_size_surf: 0.2
       lidar_type: 2
@@ -79,7 +82,8 @@
       layer_init_num: [5, 5, 5, 5, 5]
 
     local_map:
-      map_sliding_en: false
+      # Keep a 60 m-wide local voxel map instead of retaining the complete route.
+      map_sliding_en: true
       half_map_size: 100
       sliding_thresh: 8.0
 

@@ -89,7 +89,8 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   this->node->declare_parameter<bool>("imu.ba_bg_est_en", true);
 
   this->node->declare_parameter<double>("preprocess.blind", 0.01);
-    this->node->declare_parameter<bool>("preprocess.hilti_en", false);
+  this->node->declare_parameter<bool>("preprocess.hilti_en", false);
+  this->node->declare_parameter<int>("preprocess.image_filter_num", 1);
   this->node->declare_parameter<double>("preprocess.filter_size_surf", 0.5);
   this->node->declare_parameter<int>("preprocess.lidar_type", AVIA);
   this->node->declare_parameter<int>("preprocess.scan_line",6);
@@ -154,6 +155,9 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   this->node->get_parameter("imu.ba_bg_est_en", ba_bg_est_en);
 
   this->node->get_parameter("preprocess.blind", p_pre->blind);
+  this->node->get_parameter("preprocess.hilti_en", hilti_en);
+  this->node->get_parameter("preprocess.image_filter_num", image_filter_num);
+  image_filter_num = std::max(1, image_filter_num);
   this->node->get_parameter("preprocess.filter_size_surf", filter_size_surf_min);
   this->node->get_parameter("preprocess.lidar_type", p_pre->lidar_type);
   this->node->get_parameter("preprocess.scan_line", p_pre->N_SCANS);
@@ -260,13 +264,18 @@ void LIVMapper::initializeFiles()
 void LIVMapper::initializeSubscribersAndPublishers(rclcpp::Node::SharedPtr &node, image_transport::ImageTransport &it_)
 {
   image_transport::ImageTransport it(this->node);
+  // Sensor inputs must stay bounded. Large reliable queues retain stale samples
+  // whenever mapping briefly falls behind and eventually exhaust system memory.
+  const auto lidar_qos = rclcpp::SensorDataQoS().keep_last(10);
+  const auto imu_qos = rclcpp::SensorDataQoS().keep_last(200);
+  const auto image_qos = rclcpp::SensorDataQoS().keep_last(2);
   if (p_pre->lidar_type == AVIA) {
-    sub_pcl = this->node->create_subscription<livox_ros_driver2::msg::CustomMsg>(lid_topic, 200000, std::bind(&LIVMapper::livox_pcl_cbk, this, std::placeholders::_1));
+    sub_pcl = this->node->create_subscription<livox_ros_driver2::msg::CustomMsg>(lid_topic, lidar_qos, std::bind(&LIVMapper::livox_pcl_cbk, this, std::placeholders::_1));
   } else {
-    sub_pcl = this->node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 200000, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
+    sub_pcl = this->node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, lidar_qos, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
   }
-  sub_imu = this->node->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 200000, std::bind(&LIVMapper::imu_cbk, this, std::placeholders::_1));
-  sub_img = this->node->create_subscription<sensor_msgs::msg::Image>(img_topic, 200000, std::bind(&LIVMapper::img_cbk, this, std::placeholders::_1));
+  sub_imu = this->node->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&LIVMapper::imu_cbk, this, std::placeholders::_1));
+  sub_img = this->node->create_subscription<sensor_msgs::msg::Image>(img_topic, image_qos, std::bind(&LIVMapper::img_cbk, this, std::placeholders::_1));
   
   pubLaserCloudFullRes = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 100);
   pubNormal = this->node->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker", 100);
@@ -888,6 +897,8 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::msg::Image::ConstSharedPtr
 void LIVMapper::img_cbk(const sensor_msgs::msg::Image::ConstSharedPtr &msg_in)
 {
   if (!img_en) return;
+  static int image_frame_counter = 0;
+  if (++image_frame_counter % image_filter_num != 0) return;
   sensor_msgs::msg::Image::SharedPtr msg(new sensor_msgs::msg::Image(*msg_in));
   // if ((abs(stamp2Sec(msg->header.stamp) - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
   // {
