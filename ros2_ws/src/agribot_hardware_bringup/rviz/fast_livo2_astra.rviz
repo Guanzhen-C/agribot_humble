@@ -32,7 +32,7 @@ Visualization Manager:
       Class: rviz_default_plugins/PointCloud2
       Color: 225; 235; 240
       Color Transformer: FlatColor
-      Decay Time: 0.2
+      Decay Time: 0.8
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
