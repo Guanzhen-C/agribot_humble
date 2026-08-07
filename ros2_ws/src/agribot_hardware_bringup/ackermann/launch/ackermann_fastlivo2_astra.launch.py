@@ -16,7 +16,6 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
-    fast_livo_share = get_package_share_directory("fast_livo")
 
     openni2_library_path = [
         LaunchConfiguration("openni2_runtime"),
@@ -158,7 +157,7 @@ def generate_launch_description():
                 executable="rviz2",
                 arguments=[
                     "-d",
-                    os.path.join(fast_livo_share, "rviz_cfg", "fast_livo2.rviz"),
+                    os.path.join(hardware_share, "rviz", "fast_livo2_astra.rviz"),
                 ],
                 output="screen",
                 condition=IfCondition(LaunchConfiguration("rviz")),
