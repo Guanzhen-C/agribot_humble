@@ -23,7 +23,6 @@
   <exec_depend>agribot_autonomy</exec_depend>
   <exec_depend>agribot_rl_nav</exec_depend>
   <exec_depend>fast_lio</exec_depend>
-  <exec_depend>fast_livo</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>

@@ -35,27 +35,6 @@ add_library(agribot_ackermann_mppi_drive SHARED
   src/ackermann_drive_plugin.cpp
 )
 
-add_library(agribot_gazebo_render_workaround SHARED
-  src/gazebo_render_path_workaround.c
-)
-
-add_library(agribot_gazebo_scene_sync SHARED
-  src/gazebo_scene_sync_plugin.cpp
-)
-
-target_link_libraries(agribot_gazebo_render_workaround
-  ${CMAKE_DL_LIBS}
-)
-
-target_include_directories(agribot_gazebo_scene_sync PRIVATE
-  "${_system_protobuf_include_shim}"
-  ${gazebo_dev_INCLUDE_DIRS}
-)
-
-target_link_libraries(agribot_gazebo_scene_sync
-  ${gazebo_dev_LIBRARIES}
-)
-
 target_include_directories(agribot_ackermann_mppi_drive PRIVATE
   "${_system_protobuf_include_shim}"
   ${gazebo_dev_INCLUDE_DIRS}
@@ -76,8 +55,6 @@ target_link_libraries(agribot_ackermann_mppi_drive
 
 install(TARGETS
   agribot_ackermann_mppi_drive
-  agribot_gazebo_render_workaround
-  agribot_gazebo_scene_sync
   LIBRARY DESTINATION lib
 )
 

@@ -23,9 +23,7 @@ pkill -f orchard_waypoint_depth_collect_sim.launch.py || true
 pkill -f orchard_waypoint_coverage_sim.launch.py || true
 pkill -f ackermann_waypoint_depth_collect_sim.launch.py || true
 pkill -f fast_lio_sim.launch.py || true
-pkill -f fast_livo2_sim.launch.py || true
 pkill -f fastlio_mapping || true
-pkill -f fastlivo_mapping || true
 pkill -f fastlio_odom_bridge.py || true
 pkill -f imu_frame_bridge.py || true
 pkill -f kiss_localization.py || true
@@ -133,18 +131,6 @@ source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
   gui:=true headless:=false rviz:=true use_static_map:=true \
   localization_mode:=fast_lio enable_slam_map:=false \
-  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
-  map_file:=orchard_v2_map6.yaml
-
-# 阿克曼仿真 + MPPI 控制器 + FAST-LIVO2 定位
-# FAST-LIVO2 使用仿真的 C16 点云、IMU 和 RGB 相机
-# 相机需要 Gazebo 保持渲染，但可以隐藏 Gazebo 图形界面
-cd /home/cgz/agribot_ws
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
-  gui:=false headless:=false rviz:=true use_static_map:=true \
-  localization_mode:=fast_livo2 enable_slam_map:=false \
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
 

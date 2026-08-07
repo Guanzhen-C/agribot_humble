@@ -1,6 +1,5 @@
 import copy
 import os
-import platform
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -96,14 +95,13 @@ def _write_orchard_geometry_sdf(gazebo_share):
     return orchard_model_file
 
 
-def _write_ackermann_localized_sdf(ackermann_share, include_camera):
+def _write_ackermann_localized_sdf(ackermann_share):
     source_file = os.path.join(ackermann_share, "models", "ackermann_scout.sdf")
     sensor_file = os.path.join(
         ackermann_share, "models", "ackermann_scout_sensor.sdf"
     )
-    suffix = "fastlivo2" if include_camera else "localized"
     target_file = os.path.join(
-        tempfile.gettempdir(), f"ackermann_scout_{suffix}.generated.sdf"
+        tempfile.gettempdir(), "ackermann_scout_localized.generated.sdf"
     )
 
     robot_tree = ET.parse(source_file)
@@ -117,16 +115,13 @@ def _write_ackermann_localized_sdf(ackermann_share, include_camera):
     if robot_base_link is None or sensor_base_link is None:
         raise RuntimeError("Robot and sensor SDF files must each contain base_link")
 
-    sensors = [
-        sensor
-        for sensor in sensor_base_link.findall("sensor")
-        if include_camera or not sensor.get("name", "").startswith("camera_")
-    ]
-    sensor_names = {sensor.get("name") for sensor in sensors}
+    sensor_names = {
+        sensor.get("name") for sensor in sensor_base_link.findall("sensor")
+    }
     for existing_sensor in list(robot_base_link.findall("sensor")):
         if existing_sensor.get("name") in sensor_names:
             robot_base_link.remove(existing_sensor)
-    for sensor in sensors:
+    for sensor in sensor_base_link.findall("sensor"):
         robot_base_link.append(copy.deepcopy(sensor))
 
     publish_tf = robot_model.find(".//publish_tf")
@@ -141,32 +136,6 @@ def _write_ackermann_localized_sdf(ackermann_share, include_camera):
     return target_file
 
 
-def _write_fastlivo2_world(source_file):
-    target_file = os.path.join(
-        tempfile.gettempdir(), "ackermann_fastlivo2.generated.world"
-    )
-    world_tree = ET.parse(source_file)
-    world = world_tree.getroot().find("world")
-    if world is None:
-        raise RuntimeError(f"Gazebo world file has no <world>: {source_file}")
-
-    existing = world.find("./plugin[@name='agribot_gazebo_scene_sync']")
-    if existing is not None:
-        world.remove(existing)
-    ET.SubElement(
-        world,
-        "plugin",
-        {
-            "name": "agribot_gazebo_scene_sync",
-            "filename": "libagribot_gazebo_scene_sync.so",
-        },
-    )
-
-    ET.indent(world_tree, space="  ")
-    world_tree.write(target_file, encoding="unicode", xml_declaration=False)
-    return target_file
-
-
 def generate_launch_description():
     ackermann_share = get_package_share_directory("agribot_ackermann_mppi")
     autonomy_share = get_package_share_directory("agribot_autonomy")
@@ -177,12 +146,7 @@ def generate_launch_description():
     gazebo_ros_share = get_package_share_directory("gazebo_ros")
     xacro_exec = os.path.join(get_package_prefix("xacro"), "bin", "xacro")
     description_file = os.path.join(ackermann_share, "urdf", "ackermann_scout.urdf.xacro")
-    localized_gazebo_spawn_file = _write_ackermann_localized_sdf(
-        ackermann_share, include_camera=False
-    )
-    fastlivo2_gazebo_spawn_file = _write_ackermann_localized_sdf(
-        ackermann_share, include_camera=True
-    )
+    localized_gazebo_spawn_file = _write_ackermann_localized_sdf(ackermann_share)
     orchard_model_file = _write_orchard_geometry_sdf(scout_gazebo_share)
     map_path = PathJoinSubstitution(
         [LaunchConfiguration("map_file_location"), LaunchConfiguration("map_file")]
@@ -199,36 +163,11 @@ def generate_launch_description():
             ["'", use_static_map, "' == 'true' and '", localization_mode, "' == 'fast_lio'"]
         )
     )
-    static_fastlivo2_condition = IfCondition(
-        PythonExpression(
-            [
-                "'",
-                use_static_map,
-                "' == 'true' and '",
-                localization_mode,
-                "' == 'fast_livo2'",
-            ]
-        )
-    )
     navsat_condition = IfCondition(
         PythonExpression(["'", localization_mode, "' == 'navsat'"])
     )
     fastlio_condition = IfCondition(
         PythonExpression(["'", localization_mode, "' == 'fast_lio'"])
-    )
-    fastlivo2_condition = IfCondition(
-        PythonExpression(["'", localization_mode, "' == 'fast_livo2'"])
-    )
-    lidar_odometry_condition = IfCondition(
-        PythonExpression(
-            [
-                "'",
-                localization_mode,
-                "' == 'fast_lio' or '",
-                localization_mode,
-                "' == 'fast_livo2'",
-            ]
-        )
     )
 
     system_model_paths = [
@@ -279,17 +218,7 @@ def generate_launch_description():
             "-entity",
             LaunchConfiguration("robot_name"),
             "-file",
-            PythonExpression(
-                [
-                    "'",
-                    fastlivo2_gazebo_spawn_file,
-                    "' if '",
-                    localization_mode,
-                    "' == 'fast_livo2' else '",
-                    localized_gazebo_spawn_file,
-                    "'",
-                ]
-            ),
+            localized_gazebo_spawn_file,
             "-x",
             LaunchConfiguration("initial_pose_x"),
             "-y",
@@ -301,51 +230,6 @@ def generate_launch_description():
         ],
         output="screen",
     )
-
-    def _gazebo_server(context):
-        world_file = LaunchConfiguration("world").perform(context)
-        fastlivo2_enabled = (
-            LaunchConfiguration("localization_mode").perform(context) == "fast_livo2"
-        )
-        if fastlivo2_enabled and platform.machine() in ("aarch64", "arm64"):
-            world_file = _write_fastlivo2_world(world_file)
-        server = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(gazebo_ros_share, "launch", "gzserver.launch.py")
-            ),
-            launch_arguments={
-                "world": world_file,
-                "verbose": "false",
-                "lockstep": "false",
-            }.items(),
-        )
-
-        if not fastlivo2_enabled or platform.machine() not in ("aarch64", "arm64"):
-            return [server]
-
-        workaround_library = os.path.join(
-            get_package_prefix("agribot_ackermann_mppi"),
-            "lib",
-            "libagribot_gazebo_render_workaround.so",
-        )
-        preload = os.pathsep.join(
-            value
-            for value in (workaround_library, os.environ.get("LD_PRELOAD", ""))
-            if value
-        )
-        return [
-            GroupAction(
-                scoped=True,
-                actions=[
-                    SetEnvironmentVariable(
-                        "AGRIBOT_GAZEBO_RENDER_PATH_WORKAROUND", "1"
-                    ),
-                    SetEnvironmentVariable("LD_PRELOAD", preload),
-                    server,
-                ],
-            )
-        ]
-
     gzclient_after_robot_spawn = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(gazebo_ros_share, "launch", "gzclient.launch.py")
@@ -363,9 +247,6 @@ def generate_launch_description():
         ).perform(context)
         resolved_fastlio_static_nav2_params = LaunchConfiguration(
             "fastlio_static_nav2_params_file"
-        ).perform(context)
-        resolved_fastlivo2_static_nav2_params = LaunchConfiguration(
-            "fastlivo2_static_nav2_params_file"
         ).perform(context)
         resolved_default_bt_xml = LaunchConfiguration("default_nav_to_pose_bt_xml").perform(context)
         resolved_default_through_poses_bt_xml = LaunchConfiguration(
@@ -390,20 +271,6 @@ def generate_launch_description():
             package="agribot_autonomy",
             executable="topic_ready_gate.py",
             name="ackermann_static_fastlio_localization_gate",
-            output="screen",
-            parameters=[
-                {
-                    "use_sim_time": True,
-                    "topic": "/amcl_pose",
-                    "message_type": "pose",
-                    "timeout_sec": float(resolved_navigation_delay) + 20.0,
-                }
-            ],
-        )
-        static_fastlivo2_localization_gate = Node(
-            package="agribot_autonomy",
-            executable="topic_ready_gate.py",
-            name="ackermann_static_fastlivo2_localization_gate",
             output="screen",
             parameters=[
                 {
@@ -521,44 +388,7 @@ def generate_launch_description():
                         )
                     ),
                 ],
-            ),
-            GroupAction(
-                condition=static_fastlivo2_condition,
-                actions=static_map_nodes()
-                + [
-                    TimerAction(
-                        period=float(resolved_navigation_delay),
-                        actions=[static_fastlivo2_localization_gate],
-                    ),
-                    RegisterEventHandler(
-                        event_handler=OnProcessExit(
-                            target_action=static_fastlivo2_localization_gate,
-                            on_exit=[
-                                IncludeLaunchDescription(
-                                    PythonLaunchDescriptionSource(
-                                        os.path.join(
-                                            scout_navigation_share,
-                                            "launch",
-                                            "include",
-                                            "navigation_only.launch.py",
-                                        )
-                                    ),
-                                    launch_arguments={
-                                        "use_sim_time": "true",
-                                        "autostart": "true",
-                                        "params_file": resolved_fastlivo2_static_nav2_params,
-                                        "odom_topic": resolved_nav_odom_topic,
-                                        "default_nav_to_pose_bt_xml": resolved_default_bt_xml,
-                                        "default_nav_through_poses_bt_xml": (
-                                            resolved_default_through_poses_bt_xml
-                                        ),
-                                    }.items(),
-                                )
-                            ],
-                        )
-                    ),
-                ],
-            ),
+            )
         ]
 
     return LaunchDescription(
@@ -567,7 +397,7 @@ def generate_launch_description():
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument(
                 "gazebo_ip",
-                default_value=os.environ.get("GAZEBO_IP", "127.0.0.1"),
+                default_value=os.environ.get("GAZEBO_IP", "172.17.0.1"),
             ),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
@@ -584,11 +414,9 @@ def generate_launch_description():
                     [
                         "'/fastlio/odometry' if '",
                         localization_mode,
-                        "' == 'fast_lio' else ('/fastlivo/odometry' if '",
+                        "' == 'fast_lio' else ('/odometry/filtered_navsat' if '",
                         localization_mode,
-                        "' == 'fast_livo2' else ('/odometry/filtered_navsat' if '",
-                        localization_mode,
-                        "' == 'navsat' else '/odom'))",
+                        "' == 'navsat' else '/odom')",
                     ]
                 ),
             ),
@@ -615,12 +443,6 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "fastlivo2_static_nav2_params_file",
-                default_value=os.path.join(
-                    ackermann_share, "config", "nav2_params_ackermann_fastlio_static.yaml"
-                ),
-            ),
-            DeclareLaunchArgument(
                 "navsat_ekf_params_file",
                 default_value=os.path.join(rl_nav_share, "config", "navsat_kf_gins_map.yaml"),
             ),
@@ -631,20 +453,6 @@ def generate_launch_description():
             DeclareLaunchArgument("fastlio_start_delay", default_value="8.0"),
             DeclareLaunchArgument("fastlio_localization_start_delay", default_value="20.0"),
             DeclareLaunchArgument("fastlio_visualize", default_value="false"),
-            DeclareLaunchArgument(
-                "fastlivo2_config_file",
-                default_value=os.path.join(
-                    autonomy_share, "config", "fast_livo2_sim.yaml"
-                ),
-            ),
-            DeclareLaunchArgument(
-                "fastlivo2_camera_params_file",
-                default_value=os.path.join(
-                    autonomy_share, "config", "fast_livo2_camera_sim.yaml"
-                ),
-            ),
-            DeclareLaunchArgument("fastlivo2_start_delay", default_value="8.0"),
-            DeclareLaunchArgument("fastlivo2_visualize", default_value="false"),
             DeclareLaunchArgument("navsat_pose_topic", default_value="/odometry/gps"),
             DeclareLaunchArgument("navsat_pose_message_type", default_value="odometry"),
             DeclareLaunchArgument("navsat_imu_topic", default_value="/imu/data_corrected"),
@@ -704,25 +512,29 @@ def generate_launch_description():
                     {"use_sim_time": LaunchConfiguration("use_sim_time")},
                 ],
             ),
-            TimerAction(
-                period=12.0,
-                actions=[
-                    Node(
-                        package="nav2_lifecycle_manager",
-                        executable="lifecycle_manager",
-                        name="lifecycle_manager_collision_monitor",
-                        output="screen",
-                        parameters=[
-                            {
-                                "use_sim_time": LaunchConfiguration("use_sim_time"),
-                                "autostart": True,
-                                "node_names": ["ackermann_collision_monitor"],
-                            }
-                        ],
-                    )
+            Node(
+                package="nav2_lifecycle_manager",
+                executable="lifecycle_manager",
+                name="lifecycle_manager_collision_monitor",
+                output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": LaunchConfiguration("use_sim_time"),
+                        "autostart": True,
+                        "node_names": ["ackermann_collision_monitor"],
+                    }
                 ],
             ),
-            OpaqueFunction(function=_gazebo_server),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(gazebo_ros_share, "launch", "gzserver.launch.py")
+                ),
+                launch_arguments={
+                    "world": LaunchConfiguration("world"),
+                    "headless": LaunchConfiguration("headless"),
+                    "verbose": "false",
+                }.items(),
+            ),
             Node(
                 package="gazebo_ros",
                 executable="spawn_entity.py",
@@ -912,40 +724,12 @@ def generate_launch_description():
                 condition=fastlio_condition,
             ),
             TimerAction(
-                period=LaunchConfiguration("fastlivo2_start_delay"),
-                actions=[
-                    IncludeLaunchDescription(
-                        PythonLaunchDescriptionSource(
-                            os.path.join(
-                                autonomy_share, "launch", "fast_livo2_sim.launch.py"
-                            )
-                        ),
-                        launch_arguments={
-                            "use_sim_time": "true",
-                            "fastlivo2_config_file": LaunchConfiguration(
-                                "fastlivo2_config_file"
-                            ),
-                            "camera_params_file": LaunchConfiguration(
-                                "fastlivo2_camera_params_file"
-                            ),
-                            "fastlivo2_visualize": LaunchConfiguration(
-                                "fastlivo2_visualize"
-                            ),
-                            "fastlivo2_output_odom_topic": LaunchConfiguration(
-                                "nav_odom_topic"
-                            ),
-                        }.items(),
-                    )
-                ],
-                condition=fastlivo2_condition,
-            ),
-            TimerAction(
                 period=LaunchConfiguration("fastlio_localization_start_delay"),
                 actions=[
                     Node(
                         package="agribot_autonomy",
                         executable="kiss_localization.py",
-                        name="ackermann_lidar_odometry_localization",
+                        name="ackermann_fastlio_localization",
                         output="screen",
                         parameters=[
                             {
@@ -969,7 +753,7 @@ def generate_launch_description():
                     Node(
                         package="agribot_autonomy",
                         executable="initial_pose_sender.py",
-                        name="ackermann_initial_pose_sender_lidar_odometry",
+                        name="ackermann_initial_pose_sender_fastlio",
                         output="screen",
                         parameters=[
                             {
@@ -989,7 +773,7 @@ def generate_launch_description():
                         ],
                     ),
                 ],
-                condition=lidar_odometry_condition,
+                condition=fastlio_condition,
             ),
             Node(
                 package="agribot_autonomy",

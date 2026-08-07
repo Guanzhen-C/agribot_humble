@@ -55,11 +55,11 @@ ros2_ws/protobuf_compat/
 /ros2_ws/base_link
 /ros2_ws/controller_server.yaml
 /ros2_ws/rtk_eskf_localization.yaml
+/ros2_ws/src/1.txt
+/ros2_ws/src/2.txt
 
 # Upstream documentation media not required to build or run
 /SensorInfo/
-/ros2_ws/src/FAST-LIVO2/Supplementary/
-/ros2_ws/src/FAST-LIVO2/pics/
 /ros2_ws/src/FAST_LIO_ROS2/doc/
 /ros2_ws/src/KF-GINS/docs/
 /ros2_ws/src/ugv_sdk/docs/
