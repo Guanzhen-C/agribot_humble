@@ -17,13 +17,13 @@
                     -0.007303826, -0.008220527, 0.999939537]
 
       # p_camera_optical = Rcl * p_lidar + Pcl.
-      # The rotation assumes both sensor housings point toward vehicle +X.
-      # Pcl is intentionally only a bringup placeholder. Replace Rcl and Pcl
-      # with FAST-Calib output before evaluating localization accuracy.
+      # Both sensor housings point toward vehicle +X. The camera is centered
+      # directly ahead of the C16; 80 mm is the geometric translation initial
+      # value and must be refined from LiDAR-camera calibration data.
       Rcl: [0.0, -1.0, 0.0,
             0.0, 0.0, -1.0,
             1.0, 0.0, 0.0]
-      Pcl: [0.0, 0.0, 0.0]
+      Pcl: [0.0, 0.0, -0.08]
 
     time_offset:
       lidar_time_offset: 0.0
@@ -34,9 +34,6 @@
       exposure_time_init: 0.0
 
     preprocess:
-      # Astra publishes at 30 Hz. Ten visual updates per second keep the RDK X5
-      # real-time while retaining camera constraints between C16 scans.
-      image_filter_num: 3
       point_filter_num: 2
       filter_size_surf: 0.2
       lidar_type: 2
@@ -82,8 +79,7 @@
       layer_init_num: [5, 5, 5, 5, 5]
 
     local_map:
-      # Keep a 60 m-wide local voxel map instead of retaining the complete route.
-      map_sliding_en: true
+      map_sliding_en: false
       half_map_size: 100
       sliding_thresh: 8.0
 
