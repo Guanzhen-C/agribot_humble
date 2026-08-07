@@ -50,7 +50,7 @@ Visualization Manager:
         Filter size: 2
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /lidar/points
+        Value: /lidar/points_rviz
       Use Fixed Frame: true
       Use rainbow: false
       Value: true

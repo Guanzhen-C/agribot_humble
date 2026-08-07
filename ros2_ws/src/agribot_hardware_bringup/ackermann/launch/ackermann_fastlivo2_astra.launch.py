@@ -68,6 +68,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("rviz_lidar_rate", default_value="2.0"),
             DeclareLaunchArgument(
                 "openni2_runtime",
                 default_value="/opt/orbbec/openni2",
@@ -163,6 +164,18 @@ def generate_launch_description():
             TimerAction(
                 period=10.0,
                 actions=[
+                    Node(
+                        package="topic_tools",
+                        executable="throttle",
+                        name="fastlivo2_lidar_rviz_throttle",
+                        arguments=[
+                            "messages",
+                            "/lidar/points",
+                            LaunchConfiguration("rviz_lidar_rate"),
+                            "/lidar/points_rviz",
+                        ],
+                        output="screen",
+                    ),
                     Node(
                         package="rviz2",
                         executable="rviz2",
