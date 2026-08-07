@@ -68,9 +68,6 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("rviz_cloud_rate", default_value="2.0"),
-            DeclareLaunchArgument("rviz_image_rate", default_value="10.0"),
-            DeclareLaunchArgument("rviz_path_rate", default_value="1.0"),
             DeclareLaunchArgument(
                 "openni2_runtime",
                 default_value="/opt/orbbec/openni2",
@@ -166,42 +163,6 @@ def generate_launch_description():
             TimerAction(
                 period=10.0,
                 actions=[
-                    Node(
-                        package="topic_tools",
-                        executable="throttle",
-                        name="fastlivo2_cloud_throttle",
-                        arguments=[
-                            "messages",
-                            "/cloud_registered",
-                            LaunchConfiguration("rviz_cloud_rate"),
-                            "/cloud_registered_rviz",
-                        ],
-                        output="screen",
-                    ),
-                    Node(
-                        package="topic_tools",
-                        executable="throttle",
-                        name="fastlivo2_image_throttle",
-                        arguments=[
-                            "messages",
-                            "/rgb_img",
-                            LaunchConfiguration("rviz_image_rate"),
-                            "/rgb_img_rviz",
-                        ],
-                        output="screen",
-                    ),
-                    Node(
-                        package="topic_tools",
-                        executable="throttle",
-                        name="fastlivo2_path_throttle",
-                        arguments=[
-                            "messages",
-                            "/path",
-                            LaunchConfiguration("rviz_path_rate"),
-                            "/path_rviz",
-                        ],
-                        output="screen",
-                    ),
                     Node(
                         package="rviz2",
                         executable="rviz2",
