@@ -6,4 +6,5 @@
 
 Local changes adapt the package to this ROS 2 workspace, add configurable
 PointCloud2 timestamp units, reduce per-frame console output, bound sensor QoS
-queues, and add configurable camera frame decimation for embedded targets.
+queues, add configurable camera frame decimation for embedded targets, and fix
+the upstream visual-patch allocation leak.
