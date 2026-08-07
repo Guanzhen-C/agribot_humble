@@ -2,7 +2,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    IncludeLaunchDescription,
+    TimerAction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
@@ -90,16 +95,25 @@ def generate_launch_description():
                     "fast_livo2_astra.rviz",
                 ),
             ),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(hardware_share, "launch", "sensors.launch.py")
-                ),
-                launch_arguments={
-                    "start_lidar": "true",
-                    "start_imu": "true",
-                    "start_rtk": "false",
-                    "rviz": "false",
-                }.items(),
+            GroupAction(
+                scoped=True,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(
+                            os.path.join(
+                                hardware_share,
+                                "launch",
+                                "sensors.launch.py",
+                            )
+                        ),
+                        launch_arguments={
+                            "start_lidar": "true",
+                            "start_imu": "true",
+                            "start_rtk": "false",
+                            "rviz": "false",
+                        }.items(),
+                    )
+                ],
                 condition=IfCondition(LaunchConfiguration("start_sensors")),
             ),
             camera,
