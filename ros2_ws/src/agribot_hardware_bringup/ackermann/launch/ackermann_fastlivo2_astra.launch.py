@@ -52,6 +52,19 @@ def generate_launch_description():
         parameters=[LaunchConfiguration("camera_params_file")],
     )
 
+    camera_throttle = Node(
+        package="topic_tools",
+        executable="throttle",
+        name="fastlivo2_camera_throttle",
+        output="screen",
+        arguments=[
+            "messages",
+            "/camera/rgb/image_raw",
+            LaunchConfiguration("camera_rate"),
+            "/camera/rgb/image_fastlivo",
+        ],
+    )
+
     fast_livo2 = Node(
         package="fast_livo",
         executable="fastlivo_mapping",
@@ -67,6 +80,11 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
+            DeclareLaunchArgument(
+                "camera_rate",
+                default_value="10.0",
+                description="Maximum RGB image rate supplied to FAST-LIVO2",
+            ),
             DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument(
                 "openni2_runtime",
@@ -109,6 +127,7 @@ def generate_launch_description():
                 condition=IfCondition(LaunchConfiguration("start_sensors")),
             ),
             camera,
+            camera_throttle,
             parameter_blackboard,
             TimerAction(period=3.0, actions=[fast_livo2]),
             TimerAction(
