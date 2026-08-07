@@ -16,6 +16,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    fast_livo_share = get_package_share_directory("fast_livo")
 
     openni2_library_path = [
         LaunchConfiguration("openni2_runtime"),
@@ -67,8 +68,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
-            DeclareLaunchArgument("rviz", default_value="true"),
-            DeclareLaunchArgument("rviz_lidar_rate", default_value="2.0"),
+            DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument(
                 "openni2_runtime",
                 default_value="/opt/orbbec/openni2",
@@ -86,14 +86,6 @@ def generate_launch_description():
                     hardware_share,
                     "config",
                     "fast_livo2_camera_astra_640.yaml",
-                ),
-            ),
-            DeclareLaunchArgument(
-                "rviz_config_file",
-                default_value=os.path.join(
-                    hardware_share,
-                    "rviz",
-                    "fast_livo2_astra.rviz",
                 ),
             ),
             GroupAction(
@@ -161,31 +153,14 @@ def generate_launch_description():
                     ),
                 ],
             ),
-            TimerAction(
-                period=10.0,
-                actions=[
-                    Node(
-                        package="topic_tools",
-                        executable="throttle",
-                        name="fastlivo2_lidar_rviz_throttle",
-                        arguments=[
-                            "messages",
-                            "/lidar/points",
-                            LaunchConfiguration("rviz_lidar_rate"),
-                            "/lidar/points_rviz",
-                        ],
-                        output="screen",
-                    ),
-                    Node(
-                        package="rviz2",
-                        executable="rviz2",
-                        arguments=[
-                            "-d",
-                            LaunchConfiguration("rviz_config_file"),
-                        ],
-                        output="screen",
-                    ),
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                arguments=[
+                    "-d",
+                    os.path.join(fast_livo_share, "rviz_cfg", "fast_livo2.rviz"),
                 ],
+                output="screen",
                 condition=IfCondition(LaunchConfiguration("rviz")),
             ),
         ]
