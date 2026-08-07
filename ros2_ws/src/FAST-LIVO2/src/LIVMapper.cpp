@@ -1203,6 +1203,7 @@ void LIVMapper::publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::Po
   if (pcl_w_wait_pub->empty()) return;
   PointCloudXYZRGB::Ptr laserCloudWorldRGB(new PointCloudXYZRGB());
   static int pub_num = 1;
+  bool color_batch_processed = false;
   pub_num++;
 
   if (LidarMeasures.lio_vio_flg == VIO)
@@ -1211,6 +1212,7 @@ void LIVMapper::publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::Po
     if(pub_num >= pub_scan_num)
     {
       pub_num = 1;
+      color_batch_processed = true;
       size_t size = pcl_wait_pub->points.size();
       laserCloudWorldRGB->reserve(size);
       // double inv_expo = _state.inv_expo_time;
@@ -1353,7 +1355,9 @@ void LIVMapper::publish_frame_world(const rclcpp::Publisher<sensor_msgs::msg::Po
     }
   }
 
-  if(laserCloudWorldRGB->size() > 0)  PointCloudXYZI().swap(*pcl_wait_pub); 
+  // The accumulated input batch has been consumed even when no LiDAR points
+  // project into the camera. Keeping an empty-color batch caused unbounded RSS.
+  if(color_batch_processed)  PointCloudXYZI().swap(*pcl_wait_pub);
   if(LidarMeasures.lio_vio_flg == VIO)  PointCloudXYZI().swap(*pcl_w_wait_pub);
 }
 
