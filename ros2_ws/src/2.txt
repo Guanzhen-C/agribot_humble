@@ -337,6 +337,32 @@ gimp "${MAP_BASE}.pgm"
 # 导出后确认仍为原尺寸的PGM灰度图，再重启下面的RViz显示或导航程序
 file "${MAP_BASE}.pgm"
 
+# 可选：只使用二维地图验证Smac阿克曼路径，不启动传感器、控制器或底盘
+# RViz先点击2D Pose Estimate设置蓝色起点箭头，再连续点击2D Goal Pose添加多个橙色经停点
+# 每增加一个经停点都会重新生成经过全部经停点的绿色路径；重新设置起点会清空经停点队列
+# 该步骤只验证静态地图和全局规划，不会启动控制器或底盘
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+ros2 launch agribot_hardware_bringup \
+  ackermann_smac_planner_validation.launch.py \
+  map:=${MAP_BASE}.yaml \
+  rviz:=true
+
+# 推荐：使用Nav2原生Nav Through Poses验证批量Pose连续规划，不启动传感器、MPPI或底盘
+# 先用2D Pose Estimate设置起点；在Navigation 2面板切换到Nav Through Poses模式
+# 再用Nav2 Goal连续添加多个Pose，最后点击Start Nav Through Poses一次性提交
+# Smac生成的一条连续绿色路径会交给干运行FollowPath；该节点只显示路径，不发布速度
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+ros2 launch agribot_hardware_bringup \
+  ackermann_nav_through_poses_validation.launch.py \
+  map:=${MAP_BASE}.yaml \
+  rviz:=true
+
 # 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、KF-GINS和robot_localization轨迹
 # 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
 ros2 run agribot_offline_mapping run_localization_comparison.py \

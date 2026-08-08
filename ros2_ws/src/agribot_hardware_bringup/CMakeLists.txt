@@ -223,6 +223,8 @@ install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
   scripts/pcd_to_nav2_map.py
+  scripts/planner_validation_bridge.py
+  scripts/planner_validation_follow_path.py
   scripts/rtk_nmea_node.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
@@ -352,6 +354,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_self_contained_runtime
     test/test_self_contained_runtime.py
+  )
+  ament_add_pytest_test(
+    test_planner_validation
+    test/test_planner_validation.py
   )
   ament_add_pytest_test(
     test_wheeltec_car_gui

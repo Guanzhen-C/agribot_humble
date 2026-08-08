@@ -30,6 +30,7 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>pcl_conversions</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>hipnuc_imu</exec_depend>
   <exec_depend>launch</exec_depend>
@@ -43,6 +44,7 @@
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>nav2_navfn_planner</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>

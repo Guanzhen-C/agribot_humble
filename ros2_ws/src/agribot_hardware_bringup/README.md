@@ -330,6 +330,41 @@ two-dimensional projection for planning, while one-shot initial localization
 uses the complete three-dimensional PCD. Start mapped navigation with the base
 path:
 
+Before sensors are available, the saved YAML can be checked independently with
+the planner-only entry point:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_smac_planner_validation.launch.py \
+  map:=/home/cgz/agribot_maps/test_site/map.yaml
+```
+
+In RViz, set a start with `2D Pose Estimate`, then use `2D Goal Pose` one or
+more times to append ordered waypoints. The bridge sends the explicit start and
+all waypoints to Nav2 `ComputePathThroughPoses` using the same Smac Hybrid-A*
+configuration as the physical Ackermann vehicle. It publishes the waypoint
+queue on `/planning_test/waypoints` and the complete result on
+`/planning_test/path`. Setting a new start clears the existing waypoint queue.
+This launch contains only the map server, planner server, lifecycle manager,
+bridge and RViz; it cannot command a chassis and does not start any sensor,
+localization, controller or behavior-tree node.
+
+To validate the exact native RViz `Nav Through Poses` workflow without moving a
+vehicle, use:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_nav_through_poses_validation.launch.py \
+  map:=/home/cgz/agribot_maps/test_site/map.yaml
+```
+
+This entry point starts the real Nav2 panel, `NavigateThroughPoses` behavior
+tree, and Smac planner. A dry-run `FollowPath` server displays the single
+continuous path it receives and returns success without creating a controller,
+sensor, chassis node, or velocity publisher.
+
+Start the complete mapped navigation stack with the base path:
+
 ```bash
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \

@@ -102,6 +102,36 @@ Use the saved YAML projection for long-range planning and the PCD for one-shot
 
 ```bash
 ros2 launch agribot_hardware_bringup \
+  ackermann_smac_planner_validation.launch.py \
+  map:=/home/cgz/agribot_maps/test_site/map.yaml
+```
+
+This planner-only launch accepts an RViz `2D Pose Estimate` followed by one or
+more ordered `2D Goal Pose` waypoints. It uses Nav2
+`ComputePathThroughPoses`, displays the queue on `/planning_test/waypoints`, and
+publishes the complete Smac Hybrid-A* result on `/planning_test/path`. Setting a
+new initial pose clears the queue. It uses the physical footprint and minimum
+turning radius, but creates no sensor, controller, behavior-tree or chassis
+process.
+
+The native RViz accumulation and one-shot submission workflow can be validated
+without any chassis output:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_nav_through_poses_validation.launch.py \
+  map:=/home/cgz/agribot_maps/test_site/map.yaml
+```
+
+Set `2D Pose Estimate`, select `Nav Through Poses` in the Navigation 2 panel,
+accumulate poses with `Nav2 Goal`, then start once. The real behavior tree and
+Smac planner run, while a dry-run `FollowPath` action records the complete path
+instead of starting MPPI or publishing velocity commands.
+
+For full localization and navigation, use:
+
+```bash
+ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlio_mapped.launch.py \
   map_base:=/home/sunrise/agribot_maps/test_site/map \
   enable_chassis_output:=true \
