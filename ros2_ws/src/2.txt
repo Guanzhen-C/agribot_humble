@@ -242,10 +242,10 @@ rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
 colcon build --packages-select lio_sam agribot_offline_mapping \
   --symlink-install --parallel-workers "$(nproc)"
 
-# 第2步终端1（RDK）：只启动C16、IMU、RTK并采集原始数据，不运行FAST-LIO2
+# 第2步终端1（RDK）：启动C16、IMU、RTK、深度相机和CAN底盘并采集原始数据
 # 先关闭其他整车、传感器和录包程序；修改MAP_NAME即可更换地图名
-# 本入口不启动FAST-LIO2、Nav2、在线建图、RViz或底盘输出，使用蓝牙低速驾驶
-# bag额外保留雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
+# 本入口不启动FAST-LIO2、Nav2、在线建图或RViz；使用终端2的键盘节点低速驾驶
+# bag额外保留RGB/深度原图、相机标定、底盘命令/反馈、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -256,14 +256,29 @@ mkdir -p /home/sunrise/agribot_bags
 echo "本次数据包：$BAG_PATH"
 ros2 launch agribot_hardware_bringup \
   ackermann_sensor_data_collection.launch.py \
+  start_camera:=true \
+  enable_chassis_output:=true \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00 \
   record_bag:=true \
   bag_output:=$BAG_PATH
 
-# 看到Recording...后先不要动车，在终端2检查数据并保持车辆静止约30秒
-# 结束时在本终端按一次Ctrl+C，等待rosbag完成写盘后再断电，然后检查数据包
+# 看到Recording...后先不要动车，在终端2启动键盘节点并保持车辆静止约30秒
+
+# 第2步终端2（RDK）：启动键盘控制节点，必须在独立终端运行
+# i前进，逗号后退，u/o前进转弯，m/句号后退转弯，k停车，Ctrl+C退出
+# 默认线速度0.30m/s、角速度0.20rad/s；CAN反馈异常或指令超时会自动停车
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 run agribot_hardware_bringup ackermann_keyboard_teleop
+
+# 结束时先在终端2按k停车并按Ctrl+C退出，再在终端1按一次Ctrl+C
+# 等待rosbag完成写盘后再断电，然后检查数据包
 ros2 bag info "$BAG_PATH"
 
-# 第2步终端2（RDK）：逐项检查采集数据；每条命令观察完成后按Ctrl+C，再执行下一条
+# 第2步终端3（RDK）：逐项检查采集数据；每条命令观察完成后按Ctrl+C，再执行下一条
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0

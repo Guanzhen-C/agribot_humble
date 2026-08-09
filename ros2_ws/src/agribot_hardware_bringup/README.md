@@ -12,7 +12,7 @@ navigation selections:
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 | Ackermann | MPPI | FAST-LIO + 3D PCD mapping | `ackermann_mppi_fastlio_3d_mapping.launch.py` |
 | Ackermann | MPPI | FAST-LIO + saved-map planning | `ackermann_mppi_fastlio_mapped.launch.py` |
-| Ackermann | None | Raw C16 + IMU + RTK collection | `ackermann_sensor_data_collection.launch.py` |
+| Ackermann | Keyboard | Raw C16 + IMU + RTK + RGB-D collection | `ackermann_sensor_data_collection.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -288,9 +288,10 @@ ros2 launch agribot_hardware_bringup \
   enable_chassis_output:=false
 ```
 
-For offline mapping datasets, collect only the physical sensor streams on the
-RDK. This entry does not start FAST-LIO, Nav2, the online PCD builder, RViz, or
-the chassis driver:
+For offline mapping datasets, collect the physical sensor streams on the RDK.
+This entry starts the C16, IMU, RTK, Astra RGB-D camera, rosbag recorder and the
+CAN chassis driver. It does not start FAST-LIO, Nav2, the online PCD builder or
+RViz. Start it in the first terminal:
 
 ```bash
 ros2 launch agribot_hardware_bringup \
@@ -298,10 +299,24 @@ ros2 launch agribot_hardware_bringup \
   bag_output:=/home/sunrise/agribot_bags/test_$(date +%Y%m%d_%H%M%S)
 ```
 
+After the recorder reports `Recording...`, run the interactive keyboard node in
+a second terminal:
+
+```bash
+ros2 run agribot_hardware_bringup ackermann_keyboard_teleop
+```
+
+Use `i` for forward, `,` for reverse, `u`/`o` for forward turns,
+`m`/`.` for reverse turns, and `k` to stop. The defaults are `0.30 m/s` linear
+speed and `0.20 rad/s` angular speed. The CAN driver requires fresh chassis
+feedback and stops output when keyboard commands time out.
+
 The bag includes the full C16 point cloud, lidar timing/device information,
 IMU, magnetic field, temperature, every raw RTK serial sentence, parsed RTK
-quality fields, headings, and static sensor transforms. Run FAST-LIO or LIO-SAM
-later on the Jetson from this bag.
+quality fields, headings, raw RGB and depth images with camera calibration,
+keyboard commands, wheel odometry, chassis status, diagnostics, and static
+sensor transforms. Run FAST-LIO, FAST-LIVO2 or LIO-SAM later on the Jetson from
+this bag.
 
 This entry point accumulates FAST-LIO's registered 3D cloud into a filtered
 PCD map. The first rear-axle pose is the map origin. Chassis output and Nav2

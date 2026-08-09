@@ -49,6 +49,7 @@
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>openni2_camera</exec_depend>
   <exec_depend>spatio_temporal_voxel_layer</exec_depend>
   <exec_depend>dwb_core</exec_depend>
   <exec_depend>dwb_critics</exec_depend>
@@ -61,6 +62,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>yaml-cpp</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-serial</exec_depend>

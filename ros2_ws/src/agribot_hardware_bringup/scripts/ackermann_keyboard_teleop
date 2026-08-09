@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+speed="${AGRIBOT_TELEOP_SPEED:-0.30}"
+turn="${AGRIBOT_TELEOP_TURN:-0.20}"
+topic="${AGRIBOT_TELEOP_TOPIC:-/teleop/cmd_vel}"
+
+exec ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args \
+  --remap cmd_vel:="${topic}" \
+  --param speed:="${speed}" \
+  --param turn:="${turn}"

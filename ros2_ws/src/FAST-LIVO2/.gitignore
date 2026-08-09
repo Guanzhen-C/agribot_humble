@@ -1,0 +1,4 @@
+Log/*.txt
+Log/Colmap/
+Log/PCD/*
+!Log/PCD/.gitkeep

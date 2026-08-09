@@ -83,6 +83,7 @@ def test_migrated_runtime_resources_exist_and_parse():
         "rviz/navigation_local.rviz",
         "rviz/pcd_mapping.rviz",
         "urdf/ackermann_vehicle.urdf",
+        "scripts/ackermann_keyboard_teleop",
         "scripts/pcd_to_nav2_map.py",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
