@@ -80,6 +80,7 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   try_declare.template operator()<int>("common.img_en", 1);
   try_declare.template operator()<int>("common.lidar_en", 1);
   try_declare.template operator()<std::string>("common.img_topic", "/left_camera/image");
+  try_declare.template operator()<double>("common.image_max_rate_hz", 0.0);
   try_declare.template operator()<int>("common.image_subscription_queue_depth", 2);
   try_declare.template operator()<int>("common.max_image_buffer_size", 3);
 
@@ -145,6 +146,7 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   this->node->get_parameter("common.img_en", img_en);
   this->node->get_parameter("common.lidar_en", lidar_en);
   this->node->get_parameter("common.img_topic", img_topic);
+  this->node->get_parameter("common.image_max_rate_hz", image_max_rate_hz);
   this->node->get_parameter("common.image_subscription_queue_depth", image_subscription_queue_depth);
   int configured_max_image_buffer_size = static_cast<int>(max_image_buffer_size);
   this->node->get_parameter("common.max_image_buffer_size", configured_max_image_buffer_size);
@@ -908,6 +910,16 @@ void LIVMapper::img_cbk(const sensor_msgs::msg::Image::ConstSharedPtr &msg_in)
     return;
   }
 
+  if (image_max_rate_hz > 0.0 && last_timestamp_img >= 0.0)
+  {
+    const double minimum_interval = 1.0 / image_max_rate_hz;
+    if (img_time_correct - last_timestamp_img < minimum_interval - 1e-6)
+    {
+      image_rate_drop_count.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+  }
+
   if (img_time_correct - last_timestamp_img < 0.01)
   {
     RCLCPP_WARN(this->node->get_logger(), "Image need Jumps: %.6f", img_time_correct);
@@ -927,9 +939,10 @@ void LIVMapper::img_cbk(const sensor_msgs::msg::Image::ConstSharedPtr &msg_in)
   last_timestamp_img = img_time_correct;
   RCLCPP_INFO_THROTTLE(
     this->node->get_logger(), *this->node->get_clock(), 10000,
-    "Image queue: received=%llu processed=%llu overflow_dropped=%llu stale_dropped=%llu buffered=%zu/%zu",
+    "Image queue: received=%llu processed=%llu rate_dropped=%llu overflow_dropped=%llu stale_dropped=%llu buffered=%zu/%zu",
     static_cast<unsigned long long>(image_received_count.load(std::memory_order_relaxed)),
     static_cast<unsigned long long>(image_processed_count.load(std::memory_order_relaxed)),
+    static_cast<unsigned long long>(image_rate_drop_count.load(std::memory_order_relaxed)),
     static_cast<unsigned long long>(image_overflow_drop_count.load(std::memory_order_relaxed)),
     static_cast<unsigned long long>(image_stale_drop_count.load(std::memory_order_relaxed)),
     img_buffer.size(), max_image_buffer_size);

@@ -6,6 +6,7 @@
       imu_topic: "/imu/data"
       img_en: 1
       lidar_en: 1
+      image_max_rate_hz: 10.0
       image_subscription_queue_depth: 2
       max_image_buffer_size: 3
       ros_driver_bug_fix: false
@@ -84,7 +85,7 @@
 
     uav:
       imu_rate_odom: false
-      gravity_align_en: false
+      gravity_align_en: true
 
     publish:
       dense_map_en: true

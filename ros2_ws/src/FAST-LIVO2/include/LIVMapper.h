@@ -126,10 +126,12 @@ public:
   double plot_time;
   int frame_cnt;
   double img_time_offset = 0.0;
+  double image_max_rate_hz = 0.0;
   int image_subscription_queue_depth = 2;
   size_t max_image_buffer_size = 3;
   std::atomic<uint64_t> image_received_count{0};
   std::atomic<uint64_t> image_processed_count{0};
+  std::atomic<uint64_t> image_rate_drop_count{0};
   std::atomic<uint64_t> image_overflow_drop_count{0};
   std::atomic<uint64_t> image_stale_drop_count{0};
   deque<PointCloudXYZI::Ptr> lid_raw_data_buffer;
