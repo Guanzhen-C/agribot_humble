@@ -15,7 +15,6 @@ from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
 )
-from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -43,11 +42,6 @@ SENSOR_TOPICS = (
     "/camera/rgb/camera_info",
     "/camera/depth/image_raw",
     "/camera/depth/camera_info",
-    "/teleop/cmd_vel",
-    "/wheel/odometry",
-    "/scout_status",
-    "/hardware/chassis_e_stop",
-    "/diagnostics",
     "/tf",
     "/tf_static",
 )
@@ -66,21 +60,6 @@ def generate_launch_description():
             DeclareLaunchArgument("record_bag", default_value="true"),
             DeclareLaunchArgument(
                 "bag_output", default_value="/tmp/agribot_sensor_data"
-            ),
-            DeclareLaunchArgument("enable_chassis_output", default_value="true"),
-            DeclareLaunchArgument("can_transport", default_value="zqwl_cdc"),
-            DeclareLaunchArgument("can_interface", default_value="can0"),
-            DeclareLaunchArgument(
-                "zqwl_port",
-                default_value=(
-                    "/dev/serial/by-id/"
-                    "usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00"
-                ),
-            ),
-            DeclareLaunchArgument("zqwl_channel", default_value="0"),
-            DeclareLaunchArgument("zqwl_bitrate", default_value="1000000"),
-            DeclareLaunchArgument(
-                "command_input_topic", default_value="/teleop/cmd_vel"
             ),
             DeclareLaunchArgument(
                 "openni2_redist", default_value="/opt/orbbec/openni2"
@@ -120,29 +99,6 @@ def generate_launch_description():
                     )
                 ),
                 condition=IfCondition(LaunchConfiguration("start_camera")),
-            ),
-            Node(
-                package="agribot_hardware_bringup",
-                executable="ackermann_chassis_can_node",
-                name="ackermann_collection_chassis_can",
-                output="screen",
-                parameters=[
-                    os.path.join(
-                        hardware_share, "ackermann", "config", "chassis_can.yaml"
-                    ),
-                    {
-                        "can_transport": LaunchConfiguration("can_transport"),
-                        "can_interface": LaunchConfiguration("can_interface"),
-                        "zqwl_port": LaunchConfiguration("zqwl_port"),
-                        "zqwl_channel": LaunchConfiguration("zqwl_channel"),
-                        "zqwl_bitrate": LaunchConfiguration("zqwl_bitrate"),
-                        "command_topic": LaunchConfiguration("command_input_topic"),
-                        "require_localization_ready": False,
-                    },
-                ],
-                condition=IfCondition(
-                    LaunchConfiguration("enable_chassis_output")
-                ),
             ),
             ExecuteProcess(
                 cmd=[

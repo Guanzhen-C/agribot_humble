@@ -220,7 +220,6 @@ ament_target_dependencies(pcd_initial_localizer
 )
 
 install(PROGRAMS
-  scripts/ackermann_keyboard_teleop
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
   scripts/pcd_to_nav2_map.py
