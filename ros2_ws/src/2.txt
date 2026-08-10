@@ -242,10 +242,12 @@ rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
 colcon build --packages-select lio_sam agribot_offline_mapping \
   --symlink-install --parallel-workers "$(nproc)"
 
-# 第2步终端1（RDK）：只启动C16、IMU、RTK、深度相机并采集原始数据，不运行FAST-LIO2
+# 第2步终端1（RDK）：只启动C16、IMU、RTK、双目相机右目并采集原始数据，不运行FAST-LIO2
 # 先关闭其他整车、传感器和录包程序；修改MAP_NAME即可更换地图名
 # 本入口不启动FAST-LIO2、Nav2、在线建图、RViz或底盘输出，使用原来的独立控制方式低速驾驶
-# bag额外保留RGB/深度原图、相机标定、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
+# 右目使用稳定设备名/dev/agribot_right_camera，发布640x480、30Hz的RGB原图
+# bag额外保留右目原图/CameraInfo、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
+# 新相机尚需单独标定内参及相机到雷达外参，禁止沿用旧Astra标定参数
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -289,9 +291,12 @@ ros2 topic echo /rtk/differential_age --field data
 # 确认接收机原始语句也在发布，离线分析可直接复核GGA和UNIHEADING字段
 ros2 topic echo /rtk/raw_sentence --field data
 
-# C16应约为10Hz，IMU应持续稳定发布
+# C16应约为10Hz，IMU应持续稳定发布，右目设备应解析到Stereo Vision 1采集端
 ros2 topic hz /lidar/points
 ros2 topic hz /imu/data
+readlink -f /dev/agribot_right_camera
+ros2 topic hz /camera/rgb/image_raw
+ros2 topic echo /camera/rgb/camera_info --once
 
 # 数据检查通过并静止约30秒后，使用蓝牙以0.2至0.3m/s低速驾驶
 # 路线包含多段直行、左转、右转和至少一次返回已扫描区域的闭环

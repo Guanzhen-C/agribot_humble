@@ -1,0 +1,2 @@
+# Right eye of the 05a3:9601 ARC stereo camera, capture endpoint only.
+SUBSYSTEM=="video4linux", ATTR{index}=="0", ATTRS{idVendor}=="05a3", ATTRS{idProduct}=="9601", ATTRS{serial}=="Stereo Vision 1", GROUP="video", MODE="0660", SYMLINK+="agribot_right_camera"

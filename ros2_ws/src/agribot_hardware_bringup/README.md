@@ -289,7 +289,20 @@ ros2 launch agribot_hardware_bringup \
 ```
 
 For offline mapping datasets, collect only the physical sensor streams on the
-RDK. This entry starts the C16, IMU, RTK, Astra RGB-D camera and rosbag recorder.
+RDK. This entry starts the C16, IMU, RTK, stereo camera right eye and rosbag
+recorder. Install the stable right-camera device rule once after building:
+
+```bash
+sudo install -m 0644 \
+  /home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/udev/99-agribot-right-camera.rules \
+  /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=video4linux
+readlink -f /dev/agribot_right_camera
+```
+
+The last command must resolve to the `Stereo Vision 1` capture endpoint. The
+launch uses this stable name instead of a changeable `/dev/videoN` number.
 It does not start FAST-LIO, Nav2, the online PCD builder, RViz or a chassis
 driver:
 
@@ -302,8 +315,10 @@ ros2 launch agribot_hardware_bringup \
 
 The bag includes the full C16 point cloud, lidar timing/device information,
 IMU, magnetic field, temperature, every raw RTK serial sentence, parsed RTK
-quality fields, headings, raw RGB and depth images with camera calibration,
-and static sensor transforms. Run FAST-LIO, FAST-LIVO2 or LIO-SAM later on the
+quality fields, headings, the raw 640 x 480 right-eye image and camera-info
+messages, and static sensor transforms. It does not record a depth stream.
+Calibrate this camera's intrinsics and camera-to-lidar extrinsics before using
+the images for FAST-LIVO2. Run FAST-LIO, FAST-LIVO2 or LIO-SAM later on the
 Jetson from this bag. Control the vehicle through the existing independent
 manual controller while collecting data.
 

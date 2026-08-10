@@ -6,16 +6,11 @@ from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
     IncludeLaunchDescription,
-    SetEnvironmentVariable,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import (
-    EnvironmentVariable,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-)
-from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
 
 
 SENSOR_TOPICS = (
@@ -40,8 +35,6 @@ SENSOR_TOPICS = (
     "/rtk/heading_with_covariance",
     "/camera/rgb/image_raw",
     "/camera/rgb/camera_info",
-    "/camera/depth/image_raw",
-    "/camera/depth/camera_info",
     "/tf",
     "/tf_static",
 )
@@ -62,18 +55,8 @@ def generate_launch_description():
                 "bag_output", default_value="/tmp/agribot_sensor_data"
             ),
             DeclareLaunchArgument(
-                "openni2_redist", default_value="/opt/orbbec/openni2"
-            ),
-            SetEnvironmentVariable(
-                "OPENNI2_REDIST", LaunchConfiguration("openni2_redist")
-            ),
-            SetEnvironmentVariable(
-                "LD_LIBRARY_PATH",
-                [
-                    LaunchConfiguration("openni2_redist"),
-                    ":",
-                    EnvironmentVariable("LD_LIBRARY_PATH", default_value=""),
-                ],
+                "right_camera_device",
+                default_value="/dev/agribot_right_camera",
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -88,16 +71,23 @@ def generate_launch_description():
                     "ntrip_port": LaunchConfiguration("ntrip_port"),
                 }.items(),
             ),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    PathJoinSubstitution(
-                        [
-                            FindPackageShare("openni2_camera"),
-                            "launch",
-                            "camera_only.launch.py",
-                        ]
-                    )
-                ),
+            Node(
+                package="usb_cam",
+                executable="usb_cam_node_exe",
+                name="agribot_right_camera",
+                output="screen",
+                parameters=[
+                    os.path.join(hardware_share, "config", "right_camera.yaml"),
+                    {
+                        "video_device": LaunchConfiguration(
+                            "right_camera_device"
+                        )
+                    },
+                ],
+                remappings=[
+                    ("image_raw", "/camera/rgb/image_raw"),
+                    ("camera_info", "/camera/rgb/camera_info"),
+                ],
                 condition=IfCondition(LaunchConfiguration("start_camera")),
             ),
             ExecuteProcess(

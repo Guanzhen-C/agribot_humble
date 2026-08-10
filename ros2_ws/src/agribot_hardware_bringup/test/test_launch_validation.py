@@ -422,8 +422,10 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
 def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     source = SENSOR_COLLECTION_LAUNCH_PATH.read_text()
     assert '"launch", "sensors.launch.py"' in source
-    assert 'FindPackageShare("openni2_camera")' in source
-    assert '"camera_only.launch.py"' in source
+    assert 'package="usb_cam"' in source
+    assert 'executable="usb_cam_node_exe"' in source
+    assert 'default_value="/dev/agribot_right_camera"' in source
+    assert '"right_camera.yaml"' in source
     assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in source
     assert 'DeclareLaunchArgument("start_camera", default_value="true")' in source
     assert 'DeclareLaunchArgument("record_bag", default_value="true")' in source
@@ -445,8 +447,6 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
         "/rtk/heading_with_covariance",
         "/camera/rgb/image_raw",
         "/camera/rgb/camera_info",
-        "/camera/depth/image_raw",
-        "/camera/depth/camera_info",
         "/tf_static",
     ):
         assert f'"{topic}"' in source
@@ -456,7 +456,8 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     assert "ackermann_chassis_can_node" not in source
     assert "/teleop/cmd_vel" not in source
     manifest = (PACKAGE_ROOT / "package.xml").read_text()
-    assert "<exec_depend>openni2_camera</exec_depend>" in manifest
+    assert "<exec_depend>usb_cam</exec_depend>" in manifest
+    assert "<exec_depend>openni2_camera</exec_depend>" not in manifest
 
 
 def test_mapped_entry_uses_nav2_and_pcd_maps_with_optional_fpfh_localization():
