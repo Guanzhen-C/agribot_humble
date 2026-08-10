@@ -17,12 +17,14 @@ import yaml
 RAW_TOPICS = (
     "/lidar/points",
     "/imu/data",
+    "/camera/rgb/image_raw",
     "/rtk/fix",
     "/rtk/fix_quality",
     "/rtk/heading_with_covariance",
     "/rtk/heading_solution",
 )
 FASTLIO_TOPIC = "/comparison/fastlio/odometry"
+FASTLIVO_TOPIC = "/comparison/fastlivo/odometry"
 KF_GINS_TOPIC = "/comparison/kf_gins/odometry"
 ROBOT_LOCALIZATION_FASTLIO_TOPIC = "/comparison/robot_localization/fastlio_odom"
 ROBOT_LOCALIZATION_RTK_TOPIC = "/comparison/robot_localization/rtk_odom"
@@ -94,8 +96,8 @@ def topic_counts(bag):
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Recompute FAST-LIO2, KF-GINS and robot_localization from raw "
-            "sensor topics in one ROS bag"
+            "Recompute FAST-LIO2, FAST-LIVO2, KF-GINS and "
+            "robot_localization from raw sensor topics in one ROS bag"
         )
     )
     parser.add_argument("source_bag", type=Path)
@@ -198,6 +200,13 @@ def main(argv=None):
         offline_share = Path(
             get_package_share_directory("agribot_offline_mapping")
         )
+        fastlivo_share = Path(get_package_share_directory("fast_livo"))
+        fastlivo_config = (
+            fastlivo_share / "config" / "agribot_c16_astra.yaml"
+        )
+        fastlivo_camera_config = (
+            fastlivo_share / "config" / "agribot_astra_640.yaml"
+        )
         robot_localization_config = (
             offline_share / "config" / "robot_localization_ekf.yaml"
         )
@@ -208,6 +217,8 @@ def main(argv=None):
             fastlio_config,
             bridge_config,
             kf_gins_config,
+            fastlivo_config,
+            fastlivo_camera_config,
             robot_localization_config,
             robot_localization_rtk_config,
         ):
@@ -238,6 +249,21 @@ def main(argv=None):
             ],
             environment,
         ), "FAST-LIO2 odometry bridge"))
+        processes.append((start(
+            [
+                "ros2", "run", "fast_livo", "fastlivo_mapping", "--ros-args",
+                "-r", "__node:=fastlivo_comparison",
+                "--params-file", fastlivo_config,
+                "--params-file", fastlivo_camera_config,
+                "-p", "use_sim_time:=true",
+                "-r", f"/aft_mapped_to_init:={FASTLIVO_TOPIC}",
+                "-r", "/path:=/comparison/fastlivo/path",
+                "-r",
+                "/cloud_registered:=/comparison/fastlivo/cloud_registered",
+                "-r", "/rgb_img:=/comparison/fastlivo/rgb_img",
+            ],
+            environment,
+        ), "FAST-LIVO2"))
         kf_gins_command = [
             "ros2", "run", "agribot_hardware_bringup",
             "rtk_eskf_localization", "--ros-args", "--params-file",
@@ -308,6 +334,7 @@ def main(argv=None):
             [
                 "ros2", "bag", "record", "-o", output_bag,
                 FASTLIO_TOPIC,
+                FASTLIVO_TOPIC,
                 KF_GINS_TOPIC,
                 ROBOT_LOCALIZATION_FASTLIO_TOPIC,
                 ROBOT_LOCALIZATION_RTK_TOPIC,
@@ -334,7 +361,8 @@ def main(argv=None):
         counts = topic_counts(output_bag)
         missing = [
             topic for topic in (
-                FASTLIO_TOPIC, KF_GINS_TOPIC, ROBOT_LOCALIZATION_TOPIC
+                FASTLIO_TOPIC, FASTLIVO_TOPIC, KF_GINS_TOPIC,
+                ROBOT_LOCALIZATION_TOPIC,
             )
             if counts.get(topic, 0) < 1
         ]
@@ -345,6 +373,7 @@ def main(argv=None):
         print("\nLocalization recomputation completed:", flush=True)
         print(f"  output_bag: {output_bag}", flush=True)
         print(f"  FAST-LIO2 poses: {counts[FASTLIO_TOPIC]}", flush=True)
+        print(f"  FAST-LIVO2 poses: {counts[FASTLIVO_TOPIC]}", flush=True)
         print(f"  KF-GINS poses: {counts[KF_GINS_TOPIC]}", flush=True)
         print(
             "  robot_localization EKF poses: "

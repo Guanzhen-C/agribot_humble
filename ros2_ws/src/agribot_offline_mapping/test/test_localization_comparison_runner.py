@@ -69,3 +69,8 @@ def test_default_playback_rate_prioritizes_complete_estimator_output(tmp_path):
     )
 
     assert arguments.playback_rate == pytest.approx(0.5)
+
+
+def test_fastlivo_inputs_and_output_are_part_of_the_comparison():
+    assert "/camera/rgb/image_raw" in MODULE.RAW_TOPICS
+    assert MODULE.FASTLIVO_TOPIC == "/comparison/fastlivo/odometry"

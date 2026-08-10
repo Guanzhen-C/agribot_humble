@@ -96,6 +96,17 @@ def odometry_pose(message):
     )
 
 
+def sensor_odometry_pose_to_base(message, sensor_mount):
+    base_from_sensor = (
+        tuple(float(value) for value in sensor_mount["xyz"]),
+        quaternion_from_rpy(
+            *(float(value) for value in sensor_mount["rpy"])
+        ),
+    )
+    sensor_from_base = inverse_pose(*base_from_sensor)
+    return compose_pose(*odometry_pose(message), *sensor_from_base)
+
+
 def stamped_pose(message):
     position = message.pose.position
     return (
@@ -232,14 +243,13 @@ def load_rtk_base_path(result_bag, mounts, georeference, flatten):
     return path
 
 
-def load_fastlio_base_path(comparison_bag, lio_path, flatten):
-    odometry = [
-        message for _, message in topic_messages(
-            comparison_bag, "/comparison/fastlio/odometry"
-        )
-    ]
+def anchor_base_odometry(odometry, base_poses, lio_path, flatten, name):
     if not lio_path.poses:
-        raise RuntimeError("LIO-SAM path is empty; FAST-LIO2 cannot be anchored")
+        raise RuntimeError(
+            f"LIO-SAM path is empty; {name} cannot be anchored"
+        )
+    if len(odometry) != len(base_poses):
+        raise RuntimeError(f"{name} odometry and pose counts do not match")
     stamps = [stamp_seconds(message) for message in odometry]
     anchor = lio_path.poses[0]
     anchor_stamp = stamp_seconds(anchor)
@@ -249,25 +259,59 @@ def load_fastlio_base_path(comparison_bag, lio_path, flatten):
         if 0 <= index < len(odometry)
     ]
     nearest = min(candidates, key=lambda index: abs(stamps[index] - anchor_stamp))
-    # LIO-SAM creates its first key pose before FAST-LIO2 finishes IMU
-    # initialization. Both are still stationary, so allow that short startup
-    # offset while rejecting unrelated bags.
+    # LIO-SAM creates its first key pose before the other estimators finish
+    # initialization. Both are still stationary during this startup interval.
     if abs(stamps[nearest] - anchor_stamp) > 5.0:
-        raise RuntimeError("FAST-LIO2 and LIO-SAM have no common startup interval")
+        raise RuntimeError(
+            f"{name} and LIO-SAM have no common startup interval"
+        )
 
     map_from_base = stamped_pose(anchor)
-    fastodom_from_base = odometry_pose(odometry[nearest])
-    base_from_fastodom = inverse_pose(*fastodom_from_base)
-    map_from_fastodom = compose_pose(*map_from_base, *base_from_fastodom)
+    odom_from_base = base_poses[nearest]
+    base_from_odom = inverse_pose(*odom_from_base)
+    map_from_odom = compose_pose(*map_from_base, *base_from_odom)
 
     path = PathMessage()
     path.header.frame_id = "map"
-    for message in odometry:
-        map_pose = compose_pose(*map_from_fastodom, *odometry_pose(message))
+    for message, base_pose in zip(odometry, base_poses):
+        map_pose = compose_pose(*map_from_odom, *base_pose)
         source = PoseStamped()
         source.header = message.header
         path.poses.append(pose_stamped(source, *map_pose, flatten))
     return path
+
+
+def load_fastlio_base_path(comparison_bag, lio_path, flatten):
+    odometry = [
+        message for _, message in topic_messages(
+            comparison_bag, "/comparison/fastlio/odometry"
+        )
+    ]
+    return anchor_base_odometry(
+        odometry,
+        [odometry_pose(message) for message in odometry],
+        lio_path,
+        flatten,
+        "FAST-LIO2",
+    )
+
+
+def load_fastlivo_base_path(comparison_bag, lio_path, mounts, flatten):
+    odometry = [
+        message for _, message in topic_messages(
+            comparison_bag, "/comparison/fastlivo/odometry"
+        )
+    ]
+    return anchor_base_odometry(
+        odometry,
+        [
+            sensor_odometry_pose_to_base(message, mounts["imu"])
+            for message in odometry
+        ],
+        lio_path,
+        flatten,
+        "FAST-LIVO2",
+    )
 
 
 def load_enu_base_path(comparison_bag, topic_name, georeference, flatten):
@@ -333,6 +377,7 @@ class MappingResultTrajectoryPublisher(Node):
             result_bag, mounts, georeference, flatten
         )
         self.fastlio_path = None
+        self.fastlivo_path = None
         self.kf_gins_path = None
         self.robot_localization_path = None
         if comparison_bag_value:
@@ -341,6 +386,9 @@ class MappingResultTrajectoryPublisher(Node):
                 raise RuntimeError(f"invalid comparison bag: {comparison_bag}")
             self.fastlio_path = load_fastlio_base_path(
                 comparison_bag, self.lio_path, flatten
+            )
+            self.fastlivo_path = load_fastlivo_base_path(
+                comparison_bag, self.lio_path, mounts, flatten
             )
             self.kf_gins_path = load_kf_gins_base_path(
                 comparison_bag, georeference, flatten
@@ -364,11 +412,15 @@ class MappingResultTrajectoryPublisher(Node):
             PathMessage, "/mapping_result/rtk_path", qos
         )
         self.fastlio_publisher = None
+        self.fastlivo_publisher = None
         self.kf_gins_publisher = None
         self.robot_localization_publisher = None
         if self.fastlio_path is not None:
             self.fastlio_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/fastlio_path", qos
+            )
+            self.fastlivo_publisher = self.create_publisher(
+                PathMessage, "/mapping_result/fastlivo_path", qos
             )
             self.kf_gins_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/kf_gins_path", qos
@@ -383,7 +435,10 @@ class MappingResultTrajectoryPublisher(Node):
         )
         if self.fastlio_path is not None:
             counts += (
-                f", recomputed FAST-LIO2={len(self.fastlio_path.poses)} poses, "
+                ", recomputed FAST-LIO2="
+                f"{len(self.fastlio_path.poses)} poses, "
+                "recomputed FAST-LIVO2="
+                f"{len(self.fastlivo_path.poses)} poses, "
                 f"recomputed KF-GINS={len(self.kf_gins_path.poses)} poses, "
                 "robot_localization EKF="
                 f"{len(self.robot_localization_path.poses)} poses"
@@ -398,9 +453,11 @@ class MappingResultTrajectoryPublisher(Node):
         self.rtk_publisher.publish(self.rtk_path)
         if self.fastlio_path is not None:
             self.fastlio_path.header.stamp = stamp
+            self.fastlivo_path.header.stamp = stamp
             self.kf_gins_path.header.stamp = stamp
             self.robot_localization_path.header.stamp = stamp
             self.fastlio_publisher.publish(self.fastlio_path)
+            self.fastlivo_publisher.publish(self.fastlivo_path)
             self.kf_gins_publisher.publish(self.kf_gins_path)
             self.robot_localization_publisher.publish(
                 self.robot_localization_path

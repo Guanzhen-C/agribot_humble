@@ -303,10 +303,12 @@ def test_standard_pipeline_pairs_map_trajectory_bag_and_rviz():
     assert 'package="pcl_ros"' in viewer
     assert "Value: /mapping_result/rtk_path" in rviz
     assert "Value: /mapping_result/fastlio_path" in rviz
+    assert "Value: /mapping_result/fastlivo_path" in rviz
     assert "Value: /mapping_result/kf_gins_path" in rviz
     assert "Value: /mapping_result/robot_localization_path" in rviz
     assert '"/mapping_result/lio_sam_path"' in trajectory
     assert '"/comparison/fastlio/odometry"' in trajectory
+    assert '"/comparison/fastlivo/odometry"' in trajectory
     assert '"/comparison/kf_gins/odometry"' in trajectory
     assert '"/comparison/robot_localization/odometry"' in trajectory
     assert 'DeclareLaunchArgument("show_comparison_paths"' in viewer

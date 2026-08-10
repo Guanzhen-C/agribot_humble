@@ -21,6 +21,7 @@
   <depend>yaml-cpp</depend>
 
   <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>fast_livo</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>lio_sam</exec_depend>

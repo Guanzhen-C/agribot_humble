@@ -369,16 +369,18 @@ ros2 launch agribot_hardware_bringup \
   map:=${MAP_BASE}.yaml \
   rviz:=true
 
-# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、KF-GINS和robot_localization轨迹
+# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、FAST-LIVO2、KF-GINS和robot_localization轨迹
 # 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
+# FAST-LIVO2会使用/lidar/points、/imu/data和/camera/rgb/image_raw重新计算
 ros2 run agribot_offline_mapping run_localization_comparison.py \
   "$BAG_PATH" \
   "${MAP_BASE}_comparison" \
   --domain-id 74 \
   --playback-rate 0.5
 
-# 第6步（Jetson）：显示同名二维图、三维图和五条后轴中心定位轨迹
-# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；黄：重算KF-GINS；紫：robot_localization
+# 第6步（Jetson）：显示同名二维图、三维图和六条后轴中心定位轨迹
+# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；青：重算FAST-LIVO2
+# 黄：重算KF-GINS；紫：robot_localization
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export DISPLAY=:1
@@ -389,7 +391,7 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   show_3d_map:=true \
   show_comparison_paths:=true
 
-# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和五条定位轨迹
+# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和六条定位轨迹
 
 # 地理基准服务必须返回success: true；水平RMSE超过0.20米时记录警告并保留结果供检查
 # 航向RMSE不大于2度时yaw_validation_passed为true；超限时同样保留为警告，

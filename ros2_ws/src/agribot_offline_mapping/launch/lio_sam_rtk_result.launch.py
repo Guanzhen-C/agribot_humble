@@ -135,8 +135,9 @@ def generate_launch_description():
             "comparison_bag",
             default_value="",
             description=(
-                "Recomputed FAST-LIO2/KF-GINS/robot_localization bag; defaults to "
-                "MAP_NAME_comparison when comparison paths are enabled"
+                "Recomputed FAST-LIO2/FAST-LIVO2/KF-GINS/robot_localization "
+                "bag; defaults to MAP_NAME_comparison when comparison paths "
+                "are enabled"
             ),
         ),
         DeclareLaunchArgument("flatten_z", default_value="true"),
