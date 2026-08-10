@@ -28,7 +28,7 @@ def _launch_setup(context):
         mounts = yaml.safe_load(stream)
 
     actions = []
-    for sensor_name in ("imu", "lidar", "rtk"):
+    for sensor_name in ("imu", "lidar", "camera", "rtk"):
         mount = mounts[sensor_name]
         actions.append(
             _static_transform(

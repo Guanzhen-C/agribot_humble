@@ -11,6 +11,12 @@ lidar:
   xyz: [0.48, 0.0, 0.233]
   # Rotation maps the C16 optical frame into rear-axle-centered base_link.
   rpy: [-0.007648487, -0.001835661, 0.000007020]
+camera:
+  child_frame: right_camera_optical_frame
+  # Right-eye optical center. The camera is forward-facing, level and upright.
+  xyz: [0.58, -0.03, 0.142]
+  # Camera optical axes: +X right, +Y down, +Z forward.
+  rpy: [-1.570796327, 0.0, -1.570796327]
 rtk:
   child_frame: rtk_link
   # Left master antenna measurement point. The right secondary antenna is at

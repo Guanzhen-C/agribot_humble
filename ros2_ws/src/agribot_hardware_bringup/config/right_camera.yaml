@@ -9,7 +9,7 @@
     image_width: 640
     image_height: 480
     camera_name: "agribot_right_camera"
-    camera_info_url: ""
+    camera_info_url: "package://agribot_hardware_bringup/config/agribot_right_camera_640.yaml"
     brightness: -1
     contrast: -1
     saturation: -1
