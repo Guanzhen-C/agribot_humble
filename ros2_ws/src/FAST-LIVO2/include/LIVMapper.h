@@ -95,6 +95,7 @@ public:
   bool dynamic_imu_sync_en = true;
   int pcd_save_interval = -1, pcd_index = 0;
   int pub_scan_num = 1;
+  int path_max_poses = 10000;
 
   StatesGroup imu_propagate, latest_ekf_state;
 
@@ -127,8 +128,14 @@ public:
   int frame_cnt;
   double img_time_offset = 0.0;
   double image_max_rate_hz = 0.0;
+  int lidar_subscription_queue_depth = 1;
+  int imu_subscription_queue_depth = 200;
   int image_subscription_queue_depth = 2;
+  size_t max_lidar_buffer_size = 2;
+  size_t max_imu_buffer_size = 300;
   size_t max_image_buffer_size = 3;
+  std::atomic<uint64_t> lidar_overflow_drop_count{0};
+  std::atomic<uint64_t> imu_overflow_drop_count{0};
   std::atomic<uint64_t> image_received_count{0};
   std::atomic<uint64_t> image_processed_count{0};
   std::atomic<uint64_t> image_rate_drop_count{0};

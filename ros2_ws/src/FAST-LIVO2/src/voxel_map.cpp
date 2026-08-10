@@ -561,6 +561,13 @@ void VoxelMapManager::TransformLidar(const Eigen::Matrix3d rot, const Eigen::Vec
   }
 }
 
+bool VoxelMapManager::isPointWithinLocalMap(const V3D &point) const
+{
+  if (!config_setting_.map_sliding_en) return true;
+  const double half_extent = config_setting_.half_map_size * config_setting_.max_voxel_size_;
+  return (point - state_.pos_end).cwiseAbs().maxCoeff() <= half_extent;
+}
+
 void VoxelMapManager::BuildVoxelMap()
 {
   float voxel_size = config_setting_.max_voxel_size_;
@@ -590,6 +597,7 @@ void VoxelMapManager::BuildVoxelMap()
   for (uint i = 0; i < plsize; i++)
   {
     const pointWithVar p_v = input_points[i];
+    if (!isPointWithinLocalMap(p_v.point_w)) continue;
     float loc_xyz[3];
     for (int j = 0; j < 3; j++)
     {
@@ -649,6 +657,7 @@ void VoxelMapManager::UpdateVoxelMap(const std::vector<pointWithVar> &input_poin
   for (uint i = 0; i < plsize; i++)
   {
     const pointWithVar p_v = input_points[i];
+    if (!isPointWithinLocalMap(p_v.point_w)) continue;
     float loc_xyz[3];
     for (int j = 0; j < 3; j++)
     {
@@ -953,12 +962,11 @@ void VoxelMapManager::mapJet(double v, double vmin, double vmax, uint8_t &r, uin
   b = (uint8_t)(255 * db);
 }
 
-void VoxelMapManager::mapSliding()
+bool VoxelMapManager::mapSliding()
 {
   if((position_last_ - last_slide_position).norm() < config_setting_.sliding_thresh)
   {
-    std::cout<<RED<<"[DEBUG]: Last sliding length "<<(position_last_ - last_slide_position).norm()<<RESET<<"\n";
-    return;
+    return false;
   }
 
   //get global id now
@@ -971,17 +979,22 @@ void VoxelMapManager::mapSliding()
     if (loc_xyz[j] < 0) { loc_xyz[j] -= 1.0; }
   }
   // VOXEL_LOCATION position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1], (int64_t)loc_xyz[2]);//discrete global
-  clearMemOutOfMap((int64_t)loc_xyz[0] + config_setting_.half_map_size, (int64_t)loc_xyz[0] - config_setting_.half_map_size,
-                    (int64_t)loc_xyz[1] + config_setting_.half_map_size, (int64_t)loc_xyz[1] - config_setting_.half_map_size,
-                    (int64_t)loc_xyz[2] + config_setting_.half_map_size, (int64_t)loc_xyz[2] - config_setting_.half_map_size);
+  const size_t deleted_voxels = clearMemOutOfMap(
+      (int64_t)loc_xyz[0] + config_setting_.half_map_size, (int64_t)loc_xyz[0] - config_setting_.half_map_size,
+      (int64_t)loc_xyz[1] + config_setting_.half_map_size, (int64_t)loc_xyz[1] - config_setting_.half_map_size,
+      (int64_t)loc_xyz[2] + config_setting_.half_map_size, (int64_t)loc_xyz[2] - config_setting_.half_map_size);
   double t_sliding_end = omp_get_wtime();
-  std::cout<<RED<<"[DEBUG]: Map sliding using "<<t_sliding_end - t_sliding_start<<" secs"<<RESET<<"\n";
-  return;
+  if (fast_livo_runtime::verbose_logging)
+  {
+    std::cout << "[ LIO ] Removed " << deleted_voxels << " lidar voxels in "
+              << t_sliding_end - t_sliding_start << " seconds" << std::endl;
+  }
+  return true;
 }
 
-void VoxelMapManager::clearMemOutOfMap(const int& x_max,const int& x_min,const int& y_max,const int& y_min,const int& z_max,const int& z_min )
+size_t VoxelMapManager::clearMemOutOfMap(const int& x_max,const int& x_min,const int& y_max,const int& y_min,const int& z_max,const int& z_min )
 {
-  int delete_voxel_cout = 0;
+  size_t delete_voxel_count = 0;
   // double delete_time = 0;
   // double last_delete_time = 0;
   for (auto it = voxel_map_.begin(); it != voxel_map_.end(); )
@@ -993,11 +1006,10 @@ void VoxelMapManager::clearMemOutOfMap(const int& x_max,const int& x_min,const i
       delete it->second;
       it = voxel_map_.erase(it);
       // delete_time += omp_get_wtime() - last_delete_time;
-      delete_voxel_cout++;
+      delete_voxel_count++;
     } else {
       ++it;
     }
   }
-  std::cout<<RED<<"[DEBUG]: Delete "<<delete_voxel_cout<<" root voxels"<<RESET<<"\n";
-  // std::cout<<RED<<"[DEBUG]: Delete "<<delete_voxel_cout<<" voxels using "<<delete_time<<" s"<<RESET<<"\n";
+  return delete_voxel_count;
 }

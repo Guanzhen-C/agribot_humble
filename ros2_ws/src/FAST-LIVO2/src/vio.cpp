@@ -227,6 +227,12 @@ void VIOManager::getImagePatch(cv::Mat img, V2D pc, float *patch_tmp, int level)
 
 bool VIOManager::insertPointIntoVoxelMap(VisualPoint *pt_new)
 {
+  if (local_map_half_extent > 0.0 &&
+      (pt_new->pos_ - state->pos_end).cwiseAbs().maxCoeff() > local_map_half_extent)
+  {
+    return false;
+  }
+
   V3D pt_w(pt_new->pos_[0], pt_new->pos_[1], pt_new->pos_[2]);
   double voxel_size = 0.5;
   float loc_xyz[3];
@@ -253,6 +259,50 @@ bool VIOManager::insertPointIntoVoxelMap(VisualPoint *pt_new)
     feat_map[position] = ot;
   }
   return true;
+}
+
+size_t VIOManager::pruneVisualMap(const V3D &position, double half_extent)
+{
+  constexpr double kVisualVoxelSize = 0.5;
+  const int64_t half_voxels = static_cast<int64_t>(std::ceil(half_extent / kVisualVoxelSize));
+  int64_t center[3];
+  for (int axis = 0; axis < 3; ++axis)
+  {
+    double coordinate = position[axis] / kVisualVoxelSize;
+    if (coordinate < 0.0) coordinate -= 1.0;
+    center[axis] = static_cast<int64_t>(coordinate);
+  }
+
+  // The per-frame sparse map contains non-owning pointers into feat_map.
+  visual_submap->reset();
+  sub_feat_map.clear();
+  retrieve_voxel_points.clear();
+  retrieve_voxel_points.resize(length, nullptr);
+  total_points = 0;
+
+  for (auto &entry : warp_map) delete entry.second;
+  warp_map.clear();
+
+  size_t deleted_voxels = 0;
+  for (auto it = feat_map.begin(); it != feat_map.end();)
+  {
+    const VOXEL_LOCATION &voxel = it->first;
+    const bool outside =
+        voxel.x < center[0] - half_voxels || voxel.x > center[0] + half_voxels ||
+        voxel.y < center[1] - half_voxels || voxel.y > center[1] + half_voxels ||
+        voxel.z < center[2] - half_voxels || voxel.z > center[2] + half_voxels;
+    if (outside)
+    {
+      delete it->second;
+      it = feat_map.erase(it);
+      ++deleted_voxels;
+    }
+    else
+    {
+      ++it;
+    }
+  }
+  return deleted_voxels;
 }
 
 void VIOManager::getWarpMatrixAffineHomography(const vk::AbstractCamera &cam, const V2D &px_ref, const V3D &xyz_ref, const V3D &normal_ref,

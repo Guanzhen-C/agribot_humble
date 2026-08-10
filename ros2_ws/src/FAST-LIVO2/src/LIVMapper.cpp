@@ -81,7 +81,11 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   try_declare.template operator()<int>("common.lidar_en", 1);
   try_declare.template operator()<std::string>("common.img_topic", "/left_camera/image");
   try_declare.template operator()<double>("common.image_max_rate_hz", 0.0);
+  try_declare.template operator()<int>("common.lidar_subscription_queue_depth", 1);
+  try_declare.template operator()<int>("common.imu_subscription_queue_depth", 200);
   try_declare.template operator()<int>("common.image_subscription_queue_depth", 2);
+  try_declare.template operator()<int>("common.max_lidar_buffer_size", 2);
+  try_declare.template operator()<int>("common.max_imu_buffer_size", 300);
   try_declare.template operator()<int>("common.max_image_buffer_size", 3);
 
   try_declare.template operator()<bool>("vio.normal_en", true);
@@ -137,6 +141,7 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   try_declare.template operator()<int>("publish.pub_scan_num", 1);
   try_declare.template operator()<bool>("publish.pub_effect_point_en", false);
   try_declare.template operator()<bool>("publish.dense_map_en", false);
+  try_declare.template operator()<int>("publish.path_max_poses", 10000);
 
   // get parameter
   this->node->get_parameter("common.lid_topic", lid_topic);
@@ -147,10 +152,20 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   this->node->get_parameter("common.lidar_en", lidar_en);
   this->node->get_parameter("common.img_topic", img_topic);
   this->node->get_parameter("common.image_max_rate_hz", image_max_rate_hz);
+  this->node->get_parameter("common.lidar_subscription_queue_depth", lidar_subscription_queue_depth);
+  this->node->get_parameter("common.imu_subscription_queue_depth", imu_subscription_queue_depth);
   this->node->get_parameter("common.image_subscription_queue_depth", image_subscription_queue_depth);
+  int configured_max_lidar_buffer_size = static_cast<int>(max_lidar_buffer_size);
+  int configured_max_imu_buffer_size = static_cast<int>(max_imu_buffer_size);
   int configured_max_image_buffer_size = static_cast<int>(max_image_buffer_size);
+  this->node->get_parameter("common.max_lidar_buffer_size", configured_max_lidar_buffer_size);
+  this->node->get_parameter("common.max_imu_buffer_size", configured_max_imu_buffer_size);
   this->node->get_parameter("common.max_image_buffer_size", configured_max_image_buffer_size);
+  lidar_subscription_queue_depth = std::max(1, lidar_subscription_queue_depth);
+  imu_subscription_queue_depth = std::max(1, imu_subscription_queue_depth);
   image_subscription_queue_depth = std::max(1, image_subscription_queue_depth);
+  max_lidar_buffer_size = static_cast<size_t>(std::max(1, configured_max_lidar_buffer_size));
+  max_imu_buffer_size = static_cast<size_t>(std::max(1, configured_max_imu_buffer_size));
   max_image_buffer_size = static_cast<size_t>(std::max(1, configured_max_image_buffer_size));
 
   this->node->get_parameter("vio.normal_en", normal_en);
@@ -206,6 +221,8 @@ void LIVMapper::readParameters(rclcpp::Node::SharedPtr &node)
   this->node->get_parameter("publish.pub_scan_num", pub_scan_num);
   this->node->get_parameter("publish.pub_effect_point_en", pub_effect_point_en);
   this->node->get_parameter("publish.dense_map_en", dense_map_en);
+  this->node->get_parameter("publish.path_max_poses", path_max_poses);
+  path_max_poses = std::max(0, path_max_poses);
 
   p_pre->blind_sqr = p_pre->blind * p_pre->blind;
 }
@@ -238,6 +255,11 @@ void LIVMapper::initializeComponents(rclcpp::Node::SharedPtr &node)
   vio_manager->grid_n_height = grid_n_height;
   vio_manager->patch_pyrimid_level = patch_pyrimid_level;
   vio_manager->max_points_per_voxel = std::max(1, max_visual_points_per_voxel);
+  if (voxelmap_manager->config_setting_.map_sliding_en)
+  {
+    vio_manager->local_map_half_extent = voxelmap_manager->config_setting_.half_map_size *
+                                         voxelmap_manager->config_setting_.max_voxel_size_;
+  }
   vio_manager->exposure_estimate_en = exposure_estimate_en;
   vio_manager->colmap_output_en = colmap_output_en;
   vio_manager->initializeVIO();
@@ -287,12 +309,16 @@ void LIVMapper::initializeFiles()
 void LIVMapper::initializeSubscribersAndPublishers(rclcpp::Node::SharedPtr &node, image_transport::ImageTransport &it_)
 {
   image_transport::ImageTransport it(this->node);
+  auto lidar_qos = rclcpp::SensorDataQoS();
+  lidar_qos.keep_last(static_cast<size_t>(lidar_subscription_queue_depth));
+  auto imu_qos = rclcpp::SensorDataQoS();
+  imu_qos.keep_last(static_cast<size_t>(imu_subscription_queue_depth));
   if (p_pre->lidar_type == AVIA) {
-    sub_pcl = this->node->create_subscription<livox_ros_driver2::msg::CustomMsg>(lid_topic, 200000, std::bind(&LIVMapper::livox_pcl_cbk, this, std::placeholders::_1));
+    sub_pcl = this->node->create_subscription<livox_ros_driver2::msg::CustomMsg>(lid_topic, lidar_qos, std::bind(&LIVMapper::livox_pcl_cbk, this, std::placeholders::_1));
   } else {
-    sub_pcl = this->node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 200000, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
+    sub_pcl = this->node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, lidar_qos, std::bind(&LIVMapper::standard_pcl_cbk, this, std::placeholders::_1));
   }
-  sub_imu = this->node->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 200000, std::bind(&LIVMapper::imu_cbk, this, std::placeholders::_1));
+  sub_imu = this->node->create_subscription<sensor_msgs::msg::Imu>(imu_topic, imu_qos, std::bind(&LIVMapper::imu_cbk, this, std::placeholders::_1));
   auto image_qos = rclcpp::SensorDataQoS();
   image_qos.keep_last(static_cast<size_t>(image_subscription_queue_depth));
   sub_img = this->node->create_subscription<sensor_msgs::msg::Image>(img_topic, image_qos, std::bind(&LIVMapper::img_cbk, this, std::placeholders::_1));
@@ -509,7 +535,16 @@ void LIVMapper::handleLIO()
 
   if(voxelmap_manager->config_setting_.map_sliding_en)
   {
-    voxelmap_manager->mapSliding();
+    if (voxelmap_manager->mapSliding() && img_en)
+    {
+      const double half_extent = voxelmap_manager->config_setting_.half_map_size *
+                                 voxelmap_manager->config_setting_.max_voxel_size_;
+      const size_t deleted_visual_voxels = vio_manager->pruneVisualMap(_state.pos_end, half_extent);
+      if (fast_livo_runtime::verbose_logging)
+      {
+        std::cout << "[ VIO ] Removed " << deleted_visual_voxels << " visual voxels" << std::endl;
+      }
+    }
   }
   
   PointCloudXYZI::Ptr laserCloudFullRes(dense_map_en ? feats_undistort : feats_down_body);
@@ -767,9 +802,16 @@ void LIVMapper::standard_pcl_cbk(const sensor_msgs::msg::PointCloud2::ConstShare
   {
     RCLCPP_ERROR(this->node->get_logger(),"lidar loop back, clear buffer");
     lid_raw_data_buffer.clear();
+    lid_header_time_buffer.clear();
   }
   PointCloudXYZI::Ptr ptr(new PointCloudXYZI());
   p_pre->process(msg, ptr);
+  while (lid_raw_data_buffer.size() >= max_lidar_buffer_size)
+  {
+    lid_raw_data_buffer.pop_front();
+    lid_header_time_buffer.pop_front();
+    lidar_overflow_drop_count.fetch_add(1, std::memory_order_relaxed);
+  }
   lid_raw_data_buffer.push_back(ptr);
   lid_header_time_buffer.push_back(stamp2Sec(msg->header.stamp));
   last_timestamp_lidar = stamp2Sec(msg->header.stamp);
@@ -798,6 +840,7 @@ void LIVMapper::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShar
   {
     RCLCPP_ERROR(this->node->get_logger(), "lidar loop back, clear buffer");
     lid_raw_data_buffer.clear();
+    lid_header_time_buffer.clear();
   }
   if (fast_livo_runtime::verbose_logging)
     RCLCPP_INFO(this->node->get_logger(), "get point cloud at time: %.6f", stamp2Sec(msg->header.stamp));
@@ -809,6 +852,12 @@ void LIVMapper::livox_pcl_cbk(const livox_ros_driver2::msg::CustomMsg::ConstShar
     return;
   }
 
+  while (lid_raw_data_buffer.size() >= max_lidar_buffer_size)
+  {
+    lid_raw_data_buffer.pop_front();
+    lid_header_time_buffer.pop_front();
+    lidar_overflow_drop_count.fetch_add(1, std::memory_order_relaxed);
+  }
   lid_raw_data_buffer.push_back(ptr);
   lid_header_time_buffer.push_back(cur_head_time);
   last_timestamp_lidar = cur_head_time;
@@ -860,6 +909,11 @@ void LIVMapper::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in)
 
   last_timestamp_imu = timestamp;
 
+  while (imu_buffer.size() >= max_imu_buffer_size)
+  {
+    imu_buffer.pop_front();
+    imu_overflow_drop_count.fetch_add(1, std::memory_order_relaxed);
+  }
   imu_buffer.push_back(msg);
   if (fast_livo_runtime::verbose_logging)
     cout << "got imu: " << timestamp << " imu size " << imu_buffer.size() << endl;
@@ -867,10 +921,21 @@ void LIVMapper::imu_cbk(const sensor_msgs::msg::Imu::ConstSharedPtr &msg_in)
   if (imu_prop_enable)
   {
     std::lock_guard<std::mutex> prop_lock(mtx_buffer_imu_prop);
-    if (!p_imu->imu_need_init) { prop_imu_buffer.push_back(*msg); }
+    if (!p_imu->imu_need_init)
+    {
+      while (prop_imu_buffer.size() >= max_imu_buffer_size) prop_imu_buffer.pop_front();
+      prop_imu_buffer.push_back(*msg);
+    }
     newest_imu = *msg;
     new_imu = true;
   }
+  RCLCPP_INFO_THROTTLE(
+    this->node->get_logger(), *this->node->get_clock(), 10000,
+    "Sensor queues: lidar_dropped=%llu lidar_buffered=%zu/%zu imu_dropped=%llu imu_buffered=%zu/%zu",
+    static_cast<unsigned long long>(lidar_overflow_drop_count.load(std::memory_order_relaxed)),
+    lid_raw_data_buffer.size(), max_lidar_buffer_size,
+    static_cast<unsigned long long>(imu_overflow_drop_count.load(std::memory_order_relaxed)),
+    imu_buffer.size(), max_imu_buffer_size);
   sig_buffer.notify_all();
 }
 
@@ -1325,9 +1390,16 @@ void LIVMapper::publish_mavros(const rclcpp::Publisher<geometry_msgs::msg::PoseS
 
 void LIVMapper::publish_path(const rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr &pubPath)
 {
+  if (path_max_poses <= 0) return;
+
   set_posestamp(msg_body_pose.pose);
   msg_body_pose.header.stamp = this->node->get_clock()->now();
   msg_body_pose.header.frame_id = "camera_init";
   path.poses.push_back(msg_body_pose);
+  if (path.poses.size() > static_cast<size_t>(path_max_poses))
+  {
+    path.poses.erase(path.poses.begin(), path.poses.begin() +
+        (path.poses.size() - static_cast<size_t>(path_max_poses)));
+  }
   pubPath->publish(path);
 }
