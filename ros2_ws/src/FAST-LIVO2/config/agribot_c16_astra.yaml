@@ -35,7 +35,9 @@
     time_offset:
       imu_time_offset: 0.0
       dynamic_imu_sync_en: false
-      img_time_offset: 0.0
+      # Calibrated against IMU angular velocity on 2026-08-10. FAST-LIVO2
+      # computes corrected_time = image_stamp - img_time_offset.
+      img_time_offset: -0.038
       exposure_time_init: 0.0
 
     preprocess:
