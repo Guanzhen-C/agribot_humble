@@ -81,7 +81,9 @@
       dept_err: 0.02
       beam_err: 0.05
       min_eigen_value: 0.0025
-      voxel_size: 0.3
+      # A 1 m root voxel keeps enough C16 returns on outdoor planes to avoid
+      # false yaw updates; smaller 0.3-0.5 m voxels degenerate on sparse scenes.
+      voxel_size: 1.0
       max_layer: 2
       max_points_num: 50
       layer_init_num: [5, 5, 5, 5, 5]
