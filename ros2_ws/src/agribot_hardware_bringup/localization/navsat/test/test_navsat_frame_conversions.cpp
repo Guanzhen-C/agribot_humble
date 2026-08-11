@@ -58,10 +58,10 @@ void expectMatrixNear(
 }  // namespace
 
 TEST(NavSatFrameConversions, ConvertsRosFluLeverArmToKfGinsFrd) {
-    const Eigen::Vector3d lever_flu(0.0, 0.2952585, 0.14176);
+    const Eigen::Vector3d lever_flu(0.0, 0.2952585, 0.64176);
     expectVectorNear(
         navsat::fluToFrd(lever_flu),
-        Eigen::Vector3d(0.0, -0.2952585, -0.14176));
+        Eigen::Vector3d(0.0, -0.2952585, -0.64176));
 }
 
 TEST(NavSatFrameConversions, AppliesCalibratedImuMountBeforeKfGins) {
@@ -125,18 +125,18 @@ TEST(NavSatFrameConversions, ConsumesEachFreshRtkHeadingOnlyOnce) {
 
 TEST(NavSatFrameConversions, PlacesSensorFromRearAxlePose) {
     const Eigen::Vector3d base_position(3.0, 4.0, 0.0);
-    const Eigen::Vector3d base_to_sensor(0.1425, 0.2952585, 0.28476);
+    const Eigen::Vector3d base_to_sensor(0.1425, 0.2952585, 0.78476);
 
     expectVectorNear(
         navsat::baseMapPositionToSensorMapPosition(
             base_position, yawRotation(M_PI / 2.0), base_to_sensor),
-        base_position + Eigen::Vector3d(-0.2952585, 0.1425, 0.28476));
+        base_position + Eigen::Vector3d(-0.2952585, 0.1425, 0.78476));
 }
 
 TEST(NavSatFrameConversions, RecoversRearAxleThroughCompleteThreeDimensionalLeverChain) {
     const Eigen::Vector3d base_position(7.0, -2.0, 0.4);
     const Eigen::Vector3d base_to_imu(0.1425, 0.0, 0.143);
-    const Eigen::Vector3d imu_to_antenna(0.0, 0.2952585, 0.14176);
+    const Eigen::Vector3d imu_to_antenna(0.0, 0.2952585, 0.64176);
     const Eigen::Matrix3d map_from_base =
         (Eigen::AngleAxisd(0.8, Eigen::Vector3d::UnitZ()) *
          Eigen::AngleAxisd(-0.12, Eigen::Vector3d::UnitY()) *

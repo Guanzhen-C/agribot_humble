@@ -67,7 +67,7 @@ public:
       "antenna_frame", "rtk_master_antenna");
     lidar_frame_ = declare_parameter<std::string>("lidar_frame", "lidar_link");
     const auto antenna_to_lidar = declare_parameter<std::vector<double>>(
-      "antenna_to_lidar_flu_m", {0.3375, -0.2952585, -0.05176});
+      "antenna_to_lidar_flu_m", {0.3375, -0.2952585, -0.55176});
     if (antenna_to_lidar.size() != 3U ||
       !std::all_of(
         antenna_to_lidar.begin(), antenna_to_lidar.end(),

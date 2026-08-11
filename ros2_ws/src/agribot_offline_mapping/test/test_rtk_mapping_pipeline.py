@@ -58,7 +58,7 @@ def test_manifest_records_robust_horizontal_and_gravity_constraints(tmp_path):
     }
     assert document["point_exclusion"]["rtk_antenna_boxes_base_link"][
         "left_center_xyz_m"
-    ] == [0.1425, 0.2952585, 0.28476]
+    ] == [0.1425, 0.2952585, 0.78476]
 
 
 def test_validate_inputs_rejects_unsafe_map_name(tmp_path):

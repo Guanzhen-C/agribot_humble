@@ -187,9 +187,9 @@ def write_manifest(path, bag, map_base, work_directory, paths, arguments):
                 "half_width_m": 0.60,
             },
             "rtk_antenna_boxes_base_link": {
-                "left_center_xyz_m": [0.1425, 0.2952585, 0.28476],
-                "right_center_xyz_m": [0.1425, -0.2952585, 0.28476],
-                "half_extent_xyz_m": [0.08, 0.08, 0.20],
+                "left_center_xyz_m": [0.1425, 0.2952585, 0.78476],
+                "right_center_xyz_m": [0.1425, -0.2952585, 0.78476],
+                "half_extent_xyz_m": [0.08, 0.08, 0.60],
             },
         },
         "playback_rate": arguments.playback_rate,

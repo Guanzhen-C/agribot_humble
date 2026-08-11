@@ -19,8 +19,9 @@ lslidar_lio_sam_adapter:
     # Remove both vehicle-mounted RTK antennas before scan matching and PCD
     # accumulation. Boxes are expressed in rear-axle-centered base_link.
     antenna_exclusion_enabled: true
-    left_antenna_center_xyz: [0.1425, 0.2952585, 0.28476]
-    right_antenna_center_xyz: [0.1425, -0.2952585, 0.28476]
-    antenna_exclusion_half_extent_xyz: [0.08, 0.08, 0.20]
+    left_antenna_center_xyz: [0.1425, 0.2952585, 0.78476]
+    right_antenna_center_xyz: [0.1425, -0.2952585, 0.78476]
+    # Remove both antennas and their 0.5 m vertical supports.
+    antenna_exclusion_half_extent_xyz: [0.08, 0.08, 0.60]
     base_to_lidar_xyz: [0.48, 0.0, 0.233]
     base_to_lidar_rpy: [-0.007648487, -0.001835661, 0.000007020]

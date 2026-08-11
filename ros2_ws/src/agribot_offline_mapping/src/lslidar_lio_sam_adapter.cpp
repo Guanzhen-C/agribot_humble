@@ -126,11 +126,11 @@ public:
     left_antenna_exclusion_.enabled = antenna_exclusion_enabled;
     right_antenna_exclusion_.enabled = antenna_exclusion_enabled;
     left_antenna_exclusion_.center = vector3Parameter(
-      *this, "left_antenna_center_xyz", {0.1425, 0.2952585, 0.28476});
+      *this, "left_antenna_center_xyz", {0.1425, 0.2952585, 0.78476});
     right_antenna_exclusion_.center = vector3Parameter(
-      *this, "right_antenna_center_xyz", {0.1425, -0.2952585, 0.28476});
+      *this, "right_antenna_center_xyz", {0.1425, -0.2952585, 0.78476});
     const Eigen::Vector3d antenna_half_extent = vector3Parameter(
-      *this, "antenna_exclusion_half_extent_xyz", {0.08, 0.08, 0.20});
+      *this, "antenna_exclusion_half_extent_xyz", {0.08, 0.08, 0.60});
     left_antenna_exclusion_.half_extent = antenna_half_extent;
     right_antenna_exclusion_.half_extent = antenna_half_extent;
     const Eigen::Vector3d base_to_lidar_xyz = vector3Parameter(

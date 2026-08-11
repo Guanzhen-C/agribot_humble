@@ -146,7 +146,7 @@ public:
     allow_unvalidated_georeference_yaw_ = declare_parameter<bool>(
       "allow_unvalidated_georeference_yaw", false);
     base_to_antenna_ = vector3Parameter(
-      *this, "base_to_master_antenna_m", {0.1425, 0.2952585, 0.28476});
+      *this, "base_to_master_antenna_m", {0.1425, 0.2952585, 0.78476});
 
     if (georeference_file_.empty() || map_file_.empty() || required_fix_quality_ < 1 ||
       allowed_heading_solutions_.empty() || required_sample_count < 2 ||

@@ -192,7 +192,7 @@ public:
                 "base_to_imu_rpy_rad",
                 {0.000572424, -0.009139547, -0.000002616}));
         antenna_lever_flu_m_ =
-            loadVector3("antlever_m", {0.0, 0.2952585, 0.14176});
+            loadVector3("antlever_m", {0.0, 0.2952585, 0.64176});
 
         pending_initial_pose_.position = Eigen::Vector3d(
             declare_parameter<double>("initial_pose_x", 0.0),

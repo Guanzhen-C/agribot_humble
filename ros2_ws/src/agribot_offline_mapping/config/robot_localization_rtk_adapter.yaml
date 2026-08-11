@@ -13,7 +13,7 @@ rtk_odometry_adapter:
     antenna_frame: rtk_master_antenna
     lidar_frame: base_link
     # 左主天线测量点到后轴中心base_link原点的FLU向量。
-    antenna_to_lidar_flu_m: [-0.1425, -0.2952585, -0.28476]
+    antenna_to_lidar_flu_m: [-0.1425, -0.2952585, -0.78476]
     maximum_lever_heading_age_sec: 1.5
     required_fix_quality: 4
     fixed_heading_solutions: [L1_INT, NARROW_INT]

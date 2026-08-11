@@ -20,6 +20,7 @@ camera:
 rtk:
   child_frame: rtk_link
   # Left master antenna measurement point. The right secondary antenna is at
-  # [0.1425, -0.2952585, 0.28476], giving a 0.590517 m lateral baseline.
-  xyz: [0.1425, 0.2952585, 0.28476]
+  # [0.1425, -0.2952585, 0.78476], giving a 0.590517 m lateral baseline.
+  # Both antennas were raised by 0.500 m; x/y remain unchanged.
+  xyz: [0.1425, 0.2952585, 0.78476]
   rpy: [0.0, 0.0, 0.0]

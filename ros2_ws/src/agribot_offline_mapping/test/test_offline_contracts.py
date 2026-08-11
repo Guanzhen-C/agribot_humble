@@ -225,7 +225,7 @@ def test_lio_sam_adapter_uses_measured_mount_and_mapping_rear_mask():
         ]
     )
     assert adapter["antenna_exclusion_half_extent_xyz"] == pytest.approx(
-        [0.08, 0.08, 0.20]
+        [0.08, 0.08, 0.60]
     )
 
 
