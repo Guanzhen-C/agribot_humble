@@ -222,22 +222,22 @@ Visualization Manager:
           Value: true
       Enabled: true
       Name: Odometry
-    - Alpha: 0
+    - Alpha: 1
       Buffer Length: 2
       Class: rviz_default_plugins/Path
-      Color: 25; 255; 255
+      Color: 255; 0; 0
       Enabled: true
       Head Diameter: 0
       Head Length: 0
       Length: 0.30000001192092896
       Line Style: Billboards
-      Line Width: 0.03999999910593033
+      Line Width: 0.029999999329447746
       Name: Path
       Offset:
         X: 0
         Y: 0
         Z: 0
-      Pose Color: 25; 255; 255
+      Pose Color: 255; 0; 0
       Pose Style: None
       Radius: 0.029999999329447746
       Shaft Diameter: 0.4000000059604645
