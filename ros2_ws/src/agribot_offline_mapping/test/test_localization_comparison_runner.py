@@ -74,3 +74,9 @@ def test_default_playback_rate_prioritizes_complete_estimator_output(tmp_path):
 def test_fastlivo_inputs_and_output_are_part_of_the_comparison():
     assert "/camera/rgb/image_raw" in MODULE.RAW_TOPICS
     assert MODULE.FASTLIVO_TOPIC == "/comparison/fastlivo/odometry"
+
+
+def test_comparison_does_not_run_robot_localization():
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "robot_localization" not in source

@@ -35,6 +35,12 @@ def launch_setup(context):
         if comparison_bag_value
         else map_base.parent / f"{map_base.name}_comparison"
     )
+    fastlivo_bag_value = LaunchConfiguration("fastlivo_bag").perform(context)
+    fastlivo_bag = (
+        Path(fastlivo_bag_value).expanduser()
+        if fastlivo_bag_value
+        else None
+    )
     show_comparison_paths = LaunchConfiguration(
         "show_comparison_paths"
     ).perform(context).lower() in ("1", "true", "yes", "on")
@@ -44,6 +50,8 @@ def launch_setup(context):
     ]
     if show_comparison_paths:
         required.append(comparison_bag / "metadata.yaml")
+        if fastlivo_bag is not None:
+            required.append(fastlivo_bag / "metadata.yaml")
     missing = [path for path in required if not path.is_file()]
     if missing:
         raise RuntimeError(
@@ -54,6 +62,9 @@ def launch_setup(context):
         raise RuntimeError("manifest map_base does not match the requested map")
     if Path(manifest.get("result_bag", "")) != paths["result_bag"]:
         raise RuntimeError("manifest result_bag does not match the requested map")
+    source_bag = Path(manifest.get("source_bag", "")).expanduser()
+    if show_comparison_paths and not (source_bag / "metadata.yaml").is_file():
+        raise RuntimeError(f"manifest source_bag is unavailable: {source_bag}")
     artifacts = manifest.get("artifacts", {})
     for key in ("pcd", "yaml", "georeference"):
         if Path(artifacts.get(key, "")) != paths[key]:
@@ -96,6 +107,13 @@ def launch_setup(context):
                 "comparison_bag": (
                     str(comparison_bag) if show_comparison_paths else ""
                 ),
+                "source_bag": str(source_bag) if show_comparison_paths else "",
+                "fastlivo_bag": (
+                    str(fastlivo_bag)
+                    if show_comparison_paths and fastlivo_bag is not None
+                    else ""
+                ),
+                "fastlivo_topic": LaunchConfiguration("fastlivo_topic"),
             }],
         ),
         Node(
@@ -135,10 +153,23 @@ def generate_launch_description():
             "comparison_bag",
             default_value="",
             description=(
-                "Recomputed FAST-LIO2/FAST-LIVO2/KF-GINS/robot_localization "
+                "Recomputed FAST-LIO2/FAST-LIVO2/KF-GINS and final RTK FLOAT "
                 "bag; defaults to MAP_NAME_comparison when comparison paths "
                 "are enabled"
             ),
+        ),
+        DeclareLaunchArgument(
+            "fastlivo_bag",
+            default_value="",
+            description=(
+                "Optional independently recomputed FAST-LIVO2 bag; when set, "
+                "it replaces only the FAST-LIVO2 path from comparison_bag"
+            ),
+        ),
+        DeclareLaunchArgument(
+            "fastlivo_topic",
+            default_value="/comparison/fastlivo/odometry",
+            description="Odometry topic stored in fastlivo_bag",
         ),
         DeclareLaunchArgument("flatten_z", default_value="true"),
         DeclareLaunchArgument(

@@ -61,8 +61,8 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
 Set `show_3d_map:=false` on a resource-constrained display computer.
 
 To compare independently recomputed localization, replay only the raw sensor
-topics through the current physical FAST-LIO2 and KF-GINS configurations and a
-ROS 2 `robot_localization` EKF:
+topics through the current physical FAST-LIO2, FAST-LIVO2 and KF-GINS
+configurations:
 
 ```bash
 ros2 run agribot_offline_mapping run_localization_comparison.py \
@@ -75,6 +75,17 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   show_comparison_paths:=true
 ```
 
+When FAST-LIVO2 is recomputed independently, keep the other trajectories
+from the comparison bag and replace only its path with:
+
+```bash
+ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
+  map_base:=/home/cgz/agribot_maps/test_site/MAP_NAME \
+  show_comparison_paths:=true \
+  fastlivo_bag:=/home/cgz/agribot_maps/test_site/FASTLIVO_RESULT \
+  fastlivo_topic:=/aft_mapped_to_init
+```
+
 The comparison runner explicitly excludes any previously recorded
 `/Odometry`, `/fastlio/odometry` or registered-cloud outputs. FAST-LIO2 is
 anchored to the first timestamp shared with the optimized LIO-SAM path using
@@ -83,12 +94,12 @@ outputs the rear-axle pose in local ENU and is transformed with the matching
 map's georeference. For the standard `MAP_NAME_comparison` output naming, the
 runner also fixes the KF-GINS ENU reference to the same RTK reference stored in
 `MAP_NAME_georeference.yaml`; this prevents an initial float solution from
-introducing a constant trajectory offset. The `robot_localization` input path
-is independently aligned to ENU by the first timestamp-matched fixed RTK base
-pose and FAST-LIO2 pose. Its EKF fuses differential FAST-LIO2 x/y/yaw with
-absolute quality-4 RTK x/y and covariance-weighted dual-antenna yaw; RTK height
-is excluded. RViz uses red for RTK, green for LIO-SAM, blue for recomputed
-FAST-LIO2, yellow for recomputed KF-GINS and purple for `robot_localization`.
+introducing a constant trajectory offset. RViz uses red for quality-4 RTK,
+green for LIO-SAM, blue for recomputed FAST-LIO2, cyan for recomputed
+FAST-LIVO2, yellow for recomputed KF-GINS and orange for the final contiguous
+quality-5 RTK interval. Both RTK paths apply the measured master-antenna lever
+arm and represent the rear-axle center; the float path is not connected across
+lower-quality intervals.
 The conservative 0.5 playback rate keeps all estimators from dropping input
 while they run together on the Jetson.
 

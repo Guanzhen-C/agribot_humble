@@ -323,7 +323,10 @@ void LIVMapper::initializeSubscribersAndPublishers(rclcpp::Node::SharedPtr &node
   image_qos.keep_last(static_cast<size_t>(image_subscription_queue_depth));
   sub_img = this->node->create_subscription<sensor_msgs::msg::Image>(img_topic, image_qos, std::bind(&LIVMapper::img_cbk, this, std::placeholders::_1));
   
-  pubLaserCloudFullRes = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 100);
+  auto registered_cloud_qos = rclcpp::SensorDataQoS();
+  registered_cloud_qos.keep_last(1);
+  pubLaserCloudFullRes = this->node->create_publisher<sensor_msgs::msg::PointCloud2>(
+      "/cloud_registered", registered_cloud_qos);
   pubNormal = this->node->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker", 100);
   pubSubVisualMap = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_visual_sub_map_before", 100);
   pubLaserCloudEffect = this->node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_effected", 100);

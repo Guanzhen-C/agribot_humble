@@ -39,6 +39,35 @@ def test_pose_composition_rotates_translation_before_adding_it():
     assert abs(result[1][3]) == pytest.approx(0.0, abs=1.0e-12)
 
 
+def test_geodetic_reference_maps_to_zero_enu():
+    reference = (39.977825834666668, 116.32586285516666, 41.7209)
+
+    assert MODULE.geodetic_to_enu(*reference, *reference) == pytest.approx(
+        (0.0, 0.0, 0.0), abs=1.0e-9
+    )
+
+
+def test_final_float_interval_excludes_earlier_float_runs_and_quality_gap():
+    def quality(value):
+        return SimpleNamespace(data=value)
+
+    messages = [
+        (0, quality(5)),
+        (100_000_000, quality(5)),
+        (200_000_000, quality(4)),
+        (300_000_000, quality(5)),
+        (400_000_000, quality(5)),
+        (500_000_000, quality(2)),
+        (600_000_000, quality(5)),
+        (700_000_000, quality(5)),
+    ]
+
+    assert MODULE.final_contiguous_quality_interval(messages) == (
+        600_000_000,
+        700_000_000,
+    )
+
+
 def test_fastlivo_imu_pose_is_converted_to_the_rear_axle_center():
     message = SimpleNamespace(
         pose=SimpleNamespace(

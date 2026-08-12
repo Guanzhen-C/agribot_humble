@@ -305,46 +305,17 @@ def test_standard_pipeline_pairs_map_trajectory_bag_and_rviz():
     assert "Value: /mapping_result/fastlio_path" in rviz
     assert "Value: /mapping_result/fastlivo_path" in rviz
     assert "Value: /mapping_result/kf_gins_path" in rviz
-    assert "Value: /mapping_result/robot_localization_path" in rviz
+    assert "Value: /mapping_result/rtk_float_path" in rviz
+    assert "robot_localization" not in rviz
     assert '"/mapping_result/lio_sam_path"' in trajectory
     assert '"/comparison/fastlio/odometry"' in trajectory
     assert '"/comparison/fastlivo/odometry"' in trajectory
     assert '"/comparison/kf_gins/odometry"' in trajectory
-    assert '"/comparison/robot_localization/odometry"' in trajectory
+    assert '"/mapping_result/rtk_float_path"' in trajectory
+    assert '"/rtk/fix_quality"' in trajectory
+    assert "robot_localization" not in trajectory
+    assert "self.publish_timer.cancel()" in trajectory
     assert 'DeclareLaunchArgument("show_comparison_paths"' in viewer
-
-
-def test_robot_localization_comparison_uses_fastlio_increments_and_fixed_rtk():
-    mounts = yaml.safe_load(
-        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
-    ekf = parameters(
-        PACKAGE_ROOT / "config" / "robot_localization_ekf.yaml",
-        "robot_localization_ekf",
-    )
-    rtk = parameters(
-        PACKAGE_ROOT / "config" / "robot_localization_rtk_adapter.yaml",
-        "rtk_odometry_adapter",
-    )
-
-    assert ekf["world_frame"] == "enu"
-    assert ekf["two_d_mode"] is True
-    assert ekf["publish_tf"] is False
-    assert ekf["odom0"] == "/comparison/robot_localization/fastlio_odom"
-    assert ekf["odom0_differential"] is True
-    assert ekf["odom1"] == "/comparison/robot_localization/rtk_odom"
-    assert ekf["odom1_differential"] is False
-    assert "odom1_pose_rejection_threshold" not in ekf
-    assert ekf["odom0_config"][:6] == [True, True, False, False, False, True]
-    assert ekf["odom1_config"][:6] == [True, True, False, False, False, True]
-    assert len(ekf["process_noise_covariance"]) == 225
-    assert rtk["required_fix_quality"] == 4
-    assert rtk["lidar_frame"] == "base_link"
-    assert rtk["antenna_to_lidar_flu_m"] == pytest.approx(
-        [-value for value in mounts["rtk"]["xyz"]]
-    )
 
 
 def test_offline_tf_publishers_use_the_measured_sensor_rotations():

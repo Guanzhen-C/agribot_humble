@@ -114,7 +114,7 @@ Visualization Manager:
       Enabled: true
       Line Style: Lines
       Line Width: 0.18
-      Name: 重算FAST-LIVO2后轴中心轨迹（青）
+      Name: 调优FAST-LIVO2后轴中心轨迹（青）
       Offset: {X: 0, Y: 0, Z: 0.23}
       Pose Style: None
       Topic:
@@ -142,11 +142,11 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
-      Color: 255; 70; 220
+      Color: 255; 135; 25
       Enabled: true
       Line Style: Lines
       Line Width: 0.18
-      Name: robot_localization融合轨迹（紫）
+      Name: 后半程RTK浮点解后轴中心轨迹（橙）
       Offset: {X: 0, Y: 0, Z: 0.33}
       Pose Style: None
       Topic:
@@ -154,7 +154,7 @@ Visualization Manager:
         Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /mapping_result/robot_localization_path
+        Value: /mapping_result/rtk_float_path
   Enabled: true
   Global Options:
     Background Color: 35; 35; 35

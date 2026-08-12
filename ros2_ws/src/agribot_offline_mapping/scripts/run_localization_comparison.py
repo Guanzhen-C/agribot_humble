@@ -26,9 +26,6 @@ RAW_TOPICS = (
 FASTLIO_TOPIC = "/comparison/fastlio/odometry"
 FASTLIVO_TOPIC = "/comparison/fastlivo/odometry"
 KF_GINS_TOPIC = "/comparison/kf_gins/odometry"
-ROBOT_LOCALIZATION_FASTLIO_TOPIC = "/comparison/robot_localization/fastlio_odom"
-ROBOT_LOCALIZATION_RTK_TOPIC = "/comparison/robot_localization/rtk_odom"
-ROBOT_LOCALIZATION_TOPIC = "/comparison/robot_localization/odometry"
 COMPARISON_SUFFIX = "_comparison"
 GEOREFERENCE_SUFFIX = "_georeference.yaml"
 
@@ -96,8 +93,8 @@ def topic_counts(bag):
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Recompute FAST-LIO2, FAST-LIVO2, KF-GINS and "
-            "robot_localization from raw sensor topics in one ROS bag"
+            "Recompute FAST-LIO2, FAST-LIVO2 and KF-GINS from raw sensor "
+            "topics in one ROS bag"
         )
     )
     parser.add_argument("source_bag", type=Path)
@@ -197,9 +194,6 @@ def main(argv=None):
         fastlio_config = hardware_share / "config" / "fast_lio_c16.yaml"
         bridge_config = hardware_share / "config" / "fastlio_bridge.yaml"
         kf_gins_config = hardware_share / "config" / "kf_gins_n300pro.yaml"
-        offline_share = Path(
-            get_package_share_directory("agribot_offline_mapping")
-        )
         fastlivo_share = Path(get_package_share_directory("fast_livo"))
         fastlivo_config = (
             fastlivo_share / "config" / "agribot_c16_astra.yaml"
@@ -207,20 +201,12 @@ def main(argv=None):
         fastlivo_camera_config = (
             fastlivo_share / "config" / "agribot_astra_640.yaml"
         )
-        robot_localization_config = (
-            offline_share / "config" / "robot_localization_ekf.yaml"
-        )
-        robot_localization_rtk_config = (
-            offline_share / "config" / "robot_localization_rtk_adapter.yaml"
-        )
         for path in (
             fastlio_config,
             bridge_config,
             kf_gins_config,
             fastlivo_config,
             fastlivo_camera_config,
-            robot_localization_config,
-            robot_localization_rtk_config,
         ):
             if not path.is_file():
                 raise ComparisonError(f"configuration file not found: {path}")
@@ -288,43 +274,6 @@ def main(argv=None):
                 ]
             )
         processes.append((start(kf_gins_command, environment), "KF-GINS"))
-        rtk_adapter_command = [
-            "ros2", "run", "agribot_offline_mapping", "rtk_odometry_adapter",
-            "--ros-args", "--params-file", robot_localization_rtk_config,
-            "-p", "use_sim_time:=true",
-        ]
-        if kf_reference is not None:
-            _, latitude, longitude, altitude = kf_reference
-            rtk_adapter_command.extend(
-                [
-                    "-p", "auto_reference_from_first_fix:=false",
-                    "-p", f"reference_latitude_deg:={latitude:.12f}",
-                    "-p", f"reference_longitude_deg:={longitude:.12f}",
-                    "-p", f"reference_altitude_m:={altitude:.6f}",
-                ]
-            )
-        processes.append((start(
-            rtk_adapter_command, environment
-        ), "robot_localization RTK adapter"))
-        processes.append((start(
-            [
-                "ros2", "run", "agribot_offline_mapping",
-                "odometry_reference_aligner.py", "--ros-args",
-                "-p", "use_sim_time:=true",
-            ],
-            environment,
-        ), "robot_localization FAST-LIO2 ENU aligner"))
-        processes.append((start(
-            [
-                "ros2", "run", "robot_localization", "ekf_node",
-                "--ros-args", "-r", "__node:=robot_localization_ekf",
-                "--params-file", robot_localization_config,
-                "-p", "use_sim_time:=true", "-r",
-                f"odometry/filtered:={ROBOT_LOCALIZATION_TOPIC}",
-            ],
-            environment,
-        ), "robot_localization EKF"))
-
         time.sleep(3.0)
         failed = [name for process, name in processes if process.poll() is not None]
         if failed:
@@ -336,9 +285,6 @@ def main(argv=None):
                 FASTLIO_TOPIC,
                 FASTLIVO_TOPIC,
                 KF_GINS_TOPIC,
-                ROBOT_LOCALIZATION_FASTLIO_TOPIC,
-                ROBOT_LOCALIZATION_RTK_TOPIC,
-                ROBOT_LOCALIZATION_TOPIC,
             ],
             environment,
         )
@@ -362,7 +308,6 @@ def main(argv=None):
         missing = [
             topic for topic in (
                 FASTLIO_TOPIC, FASTLIVO_TOPIC, KF_GINS_TOPIC,
-                ROBOT_LOCALIZATION_TOPIC,
             )
             if counts.get(topic, 0) < 1
         ]
@@ -375,11 +320,6 @@ def main(argv=None):
         print(f"  FAST-LIO2 poses: {counts[FASTLIO_TOPIC]}", flush=True)
         print(f"  FAST-LIVO2 poses: {counts[FASTLIVO_TOPIC]}", flush=True)
         print(f"  KF-GINS poses: {counts[KF_GINS_TOPIC]}", flush=True)
-        print(
-            "  robot_localization EKF poses: "
-            f"{counts[ROBOT_LOCALIZATION_TOPIC]}",
-            flush=True,
-        )
         return 0
     except KeyboardInterrupt:
         print("\nInterrupted by user", file=sys.stderr)
