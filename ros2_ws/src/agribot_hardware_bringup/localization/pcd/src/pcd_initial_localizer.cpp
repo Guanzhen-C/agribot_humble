@@ -149,7 +149,9 @@ public:
           std::placeholders::_1));
     }
 
-    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+    if (publish_tf_) {
+      tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+    }
     matching_timer_ =
       create_wall_timer(100ms, std::bind(&PcdInitialLocalizer::tryInitialMatch, this));
     heartbeat_timer_ =
@@ -226,6 +228,7 @@ private:
       declare_parameter<double>("external_ready_timeout_sec", 0.5);
     map_frame_ = declare_parameter<std::string>("map_frame", "map");
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
+    publish_tf_ = declare_parameter<bool>("publish_tf", true);
     enable_fpfh_ = declare_parameter<bool>("enable_fpfh", false);
     automatic_global_localization_ =
       declare_parameter<bool>("automatic_global_localization", false);
@@ -946,6 +949,9 @@ private:
     const builtin_interfaces::msg::Time & stamp,
     const Eigen::Isometry3d & map_to_odom)
   {
+    if (!tf_broadcaster_) {
+      return;
+    }
     geometry_msgs::msg::TransformStamped message;
     message.header.stamp = stamp;
     message.header.frame_id = map_frame_;
@@ -1009,6 +1015,7 @@ private:
   std::string odom_frame_;
   bool enable_fpfh_{false};
   bool automatic_global_localization_{false};
+  bool publish_tf_{true};
   bool pending_global_search_{false};
   Eigen::Isometry3d base_to_body_{Eigen::Isometry3d::Identity()};
 

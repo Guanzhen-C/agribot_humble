@@ -1,0 +1,70 @@
+fastlivo_rtk_fusion:
+  ros__parameters:
+    odom_topic: /fastlivo/odometry
+    fix_topic: /rtk/fix
+    quality_topic: /rtk/fix_quality
+    imu_topic: /imu/data
+    seed_pose_topic: /localization_pose
+    fused_odom_topic: /fastlivo_rtk/odometry
+    fused_pose_topic: /fastlivo_rtk/pose
+    fused_path_topic: /fastlivo_rtk/path
+    local_path_topic: /fastlivo_rtk/fastlivo_path
+    rtk_path_topic: /fastlivo_rtk/fixed_rtk_path
+    ready_topic: /fastlivo_rtk/ready
+    fixed_active_topic: /fastlivo_rtk/fixed_active
+    diagnostics_topic: /diagnostics
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+
+    # A 3D-map seed is preferred. This fallback assumes the initial FAST-LIVO2
+    # yaw is aligned with map and lets subsequent position factors refine yaw.
+    auto_initialize_from_fixed_rtk: false
+    initial_map_from_odom_yaw_rad: 0.0
+    initial_base_z_m: 0.0
+    publish_map_to_odom_tf: true
+
+    # GGA quality 4 is RTK fixed. Float, DGPS and autonomous fixes are ignored.
+    required_fix_quality: 4
+    required_consecutive_fixed: 3
+    quality_timeout_sec: 0.30
+    fixed_recent_timeout_sec: 0.50
+    rtk_sync_tolerance_sec: 0.15
+    imu_sync_tolerance_sec: 0.08
+    seed_sync_tolerance_sec: 0.30
+
+    # Keep the graph bounded for the RDK X5.
+    fixed_lag_sec: 60.0
+    keyframe_period_sec: 0.50
+    keyframe_distance_m: 0.30
+    keyframe_angle_rad: 0.08726646259971647
+
+    # Fixed RTK contributes horizontal antenna position only.
+    rtk_factor_min_distance_m: 0.30
+    rtk_max_innovation_m: 1.50
+    rtk_horizontal_sigma_floor_m: 0.10
+    rtk_huber_delta: 1.345
+    base_to_antenna_xyz: [0.1425, 0.2952585, 0.78476]
+
+    # Reuse the validated N300Pro gravity-direction constraint. It constrains
+    # roll and pitch only; yaw remains determined by FAST-LIVO2 and RTK motion.
+    gravity_sigma_rad: 0.017453292519943295
+    gravity_huber_delta: 1.345
+    base_from_imu_rpy: [0.000572424, -0.009139547, -0.000002616]
+
+    odom_rotation_sigma_rad: 0.008726646259971648
+    odom_yaw_sigma_rad: 0.017453292519943295
+    odom_horizontal_sigma_m: 0.03
+    odom_vertical_sigma_m: 0.05
+    seed_rotation_sigma_rad: 0.08726646259971647
+    seed_position_sigma_m: 0.20
+    automatic_yaw_sigma_rad: 0.7853981633974483
+    automatic_position_sigma_m: 1.0
+    initial_roll_pitch_sigma_rad: 0.008726646259971648
+    initial_z_sigma_m: 0.10
+
+    # Apply global corrections gradually while local odometry stays continuous.
+    correction_translation_rate_mps: 0.50
+    correction_rotation_rate_radps: 0.20
+    path_max_poses: 6000
+    path_sample_period_sec: 0.10

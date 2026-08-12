@@ -14,6 +14,7 @@
   <build_depend>eigen</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>geographiclib</build_depend>
+  <build_depend>gtsam</build_depend>
   <build_depend>libpcl-all-dev</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>pcl_conversions</build_depend>
@@ -26,6 +27,7 @@
 
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>geographiclib</exec_depend>
+  <exec_depend>gtsam</exec_depend>
   <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>pcl_conversions</exec_depend>

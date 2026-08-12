@@ -11,6 +11,8 @@ find_package(ament_cmake REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(GTSAM REQUIRED)
+find_package(GTSAM_UNSTABLE REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(PCL REQUIRED COMPONENTS
@@ -170,6 +172,33 @@ ament_target_dependencies(rtk_map_initializer
   sensor_msgs
   std_msgs
 )
+
+add_executable(
+  fastlivo_rtk_fusion
+  localization/fusion/src/fastlivo_rtk_fusion_node.cpp
+)
+target_include_directories(fastlivo_rtk_fusion PRIVATE
+  localization/fusion/include
+  localization/navsat/include
+  ${EIGEN3_INCLUDE_DIRS}
+)
+target_link_libraries(
+  fastlivo_rtk_fusion
+  Eigen3::Eigen
+  PkgConfig::GEOGRAPHICLIB
+  gtsam
+  gtsam_unstable
+  yaml-cpp
+)
+ament_target_dependencies(fastlivo_rtk_fusion
+  diagnostic_msgs
+  geometry_msgs
+  nav_msgs
+  rclcpp
+  sensor_msgs
+  std_msgs
+  tf2_ros
+)
 set_source_files_properties(
   localization/navsat/third_party/kf_gins/kf-gins/insmech.cpp
   PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter"
@@ -270,6 +299,7 @@ install(DIRECTORY can/include/ DESTINATION include)
 install(DIRECTORY differential/include/ DESTINATION include)
 install(DIRECTORY ackermann/include/ DESTINATION include)
 install(DIRECTORY localization/navsat/include/ DESTINATION include)
+install(DIRECTORY localization/fusion/include/ DESTINATION include)
 install(TARGETS
   chassis_can_common
   differential_chassis_can
@@ -286,6 +316,7 @@ install(TARGETS
   ackermann_joint_state_publisher
   rtk_eskf_localization
   rtk_map_initializer
+  fastlivo_rtk_fusion
   pcd_map_builder
   pcd_initial_localizer
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -343,6 +374,15 @@ if(BUILD_TESTING)
     ${EIGEN3_INCLUDE_DIRS}
   )
   target_link_libraries(test_map_georeference Eigen3::Eigen yaml-cpp)
+  ament_add_gtest(
+    test_horizontal_antenna_factor
+    localization/fusion/test/test_horizontal_antenna_factor.cpp
+  )
+  target_include_directories(test_horizontal_antenna_factor PRIVATE
+    localization/fusion/include
+    ${EIGEN3_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_horizontal_antenna_factor Eigen3::Eigen gtsam)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
@@ -362,6 +402,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_wheeltec_car_gui
     test/test_wheeltec_car_gui.py
+  )
+  ament_add_pytest_test(
+    test_fastlivo_rtk_fusion
+    test/test_fastlivo_rtk_fusion.py
   )
 endif()
 
