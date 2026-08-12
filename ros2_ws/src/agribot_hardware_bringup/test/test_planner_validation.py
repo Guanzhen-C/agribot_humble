@@ -48,7 +48,11 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     assert costmap["plugins"] == ["static_layer", "inflation_layer"]
     assert "stvl_layer" not in costmap
     assert costmap["footprint"] == mapped_costmap["footprint"]
-    assert costmap["inflation_layer"] == mapped_costmap["inflation_layer"]
+    assert costmap["inflation_layer"]["plugin"] == (
+        mapped_costmap["inflation_layer"]["plugin"]
+    )
+    assert costmap["inflation_layer"]["inflation_radius"] == 2.0
+    assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
 
 
 def test_planner_validation_launch_has_no_motion_or_sensor_nodes():
@@ -61,6 +65,10 @@ def test_planner_validation_launch_has_no_motion_or_sensor_nodes():
 
     assert 'package="nav2_map_server"' in source
     assert 'package="nav2_planner"' in source
+    assert 'package="pcl_ros"' in source
+    assert 'executable="pcd_to_pointcloud"' in source
+    assert '"/planning_test/map_3d"' in source
+    assert 'DeclareLaunchArgument("show_3d_map", default_value="false")' in source
     assert 'executable="planner_validation_bridge.py"' in source
     assert '"node_names": ["map_server", "planner_server"]' in source
     for forbidden in (
@@ -105,6 +113,8 @@ def test_planner_validation_rviz_uses_pose_and_goal_topics():
     assert "Value: /planning_test/path" in document
     assert "Value: /planning_test/waypoints" in document
     assert "rviz_default_plugins/PoseArray" in document
+    assert "rviz_default_plugins/PointCloud2" in document
+    assert "Value: /planning_test/map_3d" in document
 
 
 def test_native_nav_through_poses_validation_uses_real_bt_and_mock_controller():
@@ -116,6 +126,10 @@ def test_native_nav_through_poses_validation_uses_real_bt_and_mock_controller():
     ).read_text(encoding="utf-8")
 
     assert 'package="nav2_bt_navigator"' in source
+    assert 'package="pcl_ros"' in source
+    assert 'executable="pcd_to_pointcloud"' in source
+    assert '"/planning_test/map_3d"' in source
+    assert 'DeclareLaunchArgument("show_3d_map", default_value="false")' in source
     assert 'executable="planner_validation_follow_path.py"' in source
     assert "navigate_through_poses_w_replanning_ackermann.xml" in source
     assert 'name="lifecycle_manager_navigation"' in source
@@ -136,6 +150,8 @@ def test_native_nav_through_poses_rviz_uses_official_panel_and_goal_tool():
 
     assert "Class: nav2_rviz_plugins/Navigation 2" in document
     assert "Class: nav2_rviz_plugins/GoalTool" in document
+    assert "Class: rviz_default_plugins/PointCloud2" in document
+    assert "Value: /planning_test/map_3d" in document
     assert "Value: /waypoints" in document
     assert "Value: /planning_test/path" in document
 

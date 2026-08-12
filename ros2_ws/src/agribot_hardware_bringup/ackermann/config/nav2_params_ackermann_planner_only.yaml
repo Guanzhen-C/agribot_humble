@@ -49,6 +49,6 @@ global_costmap:
         subscribe_to_updates: true
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        cost_scaling_factor: 5.0
-        inflation_radius: 0.2
+        cost_scaling_factor: 1.0
+        inflation_radius: 2.0
       always_send_full_costmap: true

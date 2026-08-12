@@ -9,12 +9,21 @@ from launch_ros.actions import Node
 from nav2_common.launch import RewrittenYaml
 
 
-def validate_map(context):
+def validate_inputs(context):
     map_path = Path(LaunchConfiguration("map").perform(context)).expanduser()
     if map_path.suffix not in (".yaml", ".yml"):
         raise RuntimeError("map must be a Nav2 .yaml file")
     if not map_path.is_file():
         raise RuntimeError(f"map file does not exist: {map_path}")
+
+    if LaunchConfiguration("show_3d_map").perform(context).lower() in (
+        "1", "true", "yes", "on"
+    ):
+        pcd_path = Path(LaunchConfiguration("pcd_map").perform(context)).expanduser()
+        if pcd_path.suffix.lower() != ".pcd":
+            raise RuntimeError("pcd_map must be a .pcd file when show_3d_map is true")
+        if not pcd_path.is_file():
+            raise RuntimeError(f"3D map file does not exist: {pcd_path}")
     return []
 
 
@@ -34,6 +43,12 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "map", description="Absolute path to the Nav2 map YAML"
             ),
+            DeclareLaunchArgument(
+                "pcd_map",
+                default_value="",
+                description="Absolute path to the matching 3D PCD map",
+            ),
+            DeclareLaunchArgument("show_3d_map", default_value="false"),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -52,7 +67,7 @@ def generate_launch_description():
                     Path(package_share) / "rviz" / "planner_validation.rviz"
                 ),
             ),
-            OpaqueFunction(function=validate_map),
+            OpaqueFunction(function=validate_inputs),
             Node(
                 package="nav2_map_server",
                 executable="map_server",
@@ -87,6 +102,19 @@ def generate_launch_description():
                     {"autostart": autostart},
                     {"node_names": ["map_server", "planner_server"]},
                 ],
+            ),
+            Node(
+                package="pcl_ros",
+                executable="pcd_to_pointcloud",
+                name="planner_validation_pcd_publisher",
+                output="screen",
+                parameters=[{
+                    "file_name": LaunchConfiguration("pcd_map"),
+                    "tf_frame": "map",
+                    "publishing_period_ms": 10000,
+                }],
+                remappings=[("cloud_pcd", "/planning_test/map_3d")],
+                condition=IfCondition(LaunchConfiguration("show_3d_map")),
             ),
             Node(
                 package="rviz2",
