@@ -528,32 +528,45 @@ ros2 topic echo /nav2/cmd_vel
 # NavSat阶段B：阶段A通过并完整关闭后，把enable_chassis_output改为true并再次限速0.15米每秒
 # 启动另一种真机模式前，先按Ctrl+C停止当前整套程序
 
-# FAST-LIVO2加固定解RTK实时融合定位：RDK运行算法和RViz，不启动Nav2或底盘
+# FAST-LIVO2加固定解RTK实时融合定位：RDK运行算法，Jetson显示RViz，不启动Nav2或底盘
 # 只使用位置质量4的RTK水平位置；不使用RTK高度和航向
 # IMU重力方向只约束横滚和俯仰，FAST-LIVO2负责连续局部运动，RTK抑制水平累计漂移
-# 启动后保持车辆静止，在RViz用2D Pose Estimate给出地图中的近似初始位置和车头方向
-# PCD重定位成功并发布/localization_pose后，/fastlivo_rtk/ready应变为true
+# 启动后保持车辆静止，等待10组固定解位置和整数固定双天线航向
+# RTK粗位姿会自动触发局部NDT/GICP精配准，不需要在RViz点击2D Pose Estimate
+# 精配准发布完整/localization_pose后，/fastlivo_rtk/ready应变为true
+# 终端1（Jetson）：登录RDK后运行算法；不要再在RDK同时打开另一个RViz
+ssh sunrise@10.147.55.3
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-export DISPLAY=:0
-export XAUTHORITY=/home/sunrise/.Xauthority
 export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804
 ros2 launch agribot_hardware_bringup \
   ackermann_fastlivo_rtk_localization.launch.py \
   map_base:=$MAP_BASE \
-  rviz:=true \
-  initialization_source:=manual
+  rviz:=false \
+  initialization_source:=rtk
 
-# 另开终端检查融合状态；fixed_active只有最近收到连续固定解位置时才为true
+# 终端2（Jetson）：只显示二维地图、三条二维轨迹和FAST-LIVO2处理后的10Hz相机图像
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 daemon stop || true
+ros2 daemon start
+ros2 run rviz2 rviz2 \
+  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/fastlivo_rtk_localization.rviz
+
+# 终端3（Jetson或RDK）：检查融合状态；fixed_active只有最近收到连续固定解位置时才为true
 ros2 topic echo /fastlivo_rtk/ready --once
 ros2 topic echo /fastlivo_rtk/fixed_active --once
+ros2 topic echo /localization/rtk_initializer_status --once
+ros2 topic echo /localization/lidar_ready --once
 ros2 topic echo /diagnostics | grep -A 30 agribot/fastlivo_rtk_fusion
 ros2 topic hz /fastlivo_rtk/odometry
 ros2 run tf2_ros tf2_echo map base_link
 
 # RViz轨迹颜色：绿为融合定位，青为原始FAST-LIVO2，红为被融合器接受的固定解RTK
 # RTK暂时失去固定解时仍由FAST-LIVO2连续输出；恢复固定解后通过限速的map到odom修正平滑拉回
-# 只有离线回放且确认bag起点与地图原点一致时，才允许使用下面的弱航向自动初始化选项
-# auto_initialize_from_fixed_rtk:=true
+# 初始重定位只使用一次双天线航向；运行期间融合器只使用质量4的RTK水平位置
+# RTK航向暂时无法达到整数固定时，改为initialization_source:=manual并在RViz给出初始位姿

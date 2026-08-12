@@ -31,6 +31,21 @@ def _validate_paths(context):
             "FAST-LIVO2/RTK融合缺少地图文件: "
             + ", ".join(str(path) for path in missing)
         )
+    initialization_source = LaunchConfiguration("initialization_source").perform(
+        context
+    )
+    if initialization_source not in ("rtk", "manual", "lidar"):
+        raise RuntimeError(
+            "initialization_source必须是rtk、manual或lidar"
+        )
+    start_initial_localizer = LaunchConfiguration(
+        "start_initial_localizer"
+    ).perform(context)
+    if (
+        initialization_source == "rtk"
+        and start_initial_localizer.lower() not in ("true", "1", "yes", "on")
+    ):
+        raise RuntimeError("RTK初始重定位必须启动PCD初始定位器")
     return []
 
 
@@ -83,18 +98,13 @@ def generate_launch_description():
             DeclareLaunchArgument("use_detailed_vehicle_model", default_value="false"),
             DeclareLaunchArgument(
                 "initialization_source",
-                default_value="manual",
-                description="manual使用RViz初值；lidar执行一次全图FPFH定位",
+                default_value="rtk",
+                description=(
+                    "rtk使用固定解位置和双天线航向生成粗初值；"
+                    "manual使用RViz初值；lidar执行一次全图FPFH定位"
+                ),
             ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
-            DeclareLaunchArgument(
-                "auto_initialize_from_fixed_rtk",
-                default_value="false",
-                description="仅当FAST-LIVO2初始yaw已与地图对齐时开启",
-            ),
-            DeclareLaunchArgument(
-                "initial_map_from_odom_yaw_rad", default_value="0.0"
-            ),
             DeclareLaunchArgument(
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
@@ -177,8 +187,18 @@ def generate_launch_description():
                                 "cloud_topic": "/lidar/points",
                                 "cloud_frame": "lidar_link",
                                 "odom_topic": "/fastlivo/odometry",
+                                "initial_pose_topic": PythonExpression(
+                                    [
+                                        "'/localization/rtk_initialpose' if '",
+                                        LaunchConfiguration(
+                                            "initialization_source"
+                                        ),
+                                        "' == 'rtk' else '/initialpose'",
+                                    ]
+                                ),
                                 "pose_topic": "/localization_pose",
                                 "ready_topic": "/localization/lidar_ready",
+                                "status_topic": "/localization/status",
                                 "publish_tf": False,
                                 "base_to_body_xyz": [0.48, 0.0, 0.233],
                                 "base_to_body_rpy": [
@@ -210,6 +230,48 @@ def generate_launch_description():
                     LaunchConfiguration("start_initial_localizer")
                 ),
             ),
+            TimerAction(
+                period=3.0,
+                actions=[
+                    Node(
+                        package="agribot_hardware_bringup",
+                        executable="rtk_map_initializer",
+                        name="rtk_map_initializer",
+                        output="screen",
+                        parameters=[
+                            os.path.join(
+                                hardware_share,
+                                "config",
+                                "rtk_map_initializer.yaml",
+                            ),
+                            {
+                                "use_sim_time": use_sim_time,
+                                "georeference_file": georeference,
+                                "map_file": map_pcd,
+                                "odometry_topic": "/fastlivo/odometry",
+                                "initial_pose_topic": (
+                                    "/localization/rtk_initialpose"
+                                ),
+                                "localizer_status_topic": (
+                                    "/localization/status"
+                                ),
+                                "localizer_ready_topic": (
+                                    "/localization/lidar_ready"
+                                ),
+                            },
+                        ],
+                    )
+                ],
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'rtk'",
+                        ]
+                    )
+                ),
+            ),
             Node(
                 package="agribot_hardware_bringup",
                 executable="fastlivo_rtk_fusion",
@@ -223,12 +285,9 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "georeference_file": georeference,
                         "map_file": map_pcd,
-                        "auto_initialize_from_fixed_rtk": LaunchConfiguration(
-                            "auto_initialize_from_fixed_rtk"
-                        ),
-                        "initial_map_from_odom_yaw_rad": LaunchConfiguration(
-                            "initial_map_from_odom_yaw_rad"
-                        ),
+                        # A single RTK position cannot determine yaw. The live
+                        # launch only accepts a refined full-pose seed.
+                        "auto_initialize_from_fixed_rtk": False,
                     },
                 ],
             ),

@@ -39,7 +39,8 @@ fastlivo_rtk_fusion:
     keyframe_distance_m: 0.30
     keyframe_angle_rad: 0.08726646259971647
 
-    # Fixed RTK contributes horizontal antenna position only.
+    # Fixed RTK contributes horizontal antenna position only. The node also
+    # combines this receiver floor with the map georeference RMSE.
     rtk_factor_min_distance_m: 0.30
     rtk_max_innovation_m: 1.50
     rtk_horizontal_sigma_floor_m: 0.10
@@ -63,8 +64,14 @@ fastlivo_rtk_fusion:
     initial_roll_pitch_sigma_rad: 0.008726646259971648
     initial_z_sigma_m: 0.10
 
-    # Apply global corrections gradually while local odometry stays continuous.
-    correction_translation_rate_mps: 0.50
-    correction_rotation_rate_radps: 0.20
+    # Filter the correction at the current vehicle pose. Limiting map->odom
+    # directly would amplify a small yaw update as the vehicle leaves the origin.
+    # When quality-4 RTK is unavailable, freeze this global correction and
+    # propagate only FAST-LIVO2 local odometry until fixed RTK returns.
+    correction_translation_rate_mps: 0.25
+    correction_rotation_rate_radps: 0.10
+    correction_time_constant_sec: 2.0
     path_max_poses: 6000
     path_sample_period_sec: 0.10
+    # Only the three visualization paths are flattened; odometry and TF stay 3D.
+    flatten_visualization_paths: true

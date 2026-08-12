@@ -266,11 +266,15 @@ private:
       "correction_translation_rate_mps", 0.50);
     correction_rotation_rate_radps_ = declare_parameter<double>(
       "correction_rotation_rate_radps", 0.20);
+    correction_time_constant_sec_ = declare_parameter<double>(
+      "correction_time_constant_sec", 2.0);
     fixed_recent_timeout_sec_ = declare_parameter<double>(
       "fixed_recent_timeout_sec", 0.50);
     path_max_poses_ = declare_parameter<int>("path_max_poses", 6000);
     path_sample_period_sec_ = declare_parameter<double>(
       "path_sample_period_sec", 0.10);
+    flatten_visualization_paths_ = declare_parameter<bool>(
+      "flatten_visualization_paths", true);
 
     const std::vector<double> antenna = declare_parameter<std::vector<double>>(
       "base_to_antenna_xyz", {0.1425, 0.2952585, 0.78476});
@@ -293,7 +297,7 @@ private:
     if (required_fix_quality_ < 1 || required_consecutive_fixed_ < 1 ||
       path_max_poses_ < 2 || path_sample_period_sec_ <= 0.0 ||
       correction_translation_rate_mps_ <= 0.0 || correction_rotation_rate_radps_ <= 0.0 ||
-      fixed_recent_timeout_sec_ <= 0.0 ||
+      correction_time_constant_sec_ <= 0.0 || fixed_recent_timeout_sec_ <= 0.0 ||
       !std::all_of(
         positive_parameters.begin(), positive_parameters.end(),
         [](const double value) {return std::isfinite(value) && value > 0.0;}))
@@ -490,8 +494,12 @@ private:
     sample.sequence = ++rtk_sequence_;
     sample.stamp_sec = messageStampOrNow(message->header.stamp);
     sample.antenna_in_map = antenna_in_map;
-    sample.sigma_x_m = covarianceSigma(message->position_covariance[0]);
-    sample.sigma_y_m = covarianceSigma(message->position_covariance[4]);
+    sample.sigma_x_m = std::hypot(
+      covarianceSigma(message->position_covariance[0]),
+      georeference_horizontal_rmse_m_);
+    sample.sigma_y_m = std::hypot(
+      covarianceSigma(message->position_covariance[4]),
+      georeference_horizontal_rmse_m_);
     latest_fixed_rtk_ = sample;
     last_fixed_fix_receipt_sec_ = now().seconds();
 
@@ -704,7 +712,7 @@ private:
     latest_key_ = key;
     keyframes_.push_back({key, sample.stamp_sec, sample.odom_from_base, false});
     pruneKeyframeIndex(sample.stamp_sec);
-    refreshOptimizedCorrection();
+    refreshLatestOptimizedPose();
   }
 
   void addGravityFactor(
@@ -817,10 +825,18 @@ private:
     if (!smoother_ || keyframes_.empty()) {
       return;
     }
-    latest_optimized_map_from_base_ =
-      smoother_->calculateEstimate<gtsam::Pose3>(latest_key_);
+    refreshLatestOptimizedPose();
     target_map_from_odom_ = latest_optimized_map_from_base_.compose(
       keyframes_.back().odom_from_base.inverse());
+  }
+
+  void refreshLatestOptimizedPose()
+  {
+    if (!smoother_ || keyframes_.empty()) {
+      return;
+    }
+    latest_optimized_map_from_base_ =
+      smoother_->calculateEstimate<gtsam::Pose3>(latest_key_);
     updateMarginalCovariance();
   }
 
@@ -843,7 +859,8 @@ private:
     }
   }
 
-  void updateAppliedCorrection(const double stamp_sec)
+  void updateAppliedCorrection(
+    const double stamp_sec, const gtsam::Pose3 & odom_from_base)
   {
     if (!applied_correction_stamp_sec_.has_value()) {
       applied_map_from_odom_ = target_map_from_odom_;
@@ -857,29 +874,47 @@ private:
       return;
     }
 
-    gtsam::Vector3 translation_delta =
-      target_map_from_odom_.translation() - applied_map_from_odom_.translation();
+    // Without a new absolute position observation, map->odom is unobservable.
+    // Keep the last accepted global correction and propagate only local odometry.
+    if (!fixedRecentlyActive()) {
+      last_applied_translation_step_m_ = 0.0;
+      last_applied_rotation_step_rad_ = 0.0;
+      return;
+    }
+
+    const gtsam::Pose3 target_map_from_base = target_map_from_odom_.compose(
+      odom_from_base);
+    const gtsam::Pose3 applied_map_from_base = applied_map_from_odom_.compose(
+      odom_from_base);
+    const double filter_fraction = -std::expm1(-dt / correction_time_constant_sec_);
+
+    gtsam::Vector3 translation_delta = filter_fraction * (
+      target_map_from_base.translation() - applied_map_from_base.translation());
     const double maximum_translation = correction_translation_rate_mps_ * dt;
     if (translation_delta.norm() > maximum_translation) {
       translation_delta *= maximum_translation / translation_delta.norm();
     }
     const gtsam::Point3 translation =
-      applied_map_from_odom_.translation() + translation_delta;
+      applied_map_from_base.translation() + translation_delta;
 
-    gtsam::Vector3 rotation_delta = gtsam::Rot3::Logmap(
-      applied_map_from_odom_.rotation().between(target_map_from_odom_.rotation()));
+    gtsam::Vector3 rotation_delta = filter_fraction * gtsam::Rot3::Logmap(
+      applied_map_from_base.rotation().between(target_map_from_base.rotation()));
     const double maximum_rotation = correction_rotation_rate_radps_ * dt;
     if (rotation_delta.norm() > maximum_rotation) {
       rotation_delta *= maximum_rotation / rotation_delta.norm();
     }
-    const gtsam::Rot3 rotation = applied_map_from_odom_.rotation().compose(
+    const gtsam::Rot3 rotation = applied_map_from_base.rotation().compose(
       gtsam::Rot3::Expmap(rotation_delta));
-    applied_map_from_odom_ = gtsam::Pose3(rotation, translation);
+    const gtsam::Pose3 smoothed_map_from_base(rotation, translation);
+    applied_map_from_odom_ = smoothed_map_from_base.compose(
+      odom_from_base.inverse());
+    last_applied_translation_step_m_ = translation_delta.norm();
+    last_applied_rotation_step_rad_ = rotation_delta.norm();
   }
 
   void publishCurrentEstimate(const OdomSample & sample)
   {
-    updateAppliedCorrection(sample.stamp_sec);
+    updateAppliedCorrection(sample.stamp_sec, sample.odom_from_base);
     const gtsam::Pose3 map_from_base = applied_map_from_odom_.compose(
       sample.odom_from_base);
 
@@ -947,6 +982,9 @@ private:
     stamped_pose.header.stamp = stamp;
     stamped_pose.header.frame_id = map_frame_;
     stamped_pose.pose = poseMessage(pose);
+    if (flatten_visualization_paths_) {
+      stamped_pose.pose.position.z = 0.0;
+    }
     path.header.stamp = stamp;
     path.poses.push_back(stamped_pose);
     if (path.poses.size() > static_cast<std::size_t>(path_max_poses_)) {
@@ -1018,6 +1056,15 @@ private:
     status.values.push_back(diagnosticValue(
         "last_optimization_ms", std::to_string(last_optimization_ms_)));
     status.values.push_back(diagnosticValue(
+        "last_applied_translation_step_m",
+        std::to_string(last_applied_translation_step_m_)));
+    status.values.push_back(diagnosticValue(
+        "last_applied_rotation_step_rad",
+        std::to_string(last_applied_rotation_step_rad_)));
+    status.values.push_back(diagnosticValue(
+        "global_correction_frozen",
+        fixedRecentlyActive() ? "false" : "true"));
+    status.values.push_back(diagnosticValue(
         "georeference_horizontal_rmse_m", std::to_string(georeference_horizontal_rmse_m_)));
     array.status.push_back(status);
     diagnostics_publisher_->publish(array);
@@ -1083,11 +1130,14 @@ private:
   double initial_z_sigma_m_{0.10};
   double correction_translation_rate_mps_{0.50};
   double correction_rotation_rate_radps_{0.20};
+  double correction_time_constant_sec_{2.0};
   double fixed_recent_timeout_sec_{0.50};
   double path_sample_period_sec_{0.10};
   double georeference_horizontal_rmse_m_{0.0};
   double last_rtk_innovation_m_{0.0};
   double last_optimization_ms_{0.0};
+  double last_applied_translation_step_m_{0.0};
+  double last_applied_rotation_step_rad_{0.0};
 
   int latest_quality_{0};
   int consecutive_fixed_count_{0};
@@ -1100,6 +1150,7 @@ private:
   std::size_t accepted_gravity_count_{0U};
   std::size_t rejected_gravity_count_{0U};
   bool initialized_{false};
+  bool flatten_visualization_paths_{true};
 
   gtsam::Point3 base_to_antenna_{0.1425, 0.2952585, 0.78476};
   gtsam::Rot3 base_from_imu_;

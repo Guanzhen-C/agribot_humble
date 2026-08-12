@@ -37,6 +37,7 @@ public:
   void initializeComponents(rclcpp::Node::SharedPtr &node);
   void initializeFiles();
   void run(rclcpp::Node::SharedPtr &node);
+  rclcpp::Node::SharedPtr getNode() const { return node; }
   void gravityAlignment();
   void handleFirstFrame();
   void stateEstimationAndMapping();
@@ -44,6 +45,7 @@ public:
   void handleLIO();
   void savePCD();
   void processImu();
+  void lidarPreprocessLoop();
   
   bool sync_packages(LidarMeasureGroup &meas);
   void prop_imu_once(StatesGroup &imu_prop_state, const double dt, V3D acc_avr, V3D angvel_avr);
@@ -69,8 +71,8 @@ public:
   template <typename T> Eigen::Matrix<T, 3, 1> pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi);
   cv::Mat getImageFromMsg(const sensor_msgs::msg::Image::ConstSharedPtr &img_msg);
 
-  std::mutex mtx_buffer, mtx_buffer_imu_prop;
-  std::condition_variable sig_buffer;
+  std::mutex mtx_buffer, mtx_buffer_imu_prop, mtx_lidar_input;
+  std::condition_variable sig_buffer, lidar_input_cv;
 
   SLAM_MODE slam_mode_;
   std::unordered_map<VOXEL_LOCATION, VoxelOctoTree *> voxel_map;
@@ -128,13 +130,21 @@ public:
   int frame_cnt;
   double img_time_offset = 0.0;
   double image_max_rate_hz = 0.0;
-  int lidar_subscription_queue_depth = 1;
+  double lidar_gap_warning_sec = 0.15;
+  int lidar_subscription_queue_depth = 4;
   int imu_subscription_queue_depth = 200;
   int image_subscription_queue_depth = 2;
   size_t max_lidar_buffer_size = 2;
+  size_t max_lidar_input_buffer_size = 4;
   size_t max_imu_buffer_size = 300;
   size_t max_image_buffer_size = 3;
   std::atomic<uint64_t> lidar_overflow_drop_count{0};
+  std::atomic<uint64_t> lidar_input_overflow_drop_count{0};
+  std::atomic<uint64_t> lidar_received_count{0};
+  std::atomic<uint64_t> lidar_timestamp_gap_count{0};
+  std::atomic<uint64_t> sensor_sync_warning_count{0};
+  std::atomic<double> last_received_lidar_timestamp{-1.0};
+  std::atomic<double> max_lidar_timestamp_gap_sec{0.0};
   std::atomic<uint64_t> imu_overflow_drop_count{0};
   std::atomic<uint64_t> image_received_count{0};
   std::atomic<uint64_t> image_processed_count{0};
@@ -143,6 +153,8 @@ public:
   std::atomic<uint64_t> image_stale_drop_count{0};
   deque<PointCloudXYZI::Ptr> lid_raw_data_buffer;
   deque<double> lid_header_time_buffer;
+  deque<sensor_msgs::msg::PointCloud2::ConstSharedPtr> standard_lidar_input_buffer;
+  deque<livox_ros_driver2::msg::CustomMsg::ConstSharedPtr> livox_lidar_input_buffer;
   deque<sensor_msgs::msg::Imu::ConstSharedPtr> imu_buffer;
   deque<cv::Mat> img_buffer;
   deque<double> img_time_buffer;
@@ -200,6 +212,9 @@ public:
   image_transport::Publisher pubImage;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr mavros_pose_publisher;
   rclcpp::TimerBase::SharedPtr imu_prop_timer;
+  rclcpp::CallbackGroup::SharedPtr lidar_callback_group;
+  rclcpp::CallbackGroup::SharedPtr imu_callback_group;
+  rclcpp::CallbackGroup::SharedPtr image_callback_group;
   rclcpp::Node::SharedPtr node;
 
   int frame_num = 0;
