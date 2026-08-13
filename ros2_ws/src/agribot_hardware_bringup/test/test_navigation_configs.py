@@ -30,11 +30,11 @@ MODEL_MAX_STEERING = float(
     ]
 )
 MODEL_MIN_TURNING_RADIUS = MODEL_WHEELBASE / math.tan(MODEL_MAX_STEERING)
-MODEL_FOOTPRINT = [
-    [0.654818, 0.335974],
-    [0.654818, -0.335974],
-    [-0.127500, -0.335974],
-    [-0.127500, 0.335974],
+SAFETY_FOOTPRINT = [
+    [0.754818, 0.485974],
+    [0.754818, -0.485974],
+    [-0.227500, -0.485974],
+    [-0.227500, 0.485974],
 ]
 
 
@@ -379,7 +379,7 @@ def test_3d_mapping_and_mapped_navigation_use_optional_fpfh_localization():
     assert "result has implausible rear-axle height" not in localizer_source
 
 
-def test_ackermann_configs_use_step_model_rear_axle_footprint():
+def test_ackermann_configs_use_buffered_rear_axle_footprint():
     for name in (
         "nav2_params_ackermann_navsat_static.yaml",
         "nav2_params_ackermann_fastlio_mapped.yaml",
@@ -388,7 +388,8 @@ def test_ackermann_configs_use_step_model_rear_axle_footprint():
         config = load_config(name, "ackermann")
         for costmap_name in ("global_costmap", "local_costmap"):
             costmap = config[costmap_name][costmap_name]["ros__parameters"]
-            assert yaml.safe_load(costmap["footprint"]) == MODEL_FOOTPRINT
+            assert yaml.safe_load(costmap["footprint"]) == SAFETY_FOOTPRINT
+            assert costmap["footprint_padding"] == 0.0
 
 
 def test_ackermann_fastlio_local_config_uses_rolling_obstacle_costmaps():

@@ -48,6 +48,8 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     assert costmap["plugins"] == ["static_layer", "inflation_layer"]
     assert "stvl_layer" not in costmap
     assert costmap["footprint"] == mapped_costmap["footprint"]
+    assert costmap["footprint_padding"] == 0.0
+    assert costmap["footprint_padding"] == mapped_costmap["footprint_padding"]
     assert costmap["inflation_layer"]["plugin"] == (
         mapped_costmap["inflation_layer"]["plugin"]
     )
