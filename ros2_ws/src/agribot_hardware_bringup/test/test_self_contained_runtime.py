@@ -156,6 +156,15 @@ def test_rviz_goal_tool_sends_nav2_action_directly():
         assert "Class: rviz_default_plugins/SetGoal" not in config
 
 
+def test_navigation_rviz_keeps_nav2_panel_visible_in_left_dock():
+    for name in ("navigation.rviz", "navigation_local.rviz"):
+        config = (PACKAGE_ROOT / "rviz" / name).read_text()
+        window_geometry = config.split("Window Geometry:\n", maxsplit=1)[1]
+        assert "  Hide Left Dock: false\n" in window_geometry
+        assert "  Navigation 2:\n    collapsed: false\n" in window_geometry
+        assert "  QMainWindow State: " in window_geometry
+
+
 def test_navigation_rviz_does_not_render_3d_clouds_or_legacy_scan():
     config = (PACKAGE_ROOT / "rviz" / "navigation.rviz").read_text()
     assert "Class: rviz_default_plugins/LaserScan" not in config
