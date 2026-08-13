@@ -29,6 +29,22 @@ def test_service_result_requires_explicit_success():
     assert not MODULE.service_succeeded("success: false")
 
 
+def test_indoor_playback_excludes_recorded_tf_and_rtk():
+    topics = MODULE.playback_topics(without_rtk=True)
+
+    assert topics == ("/lidar/points", "/imu/data")
+    assert "/tf" not in topics
+    assert "/rtk/fix" not in topics
+
+
+def test_rtk_playback_still_excludes_recorded_tf():
+    topics = MODULE.playback_topics(without_rtk=False)
+
+    assert "/rtk/fix" in topics
+    assert "/rtk/heading_with_covariance" in topics
+    assert "/tf" not in topics
+
+
 def test_manifest_records_robust_horizontal_and_gravity_constraints(tmp_path):
     map_base = tmp_path / "map_test"
     paths = MODULE.output_paths(map_base)
@@ -59,6 +75,25 @@ def test_manifest_records_robust_horizontal_and_gravity_constraints(tmp_path):
     assert document["point_exclusion"]["rtk_antenna_boxes_base_link"][
         "left_center_xyz_m"
     ] == [0.1425, 0.2952585, 0.78476]
+
+
+def test_without_rtk_manifest_omits_georeference_artifact(tmp_path):
+    map_base = tmp_path / "map_indoor"
+    paths = MODULE.output_paths(map_base)
+    arguments = MODULE.parse_arguments(
+        [str(tmp_path / "bag"), str(map_base), "--without-rtk"]
+    )
+
+    MODULE.write_manifest(
+        paths["manifest"], tmp_path / "bag", map_base,
+        tmp_path / "work" / "map_indoor", paths, arguments
+    )
+
+    document = yaml.safe_load(paths["manifest"].read_text(encoding="utf-8"))
+    assert document["pipeline"] == "lio_sam_gravity_indoor_v1"
+    assert document["rtk_mode"] == "disabled"
+    assert document["rtk_factor"]["enabled"] is False
+    assert "georeference" not in document["artifacts"]
 
 
 def test_validate_inputs_rejects_unsafe_map_name(tmp_path):

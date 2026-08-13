@@ -14,15 +14,34 @@ import time
 import yaml
 
 
-RESULT_TOPICS = (
+LOCAL_INPUT_TOPICS = (
+    "/lidar/points",
+    "/imu/data",
+)
+RTK_INPUT_TOPICS = (
+    "/rtk/fix",
+    "/rtk/fix_quality",
+    "/rtk/heading_with_covariance",
+    "/rtk/heading_solution",
+)
+LOCAL_RESULT_TOPICS = (
     "/lio_sam/mapping/odometry",
     "/lio_sam/mapping/path",
+)
+RTK_RESULT_TOPICS = (
     "/lio_sam/odometry/gps",
     "/lio_sam/odometry/heading",
     "/lio_sam/odometry/rtk_antenna",
     "/lio_sam/rtk_adapter_status",
     "/lio_sam/rtk_reference",
 )
+RESULT_TOPICS = LOCAL_RESULT_TOPICS + RTK_RESULT_TOPICS
+
+
+def playback_topics(without_rtk):
+    if without_rtk:
+        return LOCAL_INPUT_TOPICS
+    return LOCAL_INPUT_TOPICS + RTK_INPUT_TOPICS
 
 
 class PipelineError(RuntimeError):
@@ -155,18 +174,27 @@ def remove_existing(paths, work_directory, force):
 
 
 def write_manifest(path, bag, map_base, work_directory, paths, arguments):
+    rtk_enabled = not arguments.without_rtk
+    artifacts = {
+        key: str(paths[key]) for key in ("pcd", "pgm", "yaml")
+    }
+    if rtk_enabled:
+        artifacts["georeference"] = str(paths["georeference"])
     document = {
         "schema_version": 1,
-        "pipeline": "lio_sam_rtk_gravity_robust_xy_v2",
+        "pipeline": (
+            "lio_sam_rtk_gravity_robust_xy_v2"
+            if rtk_enabled
+            else "lio_sam_gravity_indoor_v1"
+        ),
+        "rtk_mode": "required" if rtk_enabled else "disabled",
         "source_bag": str(bag),
         "map_base": str(map_base),
         "work_directory": str(work_directory),
         "result_bag": str(paths["result_bag"]),
-        "artifacts": {
-            key: str(paths[key])
-            for key in ("pcd", "pgm", "yaml", "georeference")
-        },
+        "artifacts": artifacts,
         "rtk_factor": {
+            "enabled": rtk_enabled,
             "horizontal_variance_floor_m2": 0.01,
             "horizontal_standard_deviation_floor_m": 0.1,
             "factor_minimum_distance_m": 1.0,
@@ -206,8 +234,9 @@ def write_manifest(path, bag, map_base, work_directory, paths, arguments):
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Build a strongly RTK-constrained LIO-SAM map, georeference it, "
-            "and retain the matching trajectories in one reproducible run"
+            "Build a LIO-SAM map and retain matching trajectories. By default "
+            "fixed RTK constrains and georeferences the map; --without-rtk "
+            "builds an indoor lidar/IMU-only map."
         )
     )
     parser.add_argument("bag", type=Path, help="input ROS 2 bag directory")
@@ -225,6 +254,14 @@ def parse_arguments(argv=None):
     )
     parser.add_argument(
         "--force", action="store_true", help="replace outputs with the same map name"
+    )
+    parser.add_argument(
+        "--without-rtk",
+        action="store_true",
+        help=(
+            "do not start the RTK adapter/exporter, add RTK factors, or require "
+            "a georeference artifact"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -261,6 +298,7 @@ def main(argv=None):
                 f"map_base:={map_base}",
                 f"source_bag:={bag}",
                 "use_sim_time:=true",
+                f"start_rtk_components:={'false' if arguments.without_rtk else 'true'}",
             ],
             environment,
         )
@@ -269,7 +307,11 @@ def main(argv=None):
         record_process = start(
             [
                 "ros2", "bag", "record", "-o", str(paths["result_bag"]),
-                *RESULT_TOPICS,
+                *(
+                    LOCAL_RESULT_TOPICS
+                    if arguments.without_rtk
+                    else RESULT_TOPICS
+                ),
             ],
             environment,
         )
@@ -283,11 +325,14 @@ def main(argv=None):
                 "--clock", "100",
                 "--rate", str(arguments.playback_rate),
                 "--read-ahead-queue-size", "1000",
+                "--topics", *playback_topics(arguments.without_rtk),
+                "--disable-keyboard-controls",
             ],
             environment,
         )
         print(
-            f"Playback complete; waiting {arguments.settle_seconds:.1f} s for final optimization ...",
+            "Playback complete; waiting "
+            f"{arguments.settle_seconds:.1f} s for final optimization ...",
             flush=True,
         )
         time.sleep(arguments.settle_seconds)
@@ -314,24 +359,27 @@ def main(argv=None):
         ]
         run(finalize_command, environment, timeout=900.0)
 
-        georeference_output = run(
-            [
-                "ros2", "service", "call", "/map_georeference_exporter/save",
-                "std_srvs/srv/Trigger", "{}",
-            ],
-            environment,
-            timeout=120.0,
-            capture=True,
-        )
-        if not service_succeeded(georeference_output):
-            raise PipelineError("map georeference service did not report success")
+        if not arguments.without_rtk:
+            georeference_output = run(
+                [
+                    "ros2", "service", "call", "/map_georeference_exporter/save",
+                    "std_srvs/srv/Trigger", "{}",
+                ],
+                environment,
+                timeout=120.0,
+                capture=True,
+            )
+            if not service_succeeded(georeference_output):
+                raise PipelineError("map georeference service did not report success")
 
         stop(record_process, "result bag recorder")
         record_process = None
         required = [
             paths["pcd"], paths["pgm"], paths["yaml"],
-            paths["georeference"], paths["result_bag"] / "metadata.yaml",
+            paths["result_bag"] / "metadata.yaml",
         ]
+        if not arguments.without_rtk:
+            required.append(paths["georeference"])
         missing = [path for path in required if not path.exists()]
         if missing:
             raise PipelineError(
@@ -342,7 +390,11 @@ def main(argv=None):
             paths["manifest"], bag, map_base, work_directory, paths, arguments
         )
         print("\nPipeline completed successfully:", flush=True)
-        for key in ("pcd", "pgm", "yaml", "georeference", "result_bag", "manifest"):
+        output_keys = ["pcd", "pgm", "yaml"]
+        if not arguments.without_rtk:
+            output_keys.append("georeference")
+        output_keys.extend(("result_bag", "manifest"))
+        for key in output_keys:
             print(f"  {key}: {paths[key]}", flush=True)
         return 0
     except KeyboardInterrupt:

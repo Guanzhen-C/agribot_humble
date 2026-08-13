@@ -510,8 +510,8 @@ ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
   "{percentage: false, speed_limit: 0.15}"
 ros2 topic hz /wheel/odometry
 
-# 可选初始定位方式：manual需要在RViz点击2D Pose Estimate，lidar会自动执行全图FPFH
-# 长走廊重复结构下优先使用rtk；全图FPFH计算较慢且可能匹配到相似位置
+# 可选初始定位方式：manual在RViz点击2D Pose Estimate提供粗初值，随后仍执行两级NDT和GICP
+# lidar才会自动执行全图FPFH；长走廊中FPFH较慢且可能匹配到相似位置
 # initialization_source:=manual
 # initialization_source:=lidar
 
@@ -612,3 +612,57 @@ ros2 run tf2_ros tf2_echo map base_link
 # RTK暂时失去固定解时仍由FAST-LIVO2连续输出；恢复固定解后通过限速的map到odom修正平滑拉回
 # 初始重定位只使用一次双天线航向；运行期间融合器只使用质量4的RTK水平位置
 # RTK航向暂时无法达到整数固定时，改为initialization_source:=manual并在RViz给出初始位姿
+
+# 无RTK室内数据：Jetson离线建立LIO-SAM三维图和二维导航图
+# 只回放原始雷达和IMU，不回放bag中的旧TF、旧里程计和旧地图结果
+# 不添加RTK因子，也不生成_georeference.yaml
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export BAG=/media/cgz/data/agribot_data/bags/map_lio_sam_zoulang_20260813_104730
+export MAP_BASE=/media/cgz/data/agribot_data/maps/map_lio_sam_zoulang_0813_indoor
+ros2 run agribot_offline_mapping run_rtk_mapping_pipeline.py \
+  "$BAG" "$MAP_BASE" \
+  --playback-rate 0.5 \
+  --without-rtk
+
+# 同名结果已存在且确认需要覆盖时，在上一条命令末尾增加--force
+# 结果应包含.pcd、.pgm、.yaml、_result和_manifest.yaml，不应有_georeference.yaml
+
+# 无RTK室内数据：离线验证正式的手动粗定位、NDT/GICP和FAST-LIVO2连续定位链
+# initial参数等价于在RViz使用2D Pose Estimate给出的粗位姿，不是最终定位结果
+# 定位器会继续执行粗NDT、细NDT和GICP，再把/localization_pose交给融合器
+# 本验证不运行RTK轨迹和KF-GINS；没有固定解时融合轨迹必须与FAST-LIVO2连续传播一致
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export OUTPUT_BAG=${MAP_BASE}_fastlivo_fusion
+ros2 run agribot_offline_mapping run_indoor_fastlivo_fusion_validation.py \
+  "$BAG" "$MAP_BASE" "$OUTPUT_BAG" \
+  --playback-rate 0.5 \
+  --initial-x 0.0 \
+  --initial-y 0.0 \
+  --initial-yaw-deg 0.0
+
+# 无RTK室内真机运行：RViz手动粗定位后仍经过同一套两级NDT和GICP
+# enable_fpfh默认false，manual模式不会执行全图FPFH
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_zoulang_0813_indoor
+ros2 launch agribot_hardware_bringup \
+  ackermann_fastlivo_rtk_localization.launch.py \
+  map_base:=$MAP_BASE \
+  initialization_source:=manual \
+  allow_missing_georeference:=true \
+  start_rtk:=false \
+  rviz:=true
+
+# 启动后保持车辆静止，在RViz点击2D Pose Estimate给出附近位置和车头方向
+# /localization/lidar_ready为true且/localization_pose发布后，才表示NDT/GICP精配准成功
+ros2 topic echo /localization/status --once
+ros2 topic echo /localization/lidar_ready --once
+ros2 topic echo /localization_pose --once
+ros2 topic echo /fastlivo_rtk/ready --once
+ros2 topic echo /fastlivo_rtk/fixed_active --once

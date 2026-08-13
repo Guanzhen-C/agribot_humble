@@ -59,6 +59,7 @@ install(TARGETS
 install(PROGRAMS
   scripts/finalize_lio_sam_map.py
   scripts/mapping_result_trajectory_publisher.py
+  scripts/run_indoor_fastlivo_fusion_validation.py
   scripts/run_localization_comparison.py
   scripts/run_rtk_mapping_pipeline.py
   DESTINATION lib/${PROJECT_NAME}
@@ -84,6 +85,10 @@ if(BUILD_TESTING)
   target_include_directories(test_rtk_lever_arm PRIVATE include)
   target_link_libraries(test_rtk_lever_arm Eigen3::Eigen)
   ament_add_pytest_test(test_finalize_lio_sam_map test/test_finalize_lio_sam_map.py)
+  ament_add_pytest_test(
+    test_indoor_fastlivo_fusion_validation
+    test/test_indoor_fastlivo_fusion_validation.py
+  )
   ament_add_pytest_test(
     test_localization_comparison_runner
     test/test_localization_comparison_runner.py

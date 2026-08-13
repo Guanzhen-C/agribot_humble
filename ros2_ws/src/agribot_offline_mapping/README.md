@@ -50,6 +50,37 @@ so a viewer cannot silently combine a trajectory with an older map. The viewer
 also verifies the PCD fingerprint stored by the georeference exporter before it
 starts publishing any result.
 
+For an indoor recording without RTK, run the same mapping pipeline with
+`--without-rtk`. This mode replays only the raw lidar and IMU topics, does not
+start the RTK adapter or add GPS factors, and intentionally does not create a
+`MAP_NAME_georeference.yaml` file:
+
+```bash
+ros2 run agribot_offline_mapping run_rtk_mapping_pipeline.py \
+  /home/cgz/agribot_bags/INDOOR_BAG \
+  /home/cgz/agribot_maps/test_site/INDOOR_MAP \
+  --domain-id 71 --playback-rate 0.5 --without-rtk
+```
+
+Validate the production indoor localization chain with:
+
+```bash
+ros2 run agribot_offline_mapping \
+  run_indoor_fastlivo_fusion_validation.py \
+  /home/cgz/agribot_bags/INDOOR_BAG \
+  /home/cgz/agribot_maps/test_site/INDOOR_MAP \
+  /home/cgz/agribot_maps/test_site/INDOOR_MAP_fastlivo_fusion \
+  --domain-id 76 --playback-rate 0.5 \
+  --initial-x 0.0 --initial-y 0.0 --initial-yaw-deg 0.0
+```
+
+The supplied initial pose has the same role as RViz `2D Pose Estimate`: it is
+only a coarse prior. The existing localizer still runs coarse NDT, fine NDT and
+GICP, and only its accepted `/localization_pose` seeds the fusion node. FPFH is
+not used in `manual` mode. The validator rejects bags containing RTK fixes and
+checks that no RTK factor becomes active, the global correction stays frozen,
+and the fused path remains identical to aligned FAST-LIVO2 propagation.
+
 Display the matching 2D map, 3D map, rear-axle RTK path and rear-axle optimized
 LIO-SAM path with:
 

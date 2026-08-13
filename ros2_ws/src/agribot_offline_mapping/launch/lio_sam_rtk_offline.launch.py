@@ -24,6 +24,7 @@ def generate_launch_description():
             DeclareLaunchArgument("source_bag", default_value=""),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("start_lio_sam", default_value="true"),
+            DeclareLaunchArgument("start_rtk_components", default_value="true"),
             DeclareLaunchArgument(
                 "auto_reference_from_first_fix", default_value="true"
             ),
@@ -89,6 +90,7 @@ def generate_launch_description():
                         ),
                     },
                 ],
+                condition=IfCondition(LaunchConfiguration("start_rtk_components")),
             ),
             Node(
                 package="agribot_offline_mapping",
@@ -107,6 +109,7 @@ def generate_launch_description():
                         "source_bag": LaunchConfiguration("source_bag"),
                     },
                 ],
+                condition=IfCondition(LaunchConfiguration("start_rtk_components")),
             ),
             Node(
                 package="tf2_ros",

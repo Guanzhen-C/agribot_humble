@@ -132,7 +132,7 @@ public:
   : Node("fastlivo_rtk_fusion")
   {
     declareAndLoadParameters();
-    loadGeoreference();
+    loadGeoreferenceIfAvailable();
     configureNoiseModels();
     createRosInterfaces();
 
@@ -210,6 +210,8 @@ private:
     base_frame_ = declare_parameter<std::string>("base_frame", "base_link");
     georeference_file_ = declare_parameter<std::string>("georeference_file", "");
     map_file_ = declare_parameter<std::string>("map_file", "");
+    allow_missing_georeference_ = declare_parameter<bool>(
+      "allow_missing_georeference", false);
 
     publish_tf_ = declare_parameter<bool>("publish_map_to_odom_tf", true);
     auto_initialize_from_fixed_rtk_ = declare_parameter<bool>(
@@ -304,13 +306,26 @@ private:
     {
       throw std::runtime_error("FAST-LIVO2/RTK fusion parameters are invalid");
     }
-    if (georeference_file_.empty()) {
+    if (georeference_file_.empty() && !allow_missing_georeference_) {
       throw std::runtime_error("georeference_file is required");
     }
   }
 
-  void loadGeoreference()
+  void loadGeoreferenceIfAvailable()
   {
+    if (georeference_file_.empty() ||
+      !std::filesystem::is_regular_file(std::filesystem::path(georeference_file_)))
+    {
+      if (!allow_missing_georeference_) {
+        throw std::runtime_error(
+                "georeference_file does not exist: " + georeference_file_);
+      }
+      RCLCPP_WARN(
+        get_logger(),
+        "Starting without a map georeference; manual/lidar seed and FAST-LIVO2 "
+        "propagation remain available, but fixed RTK factors will be rejected");
+      return;
+    }
     const auto georeference = navsat::loadMapGeoreference(
       std::filesystem::path(georeference_file_));
     if (!map_file_.empty()) {
@@ -327,6 +342,7 @@ private:
       georeference.reference_altitude_m);
     map_from_enu_ = poseFromEigen(navsat::mapFromEnuTransform(georeference));
     georeference_horizontal_rmse_m_ = georeference.horizontal_rmse_m;
+    georeference_available_ = true;
     RCLCPP_INFO(
       get_logger(),
       "Loaded map georeference '%s': horizontal RMSE %.3f m, %zu samples",
@@ -471,6 +487,14 @@ private:
       !std::isfinite(message->altitude))
     {
       ++rejected_nonfixed_count_;
+      publishStateFlags();
+      return;
+    }
+    if (!georeference_available_) {
+      ++rejected_missing_georeference_count_;
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 3000,
+        "Rejecting fixed RTK position because this map has no georeference");
       publishStateFlags();
       return;
     }
@@ -1046,6 +1070,9 @@ private:
     status.values.push_back(diagnosticValue(
         "rejected_innovation", std::to_string(rejected_innovation_count_)));
     status.values.push_back(diagnosticValue(
+        "rejected_missing_georeference",
+        std::to_string(rejected_missing_georeference_count_)));
+    status.values.push_back(diagnosticValue(
         "gravity_factors", std::to_string(accepted_gravity_count_)));
     status.values.push_back(diagnosticValue(
         "missing_gravity", std::to_string(rejected_gravity_count_)));
@@ -1066,6 +1093,8 @@ private:
         fixedRecentlyActive() ? "false" : "true"));
     status.values.push_back(diagnosticValue(
         "georeference_horizontal_rmse_m", std::to_string(georeference_horizontal_rmse_m_)));
+    status.values.push_back(diagnosticValue(
+        "georeference_available", georeference_available_ ? "true" : "false"));
     array.status.push_back(status);
     diagnostics_publisher_->publish(array);
   }
@@ -1095,6 +1124,8 @@ private:
   std::string base_frame_;
   std::string georeference_file_;
   std::string map_file_;
+  bool allow_missing_georeference_{false};
+  bool georeference_available_{false};
   std::string initialization_status_{"waiting for a map pose seed or fixed RTK"};
 
   bool publish_tf_{true};
@@ -1147,6 +1178,7 @@ private:
   std::size_t accepted_rtk_count_{0U};
   std::size_t rejected_nonfixed_count_{0U};
   std::size_t rejected_innovation_count_{0U};
+  std::size_t rejected_missing_georeference_count_{0U};
   std::size_t accepted_gravity_count_{0U};
   std::size_t rejected_gravity_count_{0U};
   bool initialized_{false};

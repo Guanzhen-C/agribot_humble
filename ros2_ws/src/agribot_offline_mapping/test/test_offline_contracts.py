@@ -293,7 +293,9 @@ def test_standard_pipeline_pairs_map_trajectory_bag_and_rviz():
         PACKAGE_ROOT / "rviz" / "lio_sam_rtk_result.rviz"
     ).read_text(encoding="utf-8")
 
-    assert '"pipeline": "lio_sam_rtk_gravity_robust_xy_v2"' in pipeline
+    assert '"lio_sam_rtk_gravity_robust_xy_v2"' in pipeline
+    assert '"lio_sam_gravity_indoor_v1"' in pipeline
+    assert '"rtk_mode": "required" if rtk_enabled else "disabled"' in pipeline
     assert '"gravity_attitude_factor": True' in pipeline
     assert '"initial_roll_pitch_sigma_deg": 0.5' in pipeline
     assert '"/lio_sam/mapping/path"' in pipeline

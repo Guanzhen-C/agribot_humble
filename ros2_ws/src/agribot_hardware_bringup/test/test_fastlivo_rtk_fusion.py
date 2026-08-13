@@ -58,14 +58,40 @@ def test_live_launch_starts_fastlivo_rtk_fusion_and_disables_localizer_tf():
     assert '"publish_tf": False' in launch_source
     assert '"cloud_topic": "/lidar/points"' in launch_source
     assert '"odom_topic": "/fastlivo/odometry"' in launch_source
-    assert '"start_rtk": "true"' in launch_source
+    assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in launch_source
+    assert '"start_rtk": LaunchConfiguration("start_rtk")' in launch_source
     assert '"start_camera", default_value="true"' in launch_source
     assert '"initialization_source",\n                default_value="rtk"' in launch_source
     assert 'executable="rtk_map_initializer"' in launch_source
     assert '"/localization/rtk_initialpose"' in launch_source
     assert '"localizer_ready_topic"' in launch_source
     assert '"auto_initialize_from_fixed_rtk": False' in launch_source
-    assert 'DeclareLaunchArgument(\n                "auto_initialize_from_fixed_rtk"' not in launch_source
+    assert (
+        'DeclareLaunchArgument(\n                "auto_initialize_from_fixed_rtk"'
+        not in launch_source
+    )
+    assert '"allow_missing_georeference"' in launch_source
+
+
+def test_no_rtk_mode_keeps_manual_ndt_gicp_and_freezes_global_correction():
+    launch_source = (
+        PACKAGE_ROOT
+        / "ackermann/launch/ackermann_fastlivo_rtk_localization.launch.py"
+    ).read_text()
+    fusion_source = (
+        PACKAGE_ROOT
+        / "localization/fusion/src/fastlivo_rtk_fusion_node.cpp"
+    ).read_text()
+
+    assert "initialization_source" in launch_source
+    assert '"manual"' in launch_source
+    assert 'executable="pcd_initial_localizer"' in launch_source
+    assert '"initial_pose_topic"' in launch_source
+    assert '"pose_topic": "/localization_pose"' in launch_source
+    assert '"seed_pose_topic", "/localization_pose"' in fusion_source
+    assert '"allow_missing_georeference", false' in fusion_source
+    assert "if (!fixedRecentlyActive())" in fusion_source
+    assert "global_correction_frozen" in fusion_source
 
 
 def test_rtk_initial_pose_uses_position_heading_and_lidar_refinement():

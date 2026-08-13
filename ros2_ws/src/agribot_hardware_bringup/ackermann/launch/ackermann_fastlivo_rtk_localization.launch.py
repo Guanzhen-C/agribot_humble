@@ -17,23 +17,21 @@ from launch_ros.actions import Node
 
 def _validate_paths(context):
     map_base = Path(LaunchConfiguration("map_base").perform(context)).expanduser()
-    missing = [
-        path
-        for path in (
-            map_base.with_suffix(".pcd"),
-            map_base.with_suffix(".yaml"),
-            Path(f"{map_base}_georeference.yaml"),
-        )
-        if not path.is_file()
-    ]
+    initialization_source = LaunchConfiguration("initialization_source").perform(
+        context
+    )
+    allow_missing_georeference = LaunchConfiguration(
+        "allow_missing_georeference"
+    ).perform(context).lower() in ("true", "1", "yes", "on")
+    required = [map_base.with_suffix(".pcd"), map_base.with_suffix(".yaml")]
+    if initialization_source == "rtk" or not allow_missing_georeference:
+        required.append(Path(f"{map_base}_georeference.yaml"))
+    missing = [path for path in required if not path.is_file()]
     if missing:
         raise RuntimeError(
             "FAST-LIVO2/RTK融合缺少地图文件: "
             + ", ".join(str(path) for path in missing)
         )
-    initialization_source = LaunchConfiguration("initialization_source").perform(
-        context
-    )
     if initialization_source not in ("rtk", "manual", "lidar"):
         raise RuntimeError(
             "initialization_source必须是rtk、manual或lidar"
@@ -90,6 +88,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
+            DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
@@ -101,10 +100,18 @@ def generate_launch_description():
                 default_value="rtk",
                 description=(
                     "rtk使用固定解位置和双天线航向生成粗初值；"
-                    "manual使用RViz初值；lidar执行一次全图FPFH定位"
+                    "manual使用RViz粗初值；二者随后都执行NDT/GICP精配准；"
+                    "lidar执行一次全图FPFH后再精配准"
                 ),
             ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
+            DeclareLaunchArgument(
+                "allow_missing_georeference",
+                default_value="false",
+                description=(
+                    "仅用于无RTK室内地图；允许manual/lidar初始化时不提供地理配准"
+                ),
+            ),
             DeclareLaunchArgument(
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
@@ -116,7 +123,7 @@ def generate_launch_description():
                 launch_arguments={
                     "start_lidar": "true",
                     "start_imu": "true",
-                    "start_rtk": "true",
+                    "start_rtk": LaunchConfiguration("start_rtk"),
                     "rviz": "false",
                     "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                 }.items(),
@@ -285,6 +292,9 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "georeference_file": georeference,
                         "map_file": map_pcd,
+                        "allow_missing_georeference": LaunchConfiguration(
+                            "allow_missing_georeference"
+                        ),
                         # A single RTK position cannot determine yaw. The live
                         # launch only accepts a refined full-pose seed.
                         "auto_initialize_from_fixed_rtk": False,
