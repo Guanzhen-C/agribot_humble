@@ -590,6 +590,7 @@ ros2 launch agribot_hardware_bringup \
   start_rtk:=true \
   start_navigation:=false \
   rviz:=true \
+  rviz_config:=/home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/fastlivo_rtk_localization.rviz \
   enable_chassis_output:=false
 
 # 另开终端检查融合实时性；fixed_active只有最近收到连续固定解位置时才为true

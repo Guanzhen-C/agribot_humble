@@ -108,6 +108,7 @@ def test_full_vehicle_launch_uses_fused_odometry_for_navigation_and_safety():
     assert '"require_localization_ready": True' in launch_source
     assert '"localization_ready_topic": "/fastlivo_rtk/ready"' in launch_source
     assert '"enable_chassis_output",\n                default_value="false"' in launch_source
+    assert 'LaunchConfiguration("rviz_config")' in launch_source
 
 
 def test_rtk_initial_pose_uses_position_heading_and_lidar_refinement():

@@ -151,6 +151,13 @@ def generate_launch_description():
             DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value=os.path.join(
+                    hardware_share, "rviz", "navigation.rviz"
+                ),
+                description="RViz配置文件；全流程默认包含Navigation 2面板",
+            ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument(
                 "use_detailed_vehicle_model", default_value="false"
@@ -261,7 +268,7 @@ def generate_launch_description():
                         name="ackermann_fastlivo_rtk_navigation_rviz",
                         arguments=[
                             "-d",
-                            os.path.join(hardware_share, "rviz", "navigation.rviz"),
+                            LaunchConfiguration("rviz_config"),
                         ],
                         parameters=[{"use_sim_time": use_sim_time}],
                         output="screen",
