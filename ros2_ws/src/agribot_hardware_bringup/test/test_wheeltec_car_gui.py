@@ -26,6 +26,20 @@ def test_c50c_command_and_zqwl_packet_encoding():
     )
 
 
+def test_gui_defaults_and_command_limits():
+    gui = load_gui_module()
+    assert gui.DEFAULT_SPEED_MPS == 0.30
+    assert gui.MAX_SPEED_MPS == 0.50
+    assert gui.DEFAULT_STEERING_RAD == 0.30
+    assert gui.MAX_STEERING_RAD == 0.30
+    assert gui.encode_command(0.75, 0.0, 0.0) == gui.encode_command(
+        0.50, 0.0, 0.0
+    )
+    assert gui.encode_command(0.0, 0.0, 0.50) == gui.encode_command(
+        0.0, 0.0, 0.30
+    )
+
+
 def test_decoder_handles_status_fragmentation_and_feedback_coalescing():
     gui = load_gui_module()
     status = bytes.fromhex(

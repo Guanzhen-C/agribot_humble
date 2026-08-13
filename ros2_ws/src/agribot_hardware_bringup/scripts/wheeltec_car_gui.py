@@ -33,6 +33,12 @@ COMMAND_ID = 0x181
 TELEMETRY_IDS = {0x101, 0x102, 0x103}
 TICK_MS = 50
 STARTUP_FEEDBACK_TIMEOUT_SEC = 1.0
+MIN_SPEED_MPS = 0.05
+MAX_SPEED_MPS = 0.50
+DEFAULT_SPEED_MPS = 0.30
+MIN_STEERING_RAD = 0.05
+MAX_STEERING_RAD = 0.30
+DEFAULT_STEERING_RAD = 0.30
 
 
 def clamp(value: float, minimum: float, maximum: float) -> float:
@@ -42,9 +48,9 @@ def clamp(value: float, minimum: float, maximum: float) -> float:
 def encode_command(vx: float, vy: float, steering: float) -> bytes:
     """Encode C50C 0x181 payload: signed big-endian values scaled by 1000."""
     values = (
-        round(clamp(vx, -3.5, 3.5) * 1000),
-        round(clamp(vy, -3.5, 3.5) * 1000),
-        round(clamp(steering, -0.30, 0.30) * 1000),
+        round(clamp(vx, -MAX_SPEED_MPS, MAX_SPEED_MPS) * 1000),
+        round(clamp(vy, -MAX_SPEED_MPS, MAX_SPEED_MPS) * 1000),
+        round(clamp(steering, -MAX_STEERING_RAD, MAX_STEERING_RAD) * 1000),
         0,
     )
     return struct.pack(">hhhH", *values)
@@ -352,8 +358,8 @@ class CarControlGui:
         self.args = args
         self.link = CanLink(args.port, args.dry_run)
         self.armed = False
-        self.speed = 0.10
-        self.steering = 0.12
+        self.speed = DEFAULT_SPEED_MPS
+        self.steering = DEFAULT_STEERING_RAD
         self.pointer_motion: Motion | None = None
         self.pressed_keys: set[str] = set()
         self.current_motion: Motion | None = None
@@ -556,7 +562,7 @@ class CarControlGui:
             anchor="w",
         )
         self.speed_value = self._label(
-            "0.10 m/s",
+            f"{self.speed:.2f} m/s",
             20,
             700,
             218,
@@ -588,7 +594,7 @@ class CarControlGui:
             anchor="w",
         )
         self.steering_value = self._label(
-            "0.12 rad",
+            f"{self.steering:.2f} rad",
             20,
             700,
             286,
@@ -724,12 +730,22 @@ class CarControlGui:
             self.emergency_stop("窗口失焦")
 
     def adjust_speed(self, delta: float) -> None:
-        self.speed = round(clamp(self.speed + delta, 0.05, 0.30), 2)
+        self.speed = round(
+            clamp(self.speed + delta, MIN_SPEED_MPS, MAX_SPEED_MPS),
+            2,
+        )
         self.speed_value.configure(text=f"{self.speed:.2f} m/s")
         self.last_activity = time.monotonic()
 
     def adjust_steering(self, delta: float) -> None:
-        self.steering = round(clamp(self.steering + delta, 0.05, 0.30), 2)
+        self.steering = round(
+            clamp(
+                self.steering + delta,
+                MIN_STEERING_RAD,
+                MAX_STEERING_RAD,
+            ),
+            2,
+        )
         self.steering_value.configure(text=f"{self.steering:.2f} rad")
         self.last_activity = time.monotonic()
 
@@ -927,8 +943,8 @@ class CarControlGui:
 
     def _finish_ui_self_test(self) -> None:
         expected = {
-            encode_command(0.10, 0.0, 0.0),
-            encode_command(0.0, 0.0, 0.12),
+            encode_command(DEFAULT_SPEED_MPS, 0.0, 0.0),
+            encode_command(0.0, 0.0, DEFAULT_STEERING_RAD),
             bytes(8),
         }
         seen = set(self.link.dry_run_payloads)
