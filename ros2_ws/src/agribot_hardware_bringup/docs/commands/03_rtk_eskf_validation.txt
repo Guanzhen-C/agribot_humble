@@ -1,0 +1,48 @@
+# RTK原始数据和KF-GINS ESKF单项验证
+# 不启动激光雷达、Nav2或底盘输出；车辆起步前静止30秒。
+
+# 终端1（RDK）：启动IMU和RTK
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 launch agribot_hardware_bringup sensors.launch.py \
+  start_lidar:=false start_imu:=true start_rtk:=true rviz:=false
+
+# 终端2（RDK）：以下命令逐项运行；位置质量4才是整数固定解
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 topic echo /rtk/fix_quality --field data
+ros2 topic echo /rtk/heading_solution --field data
+ros2 topic echo /rtk/heading_valid --field data
+ros2 topic echo /rtk/heading_deg --field data
+ros2 topic echo /rtk/heading_with_covariance --once
+
+# 终端3（RDK）：记录完整初始化和导航解，300秒后自动停止
+mkdir -p /home/sunrise/agribot_bags
+timeout 300 ros2 bag record \
+  -o /home/sunrise/agribot_bags/navsat_eskf_$(date +%Y%m%d_%H%M%S) \
+  /rtk/fix /rtk/fix_quality /rtk/heading /rtk/heading_deg \
+  /rtk/heading_valid /rtk/heading_solution \
+  /rtk/heading_with_covariance /imu/data \
+  /navsat_pose /odometry/filtered_navsat
+
+# 终端4（RDK）：启动KF-GINS ESKF
+ros2 run agribot_hardware_bringup rtk_eskf_localization --ros-args \
+  --params-file /home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/config/kf_gins_n300pro.yaml
+
+# 输出检查
+ros2 topic echo /rtk/fix
+ros2 topic echo /navsat_pose
+ros2 topic echo /odometry/filtered_navsat
+ros2 topic hz /rtk/fix
+ros2 topic hz /rtk/heading_with_covariance
+ros2 topic hz /imu/data
+ros2 topic hz /odometry/filtered_navsat
+
+# 查看最新单项测试数据包
+LATEST_NAVSAT_BAG=$(ls -td /home/sunrise/agribot_bags/navsat_eskf_* | head -n 1)
+ros2 bag info "$LATEST_NAVSAT_BAG"
+

@@ -1,0 +1,62 @@
+# ROS 2仿真启动命令
+# 以下仿真由C16风格三维点云生成二维扫描，不使用独立二维雷达。
+
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+
+# 差速小车：静态地图和真值定位
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=ground_truth enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 差速小车：静态地图和AMCL定位
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=amcl enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 差速小车：NavSat定位
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=navsat enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 差速小车：FAST-LIO定位
+ros2 launch agribot_rl_nav orchard_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=fast_lio enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 阿克曼：RPP和NavSat/ESKF
+ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=navsat enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 阿克曼：RPP和FAST-LIO
+ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=true headless:=false rviz:=true use_static_map:=true \
+  localization_mode:=fast_lio enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 阿克曼：MPPI和NavSat/ESKF
+ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
+  localization_mode:=navsat enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+
+# 阿克曼：MPPI和FAST-LIO
+ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
+  gui:=true headless:=false rviz:=true use_static_map:=true \
+  localization_mode:=fast_lio enable_slam_map:=false \
+  map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
+  map_file:=orchard_v2_map6.yaml
+

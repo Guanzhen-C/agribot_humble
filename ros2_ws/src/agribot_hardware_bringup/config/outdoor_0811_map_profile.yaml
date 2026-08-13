@@ -1,0 +1,20 @@
+schema_version: 1
+map_id: map_lio_sam_0811
+default_rdk_map_base: /home/sunrise/agribot_maps/test_site/map_lio_sam_0811
+files:
+  pcd:
+    suffix: .pcd
+    sha256: cea17b73fe13ccf4bc459d74cf66fc203ec082c7ac96b8b29af5c444480e7e8f
+  pgm:
+    suffix: .pgm
+    sha256: 8cfabeaa5212ef9e3c8a5b834d69b9a80c2bfef379f3aefcbc187d965933fd27
+  nav2_yaml:
+    suffix: .yaml
+    sha256: b661a21cd1920a80977fd796203a9fde975cfc9e59abbc78e54f08361734dce8
+  georeference:
+    suffix: _georeference.yaml
+    sha256: 6b77012cda761e5d8289765e2812c4aa9e040621a7d94902ff2268317b2891a2
+georeference_policy:
+  maximum_horizontal_rmse_m: 0.20
+  allow_unvalidated_yaw_as_coarse_prior: true
+

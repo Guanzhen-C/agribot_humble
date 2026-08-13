@@ -285,7 +285,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch meshes rviz udev urdf DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config docs launch meshes rviz udev urdf DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
@@ -443,6 +443,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_fastlivo_rtk_fusion
     test/test_fastlivo_rtk_fusion.py
+  )
+  ament_add_pytest_test(
+    test_outdoor_0811_experiment
+    test/test_outdoor_0811_experiment.py
   )
 endif()
 

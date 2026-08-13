@@ -1,0 +1,106 @@
+# map_lio_sam_0811室外全流程实验
+# 定位：FAST-LIVO2连续里程计 + 质量4 RTK水平位置因子。
+# 初始化：固定解RTK位置和整数固定双天线航向给粗先验，再由两级NDT和GICP精配准。
+# 导航：二维静态地图 + Smac Hybrid-A* + MPPI + C16三维STVL避障。
+# 底盘：USB-CAN；只有/fastlivo_rtk/ready为true后才允许非零输出。
+
+# 第0步（Jetson，只需地图有修改时执行）：同步处理好的完整地图到RDK
+export RDK_IP=192.168.100.125
+export SOURCE_MAP_BASE=/media/cgz/data/agribot_data/maps/map_lio_sam_0811
+ssh sunrise@$RDK_IP 'mkdir -p /home/sunrise/agribot_maps/test_site'
+rsync -a --checksum --info=progress2 \
+  ${SOURCE_MAP_BASE}.pcd \
+  ${SOURCE_MAP_BASE}.pgm \
+  ${SOURCE_MAP_BASE}.yaml \
+  ${SOURCE_MAP_BASE}_georeference.yaml \
+  sunrise@$RDK_IP:/home/sunrise/agribot_maps/test_site/
+
+# Jetson和RDK应得到完全相同的四行SHA256
+sha256sum ${SOURCE_MAP_BASE}.pcd ${SOURCE_MAP_BASE}.pgm \
+  ${SOURCE_MAP_BASE}.yaml ${SOURCE_MAP_BASE}_georeference.yaml
+ssh sunrise@$RDK_IP \
+  'sha256sum /home/sunrise/agribot_maps/test_site/map_lio_sam_0811.pcd /home/sunrise/agribot_maps/test_site/map_lio_sam_0811.pgm /home/sunrise/agribot_maps/test_site/map_lio_sam_0811.yaml /home/sunrise/agribot_maps/test_site/map_lio_sam_0811_georeference.yaml'
+
+# 第1步（RDK）：进入环境；确认RTK、IMU、相机和USB-CAN稳定设备名存在
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+ls -l /dev/agribot_right_camera
+ls -l /dev/serial/by-id/usb-AirM2M_AirM2M_Compo_000000000001-if06
+ls -l /dev/serial/by-id/usb-1a86_USB_Single_Serial_5C2C082600-if00
+ls -l /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# 第2步，阶段A（RDK）：全算法和RViz启动，但绝不创建底盘节点
+# 启动前车保持静止，等待RTK采样和NDT/GICP完成。
+ros2 launch agribot_hardware_bringup \
+  ackermann_outdoor_0811_experiment.launch.py \
+  rviz:=true enable_chassis_output:=false
+
+# 第3步，阶段A检查（RDK另开终端）：以下命令逐项执行
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 topic echo /rtk/fix_quality --field data
+ros2 topic echo /rtk/heading_solution --field data
+ros2 topic echo /localization/rtk_initializer_status --once \
+  --qos-durability transient_local
+ros2 topic echo /localization/status --once \
+  --qos-durability transient_local
+ros2 topic echo /localization/lidar_ready --once \
+  --qos-durability transient_local
+ros2 topic echo /fastlivo_rtk/ready --once \
+  --qos-durability transient_local
+ros2 topic echo /fastlivo_rtk/fixed_active --once \
+  --qos-durability transient_local
+ros2 run tf2_ros tf2_echo map base_link
+ros2 lifecycle get /planner_server
+ros2 lifecycle get /controller_server
+ros2 node list | grep -E 'ackermann_chassis_can|ackermann_chassis_serial' || true
+
+# 阶段A合格条件：
+# 1. fix_quality持续为4，heading_solution为SOL_COMPUTED,L1_INT或NARROW_INT。
+# 2. lidar_ready和fastlivo_rtk/ready均为true，RViz车位姿与现场一致。
+# 3. planner_server和controller_server均为active。
+# 4. 上面的底盘节点查询没有输出。
+# 5. 在RViz给近距离目标，能够生成路径和/nav2/cmd_vel，但真车保持不动。
+ros2 topic echo /nav2/cmd_vel
+
+# 阶段A通过后，在阶段A启动终端按一次Ctrl+C并等待完全退出。
+
+# 第4步，阶段B（RDK）：显式启用USB-CAN底盘输出
+ros2 launch agribot_hardware_bringup \
+  ackermann_outdoor_0811_experiment.launch.py \
+  rviz:=true enable_chassis_output:=true
+
+# 第5步，阶段B检查（另开终端）：先确认定位和CAN反馈，再给目标
+ros2 topic echo /fastlivo_rtk/ready --once \
+  --qos-durability transient_local
+ros2 topic hz /wheel/odometry
+ros2 topic echo /diagnostics --once
+
+# 第一次近距离运动先限速0.15m/s；通过后可提高到当前控制器上限0.30m/s
+ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
+  "{percentage: false, speed_limit: 0.15}"
+ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
+  "{percentage: false, speed_limit: 0.30}"
+
+# 在RViz中先确认定位箭头，再用Nav2 Goal或Nav Through Poses下发目标。
+# 不要同时打开桌面CAN GUI；它与整车CAN节点会争用同一个USB-CAN设备。
+
+# 正常停止：先在Navigation 2面板取消任务，再在阶段B启动终端按一次Ctrl+C。
+# 等待终端显示节点退出和底盘停止后再关闭RDK或拔USB-CAN。
+
+# 可选分布式显示：RDK只运行算法，将阶段A或B命令中的rviz改为false；
+# Jetson在同一ROS_DOMAIN_ID下执行下面命令。
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 daemon stop || true
+ros2 daemon start
+ros2 run rviz2 rviz2 \
+  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/navigation.rviz

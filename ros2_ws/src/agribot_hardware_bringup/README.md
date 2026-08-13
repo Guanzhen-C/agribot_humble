@@ -12,6 +12,8 @@ navigation selections:
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 | Ackermann | MPPI | FAST-LIO + 3D PCD mapping | `ackermann_mppi_fastlio_3d_mapping.launch.py` |
 | Ackermann | MPPI | FAST-LIO + saved-map planning | `ackermann_mppi_fastlio_mapped.launch.py` |
+| Ackermann | MPPI | FAST-LIVO2 + fixed RTK + saved map | `ackermann_mppi_fastlivo_rtk_mapped.launch.py` |
+| Ackermann | MPPI | Outdoor 0811 verified map profile | `ackermann_outdoor_0811_experiment.launch.py` |
 | Ackermann | None | Raw C16 + IMU + RTK + RGB-D collection | `ackermann_sensor_data_collection.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
@@ -430,6 +432,28 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
 
 The NavSat entry accepts a position-only georeference yaw as a coarse prior;
 NDT/GICP must still accept the C16 scan before chassis motion is released.
+
+The outdoor `map_lio_sam_0811` experiment has a dedicated safe entry point:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_outdoor_0811_experiment.launch.py \
+  rviz:=true enable_chassis_output:=false
+```
+
+It starts the saved-map FAST-LIVO2/RTK localization chain, Smac Hybrid-A*,
+MPPI, C16 STVL obstacle processing and RViz. It always uses RTK as a coarse
+initial prior, requires a georeference, disables FPFH and leaves chassis output
+off unless it is explicitly enabled. Before any sensor node starts, the launch
+checks the PCD, manually processed PGM, Nav2 YAML and georeference against the
+known SHA-256 values in `config/outdoor_0811_map_profile.yaml`. This prevents an
+older PGM from being mixed with the verified PCD/georeference pair.
+
+After the no-motion stage has passed, stop that launch completely and start the
+same command with `enable_chassis_output:=true`. The CAN driver still blocks
+nonzero commands until `/fastlivo_rtk/ready` is true. Full field-test commands,
+acceptance checks and shutdown order are installed under
+`share/agribot_hardware_bringup/docs/commands/09_outdoor_0811_full_experiment.txt`.
 
 The georeference can be checked without Nav2 or a chassis driver. The dedicated
 validation launch displays the two-dimensional map and converts RViz Publish

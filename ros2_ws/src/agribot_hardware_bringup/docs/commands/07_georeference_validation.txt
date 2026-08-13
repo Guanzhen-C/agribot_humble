@@ -1,0 +1,26 @@
+# 地图地理配准独立验证
+# 不启动Nav2控制器和底盘；NDT/GICP需要实时雷达、IMU和FAST-LIO数据。
+
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+export MAP_BASE=/media/cgz/data/agribot_data/maps/map_lio_sam_0811
+ros2 launch agribot_hardware_bringup \
+  ackermann_georeference_validation.launch.py \
+  map_base:=$MAP_BASE start_sensors:=true rviz:=true
+
+# RViz选择Publish Point并点击地图，查看该点对应WGS84坐标
+ros2 topic echo /georeference_test/clicked_geopoint
+
+# 输入左侧主天线纬度、经度和车头航向；航向为真北0度、顺时针为正
+ros2 run agribot_hardware_bringup publish_geodetic_pose.py \
+  39.977825835 116.325862855 180.0
+
+# 查看RTK粗先验、NDT/GICP精配准和最终结果
+ros2 topic echo /georeference_test/result --once
+ros2 topic echo /georeference_test/rtk_seed_pose --once \
+  --qos-durability transient_local
+ros2 topic echo /georeference_test/refined_pose --once \
+  --qos-durability transient_local
+

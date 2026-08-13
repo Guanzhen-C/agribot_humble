@@ -1,0 +1,53 @@
+# RDK原始传感器数据采集
+# 只启动C16、IMU、RTK和右目，不运行FAST-LIO2、Nav2、RViz或底盘输出。
+
+# 终端1（RDK）：修改MAP_NAME后开始采集
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export MAP_NAME=map_lio_sam_new
+export BAG_ROOT=/mnt/agribot_data/bags
+if [ "$(findmnt -rn -T /mnt/agribot_data -o TARGET)" != "/mnt/agribot_data" ]; then
+  echo "错误：数据固态硬盘未挂载到/mnt/agribot_data，已取消采集"
+  return 1 2>/dev/null || exit 1
+fi
+export BAG_PATH=${BAG_ROOT}/${MAP_NAME}_$(date +%Y%m%d_%H%M%S)
+mkdir -p "$BAG_ROOT"
+echo "本次数据包：$BAG_PATH"
+ros2 launch agribot_hardware_bringup \
+  ackermann_sensor_data_collection.launch.py \
+  start_camera:=true record_bag:=true bag_output:=$BAG_PATH
+
+# 看到Recording...后先静止30秒，再开始低速采集。
+# 结束时只按一次Ctrl+C，等待rosbag完成写盘后再断电。
+ros2 bag info "$BAG_PATH"
+
+# 终端2（RDK）：逐项检查，位置质量应为4
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 topic echo /rtk/fix_quality --field data
+ros2 topic echo /rtk/heading_solution --field data
+ros2 topic echo /rtk/satellite_count --field data
+ros2 topic echo /rtk/hdop --field data
+ros2 topic echo /rtk/differential_age --field data
+ros2 topic echo /rtk/raw_sentence --field data
+ros2 topic hz /lidar/points
+ros2 topic hz /imu/data
+readlink -f /dev/agribot_right_camera
+ros2 topic hz /camera/rgb/image_raw
+ros2 topic echo /camera/rgb/camera_info --once
+
+# 采集路线：多段直线、平缓左右转、至少一次闭环返回。
+# 人员保持在车后中央约1.5至2.5米，不进入车侧和车前。
+# 最后回到起点附近，以接近初始朝向静止30秒后结束。
+
+# Jetson：通过网络复制本次数据包
+export RDK_IP=192.168.100.125
+export RDK_BAG=/mnt/agribot_data/bags/这里改成实际数据包目录名
+mkdir -p /media/cgz/data/agribot_data/bags
+rsync -a --info=progress2 \
+  sunrise@$RDK_IP:$RDK_BAG /media/cgz/data/agribot_data/bags/
+
