@@ -111,6 +111,22 @@ def test_full_vehicle_launch_uses_fused_odometry_for_navigation_and_safety():
     assert 'LaunchConfiguration("rviz_config")' in launch_source
 
 
+def test_nested_launches_cannot_override_parent_rviz_selection():
+    localization_source = (
+        PACKAGE_ROOT
+        / "ackermann/launch/ackermann_fastlivo_rtk_localization.launch.py"
+    ).read_text()
+    vehicle_source = (
+        PACKAGE_ROOT
+        / "ackermann/launch/ackermann_mppi_fastlivo_rtk_mapped.launch.py"
+    ).read_text()
+
+    assert "GroupAction(\n                scoped=True" in localization_source
+    assert "GroupAction(\n                scoped=True" in vehicle_source
+    assert '"rviz": "false"' in localization_source
+    assert '"rviz": "false"' in vehicle_source
+
+
 def test_rtk_initial_pose_uses_position_heading_and_lidar_refinement():
     initializer = (
         PACKAGE_ROOT

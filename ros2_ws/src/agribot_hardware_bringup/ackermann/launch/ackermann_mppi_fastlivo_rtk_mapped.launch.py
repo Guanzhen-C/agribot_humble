@@ -206,32 +206,37 @@ def generate_launch_description():
                 ),
             ),
             OpaqueFunction(function=_validate_arguments),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(localization_launch),
-                launch_arguments={
-                    "map_base": LaunchConfiguration("map_base"),
-                    "use_sim_time": use_sim_time,
-                    "start_sensors": LaunchConfiguration("start_sensors"),
-                    "start_rtk": LaunchConfiguration("start_rtk"),
-                    "start_camera": LaunchConfiguration("start_camera"),
-                    "start_fastlivo": LaunchConfiguration("start_fastlivo"),
-                    "start_initial_localizer": "true",
-                    "rviz": "false",
-                    "enable_ntrip": LaunchConfiguration("enable_ntrip"),
-                    "use_detailed_vehicle_model": LaunchConfiguration(
-                        "use_detailed_vehicle_model"
-                    ),
-                    "initialization_source": LaunchConfiguration(
-                        "initialization_source"
-                    ),
-                    "enable_fpfh": LaunchConfiguration("enable_fpfh"),
-                    "allow_missing_georeference": LaunchConfiguration(
-                        "allow_missing_georeference"
-                    ),
-                    "right_camera_device": LaunchConfiguration(
-                        "right_camera_device"
-                    ),
-                }.items(),
+            GroupAction(
+                scoped=True,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(localization_launch),
+                        launch_arguments={
+                            "map_base": LaunchConfiguration("map_base"),
+                            "use_sim_time": use_sim_time,
+                            "start_sensors": LaunchConfiguration("start_sensors"),
+                            "start_rtk": LaunchConfiguration("start_rtk"),
+                            "start_camera": LaunchConfiguration("start_camera"),
+                            "start_fastlivo": LaunchConfiguration("start_fastlivo"),
+                            "start_initial_localizer": "true",
+                            "rviz": "false",
+                            "enable_ntrip": LaunchConfiguration("enable_ntrip"),
+                            "use_detailed_vehicle_model": LaunchConfiguration(
+                                "use_detailed_vehicle_model"
+                            ),
+                            "initialization_source": LaunchConfiguration(
+                                "initialization_source"
+                            ),
+                            "enable_fpfh": LaunchConfiguration("enable_fpfh"),
+                            "allow_missing_georeference": LaunchConfiguration(
+                                "allow_missing_georeference"
+                            ),
+                            "right_camera_device": LaunchConfiguration(
+                                "right_camera_device"
+                            ),
+                        }.items(),
+                    )
+                ],
             ),
             navigation,
             chassis,

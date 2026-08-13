@@ -5,6 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    GroupAction,
     IncludeLaunchDescription,
     OpaqueFunction,
     TimerAction,
@@ -116,18 +117,27 @@ def generate_launch_description():
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
             OpaqueFunction(function=_validate_paths),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(hardware_share, "launch", "sensors.launch.py")
-                ),
-                launch_arguments={
-                    "start_lidar": "true",
-                    "start_imu": "true",
-                    "start_rtk": LaunchConfiguration("start_rtk"),
-                    "rviz": "false",
-                    "enable_ntrip": LaunchConfiguration("enable_ntrip"),
-                }.items(),
-                condition=IfCondition(LaunchConfiguration("start_sensors")),
+            GroupAction(
+                scoped=True,
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(
+                            os.path.join(
+                                hardware_share, "launch", "sensors.launch.py"
+                            )
+                        ),
+                        launch_arguments={
+                            "start_lidar": "true",
+                            "start_imu": "true",
+                            "start_rtk": LaunchConfiguration("start_rtk"),
+                            "rviz": "false",
+                            "enable_ntrip": LaunchConfiguration("enable_ntrip"),
+                        }.items(),
+                        condition=IfCondition(
+                            LaunchConfiguration("start_sensors")
+                        ),
+                    )
+                ],
             ),
             Node(
                 package="usb_cam",
