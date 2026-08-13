@@ -91,6 +91,9 @@ def context_for(map_base, profile, camera):
             "enable_chassis_output": "false",
             "can_transport": "zqwl_cdc",
             "zqwl_port": "/missing/can",
+            "initialization_source": "rtk",
+            "enable_fpfh": "false",
+            "allow_missing_georeference": "false",
         }
     )
     return context
@@ -133,12 +136,22 @@ def test_missing_required_sensor_device_is_rejected(tmp_path, monkeypatch):
         module._validate_experiment(context_for(map_base, profile, camera))
 
 
+def test_outdoor_localization_policy_cannot_be_overridden(tmp_path, monkeypatch):
+    module = load_launch_module()
+    map_base, profile, _pgm, camera = make_map_set(tmp_path)
+    monkeypatch.setattr(module, "REQUIRED_SENSOR_DEVICES", (("test", camera),))
+    context = context_for(map_base, profile, camera)
+    context.launch_configurations["initialization_source"] = "manual"
+    with pytest.raises(RuntimeError, match="initialization_source:=rtk"):
+        module._validate_experiment(context)
+
+
 def test_launch_is_rtk_only_and_safe_by_default():
     source = LAUNCH_PATH.read_text()
     assert module_default_map() in source
-    assert '"initialization_source": "rtk"' in source
-    assert '"allow_missing_georeference": "false"' in source
-    assert '"enable_fpfh": "false"' in source
+    assert 'DeclareLaunchArgument("initialization_source", default_value="rtk")' in source
+    assert '"allow_missing_georeference", default_value="false"' in source
+    assert 'DeclareLaunchArgument("enable_fpfh", default_value="false")' in source
     assert '"enable_chassis_output",\n                default_value="false"' in source
 
 

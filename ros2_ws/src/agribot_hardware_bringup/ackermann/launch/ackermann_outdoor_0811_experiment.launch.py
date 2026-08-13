@@ -58,6 +58,18 @@ def _load_yaml(path, description):
 
 
 def _validate_experiment(context):
+    locked_arguments = {
+        "initialization_source": "rtk",
+        "enable_fpfh": "false",
+        "allow_missing_georeference": "false",
+    }
+    for name, expected in locked_arguments.items():
+        actual = LaunchConfiguration(name).perform(context).lower()
+        if actual != expected:
+            raise RuntimeError(
+                f"0811室外入口要求{name}:={expected}，实际为{actual}"
+            )
+
     map_base = Path(
         LaunchConfiguration("map_base").perform(context)
     ).expanduser()
@@ -174,6 +186,13 @@ def generate_launch_description():
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            # Keep delayed actions in nested launch files bound to the safe
+            # outdoor values after their scoped include contexts have exited.
+            DeclareLaunchArgument("initialization_source", default_value="rtk"),
+            DeclareLaunchArgument("enable_fpfh", default_value="false"),
+            DeclareLaunchArgument(
+                "allow_missing_georeference", default_value="false"
+            ),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("rviz_config", default_value=rviz_config),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
@@ -231,9 +250,13 @@ def generate_launch_description():
                             "use_detailed_vehicle_model": LaunchConfiguration(
                                 "use_detailed_vehicle_model"
                             ),
-                            "initialization_source": "rtk",
-                            "enable_fpfh": "false",
-                            "allow_missing_georeference": "false",
+                            "initialization_source": LaunchConfiguration(
+                                "initialization_source"
+                            ),
+                            "enable_fpfh": LaunchConfiguration("enable_fpfh"),
+                            "allow_missing_georeference": LaunchConfiguration(
+                                "allow_missing_georeference"
+                            ),
                             "right_camera_device": LaunchConfiguration(
                                 "right_camera_device"
                             ),
