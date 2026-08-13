@@ -15,6 +15,9 @@
     send_rate_hz: 20.0
     command_timeout_sec: 0.25
     feedback_timeout_sec: 0.6
+    # Some ZQWL adapters only begin receiving after their first CDC open/close cycle.
+    recover_zqwl_startup: true
+    startup_feedback_timeout_sec: 1.0
     require_feedback_before_motion: true
     require_autonomous_mode: false
     require_localization_ready: false

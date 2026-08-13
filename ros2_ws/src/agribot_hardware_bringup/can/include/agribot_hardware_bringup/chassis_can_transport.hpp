@@ -35,6 +35,7 @@ public:
 
   virtual std::string type() const = 0;
   virtual std::string hardwareId() const = 0;
+  virtual void restart() = 0;
   virtual void writeFrame(const chassis_can::Frame & frame) = 0;
   virtual ChassisCanReadResult readFrames(std::size_t max_frames) = 0;
 };

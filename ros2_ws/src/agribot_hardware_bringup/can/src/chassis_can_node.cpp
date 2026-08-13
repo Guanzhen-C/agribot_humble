@@ -29,6 +29,7 @@ namespace
 {
 
 using namespace std::chrono_literals;
+using SteadyClock = std::chrono::steady_clock;
 
 class ChassisCanNode final : public rclcpp::Node
 {
@@ -54,6 +55,9 @@ public:
     send_rate_hz_ = declare_parameter<double>("send_rate_hz", 10.0);
     command_timeout_sec_ = declare_parameter<double>("command_timeout_sec", 0.25);
     feedback_timeout_sec_ = declare_parameter<double>("feedback_timeout_sec", 1.2);
+    recover_zqwl_startup_ = declare_parameter<bool>("recover_zqwl_startup", true);
+    startup_feedback_timeout_sec_ =
+      declare_parameter<double>("startup_feedback_timeout_sec", 1.0);
     require_feedback_before_motion_ =
       declare_parameter<bool>("require_feedback_before_motion", true);
     require_autonomous_mode_ = declare_parameter<bool>("require_autonomous_mode", true);
@@ -126,7 +130,8 @@ private:
   void validateParameters()
   {
     if (send_rate_hz_ <= 0.0 || command_timeout_sec_ <= 0.0 ||
-      feedback_timeout_sec_ <= 0.0 || localization_ready_timeout_sec_ <= 0.0)
+      feedback_timeout_sec_ <= 0.0 || startup_feedback_timeout_sec_ <= 0.0 ||
+      localization_ready_timeout_sec_ <= 0.0)
     {
       throw std::invalid_argument("CAN timing parameters must be positive");
     }
@@ -155,6 +160,7 @@ private:
     config.zqwl_channel = zqwl_channel_;
     config.zqwl_bitrate = zqwl_bitrate_;
     transport_ = makeChassisCanTransport(config, adapter_->feedbackIds());
+    transport_open_time_ = SteadyClock::now();
   }
 
   void handleCommand(const geometry_msgs::msg::Twist::SharedPtr message)
@@ -249,6 +255,38 @@ private:
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000, "CAN receive failed: %s", exception.what());
     }
+    recoverSilentZqwlStartup();
+  }
+
+  void recoverSilentZqwlStartup()
+  {
+    if (!recover_zqwl_startup_ || transport_->type() != "zqwl_cdc" ||
+      startup_reopen_attempted_ || feedback_ever_received_)
+    {
+      return;
+    }
+
+    const double elapsed =
+      std::chrono::duration<double>(SteadyClock::now() - transport_open_time_).count();
+    if (elapsed < startup_feedback_timeout_sec_) {
+      return;
+    }
+
+    startup_reopen_attempted_ = true;
+    RCLCPP_WARN(
+      get_logger(),
+      "No complete chassis feedback %.1f s after USB-CAN startup; reopening the adapter once",
+      elapsed);
+    try {
+      transport_->restart();
+      receive_counters_.clear();
+      ++transport_reopen_successes_;
+      RCLCPP_INFO(get_logger(), "USB-CAN startup recovery completed");
+    } catch (const std::exception & exception) {
+      ++transport_reopen_failures_;
+      RCLCPP_ERROR(
+        get_logger(), "USB-CAN startup recovery failed: %s", exception.what());
+    }
   }
 
   bool counterIsNew(const chassis_can::Frame & frame)
@@ -297,6 +335,7 @@ private:
       emergency_stop_publisher_->publish(emergency);
     }
     if (update.motion.has_value()) {
+      feedback_ever_received_ = true;
       updateOdometry(
         current_time, update.motion->linear_velocity, update.motion->angular_velocity);
     }
@@ -396,6 +435,13 @@ private:
     status.values.push_back(keyValue("invalid_frames", std::to_string(invalid_frames_)));
     status.values.push_back(keyValue("transmit_errors", std::to_string(transmit_errors_)));
     status.values.push_back(keyValue("receive_errors", std::to_string(receive_errors_)));
+    status.values.push_back(
+      keyValue(
+        "startup_reopen_attempted", startup_reopen_attempted_ ? "true" : "false"));
+    status.values.push_back(
+      keyValue("transport_reopen_successes", std::to_string(transport_reopen_successes_)));
+    status.values.push_back(
+      keyValue("transport_reopen_failures", std::to_string(transport_reopen_failures_)));
     array.status.push_back(std::move(status));
     diagnostics_publisher_->publish(array);
   }
@@ -435,6 +481,8 @@ private:
   double send_rate_hz_{10.0};
   double command_timeout_sec_{0.25};
   double feedback_timeout_sec_{1.2};
+  bool recover_zqwl_startup_{true};
+  double startup_feedback_timeout_sec_{1.0};
   bool require_feedback_before_motion_{true};
   bool require_autonomous_mode_{true};
   bool require_localization_ready_{false};
@@ -450,6 +498,8 @@ private:
   uint64_t invalid_frames_{0};
   uint64_t transmit_errors_{0};
   uint64_t receive_errors_{0};
+  uint64_t transport_reopen_successes_{0};
+  uint64_t transport_reopen_failures_{0};
 
   std::mutex state_mutex_;
   geometry_msgs::msg::Twist latest_command_;
@@ -460,7 +510,10 @@ private:
   bool localization_ready_received_{false};
   bool localization_ready_{false};
   bool motion_command_active_{false};
+  bool feedback_ever_received_{false};
+  bool startup_reopen_attempted_{false};
   bool stop_frames_sent_{false};
+  SteadyClock::time_point transport_open_time_{};
   double measured_linear_velocity_{0.0};
   double measured_angular_velocity_{0.0};
   double x_{0.0};

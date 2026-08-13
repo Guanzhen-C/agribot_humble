@@ -546,6 +546,8 @@ def test_ackermann_can_supports_localization_readiness_gate():
     assert config["require_localization_ready"] is False
     assert config["localization_ready_topic"] == "/localization/ready"
     assert config["localization_ready_timeout_sec"] == 2.5
+    assert config["recover_zqwl_startup"] is True
+    assert config["startup_feedback_timeout_sec"] == 1.0
 
 
 def test_ackermann_fastlio_local_uses_requested_inflation_radius():

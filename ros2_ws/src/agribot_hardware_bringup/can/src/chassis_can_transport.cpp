@@ -112,6 +112,11 @@ public:
     return interface_name_;
   }
 
+  void restart() override
+  {
+    // Native SocketCAN lifecycle is managed by the kernel.
+  }
+
   void writeFrame(const chassis_can::Frame & frame) override
   {
     validateStandardCanId(frame.id);
@@ -169,54 +174,19 @@ public:
     const std::vector<uint32_t> & feedback_ids)
   : port_(std::move(port)),
     channel_(channel),
+    bitrate_(bitrate),
     feedback_ids_(feedback_ids.begin(), feedback_ids.end())
   {
     for (const auto id : feedback_ids) {
       validateStandardCanId(id);
     }
 
-    serial_fd_ = open(port_.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (serial_fd_ < 0) {
-      throw std::system_error(errno, std::generic_category(), "open(ZQWL CDC)");
-    }
-
-    try {
-      if (ioctl(serial_fd_, TIOCEXCL) < 0) {
-        throw std::system_error(errno, std::generic_category(), "TIOCEXCL(ZQWL CDC)");
-      }
-      configureSerialPort();
-      if (tcflush(serial_fd_, TCIOFLUSH) < 0) {
-        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC)");
-      }
-
-      // Normalize a channel left active or bus-off by an earlier process before
-      // applying the verified channel-0, 1-Mbit/s configuration.
-      const auto stop_packet = zqwl_cdc::makeStopPacket();
-      writePacket(stop_packet.data(), stop_packet.size());
-      std::this_thread::sleep_for(100ms);
-      if (tcflush(serial_fd_, TCIFLUSH) < 0) {
-        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC input)");
-      }
-      const auto start_packet = zqwl_cdc::makeStartPacket(channel_, bitrate);
-      writePacket(start_packet.data(), start_packet.size());
-    } catch (...) {
-      close(serial_fd_);
-      serial_fd_ = -1;
-      throw;
-    }
+    openAndStart();
   }
 
   ~ZqwlCdcTransport() override
   {
-    if (serial_fd_ < 0) {
-      return;
-    }
-    try {
-      const auto packet = zqwl_cdc::makeStopPacket();
-      writePacket(packet.data(), packet.size());
-    } catch (...) {
-    }
-    close(serial_fd_);
+    stopAndClose();
   }
 
   std::string type() const override
@@ -227,6 +197,13 @@ public:
   std::string hardwareId() const override
   {
     return port_;
+  }
+
+  void restart() override
+  {
+    stopAndClose();
+    std::this_thread::sleep_for(100ms);
+    openAndStart();
   }
 
   void writeFrame(const chassis_can::Frame & frame) override
@@ -265,6 +242,52 @@ public:
   }
 
 private:
+  void openAndStart()
+  {
+    serial_fd_ = open(port_.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (serial_fd_ < 0) {
+      throw std::system_error(errno, std::generic_category(), "open(ZQWL CDC)");
+    }
+
+    try {
+      if (ioctl(serial_fd_, TIOCEXCL) < 0) {
+        throw std::system_error(errno, std::generic_category(), "TIOCEXCL(ZQWL CDC)");
+      }
+      configureSerialPort();
+      if (tcflush(serial_fd_, TCIOFLUSH) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC)");
+      }
+
+      const auto stop_packet = zqwl_cdc::makeStopPacket();
+      writePacket(stop_packet.data(), stop_packet.size());
+      std::this_thread::sleep_for(100ms);
+      if (tcflush(serial_fd_, TCIFLUSH) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC input)");
+      }
+      const auto start_packet = zqwl_cdc::makeStartPacket(channel_, bitrate_);
+      writePacket(start_packet.data(), start_packet.size());
+      decoder_ = zqwl_cdc::FrameDecoder();
+    } catch (...) {
+      close(serial_fd_);
+      serial_fd_ = -1;
+      throw;
+    }
+  }
+
+  void stopAndClose() noexcept
+  {
+    if (serial_fd_ < 0) {
+      return;
+    }
+    try {
+      const auto packet = zqwl_cdc::makeStopPacket();
+      writePacket(packet.data(), packet.size());
+    } catch (...) {
+    }
+    close(serial_fd_);
+    serial_fd_ = -1;
+  }
+
   void configureSerialPort()
   {
     struct termios attributes {};
@@ -316,6 +339,7 @@ private:
 
   std::string port_;
   int channel_{0};
+  int bitrate_{1000000};
   int serial_fd_{-1};
   std::unordered_set<uint32_t> feedback_ids_;
   zqwl_cdc::FrameDecoder decoder_;

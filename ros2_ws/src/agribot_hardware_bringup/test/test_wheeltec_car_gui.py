@@ -68,3 +68,51 @@ def test_dry_run_link_never_opens_hardware_and_records_commands():
     assert link.dry_run_payloads == [
         bytes.fromhex("ff9c000000780000")
     ]
+
+
+def test_silent_startup_reopens_adapter_only_once(monkeypatch):
+    gui = load_gui_module()
+    link = gui.CanLink("/dev/fake-zqwl")
+    link.fd = 10
+    link.connected_at = 5.0
+    calls = []
+
+    def fake_close(send_stop=True):
+        calls.append(("close", send_stop))
+        link.fd = None
+
+    def fake_connect(reset_startup_recovery=True):
+        calls.append(("connect", reset_startup_recovery))
+        link.fd = 11
+        link.connected_at = 6.2
+        link.connection_seen_ids.clear()
+        return True
+
+    monkeypatch.setattr(link, "close", fake_close)
+    monkeypatch.setattr(link, "connect", fake_connect)
+    monkeypatch.setattr(gui.time, "sleep", lambda _duration: None)
+
+    assert link.recover_silent_startup(now=6.1, timeout=1.0)
+    assert calls == [("close", True), ("connect", False)]
+    assert link.startup_reopen_count == 1
+    assert link.startup_reopen_attempted
+    assert not link.recover_silent_startup(now=10.0, timeout=1.0)
+    assert len(calls) == 2
+
+
+def test_complete_feedback_suppresses_startup_reopen(monkeypatch):
+    gui = load_gui_module()
+    link = gui.CanLink("/dev/fake-zqwl")
+    link.fd = 10
+    link.connected_at = 5.0
+    link.connection_seen_ids.update(gui.TELEMETRY_IDS)
+
+    monkeypatch.setattr(
+        link,
+        "close",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unexpected adapter reopen")
+        ),
+    )
+
+    assert not link.recover_silent_startup(now=10.0, timeout=1.0)

@@ -32,6 +32,7 @@ ZQWL_STOP_PACKET = bytes.fromhex(
 COMMAND_ID = 0x181
 TELEMETRY_IDS = {0x101, 0x102, 0x103}
 TICK_MS = 50
+STARTUP_FEEDBACK_TIMEOUT_SEC = 1.0
 
 
 def clamp(value: float, minimum: float, maximum: float) -> float:
@@ -141,13 +142,20 @@ class CanLink:
         self.rx_count = 0
         self.tx_count = 0
         self.seen_ids: set[int] = set()
+        self.connection_seen_ids: set[int] = set()
+        self.connected_at = 0.0
+        self.startup_reopen_attempted = False
+        self.startup_reopen_count = 0
         self.last_payload = bytes(8)
         self.dry_run_payloads: list[bytes] = []
 
-    def connect(self) -> bool:
+    def connect(self, reset_startup_recovery: bool = True) -> bool:
         if self.dry_run:
             self.last_error = ""
-            self.last_rx_time = time.monotonic()
+            self.connected_at = time.monotonic()
+            self.last_rx_time = self.connected_at
+            if reset_startup_recovery:
+                self.startup_reopen_attempted = False
             return True
         if self.fd is not None:
             return True
@@ -169,8 +177,16 @@ class CanLink:
             termios.tcsetattr(fd, termios.TCSANOW, attributes)
             termios.tcflush(fd, termios.TCIOFLUSH)
             self.fd = fd
+            self._write_all(ZQWL_STOP_PACKET)
+            time.sleep(0.1)
+            termios.tcflush(fd, termios.TCIFLUSH)
             self._write_all(ZQWL_START_PACKET)
             self.decoder = ZqwlFrameDecoder()
+            self.connection_seen_ids.clear()
+            self.connected_at = time.monotonic()
+            self.last_rx_time = 0.0
+            if reset_startup_recovery:
+                self.startup_reopen_attempted = False
             self.last_error = ""
             return True
         except (OSError, RuntimeError) as exc:
@@ -228,6 +244,31 @@ class CanLink:
         current = time.monotonic() if now is None else now
         return self.fd is not None and current - self.last_rx_time < 0.6
 
+    def recover_silent_startup(
+        self,
+        now: float | None = None,
+        timeout: float = STARTUP_FEEDBACK_TIMEOUT_SEC,
+    ) -> bool:
+        if (
+            self.dry_run
+            or self.fd is None
+            or self.startup_reopen_attempted
+            or self.connection_seen_ids == TELEMETRY_IDS
+        ):
+            return False
+
+        current = time.monotonic() if now is None else now
+        if current - self.connected_at < timeout:
+            return False
+
+        self.startup_reopen_attempted = True
+        self.close()
+        time.sleep(0.1)
+        if not self.connect(reset_startup_recovery=False):
+            return False
+        self.startup_reopen_count += 1
+        return True
+
     def poll(self) -> None:
         if self.dry_run:
             self.last_rx_time = time.monotonic()
@@ -248,6 +289,7 @@ class CanLink:
                         self.last_rx_time = time.monotonic()
                         self.rx_count += 1
                         self.seen_ids.add(can_id)
+                        self.connection_seen_ids.add(can_id)
         except OSError as exc:
             self.last_error = str(exc)
             self.close(send_stop=False)
@@ -839,6 +881,7 @@ class CarControlGui:
             self.last_connect_attempt = now
             self.link.connect()
         self.link.poll()
+        self.link.recover_silent_startup()
 
         if self.armed and not self.link.telemetry_alive(now):
             self.emergency_stop("CAN 遥测中断")
@@ -984,6 +1027,7 @@ def run_link_test(port: str, duration: float) -> int:
     try:
         while time.monotonic() < deadline:
             link.poll()
+            link.recover_silent_startup()
             now = time.monotonic()
             if now >= next_tx:
                 if not link.send(bytes(8)):
@@ -992,7 +1036,7 @@ def run_link_test(port: str, duration: float) -> int:
                 next_tx += TICK_MS / 1000.0
             time.sleep(0.005)
         link.poll()
-        missing = TELEMETRY_IDS - link.seen_ids
+        missing = TELEMETRY_IDS - link.connection_seen_ids
         if missing:
             missing_text = ",".join(
                 f"0x{can_id:03x}" for can_id in sorted(missing)
