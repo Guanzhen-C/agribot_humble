@@ -94,6 +94,22 @@ def test_no_rtk_mode_keeps_manual_ndt_gicp_and_freezes_global_correction():
     assert "global_correction_frozen" in fusion_source
 
 
+def test_full_vehicle_launch_uses_fused_odometry_for_navigation_and_safety():
+    launch_source = (
+        PACKAGE_ROOT
+        / "ackermann/launch/ackermann_mppi_fastlivo_rtk_mapped.launch.py"
+    ).read_text()
+
+    assert "ackermann_fastlivo_rtk_localization.launch.py" in launch_source
+    assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in launch_source
+    assert '"allow_missing_georeference",\n                default_value="true"' in launch_source
+    assert '"odom_topic": "/fastlivo_rtk/odometry"' in launch_source
+    assert '"command_topic": "/nav2/cmd_vel"' in launch_source
+    assert '"require_localization_ready": True' in launch_source
+    assert '"localization_ready_topic": "/fastlivo_rtk/ready"' in launch_source
+    assert '"enable_chassis_output",\n                default_value="false"' in launch_source
+
+
 def test_rtk_initial_pose_uses_position_heading_and_lidar_refinement():
     initializer = (
         PACKAGE_ROOT

@@ -570,39 +570,31 @@ ros2 topic echo /nav2/cmd_vel
 # NavSat阶段B：阶段A通过并完整关闭后，把enable_chassis_output改为true并再次限速0.15米每秒
 # 启动另一种真机模式前，先按Ctrl+C停止当前整套程序
 
-# FAST-LIVO2加固定解RTK实时融合定位：RDK运行算法，Jetson显示RViz，不启动Nav2或底盘
+# FAST-LIVO2加固定解RTK实时融合定位：统一的真机定位入口
 # 只使用位置质量4的RTK水平位置；不使用RTK高度和航向
 # IMU重力方向只约束横滚和俯仰，FAST-LIVO2负责连续局部运动，RTK抑制水平累计漂移
-# 启动后保持车辆静止，等待10组固定解位置和整数固定双天线航向
-# RTK粗位姿会自动触发局部NDT/GICP精配准，不需要在RViz点击2D Pose Estimate
-# 精配准发布完整/localization_pose后，/fastlivo_rtk/ready应变为true
-# 终端1（Jetson）：登录RDK后运行算法；不要再在RDK同时打开另一个RViz
-ssh sunrise@10.147.55.3
+# RTK不是固定解或地图没有_georeference.yaml时，不添加绝对位置因子，继续使用FAST-LIVO2
+# 首次检查实时性时关闭Nav2和底盘，在RDK本机打开RViz
+ssh sunrise@192.168.100.125
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_0804
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
+export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_zoulang_0813_indoor
 ros2 launch agribot_hardware_bringup \
-  ackermann_fastlivo_rtk_localization.launch.py \
+  ackermann_mppi_fastlivo_rtk_mapped.launch.py \
   map_base:=$MAP_BASE \
-  rviz:=false \
-  initialization_source:=rtk
+  initialization_source:=manual \
+  start_rtk:=true \
+  start_navigation:=false \
+  rviz:=true \
+  enable_chassis_output:=false
 
-# 终端2（Jetson）：只显示二维地图、三条二维轨迹和FAST-LIVO2处理后的10Hz相机图像
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export ROS_DOMAIN_ID=0
-export ROS_LOCALHOST_ONLY=0
-ros2 daemon stop || true
-ros2 daemon start
-ros2 run rviz2 rviz2 \
-  -d /home/cgz/agribot_ws/ros2_ws/install/agribot_hardware_bringup/share/agribot_hardware_bringup/rviz/fastlivo_rtk_localization.rviz
-
-# 终端3（Jetson或RDK）：检查融合状态；fixed_active只有最近收到连续固定解位置时才为true
+# 另开终端检查融合实时性；fixed_active只有最近收到连续固定解位置时才为true
 ros2 topic echo /fastlivo_rtk/ready --once
 ros2 topic echo /fastlivo_rtk/fixed_active --once
-ros2 topic echo /localization/rtk_initializer_status --once
 ros2 topic echo /localization/lidar_ready --once
 ros2 topic echo /diagnostics | grep -A 30 agribot/fastlivo_rtk_fusion
 ros2 topic hz /fastlivo_rtk/odometry
@@ -642,8 +634,9 @@ ros2 run agribot_offline_mapping run_indoor_fastlivo_fusion_validation.py \
   --initial-y 0.0 \
   --initial-yaw-deg 0.0
 
-# 无RTK室内真机运行：RViz手动粗定位后仍经过同一套两级NDT和GICP
-# enable_fpfh默认false，manual模式不会执行全图FPFH
+# 走廊全流程阶段A：融合定位、Smac和MPPI全部启动，但禁止底盘输出
+# 启动后保持车辆静止，在RViz点击2D Pose Estimate给出附近位置和车头方向
+# 定位器会执行两级NDT和GICP；/fastlivo_rtk/ready为true后再给导航目标
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -652,17 +645,40 @@ export DISPLAY=:0
 export XAUTHORITY=/home/sunrise/.Xauthority
 export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_zoulang_0813_indoor
 ros2 launch agribot_hardware_bringup \
-  ackermann_fastlivo_rtk_localization.launch.py \
+  ackermann_mppi_fastlivo_rtk_mapped.launch.py \
   map_base:=$MAP_BASE \
   initialization_source:=manual \
   allow_missing_georeference:=true \
-  start_rtk:=false \
-  rviz:=true
+  start_rtk:=true \
+  rviz:=true \
+  enable_chassis_output:=false \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
-# 启动后保持车辆静止，在RViz点击2D Pose Estimate给出附近位置和车头方向
-# /localization/lidar_ready为true且/localization_pose发布后，才表示NDT/GICP精配准成功
+# 阶段A检查
 ros2 topic echo /localization/status --once
 ros2 topic echo /localization/lidar_ready --once
 ros2 topic echo /localization_pose --once
 ros2 topic echo /fastlivo_rtk/ready --once
 ros2 topic echo /fastlivo_rtk/fixed_active --once
+
+# 走廊全流程阶段B：阶段A定位和规划验证通过并完整退出后，才允许真车运动
+# 仅把enable_chassis_output改为true，其余参数保持一致
+ros2 launch agribot_hardware_bringup \
+  ackermann_mppi_fastlivo_rtk_mapped.launch.py \
+  map_base:=$MAP_BASE \
+  initialization_source:=manual \
+  allow_missing_georeference:=true \
+  start_rtk:=true \
+  rviz:=true \
+  enable_chassis_output:=true \
+  chassis_driver:=ackermann_can \
+  can_transport:=zqwl_cdc \
+  zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+# 室外已有地理配准地图时仍使用同一入口
+# initialization_source:=rtk会用固定解位置和双天线航向生成粗位姿，再执行NDT/GICP
+# 运行期间仍只把质量4的RTK水平位置作为绝对因子
+# export MAP_BASE=/home/sunrise/agribot_maps/test_site/带地理配准的地图名
+# 将上面命令中的initialization_source改为rtk，并保留start_rtk:=true
