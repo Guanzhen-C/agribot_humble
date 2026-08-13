@@ -407,6 +407,43 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
 # 航向RMSE不大于2度时yaw_validation_passed为true；超限时同样保留为警告，
 # 该文件只能用于下面FAST-LIO2加NDT/GICP精配准的RTK粗初始化，不能用于纯NavSat导航
 
+# 地理配准独立验证（不启动Nav2控制器和底盘，不会让小车运动）
+# 功能1：在RViz工具栏选择Publish Point，然后点击二维地图任意位置
+# 终端会直接打印该map点对应的WGS84经纬度，蓝点显示本次选择位置
+# 功能2：输入左侧主RTK天线的经纬度和车头航向，黄色箭头显示RTK粗先验
+# 随后使用正式流程相同的两级NDT和GICP精配准，绿色箭头显示最终后轴中心位姿
+# 精配准时车辆必须静止，C16、IMU和FAST-LIO2必须持续正常发布
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+export MAP_BASE=/media/cgz/data/agribot_data/maps/map_lio_sam_0811
+ros2 launch agribot_hardware_bringup \
+  ackermann_georeference_validation.launch.py \
+  map_base:=$MAP_BASE \
+  start_sensors:=true \
+  rviz:=true
+
+# 另开终端持续查看RViz点击点换算出的经纬度
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 topic echo /georeference_test/clicked_geopoint
+
+# 输入主天线WGS84纬度、经度和车头航向；航向以真北为0度、顺时针为正
+# 不填写--altitude时只依赖水平位置；当前地图的RTK高度未参与地理配准
+ros2 run agribot_hardware_bringup publish_geodetic_pose.py \
+  39.977825835 116.325862855 180.0
+
+# 查看本次NDT/GICP最终结果、粗先验和精配准位姿
+ros2 topic echo /georeference_test/result --once
+ros2 topic echo /georeference_test/rtk_seed_pose --once \
+  --qos-durability transient_local
+ros2 topic echo /georeference_test/refined_pose --once \
+  --qos-durability transient_local
+
+# 黄色与绿色箭头相差量会写入result中的seed_correction字段
+# 初值超出局部搜索范围时可重新启动并增加enable_fpfh:=true，但重复走廊仍应给近似先验
+
 # 第7步（Jetson）：把同名的PCD、二维地图和地理基准复制到RDK
 export RDK_IP=10.147.55.3
 export MAP_NAME=map_lio_sam_0804

@@ -1,0 +1,195 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 80
+      Reference Frame: <Fixed Frame>
+    - Alpha: 0.85
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: RTK Aligned 2D Map
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+    - Alpha: 1
+      Class: rviz_default_plugins/PointStamped
+      Color: 0; 170; 255
+      Enabled: true
+      History Length: 1
+      Name: Clicked Map Point
+      Radius: 0.25
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /georeference_test/clicked_map_point
+    - Alpha: 1
+      Axes Length: 0.7
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/PoseWithCovariance
+      Color: 255; 200; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.35
+          Color: 255; 200; 0
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 255; 200; 0
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.28
+      Head Radius: 0.10
+      Name: RTK Coarse Seed
+      Queue Size: 1
+      Shaft Length: 0.55
+      Shaft Radius: 0.05
+      Shape: Arrow
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /georeference_test/rtk_seed_pose
+    - Alpha: 1
+      Axes Length: 0.7
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/PoseWithCovariance
+      Color: 0; 230; 90
+      Covariance:
+        Orientation:
+          Alpha: 0.35
+          Color: 0; 230; 90
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 0; 230; 90
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.28
+      Head Radius: 0.10
+      Name: NDT GICP Refined Pose
+      Queue Size: 1
+      Shaft Length: 0.55
+      Shaft Radius: 0.05
+      Shape: Arrow
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /georeference_test/refined_pose
+    - Alpha: 0.8
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: false
+      Name: Registration PCD Map
+      Position Transformer: XYZ
+      Queue Size: 1
+      Selectable: false
+      Size (Pixels): 2
+      Size (m): 0.03
+      Style: Points
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /localization/pcd_map
+      Use Fixed Frame: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 80; 80
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Name: NDT GICP Aligned Scan
+      Position Transformer: XYZ
+      Queue Size: 1
+      Selectable: false
+      Size (Pixels): 3
+      Size (m): 0.04
+      Style: Points
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /localization/aligned_cloud
+      Use Fixed Frame: true
+  Enabled: true
+  Global Options:
+    Background Color: 40; 40; 40
+    Fixed Frame: map
+    Frame Rate: 20
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/PublishPoint
+      Topic: /clicked_point
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Scale: 45
+      Target Frame: map
+      X: 0
+      Y: 0
+Window Geometry:
+  Height: 900
+  Width: 1440

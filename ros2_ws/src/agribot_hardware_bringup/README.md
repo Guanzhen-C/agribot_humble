@@ -75,9 +75,9 @@ the rear-axle-centered `base_link`. After the rigid IMU mount replacement, a
 `(-0.007648487, -0.001835661, 0.000007020)` rad. FAST-LIO, LIO-SAM,
 the odometry bridge, sensor TFs and the KF-GINS wrapper use the corresponding
 rotations consistently. The left RTK master antenna measurement
-point is at `(0.1425, 0.2952585, 0.28476)` m. The right secondary antenna is
-at `(0.1425, -0.2952585, 0.28476)` m, giving a `0.590517 m` lateral baseline
-and an IMU-to-master-antenna lever arm of `(0, 0.2952585, 0.14176)` m. These
+    point is at `(0.1425, 0.2952585, 0.78476)` m. The right secondary antenna is
+    at `(0.1425, -0.2952585, 0.78476)` m, giving a `0.590517 m` lateral baseline
+    and an IMU-to-master-antenna lever arm of `(0, 0.2952585, 0.64176)` m. These
 configuration vectors use ROS FLU;
 the NavSat wrapper converts the antenna lever arm to KF-GINS FRD, initializes
 the filter state at the IMU center, and publishes the resulting pose and twist
@@ -430,6 +430,31 @@ ros2 launch agribot_hardware_bringup ackermann_mppi_navsat.launch.py \
 
 The NavSat entry accepts a position-only georeference yaw as a coarse prior;
 NDT/GICP must still accept the C16 scan before chassis motion is released.
+
+The georeference can be checked without Nav2 or a chassis driver. The dedicated
+validation launch displays the two-dimensional map and converts RViz Publish
+Point selections from `map` coordinates to WGS84 on
+`/georeference_test/clicked_geopoint`. It also accepts the left master antenna
+position and clockwise-from-true-north vehicle heading as a standard
+`GeoPoseStamped`. It applies the configured antenna lever arm, publishes a
+yellow rear-axle seed, and passes that seed to the production two-level NDT and
+GICP localizer. The accepted green rear-axle pose and its corresponding master
+antenna WGS84 pose are published separately:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  ackermann_georeference_validation.launch.py \
+  map_base:=/absolute/path/to/map_lio_sam_0811
+
+ros2 run agribot_hardware_bringup publish_geodetic_pose.py \
+  39.977825835 116.325862855 180.0
+ros2 topic echo /georeference_test/result --once
+```
+
+The launch never creates Nav2 controllers or a chassis node. NDT/GICP requires
+live or replayed lidar, IMU, and FAST-LIO data; keep the vehicle stationary
+until the result is accepted. Map-derived altitude remains diagnostic only
+because this georeference was calibrated from horizontal RTK positions.
 
 For a protocol-only virtual-CAN run, use the dedicated executable and config:
 

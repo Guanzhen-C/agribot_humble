@@ -31,6 +31,12 @@ SENSOR_COLLECTION_LAUNCH_PATH = (
     / "launch"
     / "ackermann_sensor_data_collection.launch.py"
 )
+GEOREFERENCE_VALIDATION_LAUNCH_PATH = (
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_georeference_validation.launch.py"
+)
 
 
 def load_vehicle_launch():
@@ -458,6 +464,21 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     manifest = (PACKAGE_ROOT / "package.xml").read_text()
     assert "<exec_depend>usb_cam</exec_depend>" in manifest
     assert "<exec_depend>openni2_camera</exec_depend>" not in manifest
+
+
+def test_georeference_validation_reuses_production_localizer_without_motion_nodes():
+    source = GEOREFERENCE_VALIDATION_LAUNCH_PATH.read_text(encoding="utf-8")
+
+    assert '"start_navigation": "false"' in source
+    assert '"enable_chassis_output": "false"' in source
+    assert '"chassis_driver": "none"' in source
+    assert '"start_rtk": "false"' in source
+    assert '"mapped_initial_pose_topic": test_initial_pose_topic' in source
+    assert 'executable="georeference_test_bridge"' in source
+    assert '"base_to_master_antenna_m"' in source
+    assert 'rtk_xyz = mounts["rtk"]["xyz"]' in source
+    assert "ackermann_chassis_can_node" not in source
+    assert "ackermann_chassis_serial_node" not in source
 
 
 def test_mapped_entry_uses_nav2_and_pcd_maps_with_optional_fpfh_localization():

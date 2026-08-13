@@ -10,6 +10,7 @@ add_compile_options(-Wall -Wextra -Wpedantic)
 find_package(ament_cmake REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(GTSAM_UNSTABLE REQUIRED)
@@ -174,6 +175,27 @@ ament_target_dependencies(rtk_map_initializer
 )
 
 add_executable(
+  georeference_test_bridge
+  localization/navsat/src/georeference_test_bridge.cpp
+)
+target_include_directories(georeference_test_bridge PRIVATE
+  localization/navsat/include
+  ${EIGEN3_INCLUDE_DIRS}
+)
+target_link_libraries(
+  georeference_test_bridge
+  Eigen3::Eigen
+  PkgConfig::GEOGRAPHICLIB
+  yaml-cpp
+)
+ament_target_dependencies(georeference_test_bridge
+  geographic_msgs
+  geometry_msgs
+  rclcpp
+  std_msgs
+)
+
+add_executable(
   fastlivo_rtk_fusion
   localization/fusion/src/fastlivo_rtk_fusion_node.cpp
 )
@@ -254,6 +276,7 @@ install(PROGRAMS
   scripts/pcd_to_nav2_map.py
   scripts/planner_validation_bridge.py
   scripts/planner_validation_follow_path.py
+  scripts/publish_geodetic_pose.py
   scripts/rtk_nmea_node.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
@@ -316,6 +339,7 @@ install(TARGETS
   ackermann_joint_state_publisher
   rtk_eskf_localization
   rtk_map_initializer
+  georeference_test_bridge
   fastlivo_rtk_fusion
   pcd_map_builder
   pcd_initial_localizer
@@ -375,6 +399,15 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_map_georeference Eigen3::Eigen yaml-cpp)
   ament_add_gtest(
+    test_georeference_test_conversions
+    localization/navsat/test/test_georeference_test_conversions.cpp
+  )
+  target_include_directories(test_georeference_test_conversions PRIVATE
+    localization/navsat/include
+    ${EIGEN3_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_georeference_test_conversions Eigen3::Eigen)
+  ament_add_gtest(
     test_horizontal_antenna_factor
     localization/fusion/test/test_horizontal_antenna_factor.cpp
   )
@@ -387,6 +420,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
+  ament_add_pytest_test(
+    test_publish_geodetic_pose
+    test/test_publish_geodetic_pose.py
+  )
   ament_add_pytest_test(
     test_vehicle_directory_layout
     test/test_vehicle_directory_layout.py
