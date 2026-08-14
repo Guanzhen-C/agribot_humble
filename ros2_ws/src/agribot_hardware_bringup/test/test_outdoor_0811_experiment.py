@@ -8,7 +8,6 @@ from launch import LaunchContext
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
-COMMANDS_ROOT = PACKAGE_ROOT / "docs/commands"
 LAUNCH_PATH = (
     PACKAGE_ROOT
     / "ackermann/launch/ackermann_outdoor_0811_experiment.launch.py"
@@ -155,34 +154,17 @@ def test_launch_is_rtk_only_and_safe_by_default():
     assert '"enable_chassis_output",\n                default_value="false"' in source
 
 
-def test_commands_are_split_by_function_and_outdoor_guide_is_two_stage():
-    expected_guides = {
-        "01_build_and_cleanup.txt",
-        "02_simulation.txt",
-        "03_rtk_eskf_validation.txt",
-        "04_sensor_data_collection.txt",
-        "05_offline_mapping_and_comparison.txt",
-        "06_map_and_planner_validation.txt",
-        "07_georeference_validation.txt",
-        "08_physical_navigation.txt",
-        "09_outdoor_0811_full_experiment.txt",
-        "10_can_and_desktop_gui.txt",
-    }
-    assert {path.name for path in COMMANDS_ROOT.glob("*.txt")} == expected_guides
-
-    old_command_file = PACKAGE_ROOT.parent / "2.txt"
-    index = old_command_file.read_text()
-    assert "命令索引" in index
-    assert "ros2 launch" not in index
-
-    outdoor = (COMMANDS_ROOT / "09_outdoor_0811_full_experiment.txt").read_text()
-    assert "/media/cgz/data/agribot_data/maps/map_lio_sam_0811" in outdoor
-    assert "ackermann_outdoor_0811_experiment.launch.py" in outdoor
-    stage_a = outdoor.index("rviz:=true enable_chassis_output:=false")
-    stage_b = outdoor.index("rviz:=true enable_chassis_output:=true")
+def test_commands_are_unified_and_outdoor_entry_is_two_stage():
+    commands = (PACKAGE_ROOT.parent / "2.txt").read_text()
+    assert "# ROS 2 编译" in commands
+    assert "# 走廊全流程阶段A" in commands
+    assert "# 走廊全流程阶段B" in commands
+    assert "ackermann_outdoor_0811_experiment.launch.py" in commands
+    stage_a = commands.index("# 室外全流程阶段A")
+    stage_b = commands.index("# 室外全流程阶段B")
     assert stage_a < stage_b
-    assert "--checksum" in outdoor
-    assert "不创建底盘节点" in outdoor
+    assert "enable_chassis_output:=false" in commands[stage_a:stage_b]
+    assert "enable_chassis_output:=true" in commands[stage_b:]
 
 
 def module_default_map():

@@ -451,9 +451,8 @@ older PGM from being mixed with the verified PCD/georeference pair.
 
 After the no-motion stage has passed, stop that launch completely and start the
 same command with `enable_chassis_output:=true`. The CAN driver still blocks
-nonzero commands until `/fastlivo_rtk/ready` is true. Full field-test commands,
-acceptance checks and shutdown order are installed under
-`share/agribot_hardware_bringup/docs/commands/09_outdoor_0811_full_experiment.txt`.
+nonzero commands until `/fastlivo_rtk/ready` is true. The concise stage A and B
+commands are kept in the workspace `src/2.txt` command file.
 
 The georeference can be checked without Nav2 or a chassis driver. The dedicated
 validation launch displays the two-dimensional map and converts RViz Publish

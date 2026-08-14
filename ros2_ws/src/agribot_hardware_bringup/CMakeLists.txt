@@ -285,7 +285,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config docs launch meshes rviz udev urdf DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config launch meshes rviz udev urdf DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
