@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -17,6 +18,8 @@ from launch.substitutions import LaunchConfiguration
 
 
 DEFAULT_MAP_BASE = "/home/sunrise/agribot_maps/test_site/map_lio_sam_0811"
+MOTION_AUTHORIZATION = "ENABLE_OUTDOOR_MOTION"
+_RUNTIME_LOCK = None
 REQUIRED_SENSOR_DEVICES = (
     (
         "RTK",
@@ -159,11 +162,36 @@ def _validate_experiment(context):
     enable_chassis = _enabled(
         LaunchConfiguration("enable_chassis_output").perform(context)
     )
+    if enable_chassis:
+        authorization = LaunchConfiguration("motion_authorization").perform(
+            context
+        )
+        if authorization != MOTION_AUTHORIZATION:
+            raise RuntimeError(
+                "阶段B必须显式设置motion_authorization:="
+                f"{MOTION_AUTHORIZATION}"
+            )
     can_transport = LaunchConfiguration("can_transport").perform(context)
     if enable_chassis and can_transport == "zqwl_cdc":
         zqwl_port = Path(LaunchConfiguration("zqwl_port").perform(context))
         if not zqwl_port.exists():
             raise RuntimeError(f"USB-CAN设备不存在: {zqwl_port}")
+    return []
+
+
+def _acquire_runtime_lock(_context):
+    global _RUNTIME_LOCK
+    lock = open("/tmp/agribot_outdoor_0811.lock", "w", encoding="ascii")
+    try:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        lock.close()
+        raise RuntimeError(
+            "已有一套0811室外全流程正在运行；必须先完整退出旧进程"
+        ) from error
+    lock.write(f"{os.getpid()}\n")
+    lock.flush()
+    _RUNTIME_LOCK = lock
     return []
 
 
@@ -207,6 +235,11 @@ def generate_launch_description():
                 default_value="false",
                 description="阶段A保持false；全部检查通过后阶段B显式改为true",
             ),
+            DeclareLaunchArgument(
+                "motion_authorization",
+                default_value="",
+                description="阶段B防误触授权口令；阶段A保持为空",
+            ),
             DeclareLaunchArgument("chassis_driver", default_value="ackermann_can"),
             DeclareLaunchArgument("can_transport", default_value="zqwl_cdc"),
             DeclareLaunchArgument("can_interface", default_value="can0"),
@@ -220,6 +253,7 @@ def generate_launch_description():
             DeclareLaunchArgument("zqwl_channel", default_value="0"),
             DeclareLaunchArgument("zqwl_bitrate", default_value="1000000"),
             OpaqueFunction(function=_validate_experiment),
+            OpaqueFunction(function=_acquire_runtime_lock),
             LogInfo(
                 msg=[
                     "室外0811全流程：地图校验通过；底盘输出=",

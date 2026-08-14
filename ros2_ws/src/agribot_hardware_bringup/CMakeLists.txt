@@ -273,6 +273,7 @@ ament_target_dependencies(pcd_initial_localizer
 install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
+  scripts/outdoor_stage_check.py
   scripts/pcd_to_nav2_map.py
   scripts/planner_validation_bridge.py
   scripts/planner_validation_follow_path.py
@@ -447,6 +448,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_outdoor_0811_experiment
     test/test_outdoor_0811_experiment.py
+  )
+  ament_add_pytest_test(
+    test_outdoor_stage_check
+    test/test_outdoor_stage_check.py
   )
 endif()
 

@@ -687,8 +687,8 @@ ros2 launch agribot_hardware_bringup \
 # map_lio_sam_0811室外全流程：FAST-LIVO2、固定解RTK、Smac、MPPI和C16三维避障
 # 室外专用launch已经固定地图、RTK初始化、右目相机和USB-CAN参数
 
-# 室外全流程阶段A：启动定位、规划、避障和RViz，但不创建底盘节点
-# 启动后保持车辆静止，等待RTK粗初始化以及NDT/GICP精配准完成
+# 室外全流程阶段A，终端1：启动定位、规划、避障和RViz，但不创建底盘节点
+# 启动后保持车辆静止；这个launch会持续运行，不会继续执行后面的检查命令
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -700,14 +700,35 @@ ros2 launch agribot_hardware_bringup \
   rviz:=true \
   enable_chassis_output:=false
 
-# 阶段A检查
-ros2 topic echo /localization/status --once --qos-durability transient_local
-ros2 topic echo /localization/lidar_ready --once --qos-durability transient_local
-ros2 topic echo /fastlivo_rtk/ready --once --qos-durability transient_local
-ros2 topic echo /fastlivo_rtk/fixed_active --once --qos-durability transient_local
+# 室外全流程阶段A，终端2：终端1保持运行，执行一次性综合验收
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage A --timeout 30
 
-# 室外全流程阶段B：阶段A定位和规划验证通过并完整退出后，才允许真车运动
+# 室外全流程阶段B，终端1：必须先用Ctrl+C完整退出阶段A，再启动本段
+# 授权口令只防止误启动；底盘仍要等待定位心跳和三条CAN反馈均正常才允许非零输出
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+export DISPLAY=:0
+export XAUTHORITY=/home/sunrise/.Xauthority
 ros2 launch agribot_hardware_bringup \
   ackermann_outdoor_0811_experiment.launch.py \
   rviz:=true \
-  enable_chassis_output:=true
+  enable_chassis_output:=true \
+  motion_authorization:=ENABLE_OUTDOOR_MOTION
+
+# 室外全流程阶段B，终端2：终端1保持运行；验收通过前禁止在RViz下发目标
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage B --timeout 30
+
+# 只有看到“阶段B验收通过”后才执行；首次实车把Nav2绝对速度限制为0.15 m/s
+ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
+  "{percentage: false, speed_limit: 0.15}"
+# 随车保留人工急停；确认地图、实时障碍物和规划路径正确后，再在RViz下发目标

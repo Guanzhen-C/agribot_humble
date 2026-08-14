@@ -272,6 +272,8 @@ private:
       "correction_time_constant_sec", 2.0);
     fixed_recent_timeout_sec_ = declare_parameter<double>(
       "fixed_recent_timeout_sec", 0.50);
+    odom_ready_timeout_sec_ = declare_parameter<double>(
+      "odom_ready_timeout_sec", 0.50);
     path_max_poses_ = declare_parameter<int>("path_max_poses", 6000);
     path_sample_period_sec_ = declare_parameter<double>(
       "path_sample_period_sec", 0.10);
@@ -287,7 +289,7 @@ private:
     base_from_imu_ = rotationFromRpy(declare_parameter<std::vector<double>>(
       "base_from_imu_rpy", {0.000572424, -0.009139547, -0.000002616}));
 
-    const std::array<double, 24> positive_parameters{
+    const std::array<double, 25> positive_parameters{
       quality_timeout_sec_, rtk_sync_tolerance_sec_, imu_sync_tolerance_sec_,
       seed_sync_tolerance_sec_, fixed_lag_sec_, keyframe_period_sec_,
       keyframe_distance_m_, keyframe_angle_rad_, rtk_factor_min_distance_m_,
@@ -295,7 +297,8 @@ private:
       gravity_sigma_rad_, gravity_huber_delta_, odom_rotation_sigma_rad_,
       odom_yaw_sigma_rad_, odom_horizontal_sigma_m_, odom_vertical_sigma_m_,
       seed_rotation_sigma_rad_, seed_position_sigma_m_, automatic_yaw_sigma_rad_,
-      automatic_position_sigma_m_, initial_roll_pitch_sigma_rad_, initial_z_sigma_m_};
+      automatic_position_sigma_m_, initial_roll_pitch_sigma_rad_, initial_z_sigma_m_,
+      odom_ready_timeout_sec_};
     if (required_fix_quality_ < 1 || required_consecutive_fixed_ < 1 ||
       path_max_poses_ < 2 || path_sample_period_sec_ <= 0.0 ||
       correction_translation_rate_mps_ <= 0.0 || correction_rotation_rate_radps_ <= 0.0 ||
@@ -410,6 +413,9 @@ private:
     diagnostics_timer_ = create_wall_timer(
       std::chrono::seconds(1),
       std::bind(&FastLivoRtkFusionNode::publishDiagnostics, this));
+    state_timer_ = create_wall_timer(
+      std::chrono::milliseconds(100),
+      std::bind(&FastLivoRtkFusionNode::publishStateFlags, this));
 
     fused_path_.header.frame_id = map_frame_;
     local_path_.header.frame_id = map_frame_;
@@ -548,6 +554,7 @@ private:
       sample.odom_from_base = poseFromMessage(message->pose.pose);
       sample.twist = message->twist;
       latest_odom_ = sample;
+      last_odom_receipt_sec_ = now().seconds();
 
       if (!initialized_) {
         tryInitializeFromSeed();
@@ -564,6 +571,7 @@ private:
         }
         publishCurrentEstimate(sample);
       }
+      publishStateFlags();
     } catch (const std::exception & error) {
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000,
@@ -590,6 +598,20 @@ private:
     }
     const double age = now().seconds() - *last_fixed_fix_receipt_sec_;
     return age >= 0.0 && age <= fixed_recent_timeout_sec_;
+  }
+
+  bool odomRecentlyActive() const
+  {
+    if (!last_odom_receipt_sec_.has_value()) {
+      return false;
+    }
+    const double age = now().seconds() - *last_odom_receipt_sec_;
+    return age >= 0.0 && age <= odom_ready_timeout_sec_;
+  }
+
+  bool localizationHealthy() const
+  {
+    return initialized_ && odomRecentlyActive();
   }
 
   double messageStampOrNow(const builtin_interfaces::msg::Time & stamp) const
@@ -1036,7 +1058,7 @@ private:
 
   void publishStateFlags()
   {
-    ready_publisher_->publish(std_msgs::msg::Bool().set__data(initialized_));
+    ready_publisher_->publish(std_msgs::msg::Bool().set__data(localizationHealthy()));
     fixed_active_publisher_->publish(
       std_msgs::msg::Bool().set__data(fixedRecentlyActive()));
   }
@@ -1052,6 +1074,9 @@ private:
     if (!initialized_) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
       status.message = initialization_status_;
+    } else if (!odomRecentlyActive()) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+      status.message = "FAST-LIVO2 odometry missing or stale";
     } else if (!fixedRecentlyActive()) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
       status.message = "FAST-LIVO2 propagation; no recent RTK quality-4 position";
@@ -1060,6 +1085,8 @@ private:
       status.message = "FAST-LIVO2 with fixed RTK XY and gravity constraints";
     }
     status.values.push_back(diagnosticValue("initialized", initialized_ ? "true" : "false"));
+    status.values.push_back(diagnosticValue(
+        "odometry_fresh", odomRecentlyActive() ? "true" : "false"));
     status.values.push_back(diagnosticValue("latest_fix_quality", std::to_string(latest_quality_)));
     status.values.push_back(diagnosticValue(
         "consecutive_fixed", std::to_string(consecutive_fixed_count_)));
@@ -1163,6 +1190,7 @@ private:
   double correction_rotation_rate_radps_{0.20};
   double correction_time_constant_sec_{2.0};
   double fixed_recent_timeout_sec_{0.50};
+  double odom_ready_timeout_sec_{0.50};
   double path_sample_period_sec_{0.10};
   double georeference_horizontal_rmse_m_{0.0};
   double last_rtk_innovation_m_{0.0};
@@ -1208,6 +1236,7 @@ private:
   std::optional<double> pending_seed_stamp_sec_;
   std::optional<double> latest_quality_receipt_sec_;
   std::optional<double> last_fixed_fix_receipt_sec_;
+  std::optional<double> last_odom_receipt_sec_;
   std::optional<double> applied_correction_stamp_sec_;
   std::optional<double> last_path_stamp_sec_;
 
@@ -1232,6 +1261,7 @@ private:
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
     diagnostics_publisher_;
   rclcpp::TimerBase::SharedPtr diagnostics_timer_;
+  rclcpp::TimerBase::SharedPtr state_timer_;
 };
 
 }  // namespace agribot_hardware_bringup::fusion

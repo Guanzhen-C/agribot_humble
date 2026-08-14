@@ -103,6 +103,7 @@ def generate_launch_description():
                         "command_topic": "/nav2/cmd_vel",
                         "require_localization_ready": True,
                         "localization_ready_topic": "/fastlivo_rtk/ready",
+                        "localization_ready_timeout_sec": 0.5,
                     },
                 ],
                 condition=LaunchConfigurationEquals(
@@ -127,6 +128,7 @@ def generate_launch_description():
                         "command_topic": "/nav2/cmd_vel",
                         "require_localization_ready": True,
                         "localization_ready_topic": "/fastlivo_rtk/ready",
+                        "localization_ready_timeout_sec": 0.5,
                     },
                 ],
                 condition=LaunchConfigurationEquals(

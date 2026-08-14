@@ -88,6 +88,7 @@ def context_for(map_base, profile, camera):
             "map_profile": str(profile),
             "right_camera_device": str(camera),
             "enable_chassis_output": "false",
+            "motion_authorization": "",
             "can_transport": "zqwl_cdc",
             "zqwl_port": "/missing/can",
             "initialization_source": "rtk",
@@ -122,7 +123,20 @@ def test_chassis_stage_requires_usb_can_device(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "REQUIRED_SENSOR_DEVICES", (("test", camera),))
     context = context_for(map_base, profile, camera)
     context.launch_configurations["enable_chassis_output"] = "true"
+    context.launch_configurations["motion_authorization"] = (
+        module.MOTION_AUTHORIZATION
+    )
     with pytest.raises(RuntimeError, match="USB-CAN设备不存在"):
+        module._validate_experiment(context)
+
+
+def test_chassis_stage_requires_explicit_motion_authorization(tmp_path, monkeypatch):
+    module = load_launch_module()
+    map_base, profile, _pgm, camera = make_map_set(tmp_path)
+    monkeypatch.setattr(module, "REQUIRED_SENSOR_DEVICES", (("test", camera),))
+    context = context_for(map_base, profile, camera)
+    context.launch_configurations["enable_chassis_output"] = "true"
+    with pytest.raises(RuntimeError, match="motion_authorization"):
         module._validate_experiment(context)
 
 
@@ -152,6 +166,7 @@ def test_launch_is_rtk_only_and_safe_by_default():
     assert '"allow_missing_georeference", default_value="false"' in source
     assert 'DeclareLaunchArgument("enable_fpfh", default_value="false")' in source
     assert '"enable_chassis_output",\n                default_value="false"' in source
+    assert '"motion_authorization",\n                default_value=""' in source
 
 
 def test_commands_are_unified_and_outdoor_entry_is_two_stage():
@@ -165,6 +180,9 @@ def test_commands_are_unified_and_outdoor_entry_is_two_stage():
     assert stage_a < stage_b
     assert "enable_chassis_output:=false" in commands[stage_a:stage_b]
     assert "enable_chassis_output:=true" in commands[stage_b:]
+    assert "outdoor_stage_check.py --stage A" in commands[stage_a:stage_b]
+    assert "outdoor_stage_check.py --stage B" in commands[stage_b:]
+    assert "motion_authorization:=ENABLE_OUTDOOR_MOTION" in commands[stage_b:]
 
 
 def module_default_map():

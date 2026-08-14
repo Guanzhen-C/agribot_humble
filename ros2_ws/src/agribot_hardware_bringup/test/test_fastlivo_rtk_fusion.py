@@ -26,6 +26,7 @@ def test_fixed_rtk_position_only_policy_and_gravity_constraint():
     assert parameters["rtk_horizontal_sigma_floor_m"] == pytest.approx(0.10)
     assert parameters["gravity_sigma_rad"] == pytest.approx(0.017453292519943295)
     assert parameters["correction_time_constant_sec"] == pytest.approx(2.0)
+    assert parameters["odom_ready_timeout_sec"] == pytest.approx(0.50)
     assert "HorizontalAntennaFactor" in source
     assert "Pose3AttitudeFactor" in source
     assert "georeference_horizontal_rmse_m_" in source
@@ -33,6 +34,9 @@ def test_fixed_rtk_position_only_policy_and_gravity_constraint():
     assert "-std::expm1(-dt / correction_time_constant_sec_)" in source
     assert "refreshLatestOptimizedPose();" in source
     assert "if (!fixedRecentlyActive())" in source
+    assert "localizationHealthy()" in source
+    assert '"odometry_fresh"' in source
+    assert "std::chrono::milliseconds(100)" in source
     assert '"global_correction_frozen"' in source
     assert "heading_topic" not in source
     assert "position_covariance[8]" not in source
@@ -107,6 +111,7 @@ def test_full_vehicle_launch_uses_fused_odometry_for_navigation_and_safety():
     assert '"command_topic": "/nav2/cmd_vel"' in launch_source
     assert '"require_localization_ready": True' in launch_source
     assert '"localization_ready_topic": "/fastlivo_rtk/ready"' in launch_source
+    assert '"localization_ready_timeout_sec": 0.5' in launch_source
     assert '"enable_chassis_output",\n                default_value="false"' in launch_source
     assert 'LaunchConfiguration("rviz_config")' in launch_source
 

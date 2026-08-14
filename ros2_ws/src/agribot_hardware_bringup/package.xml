@@ -39,6 +39,7 @@
   <exec_depend>hipnuc_imu</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
   <exec_depend>lslidar_driver</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_costmap_2d</exec_depend>
