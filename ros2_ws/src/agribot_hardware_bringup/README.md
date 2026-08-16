@@ -1,13 +1,15 @@
 # Agribot hardware bringup
 
 This package is the physical-vehicle entry point for sensors, localization,
-Nav2, command safety, and CAN/serial chassis control. It supports these tested
-navigation selections:
+Nav2, command safety, and CAN/serial chassis control. It provides these
+navigation entry points; the differential stack is software-validated but
+remains calibration-gated until its physical measurements are supplied:
 
 | Vehicle | Controller | Localization | Launch file |
 | --- | --- | --- | --- |
-| Differential | DWB | NavSat/KF-GINS | `differential_dwb_navsat.launch.py` |
-| Differential | DWB | FAST-LIO | `differential_dwb_fastlio.launch.py` |
+| Differential | MPPI DiffDrive | FAST-LIVO2 + fixed RTK + saved map | `differential_mppi_fastlivo_rtk_mapped.launch.py` |
+| Differential | State Lattice planner test | Saved 2D map | `differential_state_lattice_validation.launch.py` |
+| Differential | None | FAST-LIO 3D/2D mapping | `differential_3d_mapping.launch.py` |
 | Ackermann | MPPI | NavSat/KF-GINS | `ackermann_mppi_navsat.launch.py` |
 | Ackermann | MPPI | FAST-LIO local rolling map | `ackermann_mppi_fastlio_local.launch.py` |
 | Ackermann | MPPI | FAST-LIO + 3D PCD mapping | `ackermann_mppi_fastlio_3d_mapping.launch.py` |
@@ -31,11 +33,10 @@ system components or third-party device/algorithm packages: Nav2, RViz,
 FAST-LIO, `hipnuc_imu`, `lslidar_driver`, PCL, STVL, and their message packages.
 The CAN status interface also uses the third-party `scout_msgs` package.
 
-No simulation map is bundled with the physical-vehicle package. NavSat and
-differential static-map entry points accept a real map with
-`map:=/path/map.yaml`. Ackermann FAST-LIO mapped navigation loads the YAML/PGM
-generated alongside its PCD map; the local rolling-map entry point requires
-none of these files.
+No simulation map is bundled with the physical-vehicle package. Mapped
+navigation receives a real map base path whose `.pcd`, `.yaml`, and image files
+were generated together. The differential outdoor RTK entry additionally
+requires the matching `_georeference.yaml` file.
 
 The installed chassis executables remain vehicle-specific; there is no mixed
 vehicle executable.
@@ -140,45 +141,43 @@ Important dimensions and drivetrain values are in
 `track_width_m`, `wheel_diameter_m`, `reduction_ratio`, and `max_motor_rpm`.
 Measure and verify them before physical motion.
 
-## Differential DWB navigation
+## Differential State Lattice and MPPI navigation
 
-NavSat/KF-GINS, DWB, sensors, STVL obstacle perception, and RViz:
+The differential stack uses Smac State Lattice with the Humble 5 cm
+differential motion-primitive set and MPPI's `DiffDrive` model. It supports
+in-place rotation and reverse motion while checking the complete rectangular
+footprint. Both local and global costmaps consume `/lidar/points` through STVL;
+no legacy single-ring `/scan`, AMCL, NavFn, or DWB component is used.
 
-```bash
-ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
-  map:=/absolute/path/to/real_map.yaml
-```
+The checked-in geometry, wheel parameters, speed limits, and sensor transforms
+are provisional placeholders. `differential/config/vehicle_calibration.yaml`
+therefore has `calibration_complete: false`, and the full launch refuses to
+create the physical chassis node until calibration is marked complete.
 
-FAST-LIO, DWB, sensors, STVL obstacle perception, and RViz:
-
-```bash
-ros2 launch agribot_hardware_bringup differential_dwb_fastlio.launch.py \
-  map:=/absolute/path/to/real_map.yaml
-```
-
-Both use a maximum linear speed of `0.8 m/s` and maximum angular speed of
-`1.4 rad/s`. FAST-LIO consumes `/lidar/points` and `/imu/data` for
-localization. Navigation also consumes the complete `/lidar/points` cloud
-through a `SpatioTemporalVoxelLayer`; the C16 driver does not publish the old
-single-ring `/scan`.
-
-To inspect the complete navigation stack without opening a chassis transport,
-leave the default `enable_chassis_output:=false`. The unified real-vehicle
-launch accepts `none`, `differential_can`, `ackermann_can`, and
-`ackermann_serial` chassis backends. The legacy `enable_can_output` argument
-remains as a compatibility alias.
-
-After the controller bitrate, vehicle dimensions, wheel directions, emergency
-stop, and lifted-wheel test have been confirmed, enable the supplied
-differential controller:
+Run the full stack in observation-only mode first:
 
 ```bash
-ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
-  map:=/absolute/path/to/real_map.yaml \
-  enable_can_output:=true chassis_driver:=differential_can can_interface:=can0
+ros2 launch agribot_hardware_bringup \
+  differential_mppi_fastlivo_rtk_mapped.launch.py \
+  map_base:=/absolute/path/to/real_map \
+  initialization_source:=manual \
+  enable_chassis_output:=false rviz:=true
 ```
 
-Use `differential_dwb_fastlio.launch.py` for the corresponding FAST-LIO run.
+After geometry, motor directions, limits, emergency stop, feedback freshness,
+and lifted-wheel motion have all been verified, physical motion additionally
+requires the exact authorization string:
+
+```bash
+ros2 launch agribot_hardware_bringup \
+  differential_mppi_fastlivo_rtk_mapped.launch.py \
+  map_base:=/absolute/path/to/real_map \
+  enable_chassis_output:=true \
+  motion_authorization:=ENABLE_DIFFERENTIAL_MOTION
+```
+
+See `differential/README.md` for sensor validation, mapping, offline planning,
+outdoor RTK initialization, and USB-CAN commands.
 
 ## SocketCAN setup
 
@@ -203,7 +202,7 @@ ros2 run agribot_hardware_bringup differential_chassis_can_node --ros-args \
 
 The node sends at 10 Hz, matching the proven implementation and the
 workbook's recommended 100-300 ms interval. Motion is independently blocked
-when the command is older than 0.25 s, required feedback is older than 1.2 s,
+when the command is older than 0.25 s, required feedback is older than 0.6 s,
 the controller is not in autonomous mode, emergency stop is active, or a
 reported chassis/motor fault is present. Shutdown sends three brake frames.
 
@@ -519,8 +518,8 @@ export NTRIP_HOST=example.invalid
 export NTRIP_MOUNTPOINT=mountpoint
 export NTRIP_USERNAME=user
 export NTRIP_PASSWORD=password
-ros2 launch agribot_hardware_bringup differential_dwb_navsat.launch.py \
-  map:=/absolute/path/to/real_map.yaml enable_ntrip:=true
+ros2 launch agribot_hardware_bringup differential_outdoor_experiment.launch.py \
+  map_base:=/absolute/path/to/real_map enable_ntrip:=true
 ```
 
 ## Runtime command path and calibration

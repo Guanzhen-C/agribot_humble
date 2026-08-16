@@ -26,6 +26,7 @@ def generate_launch_description():
                 "default_nav_through_poses_bt_xml"
             ),
             "odom_topic": LaunchConfiguration("odom_topic"),
+            "lattice_filepath": LaunchConfiguration("lattice_filepath"),
         },
         convert_types=True,
     )
@@ -43,12 +44,25 @@ def generate_launch_description():
             DeclareLaunchArgument("odom_topic", default_value="/odom"),
             DeclareLaunchArgument("map_topic", default_value="/map"),
             DeclareLaunchArgument(
+                "lattice_filepath",
+                default_value=os.path.join(
+                    hardware_share,
+                    "differential",
+                    "config",
+                    "motion_primitives",
+                    "diff_5cm.json",
+                ),
+                description=(
+                    "Smac State Lattice运动基元文件；必须与全局代价地图分辨率一致"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "params_file",
                 default_value=os.path.join(
                     hardware_share,
                     "differential",
                     "config",
-                    "nav2_dwb_navsat.yaml",
+                    "nav2_params_differential_fastlivo_mapped.yaml",
                 ),
             ),
             DeclareLaunchArgument(

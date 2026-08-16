@@ -9,6 +9,7 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    differential_config = os.path.join(hardware_share, "differential", "config")
     common_launch = os.path.join(
         hardware_share, "launch", "include", "fastlivo_rtk_localization.launch.py"
     )
@@ -16,7 +17,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "map_base", description="不带扩展名的地图绝对路径"
+                "map_base", description="不带扩展名的三维和二维地图绝对路径"
             ),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
@@ -27,14 +28,11 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument(
-                "use_detailed_vehicle_model", default_value="false"
-            ),
-            DeclareLaunchArgument(
-                "initialization_source", default_value="rtk"
+                "initialization_source", default_value="manual"
             ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
             DeclareLaunchArgument(
-                "allow_missing_georeference", default_value="false"
+                "allow_missing_georeference", default_value="true"
             ),
             DeclareLaunchArgument(
                 "right_camera_device", default_value="/dev/agribot_right_camera"
@@ -56,9 +54,7 @@ def generate_launch_description():
                             ),
                             "rviz": LaunchConfiguration("rviz"),
                             "enable_ntrip": LaunchConfiguration("enable_ntrip"),
-                            "use_detailed_vehicle_model": LaunchConfiguration(
-                                "use_detailed_vehicle_model"
-                            ),
+                            "use_detailed_vehicle_model": "false",
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
                             ),
@@ -70,28 +66,25 @@ def generate_launch_description():
                                 "right_camera_device"
                             ),
                             "mount_config": os.path.join(
-                                hardware_share, "config", "sensor_mounts.yaml"
+                                differential_config, "sensor_mounts.yaml"
+                            ),
+                            "rtk_config": os.path.join(
+                                differential_config, "rtk_nmea.yaml"
+                            ),
+                            "fastlivo_lidar_config": os.path.join(
+                                differential_config, "fastlivo_c16_camera.yaml"
                             ),
                             "fastlivo_bridge_config": os.path.join(
-                                hardware_share, "config", "fastlivo_bridge.yaml"
+                                differential_config, "fastlivo_bridge.yaml"
                             ),
                             "pcd_initial_localization_config": os.path.join(
-                                hardware_share,
-                                "ackermann",
-                                "config",
-                                "pcd_initial_localization.yaml",
+                                differential_config, "pcd_initial_localization.yaml"
                             ),
                             "rtk_map_initializer_config": os.path.join(
-                                hardware_share, "config", "rtk_map_initializer.yaml"
+                                differential_config, "rtk_map_initializer.yaml"
                             ),
                             "fastlivo_rtk_fusion_config": os.path.join(
-                                hardware_share, "config", "fastlivo_rtk_fusion.yaml"
-                            ),
-                            "robot_description_file": os.path.join(
-                                hardware_share, "urdf", "ackermann_vehicle.urdf"
-                            ),
-                            "robot_state_publisher_name": (
-                                "ackermann_robot_state_publisher"
+                                differential_config, "fastlivo_rtk_fusion.yaml"
                             ),
                         }.items(),
                     )

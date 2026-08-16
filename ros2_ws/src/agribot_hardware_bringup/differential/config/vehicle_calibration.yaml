@@ -1,0 +1,45 @@
+schema_version: 1
+vehicle_type: differential
+calibration_complete: false
+base_link_reference: four_wheel_geometric_center
+
+# Temporary geometry derived from the measured Ackermann vehicle. Its original
+# base_link is at the rear axle, so all X extents are shifted forward by half
+# the 0.5265855 m wheelbase to place this differential base_link at the center
+# of its four wheel hubs. These are not differential-vehicle measurements.
+geometry:
+  body_front_m: 0.39152525
+  body_rear_m: 0.39079275
+  body_left_m: 0.335974
+  body_right_m: 0.335974
+  safety_front_m: 0.10
+  safety_rear_m: 0.10
+  safety_left_m: 0.15
+  safety_right_m: 0.15
+  track_width_m: 0.590224
+  wheel_diameter_m: 0.25
+
+drivetrain:
+  invert_left_motor: false
+  invert_right_motor: false
+  # These two empirical scales replace a motor RPM/reduction-ratio model.
+  command_full_scale_wheel_speed_mps: 0.80
+  feedback_wheel_speed_mps_per_rpm: 0.000436332313
+
+motion:
+  reverse_enabled: true
+  commissioning_linear_velocity_mps: 0.20
+  commissioning_reverse_velocity_mps: 0.15
+  commissioning_angular_velocity_radps: 0.80
+
+required_measurements:
+  - body_extents_from_base_link
+  - track_width
+  - wheel_diameter
+  - motor_direction_signs
+  - command_percent_to_wheel_speed_scale
+  - feedback_rpm_to_wheel_speed_scale_for_optional_wheel_odometry
+  - maximum_linear_and_angular_velocity
+  - imu_lidar_camera_rtk_extrinsics
+  - rtk_master_secondary_layout_and_heading_offset
+  - camera_image_time_offset

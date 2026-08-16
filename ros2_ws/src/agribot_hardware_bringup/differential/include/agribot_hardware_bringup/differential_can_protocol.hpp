@@ -24,10 +24,9 @@ struct Command
 
 struct Kinematics
 {
-  double track_width_m{0.94};
-  double wheel_diameter_m{0.20};
-  double reduction_ratio{30.0};
-  double max_motor_rpm{3000.0};
+  double track_width_m{0.590224};
+  double command_full_scale_wheel_speed_mps{0.80};
+  double feedback_wheel_speed_mps_per_rpm{0.000436332313};
   double max_linear_velocity{1.0};
   double max_angular_velocity{1.4};
 };

@@ -50,7 +50,6 @@
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
-  <exec_depend>nav2_navfn_planner</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
   <exec_depend>pcl_ros</exec_depend>
@@ -58,8 +57,6 @@
   <exec_depend>nav2_waypoint_follower</exec_depend>
   <exec_depend>usb_cam</exec_depend>
   <exec_depend>spatio_temporal_voxel_layer</exec_depend>
-  <exec_depend>dwb_core</exec_depend>
-  <exec_depend>dwb_critics</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>ros2bag</exec_depend>

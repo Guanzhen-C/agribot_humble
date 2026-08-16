@@ -22,10 +22,11 @@ public:
     legacy_brake_byte_ = node.declare_parameter<bool>("legacy_brake_byte", true);
     invert_left_motor_ = node.declare_parameter<bool>("invert_left_motor", false);
     invert_right_motor_ = node.declare_parameter<bool>("invert_right_motor", false);
-    config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.94);
-    config_.wheel_diameter_m = node.declare_parameter<double>("wheel_diameter_m", 0.20);
-    config_.reduction_ratio = node.declare_parameter<double>("reduction_ratio", 30.0);
-    config_.max_motor_rpm = node.declare_parameter<double>("max_motor_rpm", 3000.0);
+    config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.590224);
+    config_.command_full_scale_wheel_speed_mps =
+      node.declare_parameter<double>("command_full_scale_wheel_speed_mps", 0.80);
+    config_.feedback_wheel_speed_mps_per_rpm =
+      node.declare_parameter<double>("feedback_wheel_speed_mps_per_rpm", 0.000436332313);
     config_.max_linear_velocity =
       node.declare_parameter<double>("max_linear_velocity", 0.80);
     config_.max_angular_velocity =

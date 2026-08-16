@@ -87,12 +87,11 @@ def _validate_arguments(context):
         )
     if vehicle_type not in ("differential", "ackermann"):
         raise RuntimeError("vehicle_type must be 'differential' or 'ackermann'")
-    if controller not in ("dwb", "mppi"):
-        raise RuntimeError("controller must be 'dwb' or 'mppi'")
-    if vehicle_type == "differential" and controller != "dwb":
-        raise RuntimeError("differential vehicle currently requires controller:=dwb")
-    if vehicle_type == "ackermann" and controller != "mppi":
-        raise RuntimeError("ackermann vehicle currently requires controller:=mppi")
+    if controller != "mppi":
+        raise RuntimeError(
+            "physical vehicle bringup requires controller:=mppi; "
+            "the legacy DWB configuration has been removed"
+        )
     if chassis_driver not in (
         "none",
         "differential_can",
@@ -558,12 +557,17 @@ def generate_launch_description():
                 launch_arguments={
                     "use_sim_time": use_sim_time,
                     "autostart": autostart,
-                    "params_file": LaunchConfiguration("dwb_navsat_nav2_params"),
+                    "params_file": LaunchConfiguration(
+                        "differential_nav2_params"
+                    ),
                     "odom_topic": "/odometry/filtered_navsat",
+                    "lattice_filepath": LaunchConfiguration(
+                        "differential_lattice_filepath"
+                    ),
                 }.items(),
             )
         ],
-        condition=_selection_condition("differential", "dwb", "navsat"),
+        condition=_selection_condition("differential", "mppi", "navsat"),
     )
 
     differential_fastlio_navigation = TimerAction(
@@ -576,12 +580,17 @@ def generate_launch_description():
                 launch_arguments={
                     "use_sim_time": use_sim_time,
                     "autostart": autostart,
-                    "params_file": LaunchConfiguration("dwb_fastlio_nav2_params"),
+                    "params_file": LaunchConfiguration(
+                        "differential_nav2_params"
+                    ),
                     "odom_topic": "/fastlio/odometry",
+                    "lattice_filepath": LaunchConfiguration(
+                        "differential_lattice_filepath"
+                    ),
                 }.items(),
             )
         ],
-        condition=_selection_condition("differential", "dwb", "fastlio"),
+        condition=_selection_condition("differential", "mppi", "fastlio"),
     )
 
     return LaunchDescription(
@@ -792,21 +801,22 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                "dwb_navsat_nav2_params",
+                "differential_nav2_params",
                 default_value=os.path.join(
                     hardware_share,
                     "differential",
                     "config",
-                    "nav2_dwb_navsat.yaml",
+                    "nav2_params_differential_fastlivo_mapped.yaml",
                 ),
             ),
             DeclareLaunchArgument(
-                "dwb_fastlio_nav2_params",
+                "differential_lattice_filepath",
                 default_value=os.path.join(
                     hardware_share,
                     "differential",
                     "config",
-                    "nav2_dwb_fastlio.yaml",
+                    "motion_primitives",
+                    "diff_5cm.json",
                 ),
             ),
             DeclareLaunchArgument(

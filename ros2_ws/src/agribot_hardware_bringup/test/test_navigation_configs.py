@@ -1,3 +1,4 @@
+import json
 import math
 import xml.etree.ElementTree as element_tree
 from pathlib import Path
@@ -176,27 +177,188 @@ def assert_c16_stvl(
     assert clearing["horizontal_fov_angle"] > 6.28
 
 
-def test_differential_configs_use_dwb_and_matching_limits():
-    for name in ("nav2_dwb_navsat.yaml", "nav2_dwb_fastlio.yaml"):
-        config = load_config(name, "differential")
-        controller = config["controller_server"]["ros__parameters"]
-        follow_path = controller["FollowPath"]
+def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
+    config = load_config(
+        "nav2_params_differential_fastlivo_mapped.yaml", "differential"
+    )
+    chassis = load_config("chassis_can.yaml", "differential")["/**"][
+        "ros__parameters"
+    ]
+    calibration = load_config("vehicle_calibration.yaml", "differential")
+    geometry = calibration["geometry"]
+    drivetrain = calibration["drivetrain"]
+    controller = config["controller_server"]["ros__parameters"]
+    follow_path = controller["FollowPath"]
+    planner = config["planner_server"]["ros__parameters"]["GridBased"]
 
-        assert controller["controller_plugins"] == ["FollowPath"]
-        assert follow_path["plugin"] == "dwb_core::DWBLocalPlanner"
-        assert follow_path["max_vel_x"] == 0.8
-        assert follow_path["max_vel_theta"] == 1.4
-        assert "RotateToGoal" in follow_path["critics"]
+    assert "amcl" not in config
+    assert "/scan" not in yaml.safe_dump(config)
+    assert controller["controller_plugins"] == ["FollowPath"]
+    assert controller["odom_topic"] == "/fastlivo_rtk/odometry"
+    assert follow_path["plugin"] == "nav2_mppi_controller::MPPIController"
+    assert follow_path["motion_model"] == "DiffDrive"
+    assert follow_path["vx_max"] == chassis["max_linear_velocity"]
+    assert follow_path["vx_min"] == -calibration["motion"][
+        "commissioning_reverse_velocity_mps"
+    ]
+    assert follow_path["vy_max"] == 0.0
+    assert follow_path["vy_std"] == 0.0
+    assert follow_path["wz_max"] == chassis["max_angular_velocity"]
+    assert follow_path["enforce_path_inversion"] is True
+    assert follow_path["PathAngleCritic"]["forward_preference"] is False
+    assert "AckermannConstraints" not in follow_path
+    assert "PreferForwardCritic" not in follow_path
+
+    assert planner["plugin"] == "nav2_smac_planner/SmacPlannerLattice"
+    assert planner["lattice_filepath"] == ""
+    assert planner["reverse_penalty"] > 1.0
+    assert planner["rotation_penalty"] > 1.0
+    assert "motion_model_for_search" not in planner
+    assert "minimum_turning_radius" not in planner
+
+    assert chassis["track_width_m"] == geometry["track_width_m"]
+    assert chassis["command_full_scale_wheel_speed_mps"] == drivetrain[
+        "command_full_scale_wheel_speed_mps"
+    ]
+    assert chassis["feedback_wheel_speed_mps_per_rpm"] == drivetrain[
+        "feedback_wheel_speed_mps_per_rpm"
+    ]
+    assert chassis["invert_left_motor"] is drivetrain["invert_left_motor"]
+    assert chassis["invert_right_motor"] is drivetrain["invert_right_motor"]
+
+    behavior = config["behavior_server"]["ros__parameters"]
+    assert "spin" in behavior["behavior_plugins"]
+    assert "backup" in behavior["behavior_plugins"]
 
 
-def test_differential_configs_use_c16_stvl_for_obstacles():
-    for name in ("nav2_dwb_navsat.yaml", "nav2_dwb_fastlio.yaml"):
-        config = load_config(name, "differential")
-        global_costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
-        local_costmap = config["local_costmap"]["local_costmap"]["ros__parameters"]
+def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
+    config = load_config(
+        "nav2_params_differential_fastlivo_mapped.yaml", "differential"
+    )
+    calibration = load_config("vehicle_calibration.yaml", "differential")
+    geometry = calibration["geometry"]
+    expected_footprint = [
+        [geometry["body_front_m"] + geometry["safety_front_m"],
+         geometry["body_left_m"] + geometry["safety_left_m"]],
+        [geometry["body_front_m"] + geometry["safety_front_m"],
+         -(geometry["body_right_m"] + geometry["safety_right_m"])],
+        [-(geometry["body_rear_m"] + geometry["safety_rear_m"]),
+         -(geometry["body_right_m"] + geometry["safety_right_m"])],
+        [-(geometry["body_rear_m"] + geometry["safety_rear_m"]),
+         geometry["body_left_m"] + geometry["safety_left_m"]],
+    ]
 
-        assert_c16_stvl(global_costmap, 8.0)
-        assert_c16_stvl(local_costmap, 4.0)
+    for name, obstacle_range in (("global_costmap", 8.0), ("local_costmap", 4.0)):
+        costmap = config[name][name]["ros__parameters"]
+        assert_c16_stvl(costmap, obstacle_range, 0.10, 1.80)
+        assert yaml.safe_load(costmap["footprint"]) == expected_footprint
+        assert costmap["footprint_padding"] == 0.0
+        assert costmap["inflation_layer"]["inflation_radius"] == 2.0
+        assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
+
+
+def test_differential_lattice_matches_costmap_and_supports_in_place_rotation():
+    config = load_config(
+        "nav2_params_differential_fastlivo_mapped.yaml", "differential"
+    )
+    primitive_path = (
+        PACKAGE_ROOT
+        / "differential"
+        / "config"
+        / "motion_primitives"
+        / "diff_5cm.json"
+    )
+    primitive_set = json.loads(primitive_path.read_text())
+    metadata = primitive_set["lattice_metadata"]
+    primitives = primitive_set["primitives"]
+
+    assert metadata["motion_model"] == "diff"
+    assert metadata["grid_resolution"] == config["global_costmap"][
+        "global_costmap"
+    ]["ros__parameters"]["resolution"]
+    assert metadata["number_of_trajectories"] == len(primitives)
+    assert metadata["num_of_headings"] >= 16
+    assert any(
+        primitive["trajectory_length"] == 0.0
+        and primitive["poses"][0][:2] == [0.0, 0.0]
+        and primitive["poses"][-1][:2] == [0.0, 0.0]
+        and primitive["poses"][0][2] != primitive["poses"][-1][2]
+        for primitive in primitives
+    )
+
+
+def test_differential_localization_extrinsics_share_one_provisional_source():
+    mounts = load_config("sensor_mounts.yaml", "differential")
+    fastlio = load_config("fast_lio_c16.yaml", "differential")["/**"][
+        "ros__parameters"
+    ]
+    fastlivo = load_config("fastlivo_c16_camera.yaml", "differential")["/**"][
+        "ros__parameters"
+    ]
+    fastlio_bridge = load_config("fastlio_bridge.yaml", "differential")[
+        "fastlio_odom_bridge"
+    ]["ros__parameters"]
+    fastlivo_bridge = load_config("fastlivo_bridge.yaml", "differential")[
+        "fastlio_odom_bridge"
+    ]["ros__parameters"]
+    fusion = load_config("fastlivo_rtk_fusion.yaml", "differential")[
+        "fastlivo_rtk_fusion"
+    ]["ros__parameters"]
+    initializer = load_config("rtk_map_initializer.yaml", "differential")[
+        "rtk_map_initializer"
+    ]["ros__parameters"]
+    localizer = load_config("pcd_initial_localization.yaml", "differential")[
+        "pcd_initial_localizer"
+    ]["ros__parameters"]
+    calibration = load_config("vehicle_calibration.yaml", "differential")
+
+    base_from_imu = rpy_matrix(mounts["imu"]["rpy"])
+    base_from_lidar = rpy_matrix(mounts["lidar"]["rpy"])
+    base_from_camera = rpy_matrix(mounts["camera"]["rpy"])
+    imu_from_lidar = matmul(transpose(base_from_imu), base_from_lidar)
+    camera_from_lidar = matmul(transpose(base_from_camera), base_from_lidar)
+    lidar_minus_imu = [
+        lidar - imu
+        for lidar, imu in zip(mounts["lidar"]["xyz"], mounts["imu"]["xyz"])
+    ]
+    lidar_minus_camera = [
+        lidar - camera
+        for lidar, camera in zip(
+            mounts["lidar"]["xyz"], mounts["camera"]["xyz"]
+        )
+    ]
+
+    assert mounts["calibration"]["complete"] is False
+    assert calibration["calibration_complete"] is False
+    assert calibration["base_link_reference"] == "four_wheel_geometric_center"
+    assert fastlio["mapping"]["extrinsic_R"] == pytest.approx(
+        flatten(imu_from_lidar), abs=1.0e-8
+    )
+    assert fastlio["mapping"]["extrinsic_T"] == pytest.approx(
+        matvec(transpose(base_from_imu), lidar_minus_imu), abs=1.0e-8
+    )
+    assert fastlivo["extrin_calib"]["extrinsic_R"] == pytest.approx(
+        flatten(imu_from_lidar), abs=1.0e-8
+    )
+    assert fastlivo["extrin_calib"]["extrinsic_T"] == pytest.approx(
+        matvec(transpose(base_from_imu), lidar_minus_imu), abs=1.0e-8
+    )
+    assert fastlivo["extrin_calib"]["Rcl"] == pytest.approx(
+        flatten(camera_from_lidar), abs=1.0e-8
+    )
+    assert fastlivo["extrin_calib"]["Pcl"] == pytest.approx(
+        matvec(transpose(base_from_camera), lidar_minus_camera), abs=1.0e-8
+    )
+    for bridge in (fastlio_bridge, fastlivo_bridge):
+        assert bridge["base_to_body_xyz"] == pytest.approx(mounts["imu"]["xyz"])
+        assert bridge["base_to_body_rpy"] == pytest.approx(mounts["imu"]["rpy"])
+    assert fusion["base_to_antenna_xyz"] == pytest.approx(mounts["rtk"]["xyz"])
+    assert fusion["base_from_imu_rpy"] == pytest.approx(mounts["imu"]["rpy"])
+    assert initializer["base_to_master_antenna_m"] == pytest.approx(
+        mounts["rtk"]["xyz"]
+    )
+    assert localizer["base_to_body_xyz"] == pytest.approx(mounts["lidar"]["xyz"])
+    assert localizer["base_to_body_rpy"] == pytest.approx(mounts["lidar"]["rpy"])
 
 
 def test_ackermann_configs_use_mppi_and_ackermann_motion_model():

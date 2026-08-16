@@ -1,0 +1,59 @@
+pcd_initial_localizer:
+  ros__parameters:
+    cloud_topic: /cloud_registered_body
+    cloud_frame: body
+    odom_topic: /fastlio/odometry
+    initial_pose_topic: /initialpose
+    pose_topic: /localization_pose
+    ready_topic: /localization/ready
+    status_topic: /localization/status
+    # Leave empty for FAST-LIO. NavSat overrides this with its RTK quality gate.
+    external_ready_topic: ""
+    external_ready_timeout_sec: 0.5
+    map_frame: map
+    odom_frame: odom
+    enable_fpfh: false
+    automatic_global_localization: false
+
+    # The live FAST-LIVO2 initializer consumes raw lidar_link points.
+    base_to_body_xyz: [0.48, 0.0, 0.233]
+    base_to_body_rpy: [-0.007648487, -0.001835661, 0.000007020]
+
+    map_voxel_size: 0.15
+    coarse_voxel_size: 0.30
+    scan_voxel_size: 0.10
+    feature_voxel_size: 0.35
+    normal_radius: 0.70
+    feature_radius: 1.10
+    min_range: 0.50
+    max_range: 30.0
+    min_z: -0.50
+    max_z: 2.50
+    min_scan_points: 250
+    initial_scan_count: 5
+    max_odom_age: 0.15
+    initial_search_radius: 8.0
+    local_submap_radius: 8.0
+    local_submap_min_points: 300
+
+    # The RViz prior selects the local map; FPFH recovers the coarse 6-DoF pose once.
+    fpfh_max_iterations: 12000
+    fpfh_correspondence_randomness: 5
+    fpfh_similarity_threshold: 0.85
+    fpfh_max_correspondence_distance: 0.90
+    fpfh_inlier_fraction: 0.12
+
+    # PCL NDT gives a fast local capture; PCL GICP refines each accepted pose.
+    coarse_ndt_resolution: 0.75
+    coarse_ndt_step_size: 0.25
+    coarse_ndt_max_iterations: 40
+    fine_ndt_resolution: 0.35
+    fine_ndt_step_size: 0.10
+    fine_ndt_max_iterations: 40
+    ndt_transformation_epsilon: 0.005
+    gicp_max_correspondence_distance: 0.50
+    gicp_max_iterations: 40
+    gicp_correspondence_randomness: 20
+
+    overlap_distance: 0.50
+    maximum_inlier_rmse: 0.20

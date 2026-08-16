@@ -37,6 +37,12 @@ GEOREFERENCE_VALIDATION_LAUNCH_PATH = (
     / "launch"
     / "ackermann_georeference_validation.launch.py"
 )
+DIFFERENTIAL_FULL_LAUNCH_PATH = (
+    PACKAGE_ROOT
+    / "differential"
+    / "launch"
+    / "differential_mppi_fastlivo_rtk_mapped.launch.py"
+)
 
 
 def load_vehicle_launch():
@@ -59,6 +65,10 @@ def load_launch(path, module_name):
 
 
 NAVSAT_LAUNCH = load_launch(NAVSAT_LAUNCH_PATH, "ackermann_mppi_navsat_launch")
+DIFFERENTIAL_FULL_LAUNCH = load_launch(
+    DIFFERENTIAL_FULL_LAUNCH_PATH,
+    "differential_mppi_fastlivo_rtk_mapped_launch",
+)
 
 
 def context_with(**overrides):
@@ -66,7 +76,7 @@ def context_with(**overrides):
         "localization": "navsat",
         "navigation_mode": "static",
         "vehicle_type": "differential",
-        "controller": "dwb",
+        "controller": "mppi",
         "chassis_driver": "differential_can",
         "can_transport": "socketcan",
         "enable_can_output": "false",
@@ -84,13 +94,88 @@ def context_with(**overrides):
     return context
 
 
+def differential_full_context(**overrides):
+    values = {
+        "chassis_driver": "differential_can",
+        "can_transport": "socketcan",
+        "enable_chassis_output": "false",
+        "use_sim_time": "false",
+        "motion_authorization": "",
+        "vehicle_calibration": str(
+            PACKAGE_ROOT / "differential" / "config" / "vehicle_calibration.yaml"
+        ),
+        "zqwl_port": "/dev/does-not-exist",
+    }
+    values.update(overrides)
+    context = LaunchContext()
+    context.launch_configurations.update(values)
+    return context
+
+
 def test_valid_differential_selection():
     assert LAUNCH._validate_arguments(context_with()) == []
 
 
-def test_differential_rejects_mppi():
-    with pytest.raises(RuntimeError, match="requires controller:=dwb"):
-        LAUNCH._validate_arguments(context_with(controller="mppi"))
+def test_differential_rejects_removed_dwb_controller():
+    with pytest.raises(RuntimeError, match="legacy DWB configuration has been removed"):
+        LAUNCH._validate_arguments(context_with(controller="dwb"))
+
+
+def test_differential_full_stack_is_read_only_by_default():
+    assert DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+        differential_full_context()
+    ) == []
+
+
+def test_differential_full_stack_requires_explicit_motion_authorization():
+    with pytest.raises(RuntimeError, match="motion_authorization"):
+        DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+            differential_full_context(enable_chassis_output="true")
+        )
+
+
+def test_differential_full_stack_rejects_provisional_calibration():
+    with pytest.raises(RuntimeError, match="尚未标定"):
+        DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+            differential_full_context(
+                enable_chassis_output="true",
+                motion_authorization=(
+                    DIFFERENTIAL_FULL_LAUNCH.MOTION_AUTHORIZATION
+                ),
+            )
+        )
+
+
+def test_differential_full_stack_accepts_completed_calibration(tmp_path):
+    calibration = tmp_path / "vehicle_calibration.yaml"
+    calibration.write_text(
+        "vehicle_type: differential\ncalibration_complete: true\n"
+    )
+    assert DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+        differential_full_context(
+            enable_chassis_output="true",
+            motion_authorization=DIFFERENTIAL_FULL_LAUNCH.MOTION_AUTHORIZATION,
+            vehicle_calibration=str(calibration),
+        )
+    ) == []
+
+
+def test_differential_full_stack_rejects_simulated_time_for_motion(tmp_path):
+    calibration = tmp_path / "vehicle_calibration.yaml"
+    calibration.write_text(
+        "vehicle_type: differential\ncalibration_complete: true\n"
+    )
+    with pytest.raises(RuntimeError, match="use_sim_time"):
+        DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+            differential_full_context(
+                enable_chassis_output="true",
+                use_sim_time="true",
+                motion_authorization=(
+                    DIFFERENTIAL_FULL_LAUNCH.MOTION_AUTHORIZATION
+                ),
+                vehicle_calibration=str(calibration),
+            )
+        )
 
 
 def test_ackermann_can_accepts_verified_driver():

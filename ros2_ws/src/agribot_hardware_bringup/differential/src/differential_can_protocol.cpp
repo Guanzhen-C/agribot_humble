@@ -10,8 +10,6 @@ namespace agribot_hardware_bringup::differential_can
 namespace
 {
 
-constexpr double kPi = 3.14159265358979323846;
-
 void requirePositive(double value, const char * name)
 {
   if (!std::isfinite(value) || value <= 0.0) {
@@ -22,9 +20,12 @@ void requirePositive(double value, const char * name)
 void validateConfig(const Kinematics & config)
 {
   requirePositive(config.track_width_m, "track_width_m");
-  requirePositive(config.wheel_diameter_m, "wheel_diameter_m");
-  requirePositive(config.reduction_ratio, "reduction_ratio");
-  requirePositive(config.max_motor_rpm, "max_motor_rpm");
+  requirePositive(
+    config.command_full_scale_wheel_speed_mps,
+    "command_full_scale_wheel_speed_mps");
+  requirePositive(
+    config.feedback_wheel_speed_mps_per_rpm,
+    "feedback_wheel_speed_mps_per_rpm");
   requirePositive(config.max_linear_velocity, "max_linear_velocity");
   requirePositive(config.max_angular_velocity, "max_angular_velocity");
 }
@@ -94,9 +95,7 @@ Command fromTwist(
   double left_speed = linear - angular * config.track_width_m * 0.5;
   double right_speed = linear + angular * config.track_width_m * 0.5;
 
-  const double wheel_circumference = kPi * config.wheel_diameter_m;
-  const double maximum_wheel_speed =
-    config.max_motor_rpm / config.reduction_ratio * wheel_circumference / 60.0;
+  const double maximum_wheel_speed = config.command_full_scale_wheel_speed_mps;
   const double requested_max = std::max(std::abs(left_speed), std::abs(right_speed));
   if (requested_max > maximum_wheel_speed) {
     const double scale = maximum_wheel_speed / requested_max;
@@ -105,9 +104,7 @@ Command fromTwist(
   }
 
   const auto speedToPercent = [&](double speed) {
-      const double motor_rpm =
-        speed * 60.0 / wheel_circumference * config.reduction_ratio;
-      return std::clamp(motor_rpm / config.max_motor_rpm * 100.0, -100.0, 100.0);
+      return std::clamp(speed / maximum_wheel_speed * 100.0, -100.0, 100.0);
     };
 
   Command command;
@@ -126,11 +123,10 @@ void motorRpmToTwist(
   double & angular_velocity)
 {
   validateConfig(config);
-  const double circumference = kPi * config.wheel_diameter_m;
   const double left_speed =
-    static_cast<double>(left_rpm) / config.reduction_ratio * circumference / 60.0;
+    static_cast<double>(left_rpm) * config.feedback_wheel_speed_mps_per_rpm;
   const double right_speed =
-    static_cast<double>(right_rpm) / config.reduction_ratio * circumference / 60.0;
+    static_cast<double>(right_rpm) * config.feedback_wheel_speed_mps_per_rpm;
   linear_velocity = (left_speed + right_speed) * 0.5;
   angular_velocity = (right_speed - left_speed) / config.track_width_m;
 }

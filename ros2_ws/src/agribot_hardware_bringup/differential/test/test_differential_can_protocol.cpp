@@ -112,18 +112,29 @@ TEST(DifferentialCanKinematics, RoundTrip)
   EXPECT_LE(std::abs(command.left_percent), 100.0);
   EXPECT_LE(std::abs(command.right_percent), 100.0);
 
-  const double circumference = M_PI * config.wheel_diameter_m;
   const auto left_rpm = static_cast<int16_t>(std::lround(
-      (0.5 - 0.4 * config.track_width_m * 0.5) * 60.0 /
-      circumference * config.reduction_ratio));
+      (0.5 - 0.4 * config.track_width_m * 0.5) /
+      config.feedback_wheel_speed_mps_per_rpm));
   const auto right_rpm = static_cast<int16_t>(std::lround(
-      (0.5 + 0.4 * config.track_width_m * 0.5) * 60.0 /
-      circumference * config.reduction_ratio));
+      (0.5 + 0.4 * config.track_width_m * 0.5) /
+      config.feedback_wheel_speed_mps_per_rpm));
   double linear = 0.0;
   double angular = 0.0;
   differential::motorRpmToTwist(left_rpm, right_rpm, config, linear, angular);
-  EXPECT_NEAR(linear, 0.5, 0.001);
-  EXPECT_NEAR(angular, 0.4, 0.001);
+  EXPECT_NEAR(linear, 0.5, config.feedback_wheel_speed_mps_per_rpm);
+  EXPECT_NEAR(
+    angular, 0.4,
+    2.0 * config.feedback_wheel_speed_mps_per_rpm / config.track_width_m);
+}
+
+TEST(DifferentialCanKinematics, MapsWheelSpeedDirectlyToCommandPercent)
+{
+  differential::Kinematics config;
+  config.max_linear_velocity = config.command_full_scale_wheel_speed_mps;
+  const auto command = differential::fromTwist(
+    config.command_full_scale_wheel_speed_mps * 0.25, 0.0, config);
+  EXPECT_DOUBLE_EQ(command.left_percent, 25.0);
+  EXPECT_DOUBLE_EQ(command.right_percent, 25.0);
 }
 
 TEST(DifferentialCanKinematics, RejectsInvalidConfiguration)
