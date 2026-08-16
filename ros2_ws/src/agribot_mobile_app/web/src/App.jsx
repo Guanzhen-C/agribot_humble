@@ -2,15 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  Camera,
   Check,
   CircleStop,
   Crosshair,
   Database,
-  Gauge,
-  HardDrive,
-  KeyRound,
-  ListRestart,
   LocateFixed,
   Map,
   MapPin,
@@ -21,7 +16,6 @@ import {
   Route,
   Satellite,
   Send,
-  Settings2,
   Square,
   Trash2,
   Wifi,
@@ -29,12 +23,9 @@ import {
 } from "lucide-react";
 import MapView from "./MapView";
 import {
-  formatBytes,
   formatDuration,
   getJson,
-  getToken,
   postJson,
-  setToken,
   subscribeState,
 } from "./api";
 
@@ -204,28 +195,14 @@ function NavigationPanel({
   );
 }
 
-function CollectionPanel({ state, bags, refreshCatalogs, execute, processingEnabled }) {
+function CollectionPanel({ state, refreshCatalogs, execute }) {
   const [mapName, setMapName] = useState("map_lio_sam_");
-  const [startCamera, setStartCamera] = useState(true);
-  const [enableNtrip, setEnableNtrip] = useState(false);
-  const [selectedBag, setSelectedBag] = useState("");
-  const [outputMap, setOutputMap] = useState("map_lio_sam_");
-  const [withoutRtk, setWithoutRtk] = useState(false);
   const collection = state?.processes?.collection;
-  const processing = state?.processes?.processing;
   const activeCollection = state?.active_collection;
   const elapsed = collection?.started_at && collection.running ? Date.now() / 1000 - collection.started_at : NaN;
 
-  useEffect(() => {
-    if (!selectedBag && bags.length) setSelectedBag(bags[0].id);
-  }, [bags, selectedBag]);
-
   const stopCollection = async () => {
     await execute("/api/v1/collection/stop", {});
-    refreshCatalogs();
-  };
-  const stopProcessing = async () => {
-    await execute("/api/v1/processing/stop", {});
     refreshCatalogs();
   };
 
@@ -242,10 +219,6 @@ function CollectionPanel({ state, bags, refreshCatalogs, execute, processingEnab
           <span>数据集名称</span>
           <input value={mapName} onChange={(event) => setMapName(event.target.value)} disabled={collection?.running} />
         </label>
-        <div className="toggle-row">
-          <label><input type="checkbox" checked={startCamera} onChange={(event) => setStartCamera(event.target.checked)} disabled={collection?.running} />右目相机</label>
-          <label><input type="checkbox" checked={enableNtrip} onChange={(event) => setEnableNtrip(event.target.checked)} disabled={collection?.running} />NTRIP</label>
-        </div>
         {activeCollection && (
           <div className="recording-line">
             <Radio size={17} />
@@ -254,48 +227,15 @@ function CollectionPanel({ state, bags, refreshCatalogs, execute, processingEnab
           </div>
         )}
         {!collection?.running ? (
-          <CommandButton icon={Play} onClick={() => execute("/api/v1/collection/start", { map_name: mapName, start_camera: startCamera, enable_ntrip: enableNtrip })}>
+          <CommandButton icon={Play} onClick={() => execute("/api/v1/collection/start", { map_name: mapName })}>
             开始采集
           </CommandButton>
         ) : (
           <CommandButton icon={Square} tone="danger" onClick={stopCollection}>
-            结束并写盘
+            停止采集并保存
           </CommandButton>
         )}
         <ProcessTail process={collection} />
-      </section>
-
-      <section className="section-band">
-        <div className="section-heading">
-          <h2>离线地图处理</h2>
-          <Pill tone={processingEnabled ? "green" : "amber"}>{processingEnabled ? "Jetson可用" : "未启用"}</Pill>
-        </div>
-        <label className="field-label">
-          <span>数据包</span>
-          <select value={selectedBag} onChange={(event) => setSelectedBag(event.target.value)} disabled={processing?.running}>
-            {!bags.length && <option value="">无数据包</option>}
-            {bags.map((bag) => <option key={bag.id} value={bag.id}>{bag.id}</option>)}
-          </select>
-        </label>
-        <label className="field-label">
-          <span>输出地图</span>
-          <input value={outputMap} onChange={(event) => setOutputMap(event.target.value)} disabled={processing?.running} />
-        </label>
-        <div className="toggle-row">
-          <label><input type="checkbox" checked={withoutRtk} onChange={(event) => setWithoutRtk(event.target.checked)} disabled={processing?.running} />室内无RTK</label>
-        </div>
-        {!processing?.running ? (
-          <CommandButton
-            icon={ListRestart}
-            disabled={!processingEnabled || !selectedBag}
-            onClick={() => execute("/api/v1/processing/start", { bag_id: selectedBag, map_name: outputMap, without_rtk: withoutRtk })}
-          >
-            提交处理
-          </CommandButton>
-        ) : (
-          <CommandButton icon={Square} tone="danger" onClick={stopProcessing}>停止处理</CommandButton>
-        )}
-        <ProcessTail process={processing} />
       </section>
     </div>
   );
@@ -367,7 +307,6 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
 }
 
 function StatusPanel({ state }) {
-  const [tokenValue, setTokenValue] = useState(getToken());
   const localization = state?.localization || {};
   return (
     <div className="panel-content">
@@ -401,20 +340,6 @@ function StatusPanel({ state }) {
           <div className="status-row"><StatusDot ok={Boolean(state?.chassis)} /><span>电池电压</span><strong>{Number.isFinite(state?.chassis?.battery_voltage) ? `${state.chassis.battery_voltage.toFixed(1)} V` : "--"}</strong></div>
         </div>
         <div className="status-message">{localization.status}</div>
-      </section>
-      <section className="section-band">
-        <div className="section-heading"><h2>存储</h2><HardDrive size={18} /></div>
-        <div className="metric-grid">
-          <div><span>数据盘可用</span><strong>{formatBytes(state?.storage?.bags?.free_bytes)}</strong></div>
-          <div><span>地图盘可用</span><strong>{formatBytes(state?.storage?.maps?.free_bytes)}</strong></div>
-        </div>
-      </section>
-      <section className="section-band">
-        <div className="section-heading"><h2>控制口令</h2><KeyRound size={18} /></div>
-        <div className="inline-field">
-          <input type="password" value={tokenValue} onChange={(event) => setTokenValue(event.target.value)} />
-          <button type="button" className="icon-button bordered" title="保存控制口令" aria-label="保存控制口令" onClick={() => setToken(tokenValue)}><Check size={18} /></button>
-        </div>
       </section>
     </div>
   );
@@ -452,9 +377,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("navigate");
   const [interactionMode, setInteractionMode] = useState("browse");
   const [maps, setMaps] = useState([]);
-  const [bags, setBags] = useState([]);
   const [profiles, setProfiles] = useState([]);
-  const [processingEnabled, setProcessingEnabled] = useState(false);
   const [selectedMap, setSelectedMap] = useState("");
   const [target, setTarget] = useState(null);
   const [route, setRoute] = useState([]);
@@ -462,15 +385,12 @@ export default function App() {
   const [motionRequest, setMotionRequest] = useState(null);
 
   const refreshCatalogs = async () => {
-    const [mapDocument, bagDocument, profileDocument] = await Promise.all([
+    const [mapDocument, profileDocument] = await Promise.all([
       getJson("/api/v1/maps"),
-      getJson("/api/v1/bags"),
       getJson("/api/v1/profiles"),
     ]);
     setMaps(mapDocument.maps || []);
-    setBags(bagDocument.bags || []);
     setProfiles(profileDocument.profiles || []);
-    setProcessingEnabled(Boolean(profileDocument.processing_enabled));
     setSelectedMap((current) => {
       const available = mapDocument.maps || [];
       return available.some((map) => map.id === current)
@@ -532,13 +452,13 @@ export default function App() {
       );
     }
     if (activeTab === "collect") {
-      return <CollectionPanel state={state} bags={bags} refreshCatalogs={refreshCatalogs} execute={execute} processingEnabled={processingEnabled} />;
+      return <CollectionPanel state={state} refreshCatalogs={refreshCatalogs} execute={execute} />;
     }
     if (activeTab === "maps") {
       return <MapsPanel maps={maps} profiles={profiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} />;
     }
     return <StatusPanel state={state} />;
-  }, [activeTab, bags, interactionMode, maps, processingEnabled, profiles, route, selectedMap, state, target]);
+  }, [activeTab, interactionMode, maps, profiles, route, selectedMap, state, target]);
 
   const localizationReady = state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);

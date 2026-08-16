@@ -38,10 +38,20 @@ def test_android_package_contains_the_offline_web_interface():
 
 def test_frontend_uses_guarded_api_not_raw_velocity():
     source = (PACKAGE / "web" / "src" / "App.jsx").read_text(encoding="utf-8")
+    gateway = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
+        encoding="utf-8"
+    )
     assert "/api/v1/navigation/route" in source
     assert "/api/v1/collection/start" in source
     assert "/api/v1/runtime/start" in source
     assert "/cmd_vel" not in source
+    assert "离线地图处理" not in source
+    assert "控制口令" not in source
+    assert "数据盘可用" not in source
+    assert "start_camera" not in source
+    assert "enable_ntrip" not in source
+    assert '"start_camera:=true"' in gateway
+    assert '"enable_ntrip:=false"' in gateway
 
 
 def test_map_view_uses_live_vehicle_and_navigation_outputs():

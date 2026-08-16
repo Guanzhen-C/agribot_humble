@@ -77,11 +77,12 @@ const mockState = {
   },
 };
 
-async function mockApi(page) {
+async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (request.method() === "POST") {
+      onPost({ path: url.pathname, body: request.postDataJSON() });
       await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
       return;
     }
@@ -90,12 +91,12 @@ async function mockApi(page) {
         status: 200,
         contentType: "text/event-stream",
         headers: { "Cache-Control": "no-store" },
-        body: `event: state\ndata: ${JSON.stringify(mockState)}\n\n`,
+        body: `event: state\ndata: ${JSON.stringify(state)}\n\n`,
       });
       return;
     }
     if (url.pathname === "/api/v1/state") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify(mockState) });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(state) });
       return;
     }
     if (url.pathname === "/api/v1/maps") {
@@ -176,6 +177,48 @@ test("mobile layout keeps map and controls usable", async ({ page }) => {
   expect(bodyWidth).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/agribot-mobile-phone.png", fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test("collection always records the camera and exposes an explicit save action", async ({ page }) => {
+  const posts = [];
+  await mockApi(page, { onPost: (request) => posts.push(request) });
+  await page.goto("/");
+  await page.getByRole("button", { name: "采集" }).click();
+  await expect(page.getByRole("heading", { name: "原始数据采集" })).toBeVisible();
+  await expect(page.getByText("离线地图处理")).toHaveCount(0);
+  await expect(page.getByText("存储", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("控制口令")).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "NTRIP" })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "右目相机" })).toHaveCount(0);
+  await page.getByRole("button", { name: "开始采集" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toEqual({
+    path: "/api/v1/collection/start",
+    body: { map_name: "map_lio_sam_" },
+  });
+
+  const recordingState = {
+    ...mockState,
+    active_collection: {
+      bag_id: "map_lio_sam_test_20260816_120000",
+      bag_path: "/mnt/agribot_data/bags/map_lio_sam_test_20260816_120000",
+      map_name: "map_lio_sam_test",
+    },
+    processes: {
+      ...mockState.processes,
+      collection: {
+        state: "running",
+        running: true,
+        started_at: Date.now() / 1000 - 10,
+        tail: [],
+      },
+    },
+  };
+  const recordingPage = await page.context().newPage();
+  await mockApi(recordingPage, { state: recordingState });
+  await recordingPage.goto("/");
+  await recordingPage.getByRole("button", { name: "采集" }).click();
+  await expect(recordingPage.getByRole("button", { name: "停止采集并保存" })).toBeVisible();
 });
 
 

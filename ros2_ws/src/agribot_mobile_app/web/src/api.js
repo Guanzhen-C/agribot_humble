@@ -1,14 +1,4 @@
-const TOKEN_KEY = "agribot-mobile-token";
 const BUNDLED_OFFLINE_UI = window.location.protocol === "file:";
-
-
-export function getToken() {
-  return window.localStorage.getItem(TOKEN_KEY) || "";
-}
-
-export function setToken(token) {
-  window.localStorage.setItem(TOKEN_KEY, token.trim());
-}
 
 async function responseJson(response) {
   const document = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
@@ -26,10 +16,6 @@ export async function getJson(path) {
 export async function postJson(path, body = {}) {
   if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK，无法执行命令");
   const headers = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) {
-    headers["X-Agribot-Token"] = token;
-  }
   return responseJson(
     await fetch(path, {
       method: "POST",
@@ -52,18 +38,6 @@ export function subscribeState(onState, onConnection) {
   });
   events.addEventListener("error", () => onConnection(false));
   return () => events.close();
-}
-
-export function formatBytes(value) {
-  if (!Number.isFinite(value)) return "--";
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let amount = value;
-  let unit = 0;
-  while (amount >= 1024 && unit < units.length - 1) {
-    amount /= 1024;
-    unit += 1;
-  }
-  return `${amount.toFixed(unit < 2 ? 0 : 1)} ${units[unit]}`;
 }
 
 export function formatDuration(seconds) {

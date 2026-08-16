@@ -992,8 +992,8 @@ class MobileGateway(Node):
             "launch",
             "agribot_hardware_bringup",
             "ackermann_sensor_data_collection.launch.py",
-            f"start_camera:={'true' if body.get('start_camera', True) else 'false'}",
-            f"enable_ntrip:={'true' if body.get('enable_ntrip', False) else 'false'}",
+            "start_camera:=true",
+            "enable_ntrip:=false",
             "record_bag:=true",
             f"bag_output:={bag_path}",
         ]
