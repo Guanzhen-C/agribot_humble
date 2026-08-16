@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">农车控制台</string>
+    <string name="app_name">农机控制台</string>
     <string name="gateway_settings">RDK地址</string>
     <string name="gateway_dialog_title">RDK网关地址</string>
     <string name="gateway_dialog_message">手机与RDK必须位于同一局域网，默认端口为8088。</string>

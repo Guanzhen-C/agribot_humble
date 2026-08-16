@@ -1,4 +1,5 @@
 const TOKEN_KEY = "agribot-mobile-token";
+const BUNDLED_OFFLINE_UI = window.location.protocol === "file:";
 
 
 export function getToken() {
@@ -18,10 +19,12 @@ async function responseJson(response) {
 }
 
 export async function getJson(path) {
+  if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK");
   return responseJson(await fetch(path, { cache: "no-store" }));
 }
 
 export async function postJson(path, body = {}) {
+  if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK，无法执行命令");
   const headers = { "Content-Type": "application/json" };
   const token = getToken();
   if (token) {
@@ -37,6 +40,10 @@ export async function postJson(path, body = {}) {
 }
 
 export function subscribeState(onState, onConnection) {
+  if (BUNDLED_OFFLINE_UI) {
+    onConnection(false);
+    return () => {};
+  }
   const events = new EventSource("/api/v1/events");
   events.addEventListener("open", () => onConnection(true));
   events.addEventListener("state", (event) => {

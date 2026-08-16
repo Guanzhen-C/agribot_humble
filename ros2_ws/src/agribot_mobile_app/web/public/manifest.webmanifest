@@ -1,7 +1,7 @@
 {
-  "name": "农车控制台",
-  "short_name": "农车",
-  "description": "Agribot ROS 2移动操作终端",
+  "name": "农机控制台",
+  "short_name": "农机",
+  "description": "农机ROS 2移动操作终端",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

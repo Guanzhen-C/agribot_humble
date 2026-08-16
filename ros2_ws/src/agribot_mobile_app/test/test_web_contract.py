@@ -13,6 +13,27 @@ def test_production_web_bundle_is_checked_in():
     assert list((distribution / "assets").glob("*.css"))
 
 
+def test_android_package_contains_the_offline_web_interface():
+    assets = PACKAGE / "android" / "app" / "src" / "main" / "assets" / "web"
+    activity = (
+        PACKAGE
+        / "android"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "guanzhen"
+        / "agribot"
+        / "MainActivity.java"
+    ).read_text(encoding="utf-8")
+    assert (assets / "index.html").is_file()
+    assert list((assets / "assets").glob("*.js"))
+    assert list((assets / "assets").glob("*.css"))
+    assert "file:///android_asset/web/index.html" in activity
+    assert "gatewayIsReachable" in activity
+
+
 def test_frontend_uses_guarded_api_not_raw_velocity():
     source = (PACKAGE / "web" / "src" / "App.jsx").read_text(encoding="utf-8")
     assert "/api/v1/navigation/route" in source
@@ -61,3 +82,17 @@ def test_mobile_launch_isolates_ros_but_keeps_http_on_the_lan():
     assert 'default_value="1"' in launch
     assert '"ROS_LOCALHOST_ONLY"' in launch
     assert "http_host: 0.0.0.0" in config
+
+
+def test_new_managed_task_stops_the_previous_process_group_first():
+    gateway = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
+        encoding="utf-8"
+    )
+    processes = (PACKAGE / "agribot_mobile_app" / "processes.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_task_transition_lock" in gateway
+    assert gateway.count("self._stop_active_tasks()") == 3
+    assert "assert_exclusive" not in gateway
+    assert "os.killpg" in processes
+    assert "旧任务尚未完全退出，禁止启动新任务" in gateway

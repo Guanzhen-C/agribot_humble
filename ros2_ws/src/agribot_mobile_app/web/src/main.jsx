@@ -4,7 +4,7 @@ import App from "./App";
 import "./styles.css";
 
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+if (window.location.protocol.startsWith("http") && "serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
 }
 

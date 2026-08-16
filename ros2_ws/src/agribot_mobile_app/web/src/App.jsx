@@ -499,7 +499,8 @@ export default function App() {
   const execute = async (path, body) => {
     try {
       const result = await postJson(path, body);
-      setToast({ tone: "success", text: "命令已执行" });
+      const replaced = Array.isArray(result.stopped) && result.stopped.length > 0;
+      setToast({ tone: "success", text: replaced ? "旧任务已退出，新任务已启动" : "命令已执行" });
       return result;
     } catch (error) {
       setToast({ tone: "error", text: error.message });
@@ -546,8 +547,8 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-block">
-          <div className="brand-mark"><Navigation size={20} /></div>
-          <div><h1>农车控制台</h1><span>{state?.active_runtime?.map_id || selectedMap || "未选择地图"}</span></div>
+          <div className="brand-mark"><img src="./icons/agribot.svg" alt="" /></div>
+          <div><h1>农机控制台</h1><span>{state?.active_runtime?.map_id || selectedMap || "未选择地图"}</span></div>
         </div>
         <div className="top-status">
           <Pill tone={connected ? "green" : "red"}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? "在线" : "离线"}</Pill>

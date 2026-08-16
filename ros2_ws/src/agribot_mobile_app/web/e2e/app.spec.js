@@ -125,7 +125,7 @@ test("desktop operations surface renders without overflow or console errors", as
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "农车控制台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
   await expect(page.getByText("定位就绪")).toBeVisible();
   await expect(page.locator("canvas")).toBeVisible();
   await expect(page.getByLabel("车辆当前位置")).toContainText("X -2.40");
@@ -217,4 +217,18 @@ test("map supports two-finger zoom without committing a route point", async ({ p
     .toBeGreaterThan(initialScale * 2);
   await expect(page.locator(".route-item")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+
+test("installed web interface opens after the network is disconnected", async ({ page, context }) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
+    .toBe(true);
+
+  await context.setOffline(true);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
+  await context.setOffline(false);
 });

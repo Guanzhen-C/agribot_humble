@@ -1,8 +1,20 @@
-const CACHE = "agribot-mobile-v1";
-const SHELL = ["./", "./manifest.webmanifest"];
+const CACHE = "agribot-mobile-v2";
+const CORE = ["./manifest.webmanifest", "./icons/agribot.svg"];
+
+async function cacheApplicationShell() {
+  const cache = await caches.open(CACHE);
+  const response = await fetch("./", { cache: "reload" });
+  if (!response.ok) throw new Error(`无法缓存控制台: HTTP ${response.status}`);
+  const markup = await response.clone().text();
+  await cache.put("./", response.clone());
+  await cache.put("./index.html", response);
+  const linked = [...markup.matchAll(/(?:src|href)="(\.\/[^\"]+)"/g)]
+    .map((match) => match[1]);
+  await cache.addAll([...new Set([...CORE, ...linked])]);
+}
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  event.waitUntil(cacheApplicationShell());
   self.skipWaiting();
 });
 

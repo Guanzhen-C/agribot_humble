@@ -394,6 +394,7 @@ class MobileGateway(Node):
         self.runtime_profiles = RuntimeProfiles(profile_path)
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
+        self._task_transition_lock = threading.RLock()
         self._revision = 0
         self._stopping = False
         self._http_server = None
@@ -950,8 +951,31 @@ class MobileGateway(Node):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return self.process_log_root / category / f"{identifier}_{timestamp}.log"
 
+    def _stop_active_tasks(self) -> list[str]:
+        """Fully stop the previous managed task before another one is started."""
+        active = self.processes.running_names()
+        if "runtime" in active or self._goal_handle is not None:
+            self.cancel_navigation({})
+        self.processes.stop_all()
+        remaining = self.processes.running_names()
+        if remaining:
+            raise ProcessError("旧任务尚未完全退出，禁止启动新任务")
+        with self._lock:
+            self._goal_handle = None
+            self._state["active_runtime"] = None
+            self._state["active_collection"] = None
+            self._state["active_processing"] = None
+            self._state["navigation"] = {
+                "kind": None,
+                "status": "idle",
+                "feedback": {},
+                "goal": None,
+                "route": [],
+            }
+        self._touch()
+        return active
+
     def start_collection(self, body: dict) -> dict:
-        self.processes.assert_exclusive("collection")
         map_name = validated_identifier(str(body.get("map_name", "")), "地图名称")
         if self.required_collection_mount:
             mount = Path(self.required_collection_mount)
@@ -973,23 +997,26 @@ class MobileGateway(Node):
             "record_bag:=true",
             f"bag_output:={bag_path}",
         ]
-        self.processes.collection.start(
-            command, self._log_path("collection", bag_id), os.environ.copy()
-        )
-        with self._lock:
-            self._state["active_collection"] = {
-                "bag_id": bag_id,
-                "bag_path": str(bag_path),
-                "map_name": map_name,
-            }
+        with self._task_transition_lock:
+            stopped = self._stop_active_tasks()
+            self.processes.collection.start(
+                command, self._log_path("collection", bag_id), os.environ.copy()
+            )
+            with self._lock:
+                self._state["active_collection"] = {
+                    "bag_id": bag_id,
+                    "bag_path": str(bag_path),
+                    "map_name": map_name,
+                }
         self._touch()
-        return {"bag_id": bag_id, "bag_path": str(bag_path)}
+        return {"bag_id": bag_id, "bag_path": str(bag_path), "stopped": stopped}
 
     def stop_collection(self, _body: dict) -> dict:
-        self.processes.collection.stop()
-        with self._lock:
-            collection = self._state["active_collection"]
-            self._state["active_collection"] = None
+        with self._task_transition_lock:
+            self.processes.collection.stop()
+            with self._lock:
+                collection = self._state["active_collection"]
+                self._state["active_collection"] = None
         self._touch()
         if collection:
             metadata = Path(collection["bag_path"]) / "metadata.yaml"
@@ -999,7 +1026,6 @@ class MobileGateway(Node):
     def start_processing(self, body: dict) -> dict:
         if not self.processing_enabled:
             raise ApiError(HTTPStatus.FORBIDDEN, "本机未启用Jetson离线处理")
-        self.processes.assert_exclusive("processing")
         bag_id = str(body.get("bag_id", ""))
         bag_path = self.bag_catalog.path(bag_id)
         map_name = validated_identifier(str(body.get("map_name", "")), "地图名称")
@@ -1020,28 +1046,30 @@ class MobileGateway(Node):
         if without_rtk:
             command.append("--without-rtk")
         environment = os.environ.copy()
-        self.processes.processing.start(
-            command, self._log_path("processing", map_name), environment
-        )
-        with self._lock:
-            self._state["active_processing"] = {
-                "bag_id": bag_id,
-                "map_name": map_name,
-                "without_rtk": without_rtk,
-            }
+        with self._task_transition_lock:
+            stopped = self._stop_active_tasks()
+            self.processes.processing.start(
+                command, self._log_path("processing", map_name), environment
+            )
+            with self._lock:
+                self._state["active_processing"] = {
+                    "bag_id": bag_id,
+                    "map_name": map_name,
+                    "without_rtk": without_rtk,
+                }
         self._touch()
-        return {"map_name": map_name}
+        return {"map_name": map_name, "stopped": stopped}
 
     def stop_processing(self, _body: dict) -> dict:
-        self.processes.processing.stop()
-        with self._lock:
-            processing = self._state["active_processing"]
-            self._state["active_processing"] = None
+        with self._task_transition_lock:
+            self.processes.processing.stop()
+            with self._lock:
+                processing = self._state["active_processing"]
+                self._state["active_processing"] = None
         self._touch()
         return {"processing": processing}
 
     def start_runtime(self, body: dict) -> dict:
-        self.processes.assert_exclusive("runtime")
         profile_id = str(body.get("profile_id", ""))
         map_id = str(body.get("map_id", ""))
         motion = bool(body.get("motion", False))
@@ -1049,35 +1077,38 @@ class MobileGateway(Node):
             raise ApiError(HTTPStatus.BAD_REQUEST, "真车运动必须再次明确确认")
         map_base = self.map_catalog.map_base(map_id)
         command = self.runtime_profiles.command(profile_id, map_base, motion)
-        self.processes.runtime.start(
-            command, self._log_path("runtime", f"{profile_id}_{map_id}"), os.environ.copy()
-        )
-        with self._lock:
-            self._state["pose"] = None
-            self._state["paths"] = {"history": [], "global": [], "local": []}
-            self._state["footprint"] = None
-            self._state["navigation"] = {
-                "kind": None,
-                "status": "idle",
-                "feedback": {},
-                "goal": None,
-                "route": [],
-            }
-            self._grids.clear()
-            self._state["active_runtime"] = {
-                "profile_id": profile_id,
-                "map_id": map_id,
-                "motion": motion,
-            }
+        with self._task_transition_lock:
+            stopped = self._stop_active_tasks()
+            self.processes.runtime.start(
+                command,
+                self._log_path("runtime", f"{profile_id}_{map_id}"),
+                os.environ.copy(),
+            )
+            with self._lock:
+                self._state["pose"] = None
+                self._state["paths"] = {"history": [], "global": [], "local": []}
+                self._state["footprint"] = None
+                self._grids.clear()
+                self._state["active_runtime"] = {
+                    "profile_id": profile_id,
+                    "map_id": map_id,
+                    "motion": motion,
+                }
         self._touch()
-        return {"profile_id": profile_id, "map_id": map_id, "motion": motion}
+        return {
+            "profile_id": profile_id,
+            "map_id": map_id,
+            "motion": motion,
+            "stopped": stopped,
+        }
 
     def stop_runtime(self, _body: dict) -> dict:
-        self.cancel_navigation({})
-        self.processes.runtime.stop()
-        with self._lock:
-            runtime = self._state["active_runtime"]
-            self._state["active_runtime"] = None
+        with self._task_transition_lock:
+            self.cancel_navigation({})
+            self.processes.runtime.stop()
+            with self._lock:
+                runtime = self._state["active_runtime"]
+                self._state["active_runtime"] = None
         self._touch()
         return {"runtime": runtime}
 
@@ -1089,7 +1120,8 @@ class MobileGateway(Node):
             self._http_server.server_close()
             if self._http_thread is not None:
                 self._http_thread.join(timeout=2.0)
-        self.processes.stop_all()
+        with self._task_transition_lock:
+            self.processes.stop_all()
 
 
 def main(args=None):

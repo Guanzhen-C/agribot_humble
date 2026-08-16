@@ -34,9 +34,51 @@ def test_rejects_non_ros_commands(tmp_path):
         ManagedProcess("测试").start(["bash", "-c", "true"], tmp_path / "log")
 
 
-def test_slots_prevent_conflicting_tasks(tmp_path):
+def test_stop_terminates_the_entire_process_group(tmp_path):
+    child_pid_file = tmp_path / "child.pid"
+    executable = tmp_path / "ros2"
+    executable.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "from pathlib import Path\n"
+        "import subprocess\n"
+        "child = subprocess.Popen(['sleep', '60'])\n"
+        "Path(os.environ['CHILD_PID_FILE']).write_text(str(child.pid))\n"
+        "child.wait()\n"
+    )
+    executable.chmod(0o755)
+    environment = os.environ.copy()
+    environment["PATH"] = f"{tmp_path}:{environment['PATH']}"
+    environment["CHILD_PID_FILE"] = str(child_pid_file)
+
+    process = ManagedProcess("进程组测试")
+    process.start(["ros2", "launch", "package", "test.launch.py"], tmp_path / "log", environment)
+    deadline = time.monotonic() + 3.0
+    while not child_pid_file.is_file() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert child_pid_file.is_file()
+
+    process.stop(timeout=0.5)
+    first_snapshot = process.snapshot()
+    assert first_snapshot["state"] == "stopped"
+    assert not ManagedProcess._group_alive(first_snapshot["process_group"])
+
+    process.start(
+        ["ros2", "launch", "package", "test.launch.py"],
+        tmp_path / "second.log",
+        environment,
+    )
+    assert process.snapshot()["pid"] != first_snapshot["pid"]
+    process.stop(timeout=0.5)
+    assert process.snapshot()["state"] == "stopped"
+
+
+def test_slots_stop_motion_before_other_jobs():
     slots = ProcessSlots()
-    slots.runtime._state = "running"
-    slots.runtime._process = type("Process", (), {"poll": lambda self: None})()
-    with pytest.raises(ProcessError, match="停止当前"):
-        slots.assert_exclusive("collection")
+    stopped = []
+    slots.runtime.stop = lambda: stopped.append("runtime")
+    slots.collection.stop = lambda: stopped.append("collection")
+    slots.processing.stop = lambda: stopped.append("processing")
+
+    slots.stop_all()
+    assert stopped == ["runtime", "collection", "processing"]

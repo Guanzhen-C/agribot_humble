@@ -31,28 +31,34 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String PREFERENCES = "agribot_mobile";
     private static final String GATEWAY_URL_KEY = "gateway_url";
     private static final int SETTINGS_MENU_ID = 1001;
     private static final long RETRY_DELAY_MS = 5000L;
+    private static final int CONNECT_TIMEOUT_MS = 2500;
+    private static final String BUNDLED_UI_URL = "file:///android_asset/web/index.html";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService gatewayProbe = Executors.newSingleThreadExecutor();
     private WebView webView;
     private View offlinePanel;
     private ProgressBar progressBar;
     private TextView offlineMessage;
     private String gatewayUrl;
-    private boolean mainFrameFailed;
-    private final Runnable retryConnection = () -> {
-        if (mainFrameFailed && webView != null) {
-            loadGateway();
-        }
-    };
+    private boolean showingBundledUi;
+    private boolean probeInFlight;
+    private boolean destroyed;
+    private final Runnable retryConnection = this::checkGateway;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +73,8 @@ public final class MainActivity extends Activity {
         bindViews();
         configureWebView();
         updateActionBar();
-        loadGateway();
+        showBundledUi();
+        checkGateway();
     }
 
     private void bindViews() {
@@ -78,7 +85,7 @@ public final class MainActivity extends Activity {
 
         Button retryButton = findViewById(R.id.retry_button);
         Button configureButton = findViewById(R.id.configure_button);
-        retryButton.setOnClickListener(view -> loadGateway());
+        retryButton.setOnClickListener(view -> checkGateway());
         configureButton.setOnClickListener(view -> showGatewayDialog());
     }
 
@@ -88,7 +95,9 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(false);
+        settings.setAllowFileAccess(true);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
@@ -102,19 +111,73 @@ public final class MainActivity extends Activity {
 
     private void loadGateway() {
         handler.removeCallbacks(retryConnection);
-        mainFrameFailed = false;
+        showingBundledUi = false;
         progressBar.setVisibility(View.VISIBLE);
         offlinePanel.setVisibility(View.GONE);
         webView.loadUrl(gatewayUrl);
     }
 
-    private void showOffline(String detail) {
-        mainFrameFailed = true;
+    private void showBundledUi() {
+        progressBar.setVisibility(View.GONE);
+        offlinePanel.setVisibility(View.GONE);
+        if (!showingBundledUi) {
+            showingBundledUi = true;
+            webView.loadUrl(BUNDLED_UI_URL);
+        }
+        scheduleRetry();
+    }
+
+    private void showNativeOffline(String detail) {
         progressBar.setVisibility(View.GONE);
         offlinePanel.setVisibility(View.VISIBLE);
         offlineMessage.setText(getString(R.string.connection_failed, gatewayUrl, detail));
+        scheduleRetry();
+    }
+
+    private void scheduleRetry() {
         handler.removeCallbacks(retryConnection);
         handler.postDelayed(retryConnection, RETRY_DELAY_MS);
+    }
+
+    private void checkGateway() {
+        handler.removeCallbacks(retryConnection);
+        if (destroyed || probeInFlight) {
+            return;
+        }
+        probeInFlight = true;
+        final String checkedUrl = gatewayUrl;
+        gatewayProbe.execute(() -> {
+            boolean reachable = gatewayIsReachable(checkedUrl);
+            handler.post(() -> {
+                probeInFlight = false;
+                if (destroyed || !checkedUrl.equals(gatewayUrl)) {
+                    return;
+                }
+                if (reachable) {
+                    loadGateway();
+                } else {
+                    showBundledUi();
+                }
+            });
+        });
+    }
+
+    static boolean gatewayIsReachable(String baseUrl) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(baseUrl + "/api/v1/state").openConnection();
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(CONNECT_TIMEOUT_MS);
+            connection.setUseCaches(false);
+            connection.setRequestMethod("GET");
+            return connection.getResponseCode() == HttpURLConnection.HTTP_OK;
+        } catch (IOException error) {
+            return false;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 
     private void showGatewayDialog() {
@@ -152,7 +215,8 @@ public final class MainActivity extends Activity {
                         .apply();
                     updateActionBar();
                     dialog.dismiss();
-                    loadGateway();
+                    showBundledUi();
+                    checkGateway();
                 } catch (IllegalArgumentException exception) {
                     input.setError(exception.getMessage());
                 }
@@ -203,6 +267,10 @@ public final class MainActivity extends Activity {
             && effectivePort(gateway) == effectivePort(uri);
     }
 
+    private static boolean isBundledUrl(String url) {
+        return url != null && url.startsWith("file:///android_asset/web/");
+    }
+
     private static int effectivePort(Uri uri) {
         if (uri.getPort() >= 0) {
             return uri.getPort();
@@ -246,7 +314,9 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        destroyed = true;
         handler.removeCallbacksAndMessages(null);
+        gatewayProbe.shutdownNow();
         webView.stopLoading();
         webView.destroy();
         super.onDestroy();
@@ -255,14 +325,24 @@ public final class MainActivity extends Activity {
     private final class GatewayWebViewClient extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            progressBar.setVisibility(View.VISIBLE);
+            if (!isBundledUrl(url)) {
+                progressBar.setVisibility(View.VISIBLE);
+            }
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            if (!url.equals(view.getUrl())) {
+                return;
+            }
             progressBar.setVisibility(View.GONE);
-            if (!mainFrameFailed) {
-                offlinePanel.setVisibility(View.GONE);
+            offlinePanel.setVisibility(View.GONE);
+            if (isBundledUrl(url)) {
+                showingBundledUi = true;
+                scheduleRetry();
+            } else if (belongsToGateway(Uri.parse(url))) {
+                showingBundledUi = false;
+                handler.removeCallbacks(retryConnection);
             }
         }
 
@@ -273,7 +353,11 @@ public final class MainActivity extends Activity {
             WebResourceError error
         ) {
             if (request.isForMainFrame()) {
-                showOffline(error.getDescription().toString());
+                if (isBundledUrl(request.getUrl().toString())) {
+                    showNativeOffline(error.getDescription().toString());
+                } else {
+                    showBundledUi();
+                }
             }
         }
 
@@ -284,13 +368,13 @@ public final class MainActivity extends Activity {
             WebResourceResponse errorResponse
         ) {
             if (request.isForMainFrame()) {
-                showOffline("HTTP " + errorResponse.getStatusCode());
+                showBundledUi();
             }
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            if (belongsToGateway(request.getUrl())) {
+            if (isBundledUrl(request.getUrl().toString()) || belongsToGateway(request.getUrl())) {
                 return false;
             }
             openExternal(request.getUrl());

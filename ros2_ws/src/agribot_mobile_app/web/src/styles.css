@@ -26,7 +26,8 @@ button { color: inherit; }
 .app-shell { display: grid; grid-template-rows: 58px 1fr; width: 100%; height: 100%; background: var(--surface); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--border); z-index: 20; }
 .brand-block { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; color: #fff; background: var(--green); border-radius: 7px; flex: 0 0 auto; }
+.brand-mark { width: 34px; height: 34px; overflow: hidden; border-radius: 7px; flex: 0 0 auto; }
+.brand-mark img { display: block; width: 100%; height: 100%; }
 .brand-block h1 { margin: 0; font-size: 16px; line-height: 1.15; font-weight: 700; }
 .brand-block span { display: block; max-width: 220px; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .top-status { display: flex; align-items: center; gap: 7px; }
