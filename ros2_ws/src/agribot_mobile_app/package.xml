@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_mobile_app</name>
+  <version>0.1.0</version>
+  <description>Installable mobile PWA and guarded ROS 2 gateway for Agribot operations.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>GPL-3.0-only</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>scout_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <test_depend>ament_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

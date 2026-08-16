@@ -1,0 +1,33 @@
+profiles:
+  ackermann_indoor:
+    label: 阿克曼室内地图
+    description: 手动粗定位、NDT/GICP、FAST-LIVO2与Nav2
+    launch_package: agribot_hardware_bringup
+    launch_file: ackermann_mppi_fastlivo_rtk_mapped.launch.py
+    map_argument: map_base
+    required_suffixes: [.yaml, .pcd]
+    requires_georeference: false
+    fixed_args:
+      initialization_source: manual
+      allow_missing_georeference: true
+      start_rtk: true
+      rviz: false
+      chassis_driver: ackermann_can
+      can_transport: zqwl_cdc
+      zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+
+  ackermann_outdoor_0811:
+    label: 阿克曼室外0811
+    description: RTK粗定位、NDT/GICP、FAST-LIVO2与固定解融合
+    launch_package: agribot_hardware_bringup
+    launch_file: ackermann_outdoor_0811_experiment.launch.py
+    map_argument: map_base
+    required_suffixes: [.yaml, .pgm, .pcd]
+    requires_georeference: true
+    fixed_args:
+      initialization_source: rtk
+      enable_fpfh: false
+      allow_missing_georeference: false
+      rviz: false
+    motion_args:
+      motion_authorization: ENABLE_OUTDOOR_MOTION

@@ -1,0 +1,18 @@
+mobile_gateway:
+  ros__parameters:
+    http_host: 0.0.0.0
+    http_port: 8088
+    api_token: ""
+    map_root: /home/sunrise/agribot_maps/test_site
+    bag_root: /mnt/agribot_data/bags
+    required_collection_mount: /mnt/agribot_data
+    process_log_root: /home/sunrise/agribot_mobile_logs
+    processing_enabled: false
+    processing_domain_id: 71
+    processing_playback_rate: 0.5
+    pose_topic: /fastlivo_rtk/odometry
+    global_plan_topic: /plan
+    local_plan_topic: /local_plan
+    map_topic: /map
+    global_costmap_topic: /global_costmap/costmap
+    local_costmap_topic: /local_costmap/costmap

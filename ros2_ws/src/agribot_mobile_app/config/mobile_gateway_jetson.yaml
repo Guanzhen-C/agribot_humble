@@ -1,0 +1,18 @@
+mobile_gateway:
+  ros__parameters:
+    http_host: 0.0.0.0
+    http_port: 8089
+    api_token: ""
+    map_root: /media/cgz/data/agribot_data/maps
+    bag_root: /media/cgz/data/agribot_data/bags
+    required_collection_mount: ""
+    process_log_root: /media/cgz/data/agribot_data/mobile_logs
+    processing_enabled: true
+    processing_domain_id: 71
+    processing_playback_rate: 0.5
+    pose_topic: /fastlivo_rtk/odometry
+    global_plan_topic: /plan
+    local_plan_topic: /local_plan
+    map_topic: /map
+    global_costmap_topic: /global_costmap/costmap
+    local_costmap_topic: /local_costmap/costmap
