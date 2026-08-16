@@ -33,3 +33,16 @@ def test_map_view_uses_live_vehicle_and_navigation_outputs():
     assert "local_plan_topic: /transformed_global_plan" in config
     assert "trajectory_topic: /fastlivo_rtk/path" in config
     assert "footprint_topic: /local_costmap/published_footprint" in config
+
+
+def test_gateway_sensor_rates_do_not_deserialize_full_frames():
+    source = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
+        encoding="utf-8"
+    )
+    config = (PACKAGE / "config" / "mobile_gateway.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "raw=True" in source
+    assert "camera_rate_topic: /camera/rgb/camera_info" in config
+    assert "self._rates.mark(rate_topic)" in source
+    assert "self._rates.mark(rate_topic)\n            self._touch()" not in source

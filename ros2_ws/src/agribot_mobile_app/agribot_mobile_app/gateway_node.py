@@ -11,6 +11,7 @@ import math
 import mimetypes
 import os
 from pathlib import Path
+import socket
 import shutil
 import threading
 import time
@@ -41,7 +42,7 @@ from rclpy.qos import (
     qos_profile_sensor_data,
 )
 from scout_msgs.msg import ScoutStatus
-from sensor_msgs.msg import Image, Imu, NavSatFix, PointCloud2
+from sensor_msgs.msg import CameraInfo, Imu, NavSatFix, PointCloud2
 from std_msgs.msg import Bool, String, UInt8
 
 from .catalog import (
@@ -265,21 +266,29 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
 
     def _events(self):
+        try:
+            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self.connection.settimeout(5.0)
+            if hasattr(socket, "TCP_KEEPIDLE"):
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 15)
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)
+                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+        except OSError:
+            pass
         self.send_response(HTTPStatus.OK)
         self._headers("text/event-stream; charset=utf-8")
         self.send_header("Connection", "keep-alive")
         self.end_headers()
+        self.wfile.write(b"retry: 3000\n\n")
+        self.wfile.flush()
         revision = -1
         while not self.gateway.stopping:
-            revision, state = self.gateway.wait_for_state(revision, 10.0)
-            payload = json.dumps(
-                state, ensure_ascii=False, separators=(",", ":")
-            ).encode("utf-8")
+            revision, payload = self.gateway.wait_for_event(revision, 10.0)
             try:
                 self.wfile.write(b"event: state\n")
                 self.wfile.write(b"data: " + payload + b"\n\n")
                 self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
                 return
 
     def _static(self, request_path: str):
@@ -371,6 +380,11 @@ class MobileGateway(Node):
                 "footprint_topic", "/local_costmap/published_footprint"
             ).value
         )
+        self.camera_rate_topic = str(
+            self.declare_parameter(
+                "camera_rate_topic", "/camera/rgb/camera_info"
+            ).value
+        )
         flat_footprint = list(
             self.declare_parameter(
                 "vehicle_footprint",
@@ -416,6 +430,11 @@ class MobileGateway(Node):
         self._http_server = None
         self._http_thread = None
         self._rates = RateTracker()
+        self._snapshot_lock = threading.Lock()
+        self._snapshot_cache_revision = -1
+        self._snapshot_cache = None
+        self._event_cache_revision = -1
+        self._event_cache = None
         self._grids: dict[str, GridData] = {}
         self._grid_revisions = defaultdict(int)
         self._state = {
@@ -458,10 +477,19 @@ class MobileGateway(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
         normal = QoSProfile(depth=20)
-        self._create_counted_subscription(PointCloud2, "/lidar/points", qos_profile_sensor_data)
+        self._create_counted_subscription(
+            PointCloud2, "/lidar/points", qos_profile_sensor_data
+        )
         self._create_counted_subscription(Imu, "/imu/data", qos_profile_sensor_data)
-        self._create_counted_subscription(Image, "/camera/rgb/image_raw", qos_profile_sensor_data)
-        self._create_counted_subscription(NavSatFix, "/rtk/fix", qos_profile_sensor_data)
+        self._create_counted_subscription(
+            CameraInfo,
+            self.camera_rate_topic,
+            qos_profile_sensor_data,
+            reported_topic="/camera/rgb/image_raw",
+        )
+        self._create_counted_subscription(
+            NavSatFix, "/rtk/fix", qos_profile_sensor_data
+        )
         self._create_counted_subscription(Odometry, "/wheel/odometry", normal)
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
         self.create_subscription(
@@ -540,7 +568,9 @@ class MobileGateway(Node):
                 CancelGoal, "/navigate_through_poses/_action/cancel_goal"
             ),
         )
-        self.create_timer(1.0, self._touch)
+        # Coalesce high-rate ROS callbacks into one mobile state update. Five Hz is
+        # responsive enough for the map while leaving localization CPU headroom.
+        self.create_timer(0.2, self._touch)
 
     @property
     def stopping(self) -> bool:
@@ -551,12 +581,17 @@ class MobileGateway(Node):
             self._revision += 1
             self._condition.notify_all()
 
-    def _create_counted_subscription(self, message_type, topic, qos):
-        def callback(_message):
-            self._rates.mark(topic)
-            self._touch()
+    def _create_counted_subscription(
+        self, message_type, topic, qos, reported_topic: str | None = None
+    ):
+        rate_topic = reported_topic or topic
 
-        self.create_subscription(message_type, topic, callback, qos)
+        def callback(_message):
+            self._rates.mark(rate_topic)
+
+        # Raw subscriptions count serialized arrivals without constructing large
+        # Python Image or PointCloud2 objects.
+        self.create_subscription(message_type, topic, callback, qos, raw=True)
 
     def _value_callback(self, name):
         topic = {
@@ -569,7 +604,6 @@ class MobileGateway(Node):
                 self._rates.mark(topic)
             with self._lock:
                 self._state["localization"][name] = message.data
-            self._touch()
 
         return callback
 
@@ -592,7 +626,6 @@ class MobileGateway(Node):
                 "linear_speed": math.hypot(twist.linear.x, twist.linear.y),
                 "angular_speed": twist.angular.z,
             }
-        self._touch()
 
     def _path_callback(
         self,
@@ -619,7 +652,6 @@ class MobileGateway(Node):
                 )
             with self._lock:
                 self._state["paths"][name] = points
-            self._touch()
 
         return callback
 
@@ -633,13 +665,16 @@ class MobileGateway(Node):
                 "frame": message.header.frame_id,
                 "points": points,
             }
-        self._touch()
 
     def _grid_callback(self, layer: str, topic: str):
         def callback(message: OccupancyGrid):
             self._rates.mark(topic)
             orientation = message.info.origin.orientation
             self._grid_revisions[layer] += 1
+            try:
+                grid_data = memoryview(message.data).cast("B").tobytes()
+            except TypeError:
+                grid_data = bytes(value & 0xFF for value in message.data)
             grid = GridData(
                 width=message.info.width,
                 height=message.info.height,
@@ -649,12 +684,11 @@ class MobileGateway(Node):
                 origin_yaw=quaternion_yaw(
                     orientation.x, orientation.y, orientation.z, orientation.w
                 ),
-                data=bytes(value & 0xFF for value in message.data),
+                data=grid_data,
                 revision=self._grid_revisions[layer],
             )
             with self._lock:
                 self._grids[layer] = grid
-            self._touch()
 
         return callback
 
@@ -669,7 +703,6 @@ class MobileGateway(Node):
                 "fault_code": int(message.fault_code),
                 "battery_voltage": message.battery_voltage,
             }
-        self._touch()
 
     def _command_callback(self, message: Twist):
         self._rates.mark("/nav2/cmd_vel")
@@ -678,7 +711,6 @@ class MobileGateway(Node):
                 "linear": message.linear.x,
                 "angular": message.angular.z,
             }
-        self._touch()
 
     def _external_goal_status(self, message: GoalStatusArray):
         active = [
@@ -735,25 +767,51 @@ class MobileGateway(Node):
         return result
 
     def state_snapshot(self) -> dict:
-        with self._lock:
-            core = json.loads(json.dumps(self._state, ensure_ascii=False))
-            revision = self._revision
-        return {
-            "revision": revision,
-            "server_time": time.time(),
-            "ros": {"node": self.get_name(), "domain_id": os.environ.get("ROS_DOMAIN_ID", "0")},
-            **core,
-            "rates": self._rates.snapshot(),
-            "grids": self._grid_metadata(),
-            "processes": self.processes.snapshot(),
-            "storage": self._disk_state(),
-        }
+        with self._snapshot_lock:
+            with self._lock:
+                revision = self._revision
+                if self._snapshot_cache_revision == revision:
+                    return self._snapshot_cache
+                core = json.loads(json.dumps(self._state, ensure_ascii=False))
+            document = {
+                "revision": revision,
+                "server_time": time.time(),
+                "ros": {
+                    "node": self.get_name(),
+                    "domain_id": os.environ.get("ROS_DOMAIN_ID", "0"),
+                },
+                **core,
+                "rates": self._rates.snapshot(),
+                "grids": self._grid_metadata(),
+                "processes": self.processes.snapshot(),
+                "storage": self._disk_state(),
+            }
+            self._snapshot_cache_revision = revision
+            self._snapshot_cache = document
+            return document
+
+    def event_payload(self) -> tuple[int, bytes]:
+        document = self.state_snapshot()
+        revision = int(document["revision"])
+        with self._snapshot_lock:
+            if self._event_cache_revision != revision:
+                self._event_cache = json.dumps(
+                    document, ensure_ascii=False, separators=(",", ":")
+                ).encode("utf-8")
+                self._event_cache_revision = revision
+            return revision, self._event_cache
 
     def wait_for_state(self, previous_revision: int, timeout: float):
         with self._condition:
             if self._revision == previous_revision and not self._stopping:
                 self._condition.wait(timeout=timeout)
         return self._revision, self.state_snapshot()
+
+    def wait_for_event(self, previous_revision: int, timeout: float):
+        with self._condition:
+            if self._revision == previous_revision and not self._stopping:
+                self._condition.wait(timeout=timeout)
+        return self.event_payload()
 
     def start_http(self) -> None:
         self._http_server = GatewayHttpServer(

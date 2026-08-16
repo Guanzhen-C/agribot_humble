@@ -89,7 +89,8 @@ class ManagedProcess:
                     self._tail.append(clean)
                     if self._log_stream is not None:
                         self._log_stream.write(line)
-                self._on_change()
+                # The gateway publishes a periodic state snapshot. Waking every
+                # phone connection for every ROS log line can saturate the RDK.
         return_code = process.wait()
         with self._lock:
             self._return_code = return_code
