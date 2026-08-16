@@ -1,0 +1,56 @@
+plugins {
+    id "com.android.application"
+}
+
+def signingPropertiesFile = rootProject.file("signing.properties")
+def releaseSigning = new Properties()
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { releaseSigning.load(it) }
+}
+
+android {
+    namespace "com.guanzhen.agribot"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.guanzhen.agribot"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+        buildConfigField "String", "DEFAULT_GATEWAY_URL", '"http://192.168.100.125:8088"'
+    }
+
+    signingConfigs {
+        if (signingPropertiesFile.exists()) {
+            release {
+                storeFile file(releaseSigning["storeFile"])
+                storePassword releaseSigning["storePassword"]
+                keyAlias releaseSigning["keyAlias"]
+                keyPassword releaseSigning["keyPassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingPropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
+}

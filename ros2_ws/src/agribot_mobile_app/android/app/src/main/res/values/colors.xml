@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_green">#176B5B</color>
+    <color name="brand_green_dark">#0F4E43</color>
+    <color name="surface">#F5F7F6</color>
+    <color name="text_primary">#17212B</color>
+    <color name="text_secondary">#5B6770</color>
+    <color name="status_red">#B42318</color>
+</resources>

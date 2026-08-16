@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Agribot" parent="android:style/Theme.Material.Light">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/brand_green_dark</item>
+        <item name="android:navigationBarColor">@color/text_primary</item>
+        <item name="android:colorAccent">@color/brand_green</item>
+        <item name="android:actionBarStyle">@style/Theme.Agribot.ActionBar</item>
+    </style>
+
+    <style name="Theme.Agribot.ActionBar" parent="@android:style/Widget.Material.ActionBar.Solid">
+        <item name="android:background">@color/brand_green</item>
+        <item name="android:titleTextStyle">@style/Theme.Agribot.ActionBar.Title</item>
+        <item name="android:subtitleTextStyle">@style/Theme.Agribot.ActionBar.Subtitle</item>
+    </style>
+
+    <style name="Theme.Agribot.ActionBar.Title" parent="@android:style/TextAppearance.Material.Widget.ActionBar.Title">
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="Theme.Agribot.ActionBar.Subtitle" parent="@android:style/TextAppearance.Material.Widget.ActionBar.Subtitle">
+        <item name="android:textColor">#D8EEE8</item>
+    </style>
+</resources>

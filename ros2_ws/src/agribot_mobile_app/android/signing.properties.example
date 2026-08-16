@@ -1,0 +1,4 @@
+storeFile=/absolute/path/to/agribot-mobile-release.jks
+storePassword=replace-with-a-strong-password
+keyAlias=agribot-mobile
+keyPassword=replace-with-a-strong-password

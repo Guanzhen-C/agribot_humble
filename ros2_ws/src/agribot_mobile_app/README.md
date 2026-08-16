@@ -60,6 +60,27 @@ journalctl -u agribot-mobile-app.service -f
 `api_token`非空时，所有会改变车辆状态的请求必须携带该口令。离线处理默认关闭，
 只应在已编译`agribot_offline_mapping`且具有足够算力的Jetson实例上开启。
 
+## Android安装包
+
+Android 8.0及以上设备可直接安装原生壳应用：
+
+```text
+http://RDK_IP:8088/downloads/agribot-mobile-0.1.0.apk
+```
+
+应用默认连接`http://192.168.100.125:8088`。RDK地址变化时，在应用标题栏点击设置图标，
+填写新的IP地址即可；配置会保存在本机，连接失败时应用每5秒自动重试。应用只封装现有
+网页和白名单API，不绕过网关的运动授权、定位就绪与底盘安全检查。
+
+Android源码位于`android/`。安装Android SDK 35和JDK 17后可执行：
+
+```bash
+cd android
+./gradlew test lint assembleDebug
+```
+
+正式包签名配置参考`android/signing.properties.example`。签名文件和密码不得提交到Git。
+
 Jetson本地已有数据包时，使用带离线处理能力的配置启动第二个实例：
 
 ```bash

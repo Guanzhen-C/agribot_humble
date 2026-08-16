@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">农车控制台</string>
+    <string name="gateway_settings">RDK地址</string>
+    <string name="gateway_dialog_title">RDK网关地址</string>
+    <string name="gateway_dialog_message">手机与RDK必须位于同一局域网，默认端口为8088。</string>
+    <string name="connect">连接</string>
+    <string name="connection_title">暂时无法连接RDK</string>
+    <string name="connection_failed">%1$s\n\n%2$s\n应用将在5秒后自动重试。</string>
+    <string name="configure_address">配置地址</string>
+    <string name="retry">重新连接</string>
+    <string name="no_browser">没有可用的外部浏览器</string>
+</resources>
