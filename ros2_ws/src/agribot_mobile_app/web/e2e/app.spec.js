@@ -29,7 +29,7 @@ function mapGrid() {
 const mockState = {
   revision: 8,
   server_time: Date.now() / 1000,
-  ros: { node: "mobile_gateway", domain_id: "0" },
+  ros: { node: "mobile_gateway", domain_id: "0", localhost_only: true },
   pose: { frame: "map", x: -2.4, y: 0.3, z: 0.02, yaw: 0.18, linear_speed: 0.12, angular_speed: 0.01 },
   paths: {
     history: [[-5.5, -0.8], [-4.1, -0.2], [-3.0, 0.15], [-2.4, 0.3]],

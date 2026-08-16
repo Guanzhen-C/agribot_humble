@@ -372,7 +372,12 @@ function StatusPanel({ state }) {
   return (
     <div className="panel-content">
       <section className="section-band">
-        <div className="section-heading"><h2>数据通道</h2><Pill tone="blue">ROS {state?.ros?.domain_id ?? "0"}</Pill></div>
+        <div className="section-heading">
+          <h2>数据通道</h2>
+          <Pill tone="blue">
+            ROS {state?.ros?.domain_id ?? "0"} · {state?.ros?.localhost_only ? "本机" : "局域网"}
+          </Pill>
+        </div>
         <div className="status-table">
           {SENSOR_ROWS.map(([topic, label]) => {
             const available = state?.topics?.[topic]?.available === true;

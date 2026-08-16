@@ -723,6 +723,7 @@ class MobileGateway(Node):
                 "ros": {
                     "node": self.get_name(),
                     "domain_id": os.environ.get("ROS_DOMAIN_ID", "0"),
+                    "localhost_only": os.environ.get("ROS_LOCALHOST_ONLY", "0") == "1",
                 },
                 **core,
                 "grids": self._grid_metadata(),

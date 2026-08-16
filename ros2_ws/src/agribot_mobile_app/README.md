@@ -33,8 +33,16 @@ RDK启动：
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
 ros2 launch agribot_mobile_app mobile_app.launch.py
 ```
+
+手机模式默认把网关及其启动的定位、规划、控制和采集节点限制在RDK本机DDS中，
+避免弱Wi-Fi、远程RViz或其他ROS 2节点影响传感器融合实时性。HTTP仍监听
+`0.0.0.0:8088`，所以手机通过RDK的局域网IP正常访问，不受该限制影响。
+通过SSH在RDK上执行`ros2 topic`或`ros2 node`检查手机启动的流程时，也要先设置
+`export ROS_LOCALHOST_ONLY=1`。
 
 在RDK上注册开机服务：
 
@@ -48,7 +56,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now agribot-mobile-app.service
 ```
 
-该服务只启动手机网关和轻量传感器频率监控，不会自动启动导航栈、CAN或底盘输出。
+该服务只启动手机网关，不会自动启动导航栈、CAN或底盘输出。只有在手机端明确选择
+运行配置并确认后，网关才会在同一本机DDS环境中启动相应流程。
 查看状态与日志：
 
 ```bash

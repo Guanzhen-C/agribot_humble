@@ -18,11 +18,19 @@ def generate_launch_description():
                 "runtime_profiles",
                 default_value=os.path.join(share, "config", "runtime_profiles.yaml"),
             ),
+            DeclareLaunchArgument(
+                "ros_localhost_only",
+                default_value="1",
+                description="Keep the vehicle ROS graph on this computer",
+            ),
             Node(
                 package="agribot_mobile_app",
                 executable="mobile_gateway",
                 name="mobile_gateway",
                 output="screen",
+                additional_env={
+                    "ROS_LOCALHOST_ONLY": LaunchConfiguration("ros_localhost_only"),
+                },
                 parameters=[
                     LaunchConfiguration("params_file"),
                     {"runtime_profiles": LaunchConfiguration("runtime_profiles")},

@@ -20,6 +20,7 @@ def test_service_is_boot_enabled_and_restartable():
     text = UNIT.read_text(encoding="utf-8")
 
     assert "After=network-online.target" in text
+    assert "Environment=ROS_LOCALHOST_ONLY=1" in text
     assert "Restart=always" in text
     assert "WantedBy=multi-user.target" in text
     assert "KillSignal=SIGINT" in text

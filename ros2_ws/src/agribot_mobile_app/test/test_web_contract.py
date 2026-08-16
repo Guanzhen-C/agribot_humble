@@ -48,3 +48,16 @@ def test_gateway_checks_sensor_publishers_without_subscribing_to_frames():
     assert "DiagnosticArray" not in source
     assert "PointCloud2" not in source
     assert "sensor_rate_monitor" not in launch
+
+
+def test_mobile_launch_isolates_ros_but_keeps_http_on_the_lan():
+    launch = (PACKAGE / "launch" / "mobile_app.launch.py").read_text(
+        encoding="utf-8"
+    )
+    config = (PACKAGE / "config" / "mobile_gateway.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert '"ros_localhost_only"' in launch
+    assert 'default_value="1"' in launch
+    assert '"ROS_LOCALHOST_ONLY"' in launch
+    assert "http_host: 0.0.0.0" in config
