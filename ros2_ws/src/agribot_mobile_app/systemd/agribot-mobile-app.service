@@ -1,0 +1,26 @@
+[Unit]
+Description=Agribot mobile app ROS 2 gateway
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=sunrise
+Group=sunrise
+WorkingDirectory=/home/sunrise/agribot_ws/ros2_ws
+Environment=HOME=/home/sunrise
+Environment=ROS_DOMAIN_ID=0
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash && exec ros2 launch agribot_mobile_app mobile_app.launch.py'
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=45
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -30,6 +30,7 @@ setup(
         (f"share/{PACKAGE_NAME}", ["package.xml", "README.md"]),
         *installed_tree("launch", f"share/{PACKAGE_NAME}/launch"),
         *installed_tree("config", f"share/{PACKAGE_NAME}/config"),
+        *installed_tree("systemd", f"share/{PACKAGE_NAME}/systemd"),
         *installed_tree("web/dist", f"share/{PACKAGE_NAME}/web"),
     ],
     install_requires=["setuptools"],

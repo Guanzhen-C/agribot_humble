@@ -36,6 +36,26 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_mobile_app mobile_app.launch.py
 ```
 
+在RDK上注册开机服务：
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+sudo install -m 0644 \
+  "$(ros2 pkg prefix agribot_mobile_app)/share/agribot_mobile_app/systemd/agribot-mobile-app.service" \
+  /etc/systemd/system/agribot-mobile-app.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now agribot-mobile-app.service
+```
+
+该服务只启动手机网关和轻量传感器频率监控，不会自动启动导航栈、CAN或底盘输出。
+查看状态与日志：
+
+```bash
+systemctl status agribot-mobile-app.service --no-pager
+journalctl -u agribot-mobile-app.service -f
+```
+
 同一局域网内在手机浏览器打开 `http://RDK_IP:8088`，然后使用浏览器的“添加到主屏幕”。
 `api_token`非空时，所有会改变车辆状态的请求必须携带该口令。离线处理默认关闭，
 只应在已编译`agribot_offline_mapping`且具有足够算力的Jetson实例上开启。
