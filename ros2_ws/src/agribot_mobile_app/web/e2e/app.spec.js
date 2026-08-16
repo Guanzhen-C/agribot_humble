@@ -32,8 +32,13 @@ const mockState = {
   ros: { node: "mobile_gateway", domain_id: "0" },
   pose: { frame: "map", x: -2.4, y: 0.3, z: 0.02, yaw: 0.18, linear_speed: 0.12, angular_speed: 0.01 },
   paths: {
+    history: [[-5.5, -0.8], [-4.1, -0.2], [-3.0, 0.15], [-2.4, 0.3]],
     global: [[-2.4, 0.3], [-1, 0.5], [1.2, 1.3], [3.5, 1.5], [5.1, 2.2]],
     local: [[-2.4, 0.3], [-1.7, 0.34], [-1.0, 0.5]],
+  },
+  footprint: null,
+  vehicle: {
+    footprint: [[0.754818, 0.485974], [0.754818, -0.485974], [-0.2275, -0.485974], [-0.2275, 0.485974]],
   },
   localization: {
     ready: true,
@@ -123,6 +128,29 @@ test("desktop operations surface renders without overflow or console errors", as
   await expect(page.getByRole("heading", { name: "农车控制台" })).toBeVisible();
   await expect(page.getByText("定位就绪")).toBeVisible();
   await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByLabel("车辆当前位置")).toContainText("X -2.40");
+  const canvasSignals = await page.locator("canvas").evaluate((canvas) => {
+    const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+    const colors = {
+      history: [104, 119, 130],
+      global: [36, 99, 165],
+      local: [217, 119, 6],
+      vehicle: [23, 107, 91],
+    };
+    const counts = Object.fromEntries(Object.keys(colors).map((name) => [name, 0]));
+    for (let index = 0; index < pixels.length; index += 4) {
+      for (const [name, color] of Object.entries(colors)) {
+        if (pixels[index] === color[0] && pixels[index + 1] === color[1] && pixels[index + 2] === color[2]) {
+          counts[name] += 1;
+        }
+      }
+    }
+    return counts;
+  });
+  expect(canvasSignals.history).toBeGreaterThan(3);
+  expect(canvasSignals.global).toBeGreaterThan(3);
+  expect(canvasSignals.local).toBeGreaterThan(3);
+  expect(canvasSignals.vehicle).toBeGreaterThan(3);
   await page.getByRole("button", { name: "经停点" }).click();
   const canvas = page.locator("canvas");
   const box = await canvas.boundingBox();

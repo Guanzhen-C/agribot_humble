@@ -105,6 +105,7 @@ export default function MapView({
   const [view, setView] = useState({ x: 0, y: 0, scale: 45 });
   const [layers, setLayers] = useState({ global: false, local: true });
   const [draft, setDraft] = useState(null);
+  const [followRobot, setFollowRobot] = useState(false);
 
   const liveMap = state?.grids?.map;
   const baseUrl = liveMap
@@ -138,6 +139,7 @@ export default function MapView({
 
   const fitMap = useCallback(() => {
     if (!baseGrid) return;
+    setFollowRobot(false);
     const yaw = baseGrid.origin.yaw || 0;
     const widthMeters = baseGrid.width * baseGrid.resolution;
     const heightMeters = baseGrid.height * baseGrid.resolution;
@@ -174,6 +176,15 @@ export default function MapView({
     }),
     [size, view],
   );
+
+  useEffect(() => {
+    if (!followRobot || !state?.pose) return;
+    setView((current) => ({
+      ...current,
+      x: state.pose.x,
+      y: state.pose.y,
+    }));
+  }, [followRobot, state?.pose?.x, state?.pose?.y]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -220,6 +231,7 @@ export default function MapView({
       });
       context.stroke();
     };
+    drawPath(state?.paths?.history, "#687782", 2);
     drawPath(state?.paths?.global, "#2463a5", 4);
     drawPath(state?.paths?.local, "#d97706", 3);
     drawPath(route.map((pose) => [pose.x, pose.y]), "#176b5b", 2);
@@ -245,8 +257,38 @@ export default function MapView({
       arrow(context, point.x, point.y, draft.yaw, "#b56a00", 15);
     }
     if (state?.pose) {
+      let footprint = state?.footprint?.points;
+      if (!footprint || footprint.length < 3) {
+        const cosine = Math.cos(state.pose.yaw);
+        const sine = Math.sin(state.pose.yaw);
+        footprint = (state?.vehicle?.footprint || []).map(([x, y]) => [
+          state.pose.x + cosine * x - sine * y,
+          state.pose.y + sine * x + cosine * y,
+        ]);
+      }
+      if (footprint.length >= 3) {
+        context.fillStyle = "rgba(23, 107, 91, 0.24)";
+        context.strokeStyle = "#0f5b4c";
+        context.lineWidth = 2;
+        context.beginPath();
+        footprint.forEach(([x, y], index) => {
+          const point = worldToScreen(x, y);
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.closePath();
+        context.fill();
+        context.stroke();
+      }
       const point = worldToScreen(state.pose.x, state.pose.y);
-      arrow(context, point.x, point.y, state.pose.yaw, "#176b5b", 20);
+      context.fillStyle = "#ffffff";
+      context.strokeStyle = "#0f5b4c";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      arrow(context, point.x, point.y, state.pose.yaw, "#176b5b", 17);
     }
   }, [
     baseBitmap,
@@ -277,6 +319,7 @@ export default function MapView({
       world: screenToWorld(screen.x, screen.y),
       view,
     };
+    if (interactionMode === "browse") setFollowRobot(false);
     if (interactionMode !== "browse") {
       setDraft({ ...pointerRef.current.world, yaw: state?.pose?.yaw || 0 });
     }
@@ -321,8 +364,10 @@ export default function MapView({
     setView({ x, y, scale });
   };
 
-  const centerRobot = () => {
-    if (state?.pose) setView((current) => ({ ...current, x: state.pose.x, y: state.pose.y }));
+  const toggleRobotFollow = () => {
+    if (!state?.pose) return;
+    setFollowRobot((current) => !current);
+    setView((current) => ({ ...current, x: state.pose.x, y: state.pose.y }));
   };
 
   return (
@@ -347,7 +392,7 @@ export default function MapView({
         <button type="button" className="icon-button" title="适应地图" aria-label="适应地图" onClick={fitMap}>
           <Crosshair size={19} />
         </button>
-        <button type="button" className="icon-button" title="跟随车辆" aria-label="跟随车辆" onClick={centerRobot} disabled={!state?.pose}>
+        <button type="button" className={`icon-button follow-layer ${followRobot ? "active" : ""}`} title="跟随车辆" aria-label="跟随车辆" aria-pressed={followRobot} onClick={toggleRobotFollow} disabled={!state?.pose}>
           <LocateFixed size={19} />
         </button>
         <div className="tool-divider" />
@@ -370,6 +415,19 @@ export default function MapView({
           <Layers3 size={19} />
         </button>
       </div>
+      <div className="map-legend" aria-label="轨迹图例">
+        <span><i className="history" />行驶轨迹</span>
+        <span><i className="global" />全局规划</span>
+        <span><i className="local" />局部跟踪</span>
+      </div>
+      {state?.pose && (
+        <div className="pose-readout" aria-label="车辆当前位置">
+          <strong>X {state.pose.x.toFixed(2)}</strong>
+          <strong>Y {state.pose.y.toFixed(2)}</strong>
+          <span>{(state.pose.yaw * 180 / Math.PI).toFixed(1)}°</span>
+          <span>{Number.isFinite(state.pose.linear_speed) ? state.pose.linear_speed.toFixed(2) : "--"} m/s</span>
+        </div>
+      )}
       <div className="map-scale">{(100 / view.scale).toFixed(1)} m</div>
     </div>
   );

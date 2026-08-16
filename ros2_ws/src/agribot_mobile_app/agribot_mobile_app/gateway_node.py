@@ -20,7 +20,12 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
+from geometry_msgs.msg import (
+    PolygonStamped,
+    PoseStamped,
+    PoseWithCovarianceStamped,
+    Twist,
+)
 from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
@@ -352,8 +357,41 @@ class MobileGateway(Node):
             self.declare_parameter("global_plan_topic", "/plan").value
         )
         self.local_plan_topic = str(
-            self.declare_parameter("local_plan_topic", "/local_plan").value
+            self.declare_parameter(
+                "local_plan_topic", "/transformed_global_plan"
+            ).value
         )
+        self.trajectory_topic = str(
+            self.declare_parameter(
+                "trajectory_topic", "/fastlivo_rtk/path"
+            ).value
+        )
+        self.footprint_topic = str(
+            self.declare_parameter(
+                "footprint_topic", "/local_costmap/published_footprint"
+            ).value
+        )
+        flat_footprint = list(
+            self.declare_parameter(
+                "vehicle_footprint",
+                [
+                    0.754818,
+                    0.485974,
+                    0.754818,
+                    -0.485974,
+                    -0.227500,
+                    -0.485974,
+                    -0.227500,
+                    0.485974,
+                ],
+            ).value
+        )
+        if len(flat_footprint) < 6 or len(flat_footprint) % 2:
+            raise ValueError("vehicle_footprint必须包含至少三个二维顶点")
+        self.vehicle_footprint = [
+            [float(flat_footprint[index]), float(flat_footprint[index + 1])]
+            for index in range(0, len(flat_footprint), 2)
+        ]
         self.grid_topics = {
             "map": str(self.declare_parameter("map_topic", "/map").value),
             "global_costmap": str(
@@ -382,7 +420,9 @@ class MobileGateway(Node):
         self._grid_revisions = defaultdict(int)
         self._state = {
             "pose": None,
-            "paths": {"global": [], "local": []},
+            "paths": {"history": [], "global": [], "local": []},
+            "footprint": None,
+            "vehicle": {"footprint": self.vehicle_footprint},
             "localization": {
                 "ready": None,
                 "lidar_ready": None,
@@ -409,6 +449,7 @@ class MobileGateway(Node):
         }
         self.processes = ProcessSlots(self._touch)
         self._goal_handle = None
+        self._path_updates: dict[str, float] = {}
 
         latched = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -423,8 +464,30 @@ class MobileGateway(Node):
         self._create_counted_subscription(NavSatFix, "/rtk/fix", qos_profile_sensor_data)
         self._create_counted_subscription(Odometry, "/wheel/odometry", normal)
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
-        self.create_subscription(NavPath, self.global_plan_topic, self._path_callback("global"), normal)
-        self.create_subscription(NavPath, self.local_plan_topic, self._path_callback("local"), normal)
+        self.create_subscription(
+            NavPath,
+            self.global_plan_topic,
+            self._path_callback("global", self.global_plan_topic, 1200),
+            normal,
+        )
+        self.create_subscription(
+            NavPath,
+            self.local_plan_topic,
+            self._path_callback("local", self.local_plan_topic, 400, 0.15),
+            normal,
+        )
+        self.create_subscription(
+            NavPath,
+            self.trajectory_topic,
+            self._path_callback("history", self.trajectory_topic, 600, 0.5),
+            latched,
+        )
+        self.create_subscription(
+            PolygonStamped,
+            self.footprint_topic,
+            self._footprint_callback,
+            latched,
+        )
         for layer, topic in self.grid_topics.items():
             self.create_subscription(
                 OccupancyGrid, topic, self._grid_callback(layer, topic), latched
@@ -531,10 +594,21 @@ class MobileGateway(Node):
             }
         self._touch()
 
-    def _path_callback(self, name):
+    def _path_callback(
+        self,
+        name: str,
+        topic: str,
+        maximum_points: int,
+        minimum_interval: float = 0.0,
+    ):
         def callback(message: NavPath):
+            self._rates.mark(topic)
+            now = time.monotonic()
+            if now - self._path_updates.get(name, 0.0) < minimum_interval:
+                return
+            self._path_updates[name] = now
             poses = message.poses
-            step = max(1, math.ceil(len(poses) / 1200))
+            step = max(1, math.ceil(len(poses) / maximum_points))
             points = [
                 [pose.pose.position.x, pose.pose.position.y]
                 for pose in poses[::step]
@@ -548,6 +622,18 @@ class MobileGateway(Node):
             self._touch()
 
         return callback
+
+    def _footprint_callback(self, message: PolygonStamped):
+        self._rates.mark(self.footprint_topic)
+        points = [[point.x, point.y] for point in message.polygon.points]
+        if len(points) < 3:
+            return
+        with self._lock:
+            self._state["footprint"] = {
+                "frame": message.header.frame_id,
+                "points": points,
+            }
+        self._touch()
 
     def _grid_callback(self, layer: str, topic: str):
         def callback(message: OccupancyGrid):
@@ -965,6 +1051,17 @@ class MobileGateway(Node):
             command, self._log_path("runtime", f"{profile_id}_{map_id}"), os.environ.copy()
         )
         with self._lock:
+            self._state["pose"] = None
+            self._state["paths"] = {"history": [], "global": [], "local": []}
+            self._state["footprint"] = None
+            self._state["navigation"] = {
+                "kind": None,
+                "status": "idle",
+                "feedback": {},
+                "goal": None,
+                "route": [],
+            }
+            self._grids.clear()
             self._state["active_runtime"] = {
                 "profile_id": profile_id,
                 "map_id": map_id,

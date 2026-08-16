@@ -465,7 +465,12 @@ export default function App() {
     setBags(bagDocument.bags || []);
     setProfiles(profileDocument.profiles || []);
     setProcessingEnabled(Boolean(profileDocument.processing_enabled));
-    setSelectedMap((current) => current || mapDocument.maps?.[0]?.id || "");
+    setSelectedMap((current) => {
+      const available = mapDocument.maps || [];
+      return available.some((map) => map.id === current)
+        ? current
+        : available[0]?.id || "";
+    });
   };
 
   useEffect(() => {

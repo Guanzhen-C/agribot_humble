@@ -66,6 +66,7 @@ button { color: inherit; }
 .command-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .icon-button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 6px; color: #4d5a65; background: #fff; cursor: pointer; }
 .icon-button.active { color: #fff; background: var(--red); }
+.icon-button.follow-layer.active { background: var(--green); }
 .icon-button.local-layer.active { background: var(--amber); }
 .icon-button.bordered { border: 1px solid var(--border); }
 .icon-button.compact { width: 28px; height: 28px; background: transparent; }
@@ -122,6 +123,13 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .map-tools { position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid rgba(171, 181, 190, .8); border-radius: 7px; background: rgba(255, 255, 255, .94); box-shadow: 0 2px 8px rgba(28, 40, 50, .12); }
 .tool-divider { width: 1px; height: 24px; margin: 0 2px; background: var(--border); }
 .map-scale { position: absolute; bottom: 14px; left: 14px; min-width: 64px; padding: 4px 8px; border-bottom: 3px solid #17212b; color: #17212b; background: rgba(255,255,255,.83); font-size: 10px; text-align: center; }
+.map-legend { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 5px 8px; border: 1px solid rgba(171, 181, 190, .8); border-radius: 6px; color: #44515d; background: rgba(255, 255, 255, .94); font-size: 9px; box-shadow: 0 2px 8px rgba(28, 40, 50, .1); }
+.map-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.map-legend i { display: block; width: 17px; height: 3px; border-radius: 2px; background: #687782; }
+.map-legend i.global { height: 4px; background: var(--blue); }
+.map-legend i.local { background: #d97706; }
+.pose-readout { position: absolute; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, auto); align-items: center; gap: 7px; min-height: 30px; padding: 5px 8px; border: 1px solid rgba(171, 181, 190, .8); border-radius: 6px; color: #44515d; background: rgba(255, 255, 255, .94); font-size: 9px; font-variant-numeric: tabular-nums; }
+.pose-readout strong { color: #17212b; }
 .map-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #6d7983; font-size: 13px; pointer-events: none; }
 
 .toast { position: fixed; top: 70px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: min(420px, calc(100vw - 24px)); min-height: 40px; padding: 8px 13px; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 650; transform: translateX(-50%); z-index: 80; box-shadow: 0 8px 24px rgba(20, 30, 40, .2); }
@@ -146,6 +154,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
   .workspace { grid-template-columns: 1fr; grid-template-rows: minmax(250px, 52vh) minmax(0, 1fr); }
   .control-panel { border-top: 1px solid var(--border); border-left: 0; }
   .map-tools { top: 8px; left: 8px; }
+  .map-legend { top: 52px; right: 8px; gap: 6px; }
+  .pose-readout { right: 8px; bottom: 8px; grid-template-columns: repeat(2, auto); }
   .map-tools .icon-button { width: 34px; height: 34px; }
   .section-band { padding: 12px 14px; }
   .segmented { margin: 10px 12px; }

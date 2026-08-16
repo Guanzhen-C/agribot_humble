@@ -19,3 +19,17 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     assert "/api/v1/collection/start" in source
     assert "/api/v1/runtime/start" in source
     assert "/cmd_vel" not in source
+
+
+def test_map_view_uses_live_vehicle_and_navigation_outputs():
+    view = (PACKAGE / "web" / "src" / "MapView.jsx").read_text(encoding="utf-8")
+    config = (PACKAGE / "config" / "mobile_gateway.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "state?.paths?.history" in view
+    assert "state?.paths?.global" in view
+    assert "state?.paths?.local" in view
+    assert "state?.vehicle?.footprint" in view
+    assert "local_plan_topic: /transformed_global_plan" in config
+    assert "trajectory_topic: /fastlivo_rtk/path" in config
+    assert "footprint_topic: /local_costmap/published_footprint" in config
