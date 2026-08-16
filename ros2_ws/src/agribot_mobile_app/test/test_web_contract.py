@@ -35,23 +35,16 @@ def test_map_view_uses_live_vehicle_and_navigation_outputs():
     assert "footprint_topic: /local_costmap/published_footprint" in config
 
 
-def test_gateway_sensor_rates_do_not_deserialize_full_frames():
+def test_gateway_checks_sensor_publishers_without_subscribing_to_frames():
     source = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
         encoding="utf-8"
     )
     launch = (PACKAGE / "launch" / "mobile_app.launch.py").read_text(
         encoding="utf-8"
     )
-    monitor = (
-        PACKAGE.parent
-        / "agribot_hardware_bringup"
-        / "monitoring"
-        / "src"
-        / "sensor_rate_monitor.cpp"
-    ).read_text(encoding="utf-8")
-    assert '"/agribot/mobile_sensor_rates"' in source
-    assert "DiagnosticArray" in source
+    assert "get_publishers_info_by_topic" in source
+    assert '"topics"' in source
+    assert '"/agribot/mobile_sensor_rates"' not in source
+    assert "DiagnosticArray" not in source
     assert "PointCloud2" not in source
-    assert 'executable="sensor_rate_monitor"' in launch
-    assert "create_generic_subscription" in monitor
-    assert '"/camera/rgb/camera_info"' in monitor
+    assert "sensor_rate_monitor" not in launch

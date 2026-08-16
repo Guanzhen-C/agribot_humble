@@ -3,6 +3,15 @@ import { Crosshair, Layers3, LocateFixed, Minus, Plus } from "lucide-react";
 import { getJson } from "./api";
 
 
+const MIN_SCALE = 3;
+const MAX_SCALE = 400;
+
+
+function clampScale(scale) {
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+}
+
+
 function decodeGrid(document) {
   const binary = window.atob(document.data);
   const data = new Int8Array(binary.length);
@@ -100,6 +109,8 @@ export default function MapView({
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const pointerRef = useRef(null);
+  const pointersRef = useRef(new Map());
+  const pinchRef = useRef(null);
   const fittedRef = useRef("");
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [view, setView] = useState({ x: 0, y: 0, scale: 45 });
@@ -312,9 +323,35 @@ export default function MapView({
   };
 
   const pointerDown = (event) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointer events used by browser tests do not own pointer capture.
+    }
     const screen = pointerPosition(event);
+    pointersRef.current.set(event.pointerId, screen);
+
+    if (pointersRef.current.size >= 2) {
+      const [[firstId, first], [secondId, second]] = [...pointersRef.current.entries()];
+      const center = {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      };
+      pinchRef.current = {
+        pointerIds: [firstId, secondId],
+        distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+        world: screenToWorld(center.x, center.y),
+        view,
+      };
+      pointerRef.current = null;
+      setDraft(null);
+      setFollowRobot(false);
+      return;
+    }
+
     pointerRef.current = {
+      pointerId: event.pointerId,
       screen,
       world: screenToWorld(screen.x, screen.y),
       view,
@@ -326,8 +363,34 @@ export default function MapView({
   };
 
   const pointerMove = (event) => {
-    if (!pointerRef.current) return;
+    if (!pointersRef.current.has(event.pointerId)) return;
+    event.preventDefault();
     const screen = pointerPosition(event);
+    pointersRef.current.set(event.pointerId, screen);
+
+    if (pinchRef.current) {
+      const [firstId, secondId] = pinchRef.current.pointerIds;
+      const first = pointersRef.current.get(firstId);
+      const second = pointersRef.current.get(secondId);
+      if (!first || !second) return;
+      const center = {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      };
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const scale = clampScale(
+        pinchRef.current.view.scale * distance / pinchRef.current.distance,
+      );
+      setView({
+        x: pinchRef.current.world.x - (center.x - size.width / 2) / scale,
+        y: pinchRef.current.world.y + (center.y - size.height / 2) / scale,
+        scale,
+      });
+      return;
+    }
+
+    if (!pointerRef.current) return;
+    if (pointerRef.current.pointerId !== event.pointerId) return;
     if (interactionMode === "browse") {
       const dx = screen.x - pointerRef.current.screen.x;
       const dy = screen.y - pointerRef.current.screen.y;
@@ -345,11 +408,26 @@ export default function MapView({
     setDraft({ ...start, yaw });
   };
 
-  const pointerUp = () => {
+  const finishPointer = (event, commitPose) => {
+    pointersRef.current.delete(event.pointerId);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // The browser may already have released capture for a canceled pointer.
+    }
+
+    if (pinchRef.current) {
+      pointerRef.current = null;
+      setDraft(null);
+      if (pointersRef.current.size === 0) pinchRef.current = null;
+      return;
+    }
+
+    if (pointerRef.current?.pointerId !== event.pointerId) return;
     const pose = draft;
     pointerRef.current = null;
     setDraft(null);
-    if (!pose) return;
+    if (!commitPose || !pose) return;
     if (interactionMode === "route") onRoutePoint(pose);
     else if (interactionMode === "initial" || interactionMode === "goal") onPose(interactionMode, pose);
   };
@@ -358,7 +436,7 @@ export default function MapView({
     event.preventDefault();
     const screen = pointerPosition(event);
     const before = screenToWorld(screen.x, screen.y);
-    const scale = Math.max(3, Math.min(400, view.scale * (event.deltaY < 0 ? 1.15 : 0.87)));
+    const scale = clampScale(view.scale * (event.deltaY < 0 ? 1.15 : 0.87));
     const x = before.x - (screen.x - size.width / 2) / scale;
     const y = before.y + (screen.y - size.height / 2) / scale;
     setView({ x, y, scale });
@@ -371,22 +449,26 @@ export default function MapView({
   };
 
   return (
-    <div className="map-shell" ref={containerRef}>
+    <div
+      className="map-shell"
+      ref={containerRef}
+      data-view-scale={view.scale}
+    >
       <canvas
         ref={canvasRef}
         className={`map-canvas mode-${interactionMode}`}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
-        onPointerUp={pointerUp}
-        onPointerCancel={pointerUp}
+        onPointerUp={(event) => finishPointer(event, true)}
+        onPointerCancel={(event) => finishPointer(event, false)}
         onWheel={wheel}
       />
       {!baseGrid && <div className="map-empty">地图未加载</div>}
       <div className="map-tools" role="toolbar" aria-label="地图工具">
-        <button type="button" className="icon-button" title="放大" aria-label="放大" onClick={() => setView((current) => ({ ...current, scale: Math.min(400, current.scale * 1.25) }))}>
+        <button type="button" className="icon-button" title="放大" aria-label="放大" onClick={() => setView((current) => ({ ...current, scale: clampScale(current.scale * 1.25) }))}>
           <Plus size={19} />
         </button>
-        <button type="button" className="icon-button" title="缩小" aria-label="缩小" onClick={() => setView((current) => ({ ...current, scale: Math.max(3, current.scale / 1.25) }))}>
+        <button type="button" className="icon-button" title="缩小" aria-label="缩小" onClick={() => setView((current) => ({ ...current, scale: clampScale(current.scale / 1.25) }))}>
           <Minus size={19} />
         </button>
         <button type="button" className="icon-button" title="适应地图" aria-label="适应地图" onClick={fitMap}>

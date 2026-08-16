@@ -15,13 +15,12 @@ import socket
 import shutil
 import threading
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import (
     PolygonStamped,
     PoseStamped,
@@ -58,56 +57,20 @@ from .profiles import ProfileError, RuntimeProfiles
 
 MAX_JSON_BODY = 256 * 1024
 MAX_ROUTE_POSES = 100
+MONITORED_TOPICS = (
+    "/lidar/points",
+    "/imu/data",
+    "/camera/rgb/image_raw",
+    "/rtk/fix",
+    "/fastlivo_rtk/odometry",
+    "/scout_status",
+)
 
 
 class ApiError(RuntimeError):
     def __init__(self, status: int, message: str):
         super().__init__(message)
         self.status = status
-
-
-class RateTracker:
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._arrivals: dict[str, deque[float]] = defaultdict(deque)
-        self._reports: dict[str, tuple[float, float, float]] = {}
-
-    def mark(self, topic: str) -> None:
-        now = time.monotonic()
-        with self._lock:
-            values = self._arrivals[topic]
-            values.append(now)
-            while values and now - values[0] > 10.0:
-                values.popleft()
-
-    def report(self, topic: str, hz: float, age_sec: float) -> None:
-        now = time.monotonic()
-        with self._lock:
-            self._reports[topic] = (max(0.0, hz), age_sec, now)
-
-    def snapshot(self) -> dict[str, dict]:
-        now = time.monotonic()
-        result = {}
-        with self._lock:
-            for topic, (rate, source_age, reported_at) in self._reports.items():
-                age = source_age + now - reported_at if source_age >= 0.0 else 1.0e6
-                result[topic] = {
-                    "hz": round(rate, 2),
-                    "age_sec": round(age, 2),
-                }
-            for topic, values in self._arrivals.items():
-                while values and now - values[0] > 10.0:
-                    values.popleft()
-                if not values:
-                    continue
-                rate = 0.0
-                if len(values) >= 2 and values[-1] > values[0]:
-                    rate = (len(values) - 1) / (values[-1] - values[0])
-                result[topic] = {
-                    "hz": round(rate, 2),
-                    "age_sec": round(now - values[-1], 2),
-                }
-        return result
 
 
 def finite_number(value, description: str) -> float:
@@ -435,7 +398,6 @@ class MobileGateway(Node):
         self._stopping = False
         self._http_server = None
         self._http_thread = None
-        self._rates = RateTracker()
         self._snapshot_lock = threading.Lock()
         self._snapshot_cache_revision = -1
         self._snapshot_cache = None
@@ -461,6 +423,9 @@ class MobileGateway(Node):
             },
             "chassis": None,
             "command": {"linear": 0.0, "angular": 0.0},
+            "topics": {
+                topic: {"available": False} for topic in MONITORED_TOPICS
+            },
             "navigation": {
                 "kind": None,
                 "status": "idle",
@@ -483,12 +448,6 @@ class MobileGateway(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
         normal = QoSProfile(depth=20)
-        self.create_subscription(
-            DiagnosticArray,
-            "/agribot/mobile_sensor_rates",
-            self._sensor_rate_callback,
-            normal,
-        )
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
         self.create_subscription(
             NavPath,
@@ -566,7 +525,8 @@ class MobileGateway(Node):
                 CancelGoal, "/navigate_through_poses/_action/cancel_goal"
             ),
         )
-        # Coalesce high-rate ROS callbacks into one mobile state update. Five Hz is
+        self.create_timer(1.0, self._refresh_topic_availability)
+        # Coalesce navigation callbacks into one mobile state update. Five Hz is
         # responsive enough for the map while leaving localization CPU headroom.
         self.create_timer(0.2, self._touch)
 
@@ -579,37 +539,25 @@ class MobileGateway(Node):
             self._revision += 1
             self._condition.notify_all()
 
-    def _sensor_rate_callback(self, message: DiagnosticArray):
-        for status in message.status:
-            values = {item.key: item.value for item in status.values}
-            topic = values.get("topic", "")
-            if not topic.startswith("/"):
-                continue
-            try:
-                hz = float(values["hz"])
-                age_sec = float(values["age_sec"])
-            except (KeyError, ValueError):
-                continue
-            if not math.isfinite(hz) or not math.isfinite(age_sec):
-                continue
-            self._rates.report(topic, hz, age_sec)
+    def _refresh_topic_availability(self) -> None:
+        topics = {
+            topic: {"available": bool(self.get_publishers_info_by_topic(topic))}
+            for topic in MONITORED_TOPICS
+        }
+        with self._lock:
+            if topics == self._state["topics"]:
+                return
+            self._state["topics"] = topics
+        self._touch()
 
     def _value_callback(self, name):
-        topic = {
-            "fix_quality": "/rtk/fix_quality",
-            "heading_solution": "/rtk/heading_solution",
-        }.get(name)
-
         def callback(message):
-            if topic:
-                self._rates.mark(topic)
             with self._lock:
                 self._state["localization"][name] = message.data
 
         return callback
 
     def _pose_callback(self, message: Odometry):
-        self._rates.mark(self.pose_topic)
         pose = message.pose.pose
         twist = message.twist.twist
         with self._lock:
@@ -636,7 +584,6 @@ class MobileGateway(Node):
         minimum_interval: float = 0.0,
     ):
         def callback(message: NavPath):
-            self._rates.mark(topic)
             now = time.monotonic()
             if now - self._path_updates.get(name, 0.0) < minimum_interval:
                 return
@@ -657,7 +604,6 @@ class MobileGateway(Node):
         return callback
 
     def _footprint_callback(self, message: PolygonStamped):
-        self._rates.mark(self.footprint_topic)
         points = [[point.x, point.y] for point in message.polygon.points]
         if len(points) < 3:
             return
@@ -669,7 +615,6 @@ class MobileGateway(Node):
 
     def _grid_callback(self, layer: str, topic: str):
         def callback(message: OccupancyGrid):
-            self._rates.mark(topic)
             orientation = message.info.origin.orientation
             self._grid_revisions[layer] += 1
             try:
@@ -694,7 +639,6 @@ class MobileGateway(Node):
         return callback
 
     def _chassis_callback(self, message: ScoutStatus):
-        self._rates.mark("/scout_status")
         with self._lock:
             self._state["chassis"] = {
                 "linear_velocity": message.linear_velocity,
@@ -706,7 +650,6 @@ class MobileGateway(Node):
             }
 
     def _command_callback(self, message: Twist):
-        self._rates.mark("/nav2/cmd_vel")
         with self._lock:
             self._state["command"] = {
                 "linear": message.linear.x,
@@ -782,7 +725,6 @@ class MobileGateway(Node):
                     "domain_id": os.environ.get("ROS_DOMAIN_ID", "0"),
                 },
                 **core,
-                "rates": self._rates.snapshot(),
                 "grids": self._grid_metadata(),
                 "processes": self.processes.snapshot(),
                 "storage": self._disk_state(),

@@ -57,13 +57,13 @@ const mockState = {
   active_runtime: { profile_id: "ackermann_outdoor_0811", map_id: "map_lio_sam_0811", motion: true },
   active_collection: null,
   active_processing: null,
-  rates: {
-    "/lidar/points": { hz: 9.8, age_sec: 0.04 },
-    "/imu/data": { hz: 100.1, age_sec: 0.01 },
-    "/camera/rgb/image_raw": { hz: 30.0, age_sec: 0.02 },
-    "/rtk/fix": { hz: 10.0, age_sec: 0.05 },
-    "/fastlivo_rtk/odometry": { hz: 10.0, age_sec: 0.03 },
-    "/scout_status": { hz: 10.0, age_sec: 0.03 },
+  topics: {
+    "/lidar/points": { available: true },
+    "/imu/data": { available: true },
+    "/camera/rgb/image_raw": { available: true },
+    "/rtk/fix": { available: true },
+    "/fastlivo_rtk/odometry": { available: true },
+    "/scout_status": { available: true },
   },
   grids: { map: { revision: 3, width: 150, height: 90, resolution: 0.1 } },
   processes: {
@@ -175,5 +175,46 @@ test("mobile layout keeps map and controls usable", async ({ page }) => {
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
   expect(bodyWidth).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/agribot-mobile-phone.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+
+test("map supports two-finger zoom without committing a route point", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await mockApi(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "经停点" }).click();
+
+  const map = page.locator(".map-shell");
+  const canvas = page.locator("canvas");
+  await expect(canvas).toBeVisible();
+  const box = await canvas.boundingBox();
+  const initialScale = Number(await map.getAttribute("data-view-scale"));
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+  const client = await page.context().newCDPSession(page);
+
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { id: 0, x: centerX - 35, y: centerY, radiusX: 5, radiusY: 5, force: 1 },
+      { id: 1, x: centerX + 35, y: centerY, radiusX: 5, radiusY: 5, force: 1 },
+    ],
+  });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [
+      { id: 0, x: centerX - 90, y: centerY, radiusX: 5, radiusY: 5, force: 1 },
+      { id: 1, x: centerX + 90, y: centerY, radiusX: 5, radiusY: 5, force: 1 },
+    ],
+  });
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await client.detach();
+
+  await expect.poll(async () => Number(await map.getAttribute("data-view-scale")))
+    .toBeGreaterThan(initialScale * 2);
+  await expect(page.locator(".route-item")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

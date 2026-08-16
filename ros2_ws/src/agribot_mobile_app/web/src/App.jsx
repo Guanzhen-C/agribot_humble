@@ -54,12 +54,12 @@ const MODES = [
 ];
 
 const SENSOR_ROWS = [
-  ["/lidar/points", "C16", 8],
-  ["/imu/data", "IMU", 50],
-  ["/camera/rgb/image_raw", "右目相机", 8],
-  ["/rtk/fix", "RTK", 5],
-  ["/fastlivo_rtk/odometry", "融合定位", 5],
-  ["/scout_status", "底盘反馈", 5],
+  ["/lidar/points", "C16"],
+  ["/imu/data", "IMU"],
+  ["/camera/rgb/image_raw", "右目相机"],
+  ["/rtk/fix", "RTK"],
+  ["/fastlivo_rtk/odometry", "融合定位"],
+  ["/scout_status", "底盘反馈"],
 ];
 
 
@@ -119,6 +119,8 @@ function NavigationPanel({
             type="button"
             key={id}
             className={interactionMode === id ? "selected" : ""}
+            title={label}
+            aria-label={label}
             onClick={() => setInteractionMode(id)}
           >
             <Icon size={16} />
@@ -372,14 +374,13 @@ function StatusPanel({ state }) {
       <section className="section-band">
         <div className="section-heading"><h2>数据通道</h2><Pill tone="blue">ROS {state?.ros?.domain_id ?? "0"}</Pill></div>
         <div className="status-table">
-          {SENSOR_ROWS.map(([topic, label, minimum]) => {
-            const value = state?.rates?.[topic];
-            const ok = value && value.age_sec < 2 && value.hz >= minimum;
+          {SENSOR_ROWS.map(([topic, label]) => {
+            const available = state?.topics?.[topic]?.available === true;
             return (
               <div className="status-row" key={topic}>
-                <StatusDot ok={ok} warning={Boolean(value)} />
+                <StatusDot ok={available} />
                 <span>{label}</span>
-                <strong>{value ? `${value.hz.toFixed(1)} Hz` : "--"}</strong>
+                <strong>{available ? "有数据" : "无数据"}</strong>
               </div>
             );
           })}
