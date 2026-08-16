@@ -15,7 +15,6 @@ mobile_gateway:
     global_plan_topic: /plan
     local_plan_topic: /transformed_global_plan
     footprint_topic: /local_costmap/published_footprint
-    camera_rate_topic: /camera/rgb/camera_info
     vehicle_footprint: [0.754818, 0.485974, 0.754818, -0.485974, -0.227500, -0.485974, -0.227500, 0.485974]
     map_topic: /map
     global_costmap_topic: /global_costmap/costmap

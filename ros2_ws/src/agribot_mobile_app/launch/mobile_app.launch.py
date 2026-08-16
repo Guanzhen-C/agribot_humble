@@ -19,6 +19,12 @@ def generate_launch_description():
                 default_value=os.path.join(share, "config", "runtime_profiles.yaml"),
             ),
             Node(
+                package="agribot_hardware_bringup",
+                executable="sensor_rate_monitor",
+                name="sensor_rate_monitor",
+                output="screen",
+            ),
+            Node(
                 package="agribot_mobile_app",
                 executable="mobile_gateway",
                 name="mobile_gateway",

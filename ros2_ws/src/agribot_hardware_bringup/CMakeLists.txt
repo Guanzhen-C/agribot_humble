@@ -146,6 +146,15 @@ ament_target_dependencies(ackermann_joint_state_publisher
 )
 
 add_executable(
+  sensor_rate_monitor
+  monitoring/src/sensor_rate_monitor.cpp
+)
+ament_target_dependencies(sensor_rate_monitor
+  diagnostic_msgs
+  rclcpp
+)
+
+add_executable(
   rtk_eskf_localization
   localization/navsat/src/rtk_eskf_localization_node.cpp
   localization/navsat/src/rtk_gi_engine.cpp
@@ -338,6 +347,7 @@ install(TARGETS
   ackermann_chassis_can_node
   ackermann_chassis_serial_node
   ackermann_joint_state_publisher
+  sensor_rate_monitor
   rtk_eskf_localization
   rtk_map_initializer
   georeference_test_bridge

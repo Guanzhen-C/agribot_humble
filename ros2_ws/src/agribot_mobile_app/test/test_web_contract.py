@@ -39,10 +39,19 @@ def test_gateway_sensor_rates_do_not_deserialize_full_frames():
     source = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
         encoding="utf-8"
     )
-    config = (PACKAGE / "config" / "mobile_gateway.yaml").read_text(
+    launch = (PACKAGE / "launch" / "mobile_app.launch.py").read_text(
         encoding="utf-8"
     )
-    assert "raw=True" in source
-    assert "camera_rate_topic: /camera/rgb/camera_info" in config
-    assert "self._rates.mark(rate_topic)" in source
-    assert "self._rates.mark(rate_topic)\n            self._touch()" not in source
+    monitor = (
+        PACKAGE.parent
+        / "agribot_hardware_bringup"
+        / "monitoring"
+        / "src"
+        / "sensor_rate_monitor.cpp"
+    ).read_text(encoding="utf-8")
+    assert '"/agribot/mobile_sensor_rates"' in source
+    assert "DiagnosticArray" in source
+    assert "PointCloud2" not in source
+    assert 'executable="sensor_rate_monitor"' in launch
+    assert "create_generic_subscription" in monitor
+    assert '"/camera/rgb/camera_info"' in monitor

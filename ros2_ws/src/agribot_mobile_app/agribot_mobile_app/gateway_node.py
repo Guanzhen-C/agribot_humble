@@ -21,6 +21,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import (
     PolygonStamped,
     PoseStamped,
@@ -39,10 +40,8 @@ from rclpy.qos import (
     HistoryPolicy,
     QoSProfile,
     ReliabilityPolicy,
-    qos_profile_sensor_data,
 )
 from scout_msgs.msg import ScoutStatus
-from sensor_msgs.msg import CameraInfo, Imu, NavSatFix, PointCloud2
 from std_msgs.msg import Bool, String, UInt8
 
 from .catalog import (
@@ -71,6 +70,7 @@ class RateTracker:
     def __init__(self):
         self._lock = threading.Lock()
         self._arrivals: dict[str, deque[float]] = defaultdict(deque)
+        self._reports: dict[str, tuple[float, float, float]] = {}
 
     def mark(self, topic: str) -> None:
         now = time.monotonic()
@@ -80,10 +80,21 @@ class RateTracker:
             while values and now - values[0] > 10.0:
                 values.popleft()
 
+    def report(self, topic: str, hz: float, age_sec: float) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self._reports[topic] = (max(0.0, hz), age_sec, now)
+
     def snapshot(self) -> dict[str, dict]:
         now = time.monotonic()
         result = {}
         with self._lock:
+            for topic, (rate, source_age, reported_at) in self._reports.items():
+                age = source_age + now - reported_at if source_age >= 0.0 else 1.0e6
+                result[topic] = {
+                    "hz": round(rate, 2),
+                    "age_sec": round(age, 2),
+                }
             for topic, values in self._arrivals.items():
                 while values and now - values[0] > 10.0:
                     values.popleft()
@@ -380,11 +391,6 @@ class MobileGateway(Node):
                 "footprint_topic", "/local_costmap/published_footprint"
             ).value
         )
-        self.camera_rate_topic = str(
-            self.declare_parameter(
-                "camera_rate_topic", "/camera/rgb/camera_info"
-            ).value
-        )
         flat_footprint = list(
             self.declare_parameter(
                 "vehicle_footprint",
@@ -477,20 +483,12 @@ class MobileGateway(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
         normal = QoSProfile(depth=20)
-        self._create_counted_subscription(
-            PointCloud2, "/lidar/points", qos_profile_sensor_data
+        self.create_subscription(
+            DiagnosticArray,
+            "/agribot/mobile_sensor_rates",
+            self._sensor_rate_callback,
+            normal,
         )
-        self._create_counted_subscription(Imu, "/imu/data", qos_profile_sensor_data)
-        self._create_counted_subscription(
-            CameraInfo,
-            self.camera_rate_topic,
-            qos_profile_sensor_data,
-            reported_topic="/camera/rgb/image_raw",
-        )
-        self._create_counted_subscription(
-            NavSatFix, "/rtk/fix", qos_profile_sensor_data
-        )
-        self._create_counted_subscription(Odometry, "/wheel/odometry", normal)
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
         self.create_subscription(
             NavPath,
@@ -581,17 +579,20 @@ class MobileGateway(Node):
             self._revision += 1
             self._condition.notify_all()
 
-    def _create_counted_subscription(
-        self, message_type, topic, qos, reported_topic: str | None = None
-    ):
-        rate_topic = reported_topic or topic
-
-        def callback(_message):
-            self._rates.mark(rate_topic)
-
-        # Raw subscriptions count serialized arrivals without constructing large
-        # Python Image or PointCloud2 objects.
-        self.create_subscription(message_type, topic, callback, qos, raw=True)
+    def _sensor_rate_callback(self, message: DiagnosticArray):
+        for status in message.status:
+            values = {item.key: item.value for item in status.values}
+            topic = values.get("topic", "")
+            if not topic.startswith("/"):
+                continue
+            try:
+                hz = float(values["hz"])
+                age_sec = float(values["age_sec"])
+            except (KeyError, ValueError):
+                continue
+            if not math.isfinite(hz) or not math.isfinite(age_sec):
+                continue
+            self._rates.report(topic, hz, age_sec)
 
     def _value_callback(self, name):
         topic = {
