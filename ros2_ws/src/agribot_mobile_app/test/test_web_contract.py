@@ -32,6 +32,8 @@ def test_android_package_contains_the_offline_web_interface():
     assert list((assets / "assets").glob("*.css"))
     assert "file:///android_asset/web/index.html" in activity
     assert "gatewayIsReachable" in activity
+    assert "setAllowFileAccessFromFileURLs(true)" in activity
+    assert "setAllowUniversalAccessFromFileURLs(false)" in activity
 
 
 def test_frontend_uses_guarded_api_not_raw_velocity():
