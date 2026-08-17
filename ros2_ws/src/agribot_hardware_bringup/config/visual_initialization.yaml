@@ -1,0 +1,19 @@
+visual_place_recognizer:
+  ros__parameters:
+    model_file: ""
+    database_file: ""
+    image_topic: /camera/rgb/image_raw
+    minimum_similarity: 0.75
+    top_k: 5
+    temporal_samples: 5
+    candidate_limit: 3
+    cluster_xy_radius_m: 1.5
+    cluster_yaw_deg: 50.0
+    inference_period_sec: 0.20
+
+initialization_coordinator:
+  ros__parameters:
+    rtk_enabled: true
+    visual_enabled: true
+    rtk_wait_sec: 20.0
+    visual_wait_sec: 10.0

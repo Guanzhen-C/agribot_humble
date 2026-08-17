@@ -23,8 +23,19 @@ def _validate_paths(context):
     allow_missing_georeference = LaunchConfiguration(
         "allow_missing_georeference"
     ).perform(context).lower() in ("true", "1", "yes", "on")
+    enable_rtk_initialization = LaunchConfiguration(
+        "enable_rtk_initialization"
+    ).perform(context).lower() in ("true", "1", "yes", "on")
     required = [map_base.with_suffix(".pcd"), map_base.with_suffix(".yaml")]
-    if initialization_source == "rtk" or not allow_missing_georeference:
+    if (
+        initialization_source == "rtk"
+        or (
+            initialization_source == "auto"
+            and enable_rtk_initialization
+            and not allow_missing_georeference
+        )
+        or not allow_missing_georeference
+    ):
         required.append(Path(f"{map_base}_georeference.yaml"))
     missing = [path for path in required if not path.is_file()]
     if missing:
@@ -32,18 +43,18 @@ def _validate_paths(context):
             "FAST-LIVO2/RTK融合缺少地图文件: "
             + ", ".join(str(path) for path in missing)
         )
-    if initialization_source not in ("rtk", "manual", "lidar"):
+    if initialization_source not in ("auto", "rtk", "manual", "lidar"):
         raise RuntimeError(
-            "initialization_source必须是rtk、manual或lidar"
+            "initialization_source必须是auto、rtk、manual或lidar"
         )
     start_initial_localizer = LaunchConfiguration(
         "start_initial_localizer"
     ).perform(context)
     if (
-        initialization_source == "rtk"
+        initialization_source in ("auto", "rtk")
         and start_initial_localizer.lower() not in ("true", "1", "yes", "on")
     ):
-        raise RuntimeError("RTK初始重定位必须启动PCD初始定位器")
+        raise RuntimeError("自动或RTK初始重定位必须启动PCD初始定位器")
 
     config_arguments = (
         "mount_config",
@@ -55,6 +66,7 @@ def _validate_paths(context):
         "pcd_initial_localization_config",
         "rtk_map_initializer_config",
         "fastlivo_rtk_fusion_config",
+        "visual_initialization_config",
     )
     for argument in config_arguments:
         config_path = Path(
@@ -179,6 +191,12 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "visual_initialization_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "visual_initialization.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "rviz_config",
                 default_value=os.path.join(
                     hardware_share, "rviz", "fastlivo_rtk_localization.rviz"
@@ -186,11 +204,31 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "initialization_source",
-                default_value="rtk",
+                default_value="auto",
                 description=(
-                    "rtk使用固定解位置和双天线航向生成粗初值；"
-                    "manual使用RViz粗初值；二者随后都执行NDT/GICP精配准；"
-                    "lidar执行一次全图FPFH后再精配准"
+                    "auto依次尝试RTK、EigenPlaces视觉和手动粗位姿；"
+                    "所有粗位姿都必须通过NDT/GICP精配准；"
+                    "rtk、manual和lidar保留为单一来源兼容模式"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "enable_rtk_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "enable_visual_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "visual_model_file",
+                default_value=os.path.join(
+                    hardware_share,
+                    "models",
+                    "eigenplaces_r18_512_480x640_bayes_e.bin",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "visual_database_file",
+                default_value=PythonExpression(
+                    ["'", map_base, "_visual_index.npz'"]
                 ),
             ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
@@ -289,9 +327,12 @@ def generate_launch_description():
                         "odom_topic": "/fastlivo/odometry",
                         "initial_pose_topic": PythonExpression(
                             [
+                                "'/localization/initialpose_prior' if '",
+                                LaunchConfiguration("initialization_source"),
+                                "' == 'auto' else ("
                                 "'/localization/rtk_initialpose' if '",
                                 LaunchConfiguration("initialization_source"),
-                                "' == 'rtk' else '/initialpose'",
+                                "' == 'rtk' else '/initialpose')",
                             ]
                         ),
                         "pose_topic": "/localization_pose",
@@ -340,9 +381,67 @@ def generate_launch_description():
                 condition=IfCondition(
                     PythonExpression(
                         [
+                            "('",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'rtk') or ('",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'auto' and '",
+                            LaunchConfiguration("enable_rtk_initialization"),
+                            "'.lower() in ('true', '1', 'yes', 'on'))",
+                        ]
+                    )
+                ),
+            ),
+            Node(
+                package="agribot_hardware_bringup",
+                executable="visual_place_recognizer.py",
+                name="visual_place_recognizer",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("visual_initialization_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "model_file": LaunchConfiguration("visual_model_file"),
+                        "database_file": LaunchConfiguration(
+                            "visual_database_file"
+                        ),
+                    },
+                ],
+                condition=IfCondition(
+                    PythonExpression(
+                        [
                             "'",
                             LaunchConfiguration("initialization_source"),
-                            "' == 'rtk'",
+                            "' == 'auto' and '",
+                            LaunchConfiguration("enable_visual_initialization"),
+                            "'.lower() in ('true', '1', 'yes', 'on')",
+                        ]
+                    )
+                ),
+            ),
+            Node(
+                package="agribot_hardware_bringup",
+                executable="initialization_coordinator.py",
+                name="initialization_coordinator",
+                output="screen",
+                parameters=[
+                    LaunchConfiguration("visual_initialization_config"),
+                    {
+                        "use_sim_time": use_sim_time,
+                        "rtk_enabled": LaunchConfiguration(
+                            "enable_rtk_initialization"
+                        ),
+                        "visual_enabled": LaunchConfiguration(
+                            "enable_visual_initialization"
+                        ),
+                    },
+                ],
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'",
+                            LaunchConfiguration("initialization_source"),
+                            "' == 'auto'",
                         ]
                     )
                 ),

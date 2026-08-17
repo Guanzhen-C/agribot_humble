@@ -1,14 +1,16 @@
 profiles:
   ackermann_indoor:
     label: 阿克曼室内地图
-    description: 手动粗定位、NDT/GICP、FAST-LIVO2与Nav2
+    description: 视觉粗定位失败后转手动、NDT/GICP、FAST-LIVO2与Nav2
     launch_package: agribot_hardware_bringup
     launch_file: ackermann_mppi_fastlivo_rtk_mapped.launch.py
     map_argument: map_base
-    required_suffixes: [.yaml, .pcd]
+    required_suffixes: [.yaml, .pcd, _visual_index.npz]
     requires_georeference: false
     fixed_args:
-      initialization_source: manual
+      initialization_source: auto
+      enable_rtk_initialization: false
+      enable_visual_initialization: true
       allow_missing_georeference: true
       start_rtk: true
       rviz: false
@@ -18,14 +20,16 @@ profiles:
 
   ackermann_outdoor_0811:
     label: 阿克曼室外0811
-    description: RTK粗定位、NDT/GICP、FAST-LIVO2与固定解融合
+    description: RTK、视觉、手动三级初始化及FAST-LIVO2固定解融合
     launch_package: agribot_hardware_bringup
     launch_file: ackermann_outdoor_0811_experiment.launch.py
     map_argument: map_base
-    required_suffixes: [.yaml, .pgm, .pcd]
+    required_suffixes: [.yaml, .pgm, .pcd, _visual_index.npz]
     requires_georeference: true
     fixed_args:
-      initialization_source: rtk
+      initialization_source: auto
+      enable_rtk_initialization: true
+      enable_visual_initialization: true
       enable_fpfh: false
       allow_missing_georeference: false
       rviz: false

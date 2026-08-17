@@ -43,7 +43,11 @@ class RuntimeProfiles:
         if not isinstance(fixed_args, dict) or not isinstance(motion_args, dict):
             raise ProfileError(f"运行配置参数必须是映射: {profile_id}")
         if not isinstance(required_suffixes, list) or not all(
-            isinstance(value, str) and value.startswith(".") for value in required_suffixes
+            isinstance(value, str)
+            and value
+            and not Path(value).is_absolute()
+            and "/" not in value
+            for value in required_suffixes
         ):
             raise ProfileError(f"required_suffixes无效: {profile_id}")
         return {

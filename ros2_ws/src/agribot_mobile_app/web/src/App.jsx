@@ -98,6 +98,8 @@ function NavigationPanel({
   execute,
 }) {
   const navigation = state?.navigation || {};
+  const localization = state?.localization || {};
+  const manualRequired = localization.manual_required === true;
   const running = ["sending", "accepted", "executing", "canceling"].includes(navigation.status);
   const sendGoal = () => target && execute("/api/v1/navigation/goal", { pose: target });
   const sendRoute = () => route.length >= 2 && execute("/api/v1/navigation/route", { poses: route });
@@ -112,6 +114,7 @@ function NavigationPanel({
             className={interactionMode === id ? "selected" : ""}
             title={label}
             aria-label={label}
+            disabled={id === "initial" && localization.initialization_stage != null && !manualRequired}
             onClick={() => setInteractionMode(id)}
           >
             <Icon size={16} />
@@ -143,7 +146,9 @@ function NavigationPanel({
             </CommandButton>
           </>
         )}
-        {interactionMode === "initial" && <Empty>等待初始位姿</Empty>}
+        {interactionMode === "initial" && (
+          <Empty>{manualRequired ? "请在地图上标记当前位置和车头方向" : "RTK或视觉自动初始化正在进行"}</Empty>
+        )}
         {interactionMode === "browse" && (
           <div className="metric-grid">
             <div><span>剩余距离</span><strong>{Number.isFinite(navigation.feedback?.distance_remaining) ? `${navigation.feedback.distance_remaining.toFixed(2)} m` : "--"}</strong></div>
@@ -266,6 +271,7 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
               <span className="artifact-flags">
                 {map.has_3d && <Pill tone="blue">3D</Pill>}
                 {map.has_georeference && <Pill tone="green">RTK</Pill>}
+                {map.has_visual && <Pill tone="blue">视觉</Pill>}
               </span>
               {selectedMap === map.id && <Check size={17} />}
             </button>
@@ -308,6 +314,16 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
 
 function StatusPanel({ state }) {
   const localization = state?.localization || {};
+  const stageLabels = {
+    wait_rtk: "等待RTK",
+    rtk_refining: "RTK精配准",
+    wait_visual: "视觉识别",
+    visual_refining: "视觉精配准",
+    manual_required: "等待手动位姿",
+    manual_refining: "手动精配准",
+    ready: "已就绪",
+  };
+  const sourceLabels = { none: "尚未确定", rtk: "RTK", visual: "视觉", manual: "手动" };
   return (
     <div className="panel-content">
       <section className="section-band">
@@ -333,13 +349,16 @@ function StatusPanel({ state }) {
       <section className="section-band">
         <div className="section-heading"><h2>定位与底盘</h2></div>
         <div className="status-table">
+          <div className="status-row"><StatusDot ok={localization.initialization_stage === "ready"} warning={localization.initialization_stage != null} /><span>初始化阶段</span><strong>{stageLabels[localization.initialization_stage] || "未收到"}</strong></div>
+          <div className="status-row"><StatusDot ok={["rtk", "visual", "manual"].includes(localization.initialization_source)} /><span>初始化来源</span><strong>{sourceLabels[localization.initialization_source] || "--"}</strong></div>
+          <div className="status-row"><StatusDot ok={localization.visual_available === true} warning={localization.visual_available === false} /><span>视觉位置数据库</span><strong>{localization.visual_available == null ? "未收到" : localization.visual_available ? "可用" : "不可用"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.lidar_ready === true} /><span>NDT/GICP</span><strong>{localization.lidar_ready === true ? "就绪" : "未就绪"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.fusion_ready === true} /><span>融合定位</span><strong>{localization.fusion_ready === true ? "就绪" : "未就绪"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.fix_quality === 4} warning={localization.fix_quality != null} /><span>RTK位置质量</span><strong>{localization.fix_quality ?? "--"}</strong></div>
           <div className="status-row"><StatusDot ok={state?.chassis?.fault_code === 0} warning={Boolean(state?.chassis)} /><span>底盘故障码</span><strong>{state?.chassis?.fault_code ?? "--"}</strong></div>
           <div className="status-row"><StatusDot ok={Boolean(state?.chassis)} /><span>电池电压</span><strong>{Number.isFinite(state?.chassis?.battery_voltage) ? `${state.chassis.battery_voltage.toFixed(1)} V` : "--"}</strong></div>
         </div>
-        <div className="status-message">{localization.status}</div>
+        <div className="status-message">{localization.initialization_status !== "未收到" ? localization.initialization_status : localization.status}</div>
       </section>
     </div>
   );
@@ -415,6 +434,13 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (state?.localization?.manual_required === true) {
+      setActiveTab("navigate");
+      setInteractionMode("initial");
+    }
+  }, [state?.localization?.manual_required]);
 
   const execute = async (path, body) => {
     try {

@@ -14,7 +14,9 @@ files:
   georeference:
     suffix: _georeference.yaml
     sha256: 6b77012cda761e5d8289765e2812c4aa9e040621a7d94902ff2268317b2891a2
+  visual_index:
+    suffix: _visual_index.npz
+    sha256: 2141c79ad2c2f30042ef30491ff61ab8541e1486e65438d6acf034ae3d85db84
 georeference_policy:
   maximum_horizontal_rmse_m: 0.20
   allow_unvalidated_yaw_as_coarse_prior: true
-

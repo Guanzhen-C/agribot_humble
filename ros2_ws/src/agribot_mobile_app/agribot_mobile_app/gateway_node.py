@@ -417,6 +417,12 @@ class MobileGateway(Node):
                 "fusion_ready": None,
                 "fixed_active": None,
                 "rtk_seed_ready": None,
+                "initialization_stage": None,
+                "initialization_source": "none",
+                "initialization_status": "未收到",
+                "visual_available": None,
+                "visual_status": "未收到",
+                "manual_required": None,
                 "status": "未收到",
                 "rtk_initializer_status": "未收到",
                 "fix_quality": None,
@@ -483,6 +489,12 @@ class MobileGateway(Node):
         self.create_subscription(Bool, "/fastlivo_rtk/ready", self._value_callback("fusion_ready"), latched)
         self.create_subscription(Bool, "/fastlivo_rtk/fixed_active", self._value_callback("fixed_active"), latched)
         self.create_subscription(Bool, "/localization/rtk_seed_ready", self._value_callback("rtk_seed_ready"), latched)
+        self.create_subscription(String, "/localization/initialization_stage", self._value_callback("initialization_stage"), latched)
+        self.create_subscription(String, "/localization/initialization_source", self._value_callback("initialization_source"), latched)
+        self.create_subscription(String, "/localization/initialization_status", self._value_callback("initialization_status"), latched)
+        self.create_subscription(Bool, "/localization/visual_available", self._value_callback("visual_available"), latched)
+        self.create_subscription(String, "/localization/visual_status", self._value_callback("visual_status"), latched)
+        self.create_subscription(Bool, "/localization/manual_required", self._value_callback("manual_required"), latched)
         self.create_subscription(String, "/localization/status", self._value_callback("status"), latched)
         self.create_subscription(
             String,
@@ -806,6 +818,14 @@ class MobileGateway(Node):
         return message
 
     def publish_initial_pose(self, body: dict) -> dict:
+        with self._lock:
+            stage = self._state["localization"].get("initialization_stage")
+            manual_required = self._state["localization"].get("manual_required")
+        if stage is not None and manual_required is not True:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "自动初始定位仍在执行；只有RTK和视觉均失败后才接受手动位姿",
+            )
         pose = pose_document(body.get("pose"))
         message = PoseWithCovarianceStamped()
         message.header.frame_id = "map"

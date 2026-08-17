@@ -7,6 +7,7 @@ pcd_initial_localizer:
     pose_topic: /localization_pose
     ready_topic: /localization/ready
     status_topic: /localization/status
+    attempt_result_topic: /localization/attempt_result
     # Leave empty for FAST-LIO. NavSat overrides this with its RTK quality gate.
     external_ready_topic: ""
     external_ready_timeout_sec: 0.5

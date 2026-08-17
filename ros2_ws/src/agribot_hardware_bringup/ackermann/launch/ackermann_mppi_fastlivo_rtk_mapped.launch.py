@@ -166,10 +166,34 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "initialization_source",
-                default_value="manual",
+                default_value="auto",
                 description=(
-                    "manual使用RViz粗位姿后执行NDT/GICP；rtk使用固定解粗位姿；"
-                    "lidar执行FPFH全局粗定位"
+                    "auto按RTK、视觉、手动顺序提供粗位姿并执行NDT/GICP；"
+                    "其他值保留单一来源兼容模式"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "enable_rtk_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "enable_visual_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "visual_model_file",
+                default_value=os.path.join(
+                    hardware_share,
+                    "models",
+                    "eigenplaces_r18_512_480x640_bayes_e.bin",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "visual_database_file",
+                default_value=PythonExpression(
+                    [
+                        "'",
+                        LaunchConfiguration("map_base"),
+                        "_visual_index.npz'",
+                    ]
                 ),
             ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
@@ -228,6 +252,18 @@ def generate_launch_description():
                             ),
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
+                            ),
+                            "enable_rtk_initialization": LaunchConfiguration(
+                                "enable_rtk_initialization"
+                            ),
+                            "enable_visual_initialization": LaunchConfiguration(
+                                "enable_visual_initialization"
+                            ),
+                            "visual_model_file": LaunchConfiguration(
+                                "visual_model_file"
+                            ),
+                            "visual_database_file": LaunchConfiguration(
+                                "visual_database_file"
                             ),
                             "enable_fpfh": LaunchConfiguration("enable_fpfh"),
                             "allow_missing_georeference": LaunchConfiguration(

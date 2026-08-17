@@ -63,6 +63,8 @@ def fill_core_ready_values(checker, stage):
             "localization_status": (
                 "initial localization accepted; map-to-odom correction fixed"
             ),
+            "initialization_stage": "ready",
+            "initialization_source": "rtk",
             "rtk_seed_ready": True,
             "lidar_ready": True,
             "fusion_ready": True,
@@ -92,6 +94,8 @@ def test_core_ready_requires_all_localization_gates_and_can_in_stage_b():
     assert stage_a.core_ready()
     stage_a.values["fixed_active"] = False
     assert not stage_a.core_ready()
+    stage_a.values["initialization_source"] = "visual"
+    assert stage_a.core_ready()
 
     stage_b = make_checker(module, "B")
     fill_core_ready_values(stage_b, "B")

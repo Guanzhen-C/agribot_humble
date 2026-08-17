@@ -52,6 +52,9 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     assert "enable_ntrip" not in source
     assert '"start_camera:=true"' in gateway
     assert '"enable_ntrip:=false"' in gateway
+    assert "manual_required" in source
+    assert "/localization/initialization_stage" in gateway
+    assert "RTK和视觉均失败后" in gateway
 
 
 def test_map_view_uses_live_vehicle_and_navigation_outputs():

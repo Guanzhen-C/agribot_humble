@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -120,6 +122,8 @@ public:
     ready_publisher_ = create_publisher<std_msgs::msg::Bool>(ready_topic_, latched_qos);
     status_publisher_ =
       create_publisher<std_msgs::msg::String>(status_topic_, latched_qos);
+    attempt_result_publisher_ =
+      create_publisher<std_msgs::msg::String>(attempt_result_topic_, 10);
     pose_publisher_ =
       create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(pose_topic_, 10);
     aligned_cloud_publisher_ =
@@ -222,6 +226,8 @@ private:
       declare_parameter<std::string>("ready_topic", "/localization/ready");
     status_topic_ =
       declare_parameter<std::string>("status_topic", "/localization/status");
+    attempt_result_topic_ = declare_parameter<std::string>(
+      "attempt_result_topic", "/localization/attempt_result");
     external_ready_topic_ =
       declare_parameter<std::string>("external_ready_topic", "");
     external_ready_timeout_sec_ =
@@ -895,6 +901,7 @@ private:
         result.overlap, result.inlier_rmse,
         result.reason.c_str());
       publishHeartbeat();
+      publishAttemptResult(result);
       return;
     }
 
@@ -910,6 +917,31 @@ private:
     publishAlignedCloud(sample, result.map_to_base);
     publishTransform(sample.stamp, published_map_to_odom);
     publishHeartbeat();
+    publishAttemptResult(result);
+  }
+
+  void publishAttemptResult(const MatchResult & result)
+  {
+    std::ostringstream stream;
+    stream << std::boolalpha << std::setprecision(8)
+           << "{\"accepted\":" << result.accepted
+           << ",\"reason\":" << std::quoted(result.reason)
+           << ",\"overlap\":";
+    if (std::isfinite(result.overlap)) {
+      stream << result.overlap;
+    } else {
+      stream << "null";
+    }
+    stream << ",\"inlier_rmse_m\":";
+    if (std::isfinite(result.inlier_rmse)) {
+      stream << result.inlier_rmse;
+    } else {
+      stream << "null";
+    }
+    stream << ",\"elapsed_sec\":" << result.elapsed_seconds << "}";
+    std_msgs::msg::String message;
+    message.data = stream.str();
+    attempt_result_publisher_->publish(message);
   }
 
   void setStatusLocked(const std::string & status)
@@ -1010,6 +1042,7 @@ private:
   std::string pose_topic_;
   std::string ready_topic_;
   std::string status_topic_;
+  std::string attempt_result_topic_;
   std::string external_ready_topic_;
   std::string map_frame_;
   std::string odom_frame_;
@@ -1082,6 +1115,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr external_ready_subscription_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr ready_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr attempt_result_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
     pose_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr

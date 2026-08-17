@@ -68,6 +68,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>yaml-cpp</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-serial</exec_depend>
   <exec_depend>python3-tk</exec_depend>
   <exec_depend>python3-yaml</exec_depend>

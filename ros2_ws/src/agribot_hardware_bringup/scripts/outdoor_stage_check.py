@@ -124,6 +124,18 @@ class OutdoorStageCheck(Node):
             latched,
         )
         self.create_subscription(
+            String,
+            "/localization/initialization_stage",
+            self._value_callback("initialization_stage"),
+            latched,
+        )
+        self.create_subscription(
+            String,
+            "/localization/initialization_source",
+            self._value_callback("initialization_source"),
+            latched,
+        )
+        self.create_subscription(
             Bool,
             "/localization/lidar_ready",
             self._value_callback("lidar_ready"),
@@ -237,6 +249,8 @@ class OutdoorStageCheck(Node):
     def core_ready(self):
         status = self.values.get("localization_status", "")
         heading = self.values.get("heading_solution", "")
+        initialization_source = self.values.get("initialization_source", "")
+        rtk_initialized = initialization_source == "rtk"
         required_topics = (
             "/lidar/points",
             "/imu/data",
@@ -254,12 +268,20 @@ class OutdoorStageCheck(Node):
             all(topic in self.values for topic in required_topics)
             and "accepted" in status.lower()
             and "rejected" not in status.lower()
-            and self.values.get("rtk_seed_ready") is True
+            and initialization_source in ("rtk", "visual", "manual")
+            and self.values.get("initialization_stage") == "ready"
             and self.values.get("lidar_ready") is True
             and self.values.get("fusion_ready") is True
-            and self.values.get("fixed_active") is True
-            and self.values.get("fix_quality") == 4
-            and heading in ("SOL_COMPUTED,L1_INT", "SOL_COMPUTED,NARROW_INT")
+            and (
+                not rtk_initialized
+                or (
+                    self.values.get("rtk_seed_ready") is True
+                    and self.values.get("fixed_active") is True
+                    and self.values.get("fix_quality") == 4
+                    and heading
+                    in ("SOL_COMPUTED,L1_INT", "SOL_COMPUTED,NARROW_INT")
+                )
+            )
         )
         if self.stage == "B":
             ready = ready and self.chassis_diagnostic_ok()
@@ -323,6 +345,15 @@ class OutdoorStageCheck(Node):
             add(f"{topic}坐标系", actual == expected, f"{actual}，期望{expected}")
 
         status = self.values.get("localization_status", "未收到")
+        initialization_source = self.values.get("initialization_source", "未收到")
+        rtk_initialized = initialization_source == "rtk"
+        add(
+            "自动初始化优先级",
+            self.values.get("initialization_stage") == "ready"
+            and initialization_source in ("rtk", "visual", "manual"),
+            f"阶段={self.values.get('initialization_stage', '未收到')} "
+            f"来源={initialization_source}",
+        )
         add(
             "NDT/GICP初始重定位",
             "accepted" in status.lower() and "rejected" not in status.lower(),
@@ -330,8 +361,12 @@ class OutdoorStageCheck(Node):
         )
         add(
             "RTK粗定位种子",
-            self.values.get("rtk_seed_ready") is True,
-            str(self.values.get("rtk_seed_ready", "未收到")),
+            not rtk_initialized or self.values.get("rtk_seed_ready") is True,
+            (
+                str(self.values.get("rtk_seed_ready", "未收到"))
+                if rtk_initialized
+                else f"{initialization_source}降级初始化，不要求RTK种子"
+            ),
         )
         add(
             "激光重定位就绪",
@@ -345,19 +380,28 @@ class OutdoorStageCheck(Node):
         )
         add(
             "当前RTK固定解参与融合",
-            self.values.get("fixed_active") is True,
-            str(self.values.get("fixed_active", "未收到")),
+            not rtk_initialized or self.values.get("fixed_active") is True,
+            (
+                str(self.values.get("fixed_active", "未收到"))
+                if rtk_initialized
+                else "当前初始化不依赖RTK固定解"
+            ),
         )
         add(
             "RTK位置质量",
-            self.values.get("fix_quality") == 4,
-            str(self.values.get("fix_quality", "未收到")),
+            not rtk_initialized or self.values.get("fix_quality") == 4,
+            (
+                str(self.values.get("fix_quality", "未收到"))
+                if rtk_initialized
+                else "当前初始化不依赖RTK固定解"
+            ),
         )
         heading = self.values.get("heading_solution", "未收到")
         add(
             "RTK双天线航向",
-            heading in ("SOL_COMPUTED,L1_INT", "SOL_COMPUTED,NARROW_INT"),
-            heading,
+            not rtk_initialized
+            or heading in ("SOL_COMPUTED,L1_INT", "SOL_COMPUTED,NARROW_INT"),
+            heading if rtk_initialized else "当前初始化不依赖RTK双天线航向",
         )
 
         fused = self.values.get("/fastlivo_rtk/odometry")
@@ -473,7 +517,7 @@ def parse_arguments(argv):
         description="室外真机阶段A/B一次性安全验收"
     )
     parser.add_argument("--stage", choices=("A", "B", "a", "b"), required=True)
-    parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--timeout", type=float, default=60.0)
     parser.add_argument("--sample-duration", type=float, default=5.0)
     arguments = parser.parse_args(argv)
     arguments.stage = arguments.stage.upper()

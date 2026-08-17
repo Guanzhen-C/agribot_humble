@@ -273,11 +273,13 @@ ament_target_dependencies(pcd_initial_localizer
 install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
+  scripts/initialization_coordinator.py
   scripts/outdoor_stage_check.py
   scripts/pcd_to_nav2_map.py
   scripts/planner_validation_bridge.py
   scripts/planner_validation_follow_path.py
   scripts/publish_geodetic_pose.py
+  scripts/visual_place_recognizer.py
   scripts/rtk_nmea_node.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
@@ -286,7 +288,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch meshes rviz udev urdf DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config launch meshes models rviz udev urdf DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
@@ -418,6 +420,14 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_horizontal_antenna_factor Eigen3::Eigen gtsam)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
+  ament_add_pytest_test(
+    test_initialization_coordinator
+    test/test_initialization_coordinator.py
+  )
+  ament_add_pytest_test(
+    test_visual_place_recognizer
+    test/test_visual_place_recognizer.py
+  )
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)

@@ -441,12 +441,19 @@ ros2 launch agribot_hardware_bringup \
 ```
 
 It starts the saved-map FAST-LIVO2/RTK localization chain, Smac Hybrid-A*,
-MPPI, C16 STVL obstacle processing and RViz. It always uses RTK as a coarse
-initial prior, requires a georeference, disables FPFH and leaves chassis output
-off unless it is explicitly enabled. Before any sensor node starts, the launch
-checks the PCD, manually processed PGM, Nav2 YAML and georeference against the
-known SHA-256 values in `config/outdoor_0811_map_profile.yaml`. This prevents an
-older PGM from being mixed with the verified PCD/georeference pair.
+MPPI, C16 STVL obstacle processing and RViz. Initial localization first waits
+for the existing fixed-RTK seed. If that seed is unavailable or rejected by
+NDT/GICP, the RDK BPU EigenPlaces node supplies map-pose candidates; only after
+those candidates fail is manual 2D Pose Estimate accepted. Before any sensor
+node starts, the launch verifies the PCD, processed PGM, Nav2 YAML,
+georeference and visual index against the SHA-256 values in
+`config/outdoor_0811_map_profile.yaml`.
+
+Every coarse source is passed through the same two-stage NDT and GICP localizer.
+The visual node never publishes `map -> odom` directly, and the chassis remains
+inhibited until `/localization/lidar_ready` and `/fastlivo_rtk/ready` are true.
+The visual database must be stored next to the map as
+`<map_base>_visual_index.npz` and must contain `base_link` poses.
 
 After the no-motion stage has passed, stop that launch completely and start the
 same command with `enable_chassis_output:=true`. The CAN driver still blocks

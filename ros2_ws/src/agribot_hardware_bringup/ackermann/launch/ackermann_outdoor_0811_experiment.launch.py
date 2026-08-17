@@ -62,7 +62,9 @@ def _load_yaml(path, description):
 
 def _validate_experiment(context):
     locked_arguments = {
-        "initialization_source": "rtk",
+        "initialization_source": "auto",
+        "enable_rtk_initialization": "true",
+        "enable_visual_initialization": "true",
         "enable_fpfh": "false",
         "allow_missing_georeference": "false",
     }
@@ -216,7 +218,13 @@ def generate_launch_description():
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
             # Keep delayed actions in nested launch files bound to the safe
             # outdoor values after their scoped include contexts have exited.
-            DeclareLaunchArgument("initialization_source", default_value="rtk"),
+            DeclareLaunchArgument("initialization_source", default_value="auto"),
+            DeclareLaunchArgument(
+                "enable_rtk_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "enable_visual_initialization", default_value="true"
+            ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
             DeclareLaunchArgument(
                 "allow_missing_georeference", default_value="false"
@@ -258,7 +266,7 @@ def generate_launch_description():
                 msg=[
                     "室外0811全流程：地图校验通过；底盘输出=",
                     LaunchConfiguration("enable_chassis_output"),
-                    "。车辆保持静止，等待RTK粗定位及NDT/GICP精配准完成。",
+                    "。车辆保持静止，按RTK、视觉、手动顺序完成NDT/GICP精配准。",
                 ]
             ),
             GroupAction(
@@ -286,6 +294,12 @@ def generate_launch_description():
                             ),
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
+                            ),
+                            "enable_rtk_initialization": LaunchConfiguration(
+                                "enable_rtk_initialization"
+                            ),
+                            "enable_visual_initialization": LaunchConfiguration(
+                                "enable_visual_initialization"
                             ),
                             "enable_fpfh": LaunchConfiguration("enable_fpfh"),
                             "allow_missing_georeference": LaunchConfiguration(

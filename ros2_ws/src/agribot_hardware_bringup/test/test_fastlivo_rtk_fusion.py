@@ -70,8 +70,15 @@ def test_live_launch_starts_fastlivo_rtk_fusion_and_disables_localizer_tf():
     assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in wrapper_source
     assert '"start_rtk": LaunchConfiguration("start_rtk")' in wrapper_source
     assert '"start_camera", default_value="true"' in wrapper_source
-    assert '"initialization_source", default_value="rtk"' in wrapper_source
+    assert '"initialization_source", default_value="auto"' in wrapper_source
     assert 'executable="rtk_map_initializer"' in common_source
+    assert 'executable="visual_place_recognizer.py"' in common_source
+    assert 'executable="initialization_coordinator.py"' in common_source
+    assert '"initial_pose_topic": PythonExpression(' in common_source
+    assert "/localization/initialpose_prior" in common_source
+    assert '"/localization/attempt_result"' in (
+        PACKAGE_ROOT / "localization/pcd/src/pcd_initial_localizer.cpp"
+    ).read_text()
     assert '"/localization/rtk_initialpose"' in common_source
     assert '"localizer_ready_topic"' in common_source
     assert '"auto_initialize_from_fixed_rtk": False' in common_source
@@ -95,6 +102,7 @@ def test_no_rtk_mode_keeps_manual_ndt_gicp_and_freezes_global_correction():
 
     assert "initialization_source" in launch_source
     assert '"manual"' in launch_source
+    assert '"auto"' in launch_source
     assert 'executable="pcd_initial_localizer"' in launch_source
     assert '"initial_pose_topic"' in launch_source
     assert '"pose_topic": "/localization_pose"' in launch_source

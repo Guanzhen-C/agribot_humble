@@ -34,6 +34,7 @@ def make_map_set(tmp_path):
     pgm = map_base.with_suffix(".pgm")
     nav2_yaml = map_base.with_suffix(".yaml")
     georeference = Path(f"{map_base}_georeference.yaml")
+    visual_index = Path(f"{map_base}_visual_index.npz")
     camera = tmp_path / "camera"
 
     pcd.write_bytes(b"pcd-test")
@@ -51,6 +52,7 @@ def make_map_set(tmp_path):
         )
     )
     camera.touch()
+    visual_index.write_bytes(b"visual-index-test")
 
     profile = tmp_path / "profile.yaml"
     profile.write_text(
@@ -68,6 +70,10 @@ def make_map_set(tmp_path):
                     "georeference": {
                         "suffix": "_georeference.yaml",
                         "sha256": sha256(georeference),
+                    },
+                    "visual_index": {
+                        "suffix": "_visual_index.npz",
+                        "sha256": sha256(visual_index),
                     },
                 },
                 "georeference_policy": {
@@ -91,7 +97,9 @@ def context_for(map_base, profile, camera):
             "motion_authorization": "",
             "can_transport": "zqwl_cdc",
             "zqwl_port": "/missing/can",
-            "initialization_source": "rtk",
+            "initialization_source": "auto",
+            "enable_rtk_initialization": "true",
+            "enable_visual_initialization": "true",
             "enable_fpfh": "false",
             "allow_missing_georeference": "false",
         }
@@ -155,14 +163,16 @@ def test_outdoor_localization_policy_cannot_be_overridden(tmp_path, monkeypatch)
     monkeypatch.setattr(module, "REQUIRED_SENSOR_DEVICES", (("test", camera),))
     context = context_for(map_base, profile, camera)
     context.launch_configurations["initialization_source"] = "manual"
-    with pytest.raises(RuntimeError, match="initialization_source:=rtk"):
+    with pytest.raises(RuntimeError, match="initialization_source:=auto"):
         module._validate_experiment(context)
 
 
-def test_launch_is_rtk_only_and_safe_by_default():
+def test_launch_uses_guarded_automatic_priority_and_is_safe_by_default():
     source = LAUNCH_PATH.read_text()
     assert module_default_map() in source
-    assert 'DeclareLaunchArgument("initialization_source", default_value="rtk")' in source
+    assert 'DeclareLaunchArgument("initialization_source", default_value="auto")' in source
+    assert '"enable_rtk_initialization", default_value="true"' in source
+    assert '"enable_visual_initialization", default_value="true"' in source
     assert '"allow_missing_georeference", default_value="false"' in source
     assert 'DeclareLaunchArgument("enable_fpfh", default_value="false")' in source
     assert '"enable_chassis_output",\n                default_value="false"' in source

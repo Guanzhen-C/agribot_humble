@@ -218,6 +218,9 @@ class MapCatalog:
                         "has_georeference": Path(
                             f"{base}_georeference.yaml"
                         ).is_file(),
+                        "has_visual": Path(
+                            f"{base}_visual_index.npz"
+                        ).is_file(),
                         "has_manifest": Path(f"{base}_manifest.yaml").is_file(),
                     }
                 )

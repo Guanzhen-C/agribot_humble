@@ -586,7 +586,9 @@ export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_zoulang_0813_in
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlivo_rtk_mapped.launch.py \
   map_base:=$MAP_BASE \
-  initialization_source:=manual \
+  initialization_source:=auto \
+  enable_rtk_initialization:=false \
+  enable_visual_initialization:=true \
   start_rtk:=true \
   start_navigation:=false \
   rviz:=true \
@@ -636,8 +638,8 @@ ros2 run agribot_offline_mapping run_indoor_fastlivo_fusion_validation.py \
   --initial-yaw-deg 0.0
 
 # 走廊全流程阶段A：融合定位、Smac和MPPI全部启动，但禁止底盘输出
-# 启动后保持车辆静止，在RViz点击2D Pose Estimate给出附近位置和车头方向
-# 定位器会执行两级NDT和GICP；/fastlivo_rtk/ready为true后再给导航目标
+# 室内不等待RTK，先自动执行EigenPlaces视觉位置识别，再用两级NDT和GICP精配准
+# 视觉和精配准均失败后，App与RViz才接受手动2D Pose Estimate
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -648,7 +650,9 @@ export MAP_BASE=/home/sunrise/agribot_maps/test_site/map_lio_sam_zoulang_0813_in
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlivo_rtk_mapped.launch.py \
   map_base:=$MAP_BASE \
-  initialization_source:=manual \
+  initialization_source:=auto \
+  enable_rtk_initialization:=false \
+  enable_visual_initialization:=true \
   allow_missing_georeference:=true \
   start_rtk:=true \
   rviz:=true \
@@ -659,6 +663,9 @@ ros2 launch agribot_hardware_bringup \
 
 # 阶段A检查
 ros2 topic echo /localization/status --once
+ros2 topic echo /localization/initialization_status --once --qos-durability transient_local
+ros2 topic echo /localization/initialization_source --once --qos-durability transient_local
+ros2 topic echo /localization/manual_required --once --qos-durability transient_local
 ros2 topic echo /localization/lidar_ready --once
 ros2 topic echo /localization_pose --once
 ros2 topic echo /fastlivo_rtk/ready --once
@@ -669,7 +676,9 @@ ros2 topic echo /fastlivo_rtk/fixed_active --once
 ros2 launch agribot_hardware_bringup \
   ackermann_mppi_fastlivo_rtk_mapped.launch.py \
   map_base:=$MAP_BASE \
-  initialization_source:=manual \
+  initialization_source:=auto \
+  enable_rtk_initialization:=false \
+  enable_visual_initialization:=true \
   allow_missing_georeference:=true \
   start_rtk:=true \
   rviz:=true \
@@ -679,13 +688,13 @@ ros2 launch agribot_hardware_bringup \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
 # 室外已有地理配准地图时仍使用同一入口
-# initialization_source:=rtk会用固定解位置和双天线航向生成粗位姿，再执行NDT/GICP
+# initialization_source:=auto会先用固定解RTK粗位姿，失败后依次转视觉和手动
 # 运行期间仍只把质量4的RTK水平位置作为绝对因子
 # export MAP_BASE=/home/sunrise/agribot_maps/test_site/带地理配准的地图名
-# 将上面命令中的initialization_source改为rtk，并保留start_rtk:=true
+# 将上面命令中的enable_rtk_initialization改为true，并保留start_rtk:=true
 
 # map_lio_sam_0811室外全流程：FAST-LIVO2、固定解RTK、Smac、MPPI和C16三维避障
-# 室外专用launch已经固定地图、RTK初始化、右目相机和USB-CAN参数
+# 室外专用launch已经固定地图、RTK到视觉再到手动的初始化顺序、右目相机和USB-CAN参数
 
 # 室外全流程阶段A，终端1：启动定位、规划、避障和RViz，但不创建底盘节点
 # 启动后保持车辆静止；这个launch会持续运行，不会继续执行后面的检查命令
@@ -705,7 +714,7 @@ source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage A --timeout 30
+ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage A --timeout 60
 
 # 室外全流程阶段B，终端1：必须先用Ctrl+C完整退出阶段A，再启动本段
 # 授权口令只防止误启动；底盘仍要等待定位心跳和三条CAN反馈均正常才允许非零输出
@@ -726,7 +735,7 @@ source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
 export ROS_LOCALHOST_ONLY=0
-ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage B --timeout 30
+ros2 run agribot_hardware_bringup outdoor_stage_check.py --stage B --timeout 60
 
 # 只有看到“阶段B验收通过”后才执行；首次实车把Nav2绝对速度限制为0.15 m/s
 ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
