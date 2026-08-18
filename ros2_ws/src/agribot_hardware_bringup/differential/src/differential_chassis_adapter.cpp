@@ -19,14 +19,14 @@ class DifferentialChassisAdapter final : public ChassisAdapter
 public:
   explicit DifferentialChassisAdapter(rclcpp::Node & node)
   {
-    legacy_brake_byte_ = node.declare_parameter<bool>("legacy_brake_byte", true);
     invert_left_motor_ = node.declare_parameter<bool>("invert_left_motor", false);
     invert_right_motor_ = node.declare_parameter<bool>("invert_right_motor", false);
     config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.590224);
     config_.command_full_scale_wheel_speed_mps =
       node.declare_parameter<double>("command_full_scale_wheel_speed_mps", 0.80);
-    config_.feedback_wheel_speed_mps_per_rpm =
-      node.declare_parameter<double>("feedback_wheel_speed_mps_per_rpm", 0.000436332313);
+    config_.feedback_wheel_speed_mps_per_speed_unit =
+      node.declare_parameter<double>(
+        "feedback_wheel_speed_mps_per_speed_unit", 0.000436332313);
     config_.max_linear_velocity =
       node.declare_parameter<double>("max_linear_velocity", 0.80);
     config_.max_angular_velocity =
@@ -71,7 +71,7 @@ public:
     if (invert_right_motor_) {
       command.right_percent *= -1.0;
     }
-    return differential_can::encodeCommand(command, rolling_counter, legacy_brake_byte_);
+    return differential_can::encodeCommand(command, rolling_counter);
   }
 
   FrameUpdate processFrame(
@@ -91,9 +91,7 @@ public:
       return update;
     }
 
-    const auto motor = chassis_can::decodeMotorState(
-      frame, differential_can::kLeftMotorStateId,
-      differential_can::kRightMotorStateId);
+    const auto motor = differential_can::decodeMotorState(frame);
     if (!motor.has_value()) {
       return update;
     }
@@ -112,17 +110,17 @@ public:
     update.valid = true;
 
     if (left_motor_updated_ && right_motor_updated_) {
-      int16_t left_rpm = left_motor_state_->rpm;
-      int16_t right_rpm = right_motor_state_->rpm;
+      int32_t left_speed = left_motor_state_->signedSpeed();
+      int32_t right_speed = right_motor_state_->signedSpeed();
       if (invert_left_motor_) {
-        left_rpm = static_cast<int16_t>(-left_rpm);
+        left_speed = -left_speed;
       }
       if (invert_right_motor_) {
-        right_rpm = static_cast<int16_t>(-right_rpm);
+        right_speed = -right_speed;
       }
       MeasuredMotion motion;
-      differential_can::motorRpmToTwist(
-        left_rpm, right_rpm, config_,
+      differential_can::motorSpeedToTwist(
+        left_speed, right_speed, config_,
         motion.linear_velocity, motion.angular_velocity);
       update.motion = motion;
       left_motor_updated_ = false;
@@ -150,11 +148,6 @@ public:
     if (require_autonomous_mode && chassis_state_->work_mode != 1U) {
       return false;
     }
-    if (chassis_state_->remote_comm_fault || chassis_state_->autonomy_comm_fault ||
-      chassis_state_->motor_comm_fault || chassis_state_->bms_comm_fault)
-    {
-      return false;
-    }
     return !left_motor_state_->hasFault() && !right_motor_state_->hasFault();
   }
 
@@ -165,18 +158,18 @@ public:
     }
     status.control_mode = chassis_state_->work_mode;
     status.battery_voltage = chassis_state_->battery_voltage;
-    const bool chassis_fault = chassis_state_->emergency_stop ||
-      chassis_state_->remote_comm_fault || chassis_state_->autonomy_comm_fault ||
-      chassis_state_->motor_comm_fault || chassis_state_->bms_comm_fault;
+    const bool chassis_fault = chassis_state_->emergency_stop;
     status.base_state = chassis_fault ? 1U : 0U;
     status.fault_code = chassis_fault ? 1U : 0U;
+    status.light_control_enabled = true;
+    status.front_light_state.mode = chassis_state_->headlight ? 1U : 0U;
 
-    const auto fillMotor = [&](std::size_t index, const chassis_can::MotorState & motor) {
-        status.motor_states[index].current = motor.current;
-        status.motor_states[index].rpm = motor.rpm;
-        status.motor_states[index].temperature = motor.temperature_c;
-        status.motor_states[index].motor_pose = 0.0;
-      };
+    const auto fillMotor = [&](std::size_t index, const differential_can::MotorState & motor) {
+      status.motor_states[index].current = static_cast<double>(motor.running_current);
+      status.motor_states[index].rpm = static_cast<double>(motor.signedSpeed());
+      status.motor_states[index].temperature = 0.0;
+      status.motor_states[index].motor_pose = 0.0;
+    };
     if (left_motor_state_.has_value()) {
       fillMotor(scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_LEFT, *left_motor_state_);
       fillMotor(scout_msgs::msg::ScoutStatus::MOTOR_ID_REAR_LEFT, *left_motor_state_);
@@ -208,7 +201,6 @@ private:
   }
 
   differential_can::Kinematics config_;
-  bool legacy_brake_byte_{true};
   bool invert_left_motor_{false};
   bool invert_right_motor_{false};
   rclcpp::Time chassis_state_time_{0, 0, RCL_ROS_TIME};
@@ -220,8 +212,8 @@ private:
   bool left_motor_updated_{false};
   bool right_motor_updated_{false};
   std::optional<differential_can::ChassisState> chassis_state_;
-  std::optional<chassis_can::MotorState> left_motor_state_;
-  std::optional<chassis_can::MotorState> right_motor_state_;
+  std::optional<differential_can::MotorState> left_motor_state_;
+  std::optional<differential_can::MotorState> right_motor_state_;
 };
 
 }  // namespace

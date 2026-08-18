@@ -99,47 +99,44 @@ Nav2 command path is:
 
 ## Differential CAN protocol
 
-The differential driver implements the chassis portion of the supplied
-`三合一协议.xlsx`, with behavior from the proven
-`noah_chassis_mutil_function_car.cpp` retained where the workbook is silent.
-The workbook is authoritative for signal positions, Intel byte order, rolling
-counter, and XOR checksum.
+The differential driver implements the `伽马底盘` sheet in
+`主控到分控数据格式V2.4.xlsx`. The workbook is authoritative for signal
+positions, Intel byte order, rolling counter, XOR checksum, and the default
+250 kbit/s CAN bitrate.
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
-| TX | `0x514` | Left/right motor percentage and headlight command |
-| RX | `0x532` | Mode, emergency stop, motion state, battery, communication faults |
-| RX | `0x533` | Left motor faults, RPM, voltage, current, temperature |
-| RX | `0x534` | Right motor faults, RPM, voltage, current, temperature |
+| TX | `0x514` | Independent brakes, signed left/right PWM, headlight, and turn lights |
+| RX | `0x532` | Mode, emergency stop, motion, remote connection, lights, and battery voltage |
+| RX | `0x533` | Left motor faults/protections, direction, brakes, speed, and current |
+| RX | `0x534` | Right motor faults/protections, direction, brakes, speed, and current |
 
 All frames are standard 11-bit, 8-byte CAN frames. Byte 6 low nibble is the
 rolling counter and byte 7 is XOR of bytes 0 through 6. Invalid checksums and
 unchanged replay counters are rejected. Counter jumps are accepted as dropped
 frames but recorded in `/diagnostics`.
 
-The old working C++ writes `0x03` to command byte 0 while braking, although the
-workbook does not define that byte. This compatibility behavior is enabled by
-`legacy_brake_byte: true`. The old C++ also used big-endian battery decoding;
-the migrated driver corrects that to the workbook's Intel order.
-
-The workbook also describes implement, remote-control, and BMS frames. Those
-are outside this chassis adapter. In particular, the old C++ sends an
-implement command on `0x582`, while the workbook defines it as `0x580`; that
-conflicting implement command is intentionally not transmitted here.
+Command byte 0 bits 0 and 1 are the workbook-defined left and right brake
+commands. Chassis battery voltage is the one-byte physical value in byte 2.
+Motor speed is an unsigned 16-bit magnitude in bytes 2-3; byte 1 bit 5 supplies
+its direction. Running current is a signed 16-bit value in bytes 4-5. Reserved
+bits and bytes are transmitted as zero and ignored on reception.
 
 The driver command topic is configurable. The unified navigation launch routes
 `geometry_msgs/msg/Twist` from `/nav2/cmd_vel` directly to the selected
 driver. The driver publishes:
 
-- `/wheel/odometry`: odometry integrated from left/right motor RPM
+- `/wheel/odometry`: odometry integrated from the signed left/right speed feedback
 - `/scout_status`: common chassis feedback
 - `/hardware/chassis_e_stop`: decoded controller emergency-stop state
 - `/diagnostics`: freshness, fault, checksum, counter, replay, and I/O status
 
 Important dimensions and drivetrain values are in
 `differential/config/chassis_can.yaml`:
-`track_width_m`, `wheel_diameter_m`, `reduction_ratio`, and `max_motor_rpm`.
-Measure and verify them before physical motion.
+`track_width_m`, `command_full_scale_wheel_speed_mps`, and
+`feedback_wheel_speed_mps_per_speed_unit`. Measure and verify them before
+physical motion because the workbook does not state the speed field's unit or
+the PWM-to-vehicle-speed conversion.
 
 ## Differential State Lattice and MPPI navigation
 
@@ -181,8 +178,8 @@ outdoor RTK initialization, and USB-CAN commands.
 
 ## SocketCAN setup
 
-The supplied workbook does not state the bus bitrate. Obtain it from the
-controller configuration before running:
+The V2.4 workbook specifies a default bus bitrate of 250 kbit/s. Configure a
+native CAN interface with the bitrate required by the selected chassis:
 
 ```bash
 ros2 run agribot_hardware_bringup configure_can.sh can0 BITRATE

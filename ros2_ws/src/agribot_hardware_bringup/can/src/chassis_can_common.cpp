@@ -8,12 +8,6 @@
 namespace agribot_hardware_bringup::chassis_can
 {
 
-bool MotorState::hasFault() const
-{
-  return over_voltage || under_voltage || temperature_fault || over_current ||
-         overload || hall_fault || locked_rotor || other_fault;
-}
-
 uint8_t xorChecksum(const Payload & payload)
 {
   uint8_t checksum = 0;
@@ -66,35 +60,6 @@ int16_t scaledInt16(double value, double units_per_raw)
            raw,
            static_cast<double>(std::numeric_limits<int16_t>::min()),
            static_cast<double>(std::numeric_limits<int16_t>::max())));
-}
-
-std::optional<MotorState> decodeMotorState(
-  const Frame & frame,
-  uint32_t first_state_id,
-  uint32_t second_state_id)
-{
-  if ((frame.id != first_state_id && frame.id != second_state_id) ||
-    !hasValidChecksum(frame.data))
-  {
-    return std::nullopt;
-  }
-
-  MotorState state;
-  state.frame_id = frame.id;
-  state.over_voltage = (frame.data[0] & 0x01U) != 0U;
-  state.under_voltage = (frame.data[0] & 0x02U) != 0U;
-  state.temperature_fault = (frame.data[0] & 0x04U) != 0U;
-  state.over_current = (frame.data[0] & 0x08U) != 0U;
-  state.overload = (frame.data[0] & 0x10U) != 0U;
-  state.hall_fault = (frame.data[0] & 0x20U) != 0U;
-  state.locked_rotor = (frame.data[0] & 0x40U) != 0U;
-  state.other_fault = (frame.data[0] & 0x80U) != 0U;
-  state.rpm = getInt16Le(frame.data, 1);
-  state.voltage = static_cast<double>(frame.data[3]);
-  state.current = static_cast<double>(static_cast<int8_t>(frame.data[4]));
-  state.temperature_c = static_cast<double>(frame.data[5]) - 40.0;
-  state.rolling_counter = rollingCounter(frame.data);
-  return state;
 }
 
 }  // namespace agribot_hardware_bringup::chassis_can

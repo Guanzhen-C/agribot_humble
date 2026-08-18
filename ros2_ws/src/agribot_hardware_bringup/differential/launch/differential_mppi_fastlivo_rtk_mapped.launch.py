@@ -201,7 +201,7 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument("zqwl_channel", default_value="0"),
-            DeclareLaunchArgument("zqwl_bitrate", default_value="1000000"),
+            DeclareLaunchArgument("zqwl_bitrate", default_value="250000"),
             OpaqueFunction(function=_validate_arguments),
             GroupAction(
                 scoped=True,

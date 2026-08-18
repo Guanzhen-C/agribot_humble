@@ -6,7 +6,8 @@
     can_interface: can0
     zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
     zqwl_channel: 0
-    zqwl_bitrate: 1000000
+    # 主控到分控数据格式 V2.4 的全局默认 CAN 波特率。
+    zqwl_bitrate: 250000
     command_topic: /hardware/cmd_vel
     odom_topic: /wheel/odometry
     odom_frame: wheel_odom
@@ -26,9 +27,6 @@
     localization_ready_timeout_sec: 0.5
     headlight: false
 
-    # The proven tracked-vehicle implementation used byte0=0x03 for braking,
-    # although byte0 is not described in the supplied Excel workbook.
-    legacy_brake_byte: true
     invert_left_motor: false
     invert_right_motor: false
 
@@ -37,8 +35,8 @@
     # reduction-ratio model is used to generate commands.
     track_width_m: 0.590224
     command_full_scale_wheel_speed_mps: 0.80
-    # Only used to express 0x533/0x534 RPM feedback as optional wheel odometry.
-    # It does not feed the localization or command conversion.
-    feedback_wheel_speed_mps_per_rpm: 0.000436332313
+    # 0x533/0x534 的 Speed 字段未标注物理单位；该临时比例只用于可选轮速里程计，
+    # 不参与导航定位或控制指令换算，需通过差速真车实测标定。
+    feedback_wheel_speed_mps_per_speed_unit: 0.000436332313
     max_linear_velocity: 0.20
     max_angular_velocity: 0.80

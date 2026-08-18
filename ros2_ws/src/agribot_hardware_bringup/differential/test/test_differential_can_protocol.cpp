@@ -1,107 +1,155 @@
+#include <array>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "gtest/gtest.h"
 
+#include "agribot_hardware_bringup/chassis_adapter.hpp"
 #include "agribot_hardware_bringup/chassis_can_common.hpp"
 #include "agribot_hardware_bringup/differential_can_protocol.hpp"
 
 namespace common = agribot_hardware_bringup::chassis_can;
 namespace differential = agribot_hardware_bringup::differential_can;
 
-TEST(DifferentialCanProtocol, EncodesCommandFromExcelLayout)
+namespace
+{
+
+common::Frame finalizeFrame(uint32_t id, const common::Payload & data)
+{
+  common::Frame frame{id, data};
+  frame.data[7] = common::xorChecksum(frame.data);
+  return frame;
+}
+
+}  // namespace
+
+TEST(DifferentialCanProtocol, EncodesGammaCommandLayout)
 {
   differential::Command command;
   command.left_percent = 50.0;
   command.right_percent = -25.0;
-  command.brake = false;
+  command.left_brake = false;
+  command.right_brake = false;
   command.headlight = true;
+  command.turn_light = differential::TurnLight::kRight;
 
   const auto frame = differential::encodeCommand(command, 0x12);
   EXPECT_EQ(frame.id, differential::kCommandId);
-  EXPECT_EQ(frame.data[0], 0x00);
-  EXPECT_EQ(frame.data[1], 0x32);
-  EXPECT_EQ(frame.data[2], 0xe7);
-  EXPECT_EQ(frame.data[3], 0x01);
-  EXPECT_EQ(frame.data[6], 0x02);
-  EXPECT_EQ(frame.data[7], common::xorChecksum(frame.data));
+  EXPECT_EQ(
+    frame.data,
+    (common::Payload {0x00, 0x32, 0xe7, 0x05, 0x00, 0x00, 0x02, 0xd2}));
+  EXPECT_TRUE(common::hasValidChecksum(frame.data));
 }
 
-TEST(DifferentialCanProtocol, BrakeZerosMotorsAndUsesLegacyByte)
+TEST(DifferentialCanProtocol, EncodesIndependentBrakeBitsAndZerosBrakedMotor)
 {
   differential::Command command;
   command.left_percent = 80.0;
-  command.right_percent = 80.0;
-  command.brake = true;
+  command.right_percent = -40.0;
+  command.left_brake = true;
+  command.right_brake = false;
+  command.turn_light = differential::TurnLight::kHazard;
 
-  const auto legacy = differential::encodeCommand(command, 3, true);
-  EXPECT_EQ(legacy.data[0], 0x03);
-  EXPECT_EQ(legacy.data[1], 0x00);
-  EXPECT_EQ(legacy.data[2], 0x00);
-  EXPECT_TRUE(common::hasValidChecksum(legacy.data));
+  const auto frame = differential::encodeCommand(command, 3);
+  EXPECT_EQ(frame.data[0], 0x01);
+  EXPECT_EQ(frame.data[1], 0x00);
+  EXPECT_EQ(frame.data[2], 0xd8);
+  EXPECT_EQ(frame.data[3], 0x06);
+  EXPECT_EQ(frame.data[4], 0x00);
+  EXPECT_EQ(frame.data[5], 0x00);
+  EXPECT_TRUE(common::hasValidChecksum(frame.data));
 
-  const auto excel_only = differential::encodeCommand(command, 3, false);
-  EXPECT_EQ(excel_only.data[0], 0x00);
-  EXPECT_TRUE(common::hasValidChecksum(excel_only.data));
+  const auto stopped = differential::fromTwist(0.5, 0.2, {}, true);
+  const auto stopped_frame = differential::encodeCommand(stopped, 4);
+  EXPECT_EQ(stopped_frame.data[0], 0x03);
+  EXPECT_EQ(stopped_frame.data[1], 0x00);
+  EXPECT_EQ(stopped_frame.data[2], 0x00);
 }
 
-TEST(DifferentialCanProtocol, DecodesLittleEndianChassisState)
+TEST(DifferentialCanProtocol, DecodesGammaChassisState)
 {
-  common::Frame frame;
-  frame.id = differential::kChassisStateId;
-  frame.data[0] = 0x0d;
-  frame.data[1] = 0x04;
-  frame.data[2] = 0xf4;
-  frame.data[3] = 0x01;
-  frame.data[4] = 0x0a;
-  frame.data[6] = 0x0f;
-  frame.data[7] = common::xorChecksum(frame.data);
+  const auto frame = finalizeFrame(
+    differential::kChassisStateId,
+    {0x2d, 0x06, 0x34, 0x00, 0x00, 0x00, 0x0f, 0x00});
 
   const auto state = differential::decodeChassisState(frame);
   ASSERT_TRUE(state.has_value());
   EXPECT_EQ(state->work_mode, 1);
   EXPECT_TRUE(state->emergency_stop);
   EXPECT_TRUE(state->running);
+  EXPECT_EQ(state->remote_connection_status, 2);
+  EXPECT_EQ(state->turn_light, differential::TurnLight::kRight);
   EXPECT_TRUE(state->headlight);
-  EXPECT_DOUBLE_EQ(state->battery_voltage, 50.0);
-  EXPECT_FALSE(state->remote_comm_fault);
-  EXPECT_TRUE(state->autonomy_comm_fault);
-  EXPECT_FALSE(state->motor_comm_fault);
-  EXPECT_TRUE(state->bms_comm_fault);
+  EXPECT_DOUBLE_EQ(state->battery_voltage, 52.0);
   EXPECT_EQ(state->rolling_counter, 15);
 }
 
-TEST(DifferentialCanProtocol, RejectsBadChecksum)
+TEST(DifferentialCanProtocol, RejectsInvalidChassisFrames)
 {
   common::Frame frame;
   frame.id = differential::kChassisStateId;
   frame.data[7] = 0x55;
   EXPECT_FALSE(differential::decodeChassisState(frame).has_value());
+
+  frame = finalizeFrame(0x531, {});
+  EXPECT_FALSE(differential::decodeChassisState(frame).has_value());
 }
 
-TEST(DifferentialCanProtocol, DecodesSignedMotorFeedback)
+TEST(DifferentialCanProtocol, DecodesGammaMotorFeedback)
 {
-  common::Frame frame;
-  frame.id = differential::kLeftMotorStateId;
-  frame.data[0] = 0x44;
-  frame.data[1] = 0xd4;
-  frame.data[2] = 0xfe;
-  frame.data[3] = 48;
-  frame.data[4] = static_cast<uint8_t>(static_cast<int8_t>(-12));
-  frame.data[5] = 75;
-  frame.data[6] = 7;
-  frame.data[7] = common::xorChecksum(frame.data);
+  const auto frame = finalizeFrame(
+    differential::kLeftMotorStateId,
+    {0xad, 0xbf, 0x34, 0x12, 0xd4, 0xfe, 0x07, 0x00});
 
-  const auto state = common::decodeMotorState(
-    frame, differential::kLeftMotorStateId, differential::kRightMotorStateId);
+  const auto state = differential::decodeMotorState(frame);
   ASSERT_TRUE(state.has_value());
-  EXPECT_TRUE(state->temperature_fault);
-  EXPECT_TRUE(state->locked_rotor);
+  EXPECT_TRUE(state->hall_fault);
+  EXPECT_FALSE(state->controller_fault);
+  EXPECT_TRUE(state->phase_loss);
+  EXPECT_TRUE(state->under_voltage_protection);
+  EXPECT_FALSE(state->over_current_protection);
+  EXPECT_TRUE(state->locked_rotor_protection);
+  EXPECT_FALSE(state->runaway_protection);
+  EXPECT_TRUE(state->other_controller_protection);
+  EXPECT_TRUE(state->pwm_output);
+  EXPECT_TRUE(state->reverse);
+  EXPECT_FALSE(state->brake);
+  EXPECT_TRUE(state->electronic_brake);
+  EXPECT_EQ(state->speed, 0x1234);
+  EXPECT_EQ(state->signedSpeed(), -0x1234);
+  EXPECT_EQ(state->running_current, -300);
+  EXPECT_EQ(state->rolling_counter, 7);
   EXPECT_TRUE(state->hasFault());
-  EXPECT_EQ(state->rpm, -300);
-  EXPECT_DOUBLE_EQ(state->voltage, 48.0);
-  EXPECT_DOUBLE_EQ(state->current, -12.0);
-  EXPECT_DOUBLE_EQ(state->temperature_c, 35.0);
+}
+
+TEST(DifferentialCanProtocol, DecodesUnsignedForwardSpeedAndSignedCurrent)
+{
+  const auto frame = finalizeFrame(
+    differential::kRightMotorStateId,
+    {0x00, 0x50, 0xff, 0xff, 0xff, 0x7f, 0x0a, 0x00});
+
+  const auto state = differential::decodeMotorState(frame);
+  ASSERT_TRUE(state.has_value());
+  EXPECT_TRUE(state->pwm_output);
+  EXPECT_FALSE(state->reverse);
+  EXPECT_TRUE(state->brake);
+  EXPECT_FALSE(state->electronic_brake);
+  EXPECT_EQ(state->speed, 65535);
+  EXPECT_EQ(state->signedSpeed(), 65535);
+  EXPECT_EQ(state->running_current, 32767);
+  EXPECT_FALSE(state->hasFault());
+}
+
+TEST(DifferentialCanProtocol, RejectsInvalidMotorFrames)
+{
+  auto frame = finalizeFrame(differential::kLeftMotorStateId, {});
+  frame.data[7] ^= 0x01U;
+  EXPECT_FALSE(differential::decodeMotorState(frame).has_value());
+
+  frame = finalizeFrame(0x535, {});
+  EXPECT_FALSE(differential::decodeMotorState(frame).has_value());
 }
 
 TEST(DifferentialCanKinematics, RoundTrip)
@@ -112,19 +160,20 @@ TEST(DifferentialCanKinematics, RoundTrip)
   EXPECT_LE(std::abs(command.left_percent), 100.0);
   EXPECT_LE(std::abs(command.right_percent), 100.0);
 
-  const auto left_rpm = static_cast<int16_t>(std::lround(
+  const auto left_speed_units = static_cast<int32_t>(std::lround(
       (0.5 - 0.4 * config.track_width_m * 0.5) /
-      config.feedback_wheel_speed_mps_per_rpm));
-  const auto right_rpm = static_cast<int16_t>(std::lround(
+      config.feedback_wheel_speed_mps_per_speed_unit));
+  const auto right_speed_units = static_cast<int32_t>(std::lround(
       (0.5 + 0.4 * config.track_width_m * 0.5) /
-      config.feedback_wheel_speed_mps_per_rpm));
+      config.feedback_wheel_speed_mps_per_speed_unit));
   double linear = 0.0;
   double angular = 0.0;
-  differential::motorRpmToTwist(left_rpm, right_rpm, config, linear, angular);
-  EXPECT_NEAR(linear, 0.5, config.feedback_wheel_speed_mps_per_rpm);
+  differential::motorSpeedToTwist(
+    left_speed_units, right_speed_units, config, linear, angular);
+  EXPECT_NEAR(linear, 0.5, config.feedback_wheel_speed_mps_per_speed_unit);
   EXPECT_NEAR(
     angular, 0.4,
-    2.0 * config.feedback_wheel_speed_mps_per_rpm / config.track_width_m);
+    2.0 * config.feedback_wheel_speed_mps_per_speed_unit / config.track_width_m);
 }
 
 TEST(DifferentialCanKinematics, MapsWheelSpeedDirectlyToCommandPercent)
@@ -142,4 +191,53 @@ TEST(DifferentialCanKinematics, RejectsInvalidConfiguration)
   differential::Kinematics config;
   config.track_width_m = 0.0;
   EXPECT_THROW(differential::fromTwist(0.1, 0.0, config), std::invalid_argument);
+}
+
+TEST(DifferentialCanAdapter, UsesGammaFeedbackForMotionAndSafety)
+{
+  rclcpp::init(0, nullptr);
+  const auto node = std::make_shared<rclcpp::Node>("differential_can_adapter_test");
+  auto adapter = agribot_hardware_bringup::makeDifferentialChassisAdapter(*node);
+  EXPECT_TRUE(adapter->usesPerFrameIntegrity());
+  EXPECT_EQ(
+    adapter->feedbackIds(),
+    (std::vector<uint32_t>{
+      differential::kChassisStateId,
+      differential::kLeftMotorStateId,
+      differential::kRightMotorStateId}));
+
+  const rclcpp::Time stamp(10, 0, RCL_ROS_TIME);
+  auto chassis = finalizeFrame(
+    differential::kChassisStateId,
+    {0x21, 0x00, 0x30, 0x00, 0x00, 0x00, 0x01, 0x00});
+  auto left = finalizeFrame(
+    differential::kLeftMotorStateId,
+    {0x00, 0x10, 0xe8, 0x03, 0x04, 0x00, 0x01, 0x00});
+  auto right = finalizeFrame(
+    differential::kRightMotorStateId,
+    {0x00, 0x10, 0xb0, 0x04, 0x05, 0x00, 0x01, 0x00});
+
+  EXPECT_TRUE(adapter->processFrame(chassis, stamp).valid);
+  EXPECT_TRUE(adapter->processFrame(left, stamp).valid);
+  const auto update = adapter->processFrame(right, stamp);
+  ASSERT_TRUE(update.motion.has_value());
+  EXPECT_TRUE(adapter->feedbackFresh(rclcpp::Time(10, 500000000, RCL_ROS_TIME), 0.6));
+  EXPECT_TRUE(adapter->feedbackAllowsMotion(true));
+
+  scout_msgs::msg::ScoutStatus status;
+  adapter->populateStatus(status);
+  EXPECT_DOUBLE_EQ(status.battery_voltage, 48.0);
+  EXPECT_DOUBLE_EQ(
+    status.motor_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_LEFT].rpm,
+    1000.0);
+  EXPECT_DOUBLE_EQ(
+    status.motor_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_RIGHT].rpm,
+    1200.0);
+
+  left.data[0] = 0x01;
+  left.data[6] = 0x02;
+  left.data[7] = common::xorChecksum(left.data);
+  EXPECT_TRUE(adapter->processFrame(left, stamp).valid);
+  EXPECT_FALSE(adapter->feedbackAllowsMotion(true));
+  rclcpp::shutdown();
 }

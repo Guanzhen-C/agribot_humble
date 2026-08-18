@@ -14,19 +14,29 @@ constexpr uint32_t kChassisStateId = 0x532;
 constexpr uint32_t kLeftMotorStateId = 0x533;
 constexpr uint32_t kRightMotorStateId = 0x534;
 
+enum class TurnLight : uint8_t
+{
+  kOff = 0,
+  kLeft = 1,
+  kRight = 2,
+  kHazard = 3,
+};
+
 struct Command
 {
   double left_percent{0.0};
   double right_percent{0.0};
-  bool brake{true};
+  bool left_brake{true};
+  bool right_brake{true};
   bool headlight{false};
+  TurnLight turn_light{TurnLight::kOff};
 };
 
 struct Kinematics
 {
   double track_width_m{0.590224};
   double command_full_scale_wheel_speed_mps{0.80};
-  double feedback_wheel_speed_mps_per_rpm{0.000436332313};
+  double feedback_wheel_speed_mps_per_speed_unit{0.000436332313};
   double max_linear_velocity{1.0};
   double max_angular_velocity{1.4};
 };
@@ -36,21 +46,40 @@ struct ChassisState
   uint8_t work_mode{0};
   bool emergency_stop{false};
   bool running{false};
+  uint8_t remote_connection_status{0};
+  TurnLight turn_light{TurnLight::kOff};
   bool headlight{false};
   double battery_voltage{0.0};
-  bool remote_comm_fault{false};
-  bool autonomy_comm_fault{false};
-  bool motor_comm_fault{false};
-  bool bms_comm_fault{false};
   uint8_t rolling_counter{0};
 };
 
-chassis_can::Frame encodeCommand(
-  const Command & command,
-  uint8_t rolling_counter,
-  bool legacy_brake_byte = true);
+struct MotorState
+{
+  uint32_t frame_id{0};
+  bool hall_fault{false};
+  bool controller_fault{false};
+  bool phase_loss{false};
+  bool under_voltage_protection{false};
+  bool over_current_protection{false};
+  bool locked_rotor_protection{false};
+  bool runaway_protection{false};
+  bool other_controller_protection{false};
+  bool pwm_output{false};
+  bool reverse{false};
+  bool brake{false};
+  bool electronic_brake{false};
+  uint16_t speed{0};
+  int16_t running_current{0};
+  uint8_t rolling_counter{0};
+
+  bool hasFault() const;
+  int32_t signedSpeed() const;
+};
+
+chassis_can::Frame encodeCommand(const Command & command, uint8_t rolling_counter);
 
 std::optional<ChassisState> decodeChassisState(const chassis_can::Frame & frame);
+std::optional<MotorState> decodeMotorState(const chassis_can::Frame & frame);
 
 Command fromTwist(
   double linear_velocity,
@@ -59,9 +88,9 @@ Command fromTwist(
   bool brake = false,
   bool headlight = false);
 
-void motorRpmToTwist(
-  int16_t left_rpm,
-  int16_t right_rpm,
+void motorSpeedToTwist(
+  int32_t left_speed_units,
+  int32_t right_speed_units,
   const Kinematics & config,
   double & linear_velocity,
   double & angular_velocity);

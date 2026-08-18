@@ -22,9 +22,9 @@ geometry:
 drivetrain:
   invert_left_motor: false
   invert_right_motor: false
-  # These two empirical scales replace a motor RPM/reduction-ratio model.
+  # These empirical scales avoid assuming a motor RPM/reduction-ratio model.
   command_full_scale_wheel_speed_mps: 0.80
-  feedback_wheel_speed_mps_per_rpm: 0.000436332313
+  feedback_wheel_speed_mps_per_speed_unit: 0.000436332313
 
 motion:
   reverse_enabled: true
@@ -38,7 +38,7 @@ required_measurements:
   - wheel_diameter
   - motor_direction_signs
   - command_percent_to_wheel_speed_scale
-  - feedback_rpm_to_wheel_speed_scale_for_optional_wheel_odometry
+  - feedback_speed_unit_to_wheel_speed_scale_for_optional_wheel_odometry
   - maximum_linear_and_angular_velocity
   - imu_lidar_camera_rtk_extrinsics
   - rtk_master_secondary_layout_and_heading_offset

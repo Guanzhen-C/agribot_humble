@@ -217,11 +217,12 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert "minimum_turning_radius" not in planner
 
     assert chassis["track_width_m"] == geometry["track_width_m"]
+    assert chassis["zqwl_bitrate"] == 250000
     assert chassis["command_full_scale_wheel_speed_mps"] == drivetrain[
         "command_full_scale_wheel_speed_mps"
     ]
-    assert chassis["feedback_wheel_speed_mps_per_rpm"] == drivetrain[
-        "feedback_wheel_speed_mps_per_rpm"
+    assert chassis["feedback_wheel_speed_mps_per_speed_unit"] == drivetrain[
+        "feedback_wheel_speed_mps_per_speed_unit"
     ]
     assert chassis["invert_left_motor"] is drivetrain["invert_left_motor"]
     assert chassis["invert_right_motor"] is drivetrain["invert_right_motor"]

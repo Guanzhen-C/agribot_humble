@@ -12,20 +12,37 @@ namespace agribot_hardware_bringup
 namespace
 {
 
-TEST(ZqwlCdcProtocol, BuildsVerifiedOneMegabitStartAndStopPackets)
+TEST(ZqwlCdcProtocol, BuildsVerifiedCanParameterPackets)
 {
   EXPECT_EQ(
-    zqwl_cdc::makeStartPacket(0, 1000000),
+    zqwl_cdc::makeCanParameterPacket(0, 1000000),
     (zqwl_cdc::ParameterPacket {
         0x49, 0x3b, 0x42, 0x57, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e}));
   EXPECT_EQ(
-    zqwl_cdc::makeStopPacket(),
+    zqwl_cdc::makeCanParameterPacket(0, 250000),
+    (zqwl_cdc::ParameterPacket {
+        0x49, 0x3b, 0x42, 0x57, 0x00, 0x00, 0x45, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e}));
+  EXPECT_THROW(
+    zqwl_cdc::makeCanParameterPacket(1, 1000000), std::invalid_argument);
+  EXPECT_THROW(zqwl_cdc::makeCanParameterPacket(0, 500000), std::invalid_argument);
+}
+
+TEST(ZqwlCdcProtocol, BuildsVerifiedChannelControlPackets)
+{
+  EXPECT_EQ(
+    zqwl_cdc::makeChannelControlPacket(0, true, true),
     (zqwl_cdc::ParameterPacket {
         0x49, 0x3b, 0x44, 0x57, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e}));
-  EXPECT_THROW(zqwl_cdc::makeStartPacket(1, 1000000), std::invalid_argument);
-  EXPECT_THROW(zqwl_cdc::makeStartPacket(0, 500000), std::invalid_argument);
+  EXPECT_EQ(
+    zqwl_cdc::makeChannelControlPacket(0, false, false),
+    (zqwl_cdc::ParameterPacket {
+        0x49, 0x3b, 0x44, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e}));
+  EXPECT_THROW(
+    zqwl_cdc::makeChannelControlPacket(1, true, true), std::invalid_argument);
 }
 
 TEST(ZqwlCdcProtocol, EncodesClassicCanFrame)

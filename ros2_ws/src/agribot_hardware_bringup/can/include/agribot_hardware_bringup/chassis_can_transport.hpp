@@ -53,8 +53,9 @@ constexpr std::size_t kClassicCanPacketSize = 16;
 using ParameterPacket = std::array<uint8_t, kParameterPacketSize>;
 using ClassicCanPacket = std::array<uint8_t, kClassicCanPacketSize>;
 
-ParameterPacket makeStartPacket(int channel, int bitrate);
-ParameterPacket makeStopPacket();
+ParameterPacket makeCanParameterPacket(int channel, int bitrate);
+ParameterPacket makeChannelControlPacket(
+  int channel, bool enabled, bool persist_parameters);
 ClassicCanPacket encodeFrame(const chassis_can::Frame & frame, int channel);
 
 class FrameDecoder

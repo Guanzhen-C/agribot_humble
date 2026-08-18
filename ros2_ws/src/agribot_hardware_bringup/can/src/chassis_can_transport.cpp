@@ -258,14 +258,26 @@ private:
         throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC)");
       }
 
-      const auto stop_packet = zqwl_cdc::makeStopPacket();
-      writePacket(stop_packet.data(), stop_packet.size());
+      const auto disable_packet =
+        zqwl_cdc::makeChannelControlPacket(channel_, false, false);
+      writePacket(disable_packet.data(), disable_packet.size());
       std::this_thread::sleep_for(100ms);
       if (tcflush(serial_fd_, TCIFLUSH) < 0) {
         throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC input)");
       }
-      const auto start_packet = zqwl_cdc::makeStartPacket(channel_, bitrate_);
-      writePacket(start_packet.data(), start_packet.size());
+
+      const auto parameter_packet =
+        zqwl_cdc::makeCanParameterPacket(channel_, bitrate_);
+      writePacket(parameter_packet.data(), parameter_packet.size());
+      std::this_thread::sleep_for(100ms);
+
+      const auto enable_packet =
+        zqwl_cdc::makeChannelControlPacket(channel_, true, true);
+      writePacket(enable_packet.data(), enable_packet.size());
+      std::this_thread::sleep_for(100ms);
+      if (tcflush(serial_fd_, TCIFLUSH) < 0) {
+        throw std::system_error(errno, std::generic_category(), "tcflush(ZQWL CDC input)");
+      }
       decoder_ = zqwl_cdc::FrameDecoder();
     } catch (...) {
       close(serial_fd_);
@@ -280,7 +292,7 @@ private:
       return;
     }
     try {
-      const auto packet = zqwl_cdc::makeStopPacket();
+      const auto packet = zqwl_cdc::makeChannelControlPacket(channel_, false, false);
       writePacket(packet.data(), packet.size());
     } catch (...) {
     }
@@ -350,27 +362,43 @@ private:
 namespace zqwl_cdc
 {
 
-ParameterPacket makeStartPacket(int channel, int bitrate)
+ParameterPacket makeCanParameterPacket(int channel, int bitrate)
 {
   if (channel != 0) {
     throw std::invalid_argument("ZQWL CDC currently supports channel 0 only");
   }
-  if (bitrate != 1000000) {
-    throw std::invalid_argument("ZQWL CDC currently supports 1000000 bit/s only");
+
+  uint8_t common_bitrate_code = 0;
+  if (bitrate == 1000000) {
+    common_bitrate_code = 0x03U;
+  } else if (bitrate == 250000) {
+    common_bitrate_code = 0x45U;
+  } else {
+    throw std::invalid_argument(
+            "ZQWL CDC supports only the verified 250000 and 1000000 bit/s configurations");
   }
 
   ParameterPacket packet {
-    0x49, 0x3b, 0x42, 0x57, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x3b, 0x42, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e};
   packet[4] = static_cast<uint8_t>(channel);
+  packet[6] = common_bitrate_code;
   return packet;
 }
 
-ParameterPacket makeStopPacket()
+ParameterPacket makeChannelControlPacket(
+  int channel, bool enabled, bool persist_parameters)
 {
-  return {
-    0x49, 0x3b, 0x44, 0x57, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+  if (channel != 0) {
+    throw std::invalid_argument("ZQWL CDC currently supports channel 0 only");
+  }
+
+  ParameterPacket packet {
+    0x49, 0x3b, 0x44, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x45, 0x2e};
+  packet[4] = persist_parameters ? 0x01U : 0x00U;
+  packet[6 + channel] = enabled ? 0x01U : 0x00U;
+  return packet;
 }
 
 ClassicCanPacket encodeFrame(const chassis_can::Frame & frame, int channel)
