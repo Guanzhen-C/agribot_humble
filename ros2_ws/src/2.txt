@@ -742,33 +742,47 @@ ros2 topic pub --once /speed_limit nav2_msgs/msg/SpeedLimit \
   "{percentage: false, speed_limit: 0.15}"
 # 随车保留人工急停；确认地图、实时障碍物和规划路径正确后，再在RViz下发目标
 
-# 室外语义拓扑第一步：把稳定开放词汇地标翻译为中文并保存可续传缓存
-# 只翻译原始识别结果，不人为增加类别；重复执行时只请求尚未翻译的新地标描述
+# 本地语义模型服务：手机开启VPN后只访问8090，不直接连接Neo4j或Ollama
+# 健康检查必须同时显示qwen3.8:27b、qwen3-embedding:8b和两张语义地图
+curl -fsS http://172.18.80.26:8090/api/v1/health | python3 -m json.tool
+
+# 新地图的三维实例中文审计和4096维向量生成：在具备OpenGraph结果的处理机执行
+# 不需要云端API Key；实例裁剪、严格JSON校验、可移动物体拒绝策略保持不变
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-read -rsp "请输入阿里云百炼API Key: " DASHSCOPE_API_KEY; echo
-export DASHSCOPE_API_KEY
-ros2 run agribot_offline_mapping localize_semantic_landmarks_zh.py \
-  --semantic-metadata /media/cgz/data/agribot_experiments/opengraph_results/outdoor_0811_spatial_v2/semantic_instances.json \
-  --output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_landmarks_zh.json
-unset DASHSCOPE_API_KEY
+ros2 run agribot_offline_mapping describe_opengraph_instances_ollama.py \
+  --opengraph-pickle /path/to/full_pcd.pkl.gz \
+  --semantic-metadata /path/to/raw/semantic_instances.json \
+  --dataset-root /path/to/aligned/opengraph_dataset/00 \
+  --caption-directory /path/to/opengraph/caption \
+  --work-directory /path/to/semantic_enrichment_ollama \
+  --output /path/to/semantic_instances_ollama_zh.json \
+  --cache /path/to/ollama_instance_semantic.sqlite3 \
+  --base-url http://172.18.80.26:11434 \
+  --model qwen3.8:27b \
+  --embedding-model qwen3-embedding:8b \
+  --embedding-dimensions 4096 \
+  --stride 10 --maximum-views 2 --batch-size 4
 
-# 室外语义拓扑第二步：只从二维道路边界提取平滑闭环，不再使用遥控行驶轨迹
-# 内外道路边界求中线，按约10米均匀生成42个中文地点；中心净空至少1米
-# 244个中文地标分别只连接到欧氏距离最近的一个地点，地标连接不参与车辆行驶
-ros2 run agribot_offline_mapping build_map_semantic_navigation_graph.py \
-  --map-yaml /media/cgz/data/agribot_data/maps/map_lio_sam_0811.yaml \
-  --road-boundary-map-yaml /media/cgz/data/agribot_data/maps/map_lio_sam_0811_road_edges.yaml \
-  --semantic-metadata /media/cgz/data/agribot_experiments/opengraph_results/outdoor_0811_spatial_v2/semantic_instances.json \
-  --landmark-localization /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_landmarks_zh.json \
-  --start-position 0.0 0.0 \
-  --start-yaw-deg 90 \
-  --place-spacing 10.0 \
-  --minimum-centerline-clearance 1.0 \
-  --output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json
+# 手机App语义导航的数据流：
+# 1. 手机通过热点访问RDK的http://RDK_IP:8088，同时通过VPN访问172.18.80.26:8090
+# 2. App发送自然语言、当前map坐标和地图ID给172服务器
+# 3. 服务器执行本地Qwen解析、Neo4j混合检索和Dijkstra，只返回预览路线
+# 4. App把完整路线提交给RDK复核；用户在App检查后再点击“执行语义路线”
+# 手机断开服务器不会影响已提交给Nav2的任务；RDK不会访问模型或Neo4j
 
-# 室外语义拓扑第三步：生成覆盖整个二维地图闭环的正式Dijkstra路线
-# 后面的统一验证会把起点后的41个地点全部交给真机同款Smac再次验证
+# 调试服务器API（只生成路线，不启动Nav2，不创建底盘节点）
+curl -fsS http://172.18.80.26:8090/api/v1/semantic/plan \
+  -H 'Content-Type: application/json' \
+  -d '{"map_id":"map_lio_sam_0811","instruction":"先去浅蓝色建筑，再到混凝土台阶","start_position":{"x":0.70,"y":0.80}}' \
+  | python3 -m json.tool
+
+# 服务器服务状态；模型和Neo4j密码只保存在172服务器，不放进RDK、手机或Git
+ssh dcliu@172.18.80.26
+systemctl status agribot-semantic.service --no-pager
+journalctl -u agribot-semantic.service -f
+
+# 生成覆盖整个二维地图闭环的离线Dijkstra验证路线
 ros2 run agribot_offline_mapping plan_semantic_route.py \
   --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
   --start place_000 \
@@ -777,71 +791,6 @@ ros2 run agribot_offline_mapping plan_semantic_route.py \
   --via place_030 \
   --goal place_041 \
   --output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_route_preview.json
-
-# 首次生成或更新语义图后：导入218服务器上的独立Neo4j实例
-# Neo4j保存全部地点、地标、最近地点关系和可行驶关系；百炼API Key不会写入文件
-# 当前Neo4j网页为http://192.168.100.218:7476，Bolt端口为7689
-source /home/cgz/.config/agribot/neo4j.env
-read -rsp "请输入阿里云百炼API Key: " DASHSCOPE_API_KEY; echo
-export DASHSCOPE_API_KEY
-ros2 run agribot_offline_mapping import_semantic_graph_neo4j.py \
-  --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-  --map-id map_lio_sam_0811
-unset DASHSCOPE_API_KEY
-
-# 后续增量新增中文地标：编辑JSON后直接MERGE到Neo4j，不重建或删除已有拓扑
-# JSON中的每个地标包含id、中文caption、中文category及map坐标position
-# 工具会自动寻找最近place并建立唯一NEAREST_PLACE关系；示例文件格式见README
-# source /home/cgz/.config/agribot/neo4j.env
-# read -rsp "请输入阿里云百炼API Key: " DASHSCOPE_API_KEY; echo
-# export DASHSCOPE_API_KEY
-# ros2 run agribot_offline_mapping upsert_semantic_landmarks_neo4j.py \
-#   --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-#   --map-id map_lio_sam_0811 \
-#   --landmarks /path/to/new_chinese_landmarks.json \
-#   --resolved-output /path/to/new_chinese_landmarks_resolved.json
-# unset DASHSCOPE_API_KEY
-
-# 正式接入定位后也可以用当前位置选择最近语义地点，X和Y替换为map坐标
-# 距离最近语义地点超过5米时会拒绝生成路线
-# ros2 run agribot_offline_mapping plan_semantic_route.py \
-#   --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-#   --start-position X Y \
-#   --goal place_030 \
-#   --maximum-start-distance 5.0 \
-#   --output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_route_preview.json
-
-# 阿里云百炼+Neo4j语义任务规划：整张图保存在218，模型每次只接收各语义查询的前5个候选地点
-# 第一次模型调用按导航动作解析有序中文语义查询，Neo4j用中文全文和向量混合检索
-# 第二次模型调用从每个中文查询的候选中选择place节点，全流程不再翻译成英文
-# 最终结果逐项校验查询顺序和候选白名单；Dijkstra仍只在本地搜索可行驶地点关系
-# 该命令只生成任务计划和路线预览，不启动Nav2、不创建底盘节点，不会让车辆运动
-# 两类密码都只从环境变量读取；不要把百炼API Key或Neo4j密码写进2.txt或命令参数
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-source /home/cgz/.config/agribot/neo4j.env
-read -rsp "请输入阿里云百炼API Key: " DASHSCOPE_API_KEY; echo
-export DASHSCOPE_API_KEY
-ros2 run agribot_offline_mapping plan_semantic_task_bailian.py \
-  --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-  --map-id map_lio_sam_0811 \
-  --model qwen3.7-flash \
-  --instruction "先巡检白色建筑物，再去高层建筑和绿篱附近，但不要经过有蓝色自行车和摩托车的地点" \
-  --task-id outdoor_semantic_inspection_001 \
-  --start-position 0.70 0.80 \
-  --avoidance-radius 2.0 \
-  --intent-output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_bailian_intent.json \
-  --context-output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_neo4j_candidates.json \
-  --task-plan-output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_bailian_task_plan.json \
-  --route-output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_bailian_route_preview.json
-unset DASHSCOPE_API_KEY
-
-# 百炼输出会经过地图哈希、逐查询候选白名单、访问顺序和字段白名单校验；整张图不会进入提示词
-# 速度、转角、坐标、landmark节点或底盘命令都会被拒绝；Neo4j不可用或图哈希过期时直接拒绝规划
-# “不要经过”会转换为禁止节点，本地规划器硬性封锁其周围2米节点和连接；无绕行路线时直接拒绝
-# RViz中的红色半透明圆区表示禁止区域；真车执行前仍必须同步配置Nav2 Keepout Filter
-# 正式运行时把--start-position后的数值替换为当前map坐标；距离最近语义地点超过5米会拒绝规划
-# 查看百炼生成的路线时，将下方route_plan参数改为map_lio_sam_0811_bailian_route_preview.json
 
 # 统一验证语义导航和Smac阿克曼规划：只启动二维地图、中文拓扑、Smac和RViz
 # 青色线和红色地点来自二维地图中心线，绿色线是Smac按真机几何约束生成的路径

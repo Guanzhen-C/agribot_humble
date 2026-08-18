@@ -3,7 +3,9 @@
 """Import one immutable Agribot semantic navigation graph into Neo4j."""
 
 import argparse
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
 
@@ -19,7 +21,74 @@ from semantic_graph_neo4j import (
 )
 
 
-DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_OLLAMA_BASE_URL = "http://172.18.80.26:11434"
+
+
+def landmark_embedding_text(item):
+    return "{}；类别：{}".format(
+        str(item.get("caption", "object")),
+        str(item.get("category", "unknown")),
+    )
+
+
+def reusable_embedding(item, model, dimensions):
+    embedding = item.get("semantic_embedding")
+    if not isinstance(embedding, dict):
+        return None
+    text = landmark_embedding_text(item)
+    expected_digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    vector = embedding.get("vector")
+    if (
+        embedding.get("provider") != "ollama_local"
+        or embedding.get("model") != model
+        or embedding.get("dimensions") != dimensions
+        or embedding.get("text_sha256") != expected_digest
+        or not isinstance(vector, list)
+        or len(vector) != dimensions
+        or any(
+            not isinstance(value, (int, float)) or not math.isfinite(value)
+            for value in vector
+        )
+    ):
+        return None
+    normalized = [float(value) for value in vector]
+    norm = math.sqrt(sum(value * value for value in normalized))
+    if not 0.99 <= norm <= 1.01:
+        return None
+    return normalized
+
+
+def resolve_embeddings(
+    landmarks,
+    base_url,
+    model,
+    dimensions,
+    batch_size,
+):
+    embeddings = [None] * len(landmarks)
+    missing_indices = []
+    missing_texts = []
+    for index, item in enumerate(landmarks):
+        vector = reusable_embedding(item, model, dimensions)
+        if vector is None:
+            missing_indices.append(index)
+            missing_texts.append(landmark_embedding_text(item))
+        else:
+            embeddings[index] = vector
+    generated = []
+    if missing_texts:
+        generated = embed_in_batches(
+            missing_texts,
+            base_url,
+            model,
+            dimensions,
+            batch_size,
+        )
+        for index, vector in zip(missing_indices, generated):
+            embeddings[index] = vector
+    if any(vector is None for vector in embeddings):
+        raise Neo4jGraphError("failed to resolve every landmark embedding")
+    return embeddings, len(landmarks) - len(missing_indices), len(generated)
 
 
 def parse_args():
@@ -39,7 +108,7 @@ def parse_args():
     parser.add_argument("--neo4j-timeout", type=float, default=30.0)
     parser.add_argument(
         "--embedding-base-url",
-        default=os.environ.get("DASHSCOPE_BASE_URL", DEFAULT_BAILIAN_BASE_URL),
+        default=os.environ.get("AGRIBOT_OLLAMA_URL", DEFAULT_OLLAMA_BASE_URL),
     )
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument(
@@ -62,25 +131,20 @@ def main():
     landmarks = graph_document["landmarks"]
     embeddings = None
     if not arguments.skip_embeddings:
-        embedding_texts = [
-            "{}；类别：{}".format(
-                str(item.get("caption", "object")),
-                str(item.get("category", "unknown")),
-            )
-            for item in landmarks
-        ]
-        print(
-            "Embedding {} landmarks with {}...".format(
-                len(embedding_texts), arguments.embedding_model
-            )
-        )
-        embeddings = embed_in_batches(
-            embedding_texts,
-            os.environ.get("DASHSCOPE_API_KEY", ""),
+        embeddings, reused_count, generated_count = resolve_embeddings(
+            landmarks,
             arguments.embedding_base_url,
             arguments.embedding_model,
             arguments.embedding_dimensions,
             arguments.embedding_batch_size,
+        )
+        print(
+            "Resolved {} landmark embeddings with {}: {} reused, {} generated.".format(
+                len(landmarks),
+                arguments.embedding_model,
+                reused_count,
+                generated_count,
+            )
         )
 
     client = Neo4jHttpClient(

@@ -1,0 +1,23 @@
+[Unit]
+Description=Agribot phone semantic planning service
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=dcliu
+Group=dcliu
+EnvironmentFile=/data/agribot/semantic_service/semantic.env
+ExecStart=/usr/bin/python3 /data/agribot/semantic_service/semantic_planner_server.py --config /data/agribot/semantic_service/config.json
+WorkingDirectory=/data/agribot/semantic_service
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/data/agribot/semantic_tasks
+
+[Install]
+WantedBy=multi-user.target

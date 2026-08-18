@@ -54,6 +54,25 @@ const mockState = {
   chassis: { linear_velocity: 0.12, angular_velocity: 0.01, control_mode: 1, base_state: 0, fault_code: 0, battery_voltage: 25.4 },
   command: { linear: 0.2, angular: 0.02 },
   navigation: { kind: "route", status: "executing", feedback: { distance_remaining: 7.24, number_of_poses_remaining: 3 }, goal: null, route: [] },
+  semantic: {
+    available: true,
+    map_id: "map_lio_sam_0811",
+    status: "ready",
+    instruction: "去白色建筑入口",
+    route: [
+      { x: -2.4, y: 0.3, yaw: 0.1, place_id: "place_000" },
+      { x: 0.0, y: 0.8, yaw: 0.2, place_id: "place_001" },
+      { x: 3.5, y: 1.5, yaw: 0.3, place_id: "place_002" },
+    ],
+    destinations: [{ place_id: "place_002", name: "道路地点002", semantic_summary: ["白色建筑入口"] }],
+    avoid_node_ids: [],
+    execution_allowed: true,
+    statistics: { route_navigation_places: 3, drivable_route_length_m: 8.4 },
+    provider: "ollama_local",
+    model: "qwen3.8:27b",
+    graph_sha256: "e".repeat(64),
+    error: "",
+  },
   active_runtime: { profile_id: "ackermann_outdoor_0811", map_id: "map_lio_sam_0811", motion: true },
   active_collection: null,
   active_processing: null,
@@ -82,8 +101,17 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
     const request = route.request();
     const url = new URL(request.url());
     if (request.method() === "POST") {
-      onPost({ path: url.pathname, body: request.postDataJSON() });
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      const body = request.postDataJSON();
+      onPost({ path: url.hostname === "172.18.80.26" ? `server:${url.pathname}` : url.pathname, body });
+      if (url.hostname === "172.18.80.26" && url.pathname === "/api/v1/semantic/plan") {
+        await route.fulfill({
+          contentType: "application/json",
+          headers: { "Access-Control-Allow-Origin": "*" },
+          body: JSON.stringify({ request_id: "phone_test", semantic: { ...mockState.semantic, instruction: body.instruction } }),
+        });
+      } else {
+        await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      }
       return;
     }
     if (url.pathname === "/api/v1/events") {
@@ -100,7 +128,11 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
       return;
     }
     if (url.pathname === "/api/v1/maps") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ maps: [{ id: "map_lio_sam_0811", resolution: 0.1, modified_at: "2026-08-15T10:00:00", has_3d: true, has_georeference: true, has_manifest: true }] }) });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ maps: [{ id: "map_lio_sam_0811", resolution: 0.1, modified_at: "2026-08-15T10:00:00", has_3d: true, has_georeference: true, has_manifest: true, has_semantic: true }] }) });
+      return;
+    }
+    if (url.pathname === "/api/v1/semantic/config") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ service_url: "http://172.18.80.26:8090", map_ids: ["map_lio_sam_0811"], provider: "ollama_local" }) });
       return;
     }
     if (url.pathname === "/api/v1/bags") {
@@ -219,6 +251,58 @@ test("collection always records the camera and exposes an explicit save action",
   await recordingPage.goto("/");
   await recordingPage.getByRole("button", { name: "采集" }).click();
   await expect(recordingPage.getByRole("button", { name: "停止采集并保存" })).toBeVisible();
+});
+
+
+test("semantic navigation coexists with the unchanged manual planner", async ({ page }) => {
+  const posts = [];
+  const idleState = {
+    ...mockState,
+    navigation: { kind: null, status: "idle", feedback: {}, goal: null, route: [] },
+  };
+  await mockApi(page, { state: idleState, onPost: (request) => posts.push(request) });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "手动规划" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "经停点" })).toBeVisible();
+  await page.getByRole("button", { name: "语义导航" }).click();
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toHaveValue("去白色建筑入口");
+  await expect(page.getByText("白色建筑入口", { exact: true })).toBeVisible();
+  await page.screenshot({ path: "/tmp/agribot-semantic-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/agribot-semantic-phone.png", fullPage: true });
+  await page.getByRole("button", { name: "执行语义路线" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toEqual({ path: "/api/v1/semantic/execute", body: {} });
+  await page.getByRole("button", { name: "手动规划" }).click();
+  await expect(page.getByRole("button", { name: "目标", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "经停点" })).toBeVisible();
+});
+
+test("phone requests the 172 model service then submits the validated route to RDK", async ({ page }) => {
+  const posts = [];
+  const idleState = {
+    ...mockState,
+    navigation: { kind: null, status: "idle", feedback: {}, goal: null, route: [] },
+    semantic: { ...mockState.semantic, status: "idle", instruction: "", route: [], destinations: [] },
+  };
+  await mockApi(page, { state: idleState, onPost: (request) => posts.push(request) });
+  await page.goto("/");
+  await page.getByRole("button", { name: "语义导航" }).click();
+  await page.getByRole("textbox", { name: "任务描述" }).fill("先去白色建筑，再到北门");
+  await page.getByRole("button", { name: "生成语义路线" }).click();
+  await expect.poll(() => posts.length).toBe(2);
+  expect(posts[0]).toEqual({
+    path: "server:/api/v1/semantic/plan",
+    body: {
+      map_id: "map_lio_sam_0811",
+      instruction: "先去白色建筑，再到北门",
+      start_position: { x: -2.4, y: 0.3 },
+    },
+  });
+  expect(posts[1].path).toBe("/api/v1/semantic/route");
+  expect(posts[1].body.request_id).toBe("phone_test");
+  expect(posts[1].body.semantic.provider).toBe("ollama_local");
+  await expect(page.getByText("172服务器已生成路线，请检查后执行")).toBeVisible();
 });
 
 

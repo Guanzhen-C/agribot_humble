@@ -209,32 +209,51 @@ places at equal arc-length intervals. Each `drivable` connection stores its
 smooth centerline geometry and raster clearance. The production graph has no
 trajectory source field or recorded vehicle footprint.
 
-`localize_semantic_landmarks_zh.py` converts each unique stable OpenGraph
-caption/category pair to concise Chinese and keeps a digest-bound, resumable
-translation cache. Re-running it only translates newly observed descriptions.
-The map graph uses Chinese `name`, `caption`, `category` and
-`semantic_summary` fields while retaining the original English observation in
-explicit audit fields. Every landmark is associated with exactly one nearest
-uniformly sampled place. Landmark associations remain `executable: false` and
-never become vehicle edges.
+`describe_opengraph_instances_ollama.py` is the production semantic stage. It
+projects every final OpenGraph 3D instance back into its source images, selects
+up to two high-overlap mask crops and asks the local `qwen3.8:27b` model for an auditable
+Chinese caption, category, visible evidence, static flag and drivable-surface
+flag. Every OpenGraph object remains in the output. Only a clear, static,
+non-drivable object above the confidence threshold becomes a landmark. A local
+safety policy always rejects people, animals and movable vehicle categories,
+even if the model incorrectly calls a parked vehicle static.
 
-The current outdoor graph uses a 1.0 m centerline clearance contract, about
-10 m place spacing, 42 places and 244 Chinese landmarks. Dijkstra searches only
-the closed place graph. Smac and Nav2 still independently apply the real
-Ackermann footprint and minimum turning radius before execution.
+Each promoted landmark is embedded once with local `qwen3-embedding:8b`
+(4096 dimensions). The normalized vector and its source-text digest are stored
+inside the semantic metadata and copied into the navigation graph. Neo4j import
+therefore reuses the vector and does not issue a second embedding request. The
+original OpenGraph caption/category and all selected source views remain as
+audit fields; there is no separate English-to-Chinese translation stage.
+
+The verified outdoor result contains 834 OpenGraph objects, 434 promoted
+instance landmarks before geometric filtering, 42 uniformly spaced places,
+173 route-adjacent landmarks and 42 closed drivable edges. Its centerline
+clearance contract is 1.0 m and every edge has complete road-semantic support.
+The verified indoor result contains 212 objects, 95 promoted instance landmarks,
+9 places, 19 route-adjacent landmarks and 8 drivable edges. Every landmark is
+associated with exactly one nearest place; landmark associations remain
+`executable: false` and never become vehicle edges. Dijkstra searches only the
+place graph. Smac and Nav2 still independently apply the real Ackermann
+footprint and minimum turning radius before execution.
 
 Example map-derived construction sequence:
 
 ```bash
-ros2 run agribot_offline_mapping localize_semantic_landmarks_zh.py \
-  --semantic-metadata /path/to/semantic_instances.json \
-  --output /path/to/landmarks_zh.json
+ros2 run agribot_offline_mapping describe_opengraph_instances_ollama.py \
+  --opengraph-pickle /path/to/full_pcd.pkl.gz \
+  --semantic-metadata /path/to/raw/semantic_instances.json \
+  --dataset-root /path/to/aligned/opengraph_dataset/00 \
+  --caption-directory /path/to/opengraph/caption \
+  --work-directory /path/to/semantic_enrichment \
+  --output /path/to/semantic_instances_ollama_zh.json \
+  --cache /path/to/ollama_instance_semantic.sqlite3 \
+  --base-url http://172.18.80.26:11434 \
+  --stride 10 --maximum-views 2 --batch-size 4
 
 ros2 run agribot_offline_mapping build_map_semantic_navigation_graph.py \
   --map-yaml /path/to/map.yaml \
   --road-boundary-map-yaml /path/to/road_edges.yaml \
-  --semantic-metadata /path/to/semantic_instances.json \
-  --landmark-localization /path/to/landmarks_zh.json \
+  --semantic-metadata /path/to/semantic_instances_ollama_zh.json \
   --minimum-centerline-clearance 1.0 \
   --output /path/to/navigation_graph.json
 ```
@@ -304,16 +323,16 @@ speed, steering, coordinates or direct commands are rejected, as are stale
 graph hashes, unknown nodes, duplicate identifiers and a node appearing in
 both lists. `plan_semantic_route.py --task-plan FILE` consumes this contract.
 
-## Alibaba Cloud Bailian semantic task planning
+## Local Ollama semantic task planning
 
 The live planner does not send the complete semantic graph to the language
-model. The graph is stored in a dedicated Neo4j 5.26 instance on
-`192.168.100.218` (HTTP `7476`, Bolt `7689`). Places and landmarks are isolated
-by `map_id`; each landmark has one `NEAREST_PLACE` edge, while `DRIVABLE` edges
-join executable places. `build_semantic_model_context.py` remains an offline
-audit/export utility only.
+model. Production uses two Neo4j 5.26 containers on `172.18.80.26`: the outdoor
+graph uses HTTP `7476`/Bolt `7689`, and the indoor graph uses HTTP `7478`/Bolt
+`7691`. Every container holds one map only. Each landmark has one
+`NEAREST_PLACE` edge, while `DRIVABLE` edges join executable places.
+`build_semantic_model_context.py` remains an offline audit/export utility only.
 
-`plan_semantic_task_bailian.py` uses two bounded model calls:
+`plan_semantic_task_ollama.py` uses two bounded local-model calls:
 
 1. Parse the user instruction into ordered Chinese destination search phrases
    and Chinese avoidance phrases without exposing any map node or translating
@@ -329,62 +348,36 @@ matches and all extra fields. Deterministic Dijkstra routing remains local. The
 implementation uses Python's standard HTTP library and adds no Neo4j or OpenAI
 SDK dependency.
 
-The default model is `qwen3.7-flash` and the default mainland China endpoint is
-`https://dashscope.aliyuncs.com/compatible-mode/v1`. Set
-`DASHSCOPE_BASE_URL` only when the API key belongs to another Bailian workspace
-or endpoint. The API key is accepted only through `DASHSCOPE_API_KEY`; it is
-never accepted on the command line or written to an output artifact.
+The production models are `qwen3.8:27b` and `qwen3-embedding:8b`, hosted by
+Ollama on `172.18.80.26`. No cloud API key is used. The phone reaches only the
+bounded semantic HTTP service on port `8090`; Ollama and Neo4j remain private
+to the server.
 
 Import or refresh a graph after generating a new navigation-graph JSON. The
-Neo4j credentials are read only from environment variables; query and landmark
-embeddings use `text-embedding-v4` by default. Both full-text and vector
-retrieval operate on the Chinese caption and category fields.
+Neo4j credentials are read only from environment variables. Both full-text and
+vector retrieval operate on the Chinese caption and category fields.
 
 ```bash
 source ~/.config/agribot/neo4j.env
-read -rsp "Bailian API key: " DASHSCOPE_API_KEY; echo
-export DASHSCOPE_API_KEY
 
 ros2 run agribot_offline_mapping import_semantic_graph_neo4j.py \
   --graph /path/to/navigation_graph.json \
   --map-id map_lio_sam_0811
 ```
 
-Additional Chinese landmarks can be added later without rebuilding or deleting
-the place topology. The incremental file is deliberately small:
-
-```json
-{
-  "schema_version": 1,
-  "language": "zh-CN",
-  "landmarks": [
-    {
-      "id": "landmark_zh_north_gate",
-      "caption": "园区北门",
-      "category": "入口",
-      "position": {"x": 12.3, "y": 45.6, "z": 1.2}
-    }
-  ]
-}
-```
-
-`upsert_semantic_landmarks_neo4j.py` computes the nearest existing place,
-updates only the named landmark with `MERGE`, replaces its single
-`NEAREST_PLACE` relationship, and leaves all other nodes and edges unchanged:
+The importer reports how many vectors were reused and generated. A production
+schema-v2 semantic map should report all vectors reused and zero generated. A
+missing or digest-mismatched vector is regenerated by the local embedding
+model, and a dimension change recreates the Neo4j vector index.
 
 ```bash
-ros2 run agribot_offline_mapping upsert_semantic_landmarks_neo4j.py \
+ros2 run agribot_offline_mapping plan_semantic_task_ollama.py \
   --graph /path/to/navigation_graph.json \
   --map-id map_lio_sam_0811 \
-  --landmarks /path/to/new_chinese_landmarks.json \
-  --resolved-output /path/to/new_chinese_landmarks_resolved.json
-```
-
-```bash
-ros2 run agribot_offline_mapping plan_semantic_task_bailian.py \
-  --graph /path/to/navigation_graph.json \
-  --map-id map_lio_sam_0811 \
-  --model qwen3.7-flash \
+  --model qwen3.8:27b \
+  --base-url http://172.18.80.26:11434 \
+  --embedding-model qwen3-embedding:8b \
+  --embedding-dimensions 4096 \
   --instruction "先巡检园区北门，再去白色建筑附近" \
   --task-id outdoor_inspection_001 \
   --start-position 0.70 0.80 \
@@ -394,10 +387,9 @@ ros2 run agribot_offline_mapping plan_semantic_task_bailian.py \
   --task-plan-output /path/to/validated_task_plan.json \
   --route-output /path/to/route_preview.json
 
-unset DASHSCOPE_API_KEY
 ```
 
-Both Bailian requests use JSON mode with thinking disabled and intentionally do
+Both local requests use JSON mode with thinking disabled and intentionally do
 not set `max_tokens`, avoiding a truncated JSON document. Captions returned by
 Neo4j are treated as untrusted sensor observations, not instructions. The model
 cannot select the start, invent coordinates or authorize motion. A returned

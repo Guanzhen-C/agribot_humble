@@ -33,7 +33,9 @@ def generate_launch_description():
                 },
                 parameters=[
                     LaunchConfiguration("params_file"),
-                    {"runtime_profiles": LaunchConfiguration("runtime_profiles")},
+                    {
+                        "runtime_profiles": LaunchConfiguration("runtime_profiles"),
+                    },
                 ],
             ),
         ]

@@ -57,16 +57,17 @@ install(TARGETS
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS
+  scripts/ollama_semantic_client.py
   scripts/build_semantic_model_context.py
   scripts/build_map_semantic_navigation_graph.py
   scripts/build_semantic_navigation_graph.py
+  scripts/describe_opengraph_instances_ollama.py
   scripts/export_opengraph_dataset.py
   scripts/finalize_lio_sam_map.py
   scripts/import_semantic_graph_neo4j.py
   scripts/mapping_result_trajectory_publisher.py
-  scripts/localize_semantic_landmarks_zh.py
   scripts/plan_semantic_route.py
-  scripts/plan_semantic_task_bailian.py
+  scripts/plan_semantic_task_ollama.py
   scripts/publish_opengraph_semantic_map.py
   scripts/publish_semantic_navigation_graph.py
   scripts/publish_semantic_route.py
@@ -75,10 +76,11 @@ install(PROGRAMS
   scripts/run_localization_comparison.py
   scripts/run_rtk_mapping_pipeline.py
   scripts/semantic_graph_neo4j.py
+  scripts/semantic_planner_server.py
   scripts/upsert_semantic_landmarks_neo4j.py
   DESTINATION lib/${PROJECT_NAME}
 )
-install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config deploy launch rviz DESTINATION share/${PROJECT_NAME})
 install(FILES third_party.repos README.md DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 
@@ -113,6 +115,10 @@ if(BUILD_TESTING)
     test/test_semantic_navigation_graph.py
   )
   ament_add_pytest_test(
+    test_ollama_instance_semantics
+    test/test_ollama_instance_semantics.py
+  )
+  ament_add_pytest_test(
     test_map_semantic_navigation_graph
     test/test_map_semantic_navigation_graph.py
   )
@@ -129,16 +135,20 @@ if(BUILD_TESTING)
     test/test_semantic_graph_neo4j.py
   )
   ament_add_pytest_test(
-    test_chinese_semantic_pipeline
-    test/test_chinese_semantic_pipeline.py
+    test_semantic_graph_embedding_reuse
+    test/test_semantic_graph_embedding_reuse.py
   )
   ament_add_pytest_test(
     test_semantic_route_planner
     test/test_semantic_route_planner.py
   )
   ament_add_pytest_test(
-    test_semantic_task_bailian
-    test/test_semantic_task_bailian.py
+    test_semantic_task_ollama
+    test/test_semantic_task_ollama.py
+  )
+  ament_add_pytest_test(
+    test_semantic_planner_server
+    test/test_semantic_planner_server.py
   )
   ament_add_pytest_test(
     test_semantic_smac_planner_validation

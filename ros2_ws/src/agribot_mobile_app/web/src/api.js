@@ -25,6 +25,22 @@ export async function postJson(path, body = {}) {
   );
 }
 
+export async function planSemanticTask(body) {
+  if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK，无法提交语义路线");
+  const config = await getJson("/api/v1/semantic/config");
+  const serviceUrl = String(config.service_url || "").replace(/\/$/, "");
+  if (!/^https?:\/\/[^/]+(?::\d+)?$/.test(serviceUrl)) {
+    throw new Error("语义规划服务器地址无效");
+  }
+  const response = await fetch(`${serviceUrl}/api/v1/semantic/plan`, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return responseJson(response);
+}
+
 export function subscribeState(onState, onConnection) {
   if (BUNDLED_OFFLINE_UI) {
     onConnection(false);

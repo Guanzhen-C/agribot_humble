@@ -356,6 +356,8 @@ def snap_path_to_safe_space(path, occupancy_map, corridor, arguments):
 
 
 def load_localizations(path, semantic_metadata):
+    if path is None:
+        return None
     document = json.loads(Path(path).read_text(encoding="utf-8"))
     if document.get("schema_version") != 1:
         raise MapTopologyError("unsupported Chinese localization schema")
@@ -378,6 +380,69 @@ def load_localizations(path, semantic_metadata):
             raise MapTopologyError("Chinese localization contains a conflicting key")
         lookup[key] = (caption, category)
     return lookup
+
+
+def uses_embedded_chinese_semantics(document):
+    return (
+        int(document.get("schema_version", 0)) >= 2
+        and document.get("language") == "zh-CN"
+    )
+
+
+def validated_semantic_embedding(item):
+    embedding = item.get("semantic_embedding")
+    if embedding is None:
+        return None
+    if not isinstance(embedding, dict):
+        raise MapTopologyError("semantic embedding must be an object")
+    model = str(embedding.get("model", "")).strip()
+    provider = str(embedding.get("provider", "")).strip()
+    dimensions = embedding.get("dimensions")
+    vector = embedding.get("vector")
+    if (
+        provider != "ollama_local"
+        or not model
+        or not isinstance(dimensions, int)
+        or dimensions < 64
+        or not isinstance(vector, list)
+        or len(vector) != dimensions
+        or any(
+            not isinstance(value, (int, float)) or not math.isfinite(value)
+            for value in vector
+        )
+    ):
+        raise MapTopologyError("semantic embedding is invalid")
+    norm = math.sqrt(sum(float(value) ** 2 for value in vector))
+    if not 0.99 <= norm <= 1.01:
+        raise MapTopologyError("semantic embedding must be normalized")
+    return {
+        "provider": provider,
+        "model": model,
+        "dimensions": dimensions,
+        "text_sha256": str(embedding.get("text_sha256", "")),
+        "vector": [float(value) for value in vector],
+    }
+
+
+def direct_landmark_semantics(item):
+    if (
+        item.get("landmark_usable") is not True
+        or item.get("is_static") is not True
+        or item.get("is_drivable_surface") is True
+    ):
+        return None
+    caption = str(item.get("caption_zh", item.get("caption", ""))).strip()
+    category = str(item.get("category_zh", "")).strip()
+    confidence = item.get("semantic_confidence")
+    if (
+        not contains_chinese(caption)
+        or not contains_chinese(category)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not 0.0 <= float(confidence) <= 1.0
+    ):
+        raise MapTopologyError("promoted landmark has invalid Chinese semantics")
+    return caption, category, float(confidence)
 
 
 def semantic_radius(item):
@@ -417,14 +482,28 @@ def build_graph(arguments):
     semantic_objects = semantic_document.get("objects")
     if not isinstance(semantic_objects, list):
         raise MapTopologyError("semantic metadata must contain an objects list")
+    direct_semantics = uses_embedded_chinese_semantics(semantic_document)
     localization = load_localizations(
-        arguments.landmark_localization, arguments.semantic_metadata
+        getattr(arguments, "landmark_localization", None),
+        arguments.semantic_metadata,
     )
+    if direct_semantics and localization is not None:
+        raise MapTopologyError(
+            "local-model semantics must not be translated a second time"
+        )
+    if not direct_semantics and localization is None:
+        raise MapTopologyError(
+            "legacy semantic metadata requires --landmark-localization"
+        )
     road_tags = set(arguments.drivable_semantic_tags)
     road_objects = [
         item
         for item in semantic_objects
-        if str(item.get("legacy_semantickitti_tag", "")) in road_tags
+        if (
+            item.get("is_drivable_surface") is True
+            if direct_semantics
+            else str(item.get("legacy_semantickitti_tag", "")) in road_tags
+        )
     ]
 
     places = []
@@ -463,9 +542,16 @@ def build_graph(arguments):
     landmarks = []
     for item in semantic_objects:
         source_category = str(item.get("legacy_semantickitti_tag", "unknown"))
-        if source_category in road_tags:
+        if (
+            item.get("is_drivable_surface") is True
+            if direct_semantics
+            else source_category in road_tags
+        ):
             continue
         if int(item.get("num_detections", 0)) < arguments.minimum_landmark_detections:
+            continue
+        direct_values = direct_landmark_semantics(item) if direct_semantics else None
+        if direct_semantics and direct_values is None:
             continue
         center = np.asarray(item.get("center", []), dtype=np.float64)
         if center.shape != (3,) or not np.isfinite(center).all():
@@ -474,25 +560,31 @@ def build_graph(arguments):
         distance_to_route = float(route_distances.min())
         if distance_to_route > arguments.landmark_attach_radius:
             continue
-        source_caption = str(item.get("caption", "object"))
-        localized = localization.get((source_caption, source_category))
-        if localized is None:
-            raise MapTopologyError(
-                "missing Chinese localization for {!r} / {!r}".format(
-                    source_caption, source_category
+        source_caption = str(item.get("source_caption", item.get("caption", "object")))
+        if direct_semantics:
+            caption, category, semantic_confidence = direct_values
+        else:
+            localized = localization.get((source_caption, source_category))
+            if localized is None:
+                raise MapTopologyError(
+                    "missing Chinese localization for {!r} / {!r}".format(
+                        source_caption, source_category
+                    )
                 )
-            )
+            caption, category = localized
+            semantic_confidence = None
         distances = np.linalg.norm(place_positions - center[:2], axis=1)
         nearest_index = int(np.argmin(distances))
-        landmarks.append(
-            {
+        landmark = {
                 "id": "landmark_{:04d}".format(int(item["id"])),
                 "semantic_object_id": int(item["id"]),
-                "caption": localized[0],
-                "category": localized[1],
+                "caption": caption,
+                "category": category,
                 "language": "zh-CN",
                 "source_caption_en": source_caption,
-                "source_category_en": source_category,
+                "source_category_en": str(
+                    item.get("source_category", source_category)
+                ),
                 "position": {
                     "x": float(center[0]),
                     "y": float(center[1]),
@@ -506,7 +598,19 @@ def build_graph(arguments):
                 "nearest_place": places[nearest_index]["id"],
                 "distance_to_place_m": float(distances[nearest_index]),
             }
-        )
+        if direct_semantics:
+            landmark.update(
+                {
+                    "semantic_confidence": semantic_confidence,
+                    "semantic_source": str(item.get("semantic_source", "")),
+                    "visible_evidence": list(item.get("visible_evidence", [])),
+                    "is_static": True,
+                }
+            )
+            embedding = validated_semantic_embedding(item)
+            if embedding is not None:
+                landmark["semantic_embedding"] = embedding
+        landmarks.append(landmark)
 
     by_place = defaultdict(list)
     for landmark in landmarks:
@@ -595,7 +699,7 @@ def build_graph(arguments):
                 unsafe_connections
             )
         )
-    return {
+    result = {
         "schema_version": 3,
         "frame_id": str(semantic_document.get("frame_id", "map")),
         "language": "zh-CN",
@@ -605,9 +709,6 @@ def build_graph(arguments):
             "road_boundary_map_yaml": str(boundary_map.yaml_path),
             "road_boundary_map_image": str(boundary_map.image_path),
             "semantic_metadata": str(Path(arguments.semantic_metadata).resolve()),
-            "landmark_localization": str(
-                Path(arguments.landmark_localization).resolve()
-            ),
             "topology_source": "two_dimensional_map_road_centerline",
             "sha256": {
                 "map_yaml": file_sha256(occupancy_map.yaml_path),
@@ -615,9 +716,6 @@ def build_graph(arguments):
                 "road_boundary_map_yaml": file_sha256(boundary_map.yaml_path),
                 "road_boundary_map_image": file_sha256(boundary_map.image_path),
                 "semantic_metadata": file_sha256(arguments.semantic_metadata),
-                "landmark_localization": file_sha256(
-                    arguments.landmark_localization
-                ),
             },
         },
         "parameters": {
@@ -630,6 +728,9 @@ def build_graph(arguments):
             "start_position": [float(value) for value in arguments.start_position],
             "start_yaw_deg": arguments.start_yaw_deg,
             "drivable_semantic_tags": sorted(road_tags),
+            "semantic_mode": (
+                "ollama_chinese_instances" if direct_semantics else "legacy_localization"
+            ),
         },
         "statistics": {
             "centerline_length_m": float(centerline_length),
@@ -650,6 +751,13 @@ def build_graph(arguments):
         "places": places,
         "connections": connections,
     }
+    if localization is not None:
+        localization_path = Path(arguments.landmark_localization).resolve()
+        result["source"]["landmark_localization"] = str(localization_path)
+        result["source"]["sha256"]["landmark_localization"] = file_sha256(
+            localization_path
+        )
+    return result
 
 
 def parse_args():
@@ -657,7 +765,7 @@ def parse_args():
     parser.add_argument("--map-yaml", required=True, type=Path)
     parser.add_argument("--road-boundary-map-yaml", required=True, type=Path)
     parser.add_argument("--semantic-metadata", required=True, type=Path)
-    parser.add_argument("--landmark-localization", required=True, type=Path)
+    parser.add_argument("--landmark-localization", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--start-position", nargs=2, type=float, default=[0.0, 0.0])
     parser.add_argument("--start-yaw-deg", type=float, default=90.0)

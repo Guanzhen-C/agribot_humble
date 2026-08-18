@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -188,3 +189,76 @@ def test_map_boundaries_create_smooth_uniform_chinese_topology(tmp_path):
         ]
         assert len(associations) == 1
         assert associations[0]["source"] == expected
+
+
+def test_map_topology_accepts_local_model_instances_without_second_translation(tmp_path):
+    image = np.full((400, 400), 254, dtype=np.uint8)
+    cv2.circle(image, (200, 200), 150, 0, 1)
+    cv2.circle(image, (200, 200), 80, 0, 1)
+    map_yaml = write_map(tmp_path, "map", image)
+    boundary_yaml = write_map(tmp_path, "boundaries", image)
+    semantics = tmp_path / "semantics_zh.json"
+    vector = [1.0] + [0.0] * 63
+    search_text = "白色建筑入口；类别：建筑入口"
+    semantics.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "frame_id": "map",
+                "language": "zh-CN",
+                "objects": [
+                    {
+                        "id": 1,
+                        "caption_zh": "环形道路",
+                        "category_zh": "道路",
+                        "is_drivable_surface": True,
+                        "landmark_usable": False,
+                        "is_static": True,
+                        "semantic_confidence": 0.99,
+                        "num_detections": 50,
+                        "center": [0.0, 0.0, 0.0],
+                        "extent": [40.0, 40.0, 0.1],
+                    },
+                    {
+                        "id": 2,
+                        "caption_zh": "白色建筑入口",
+                        "category_zh": "建筑入口",
+                        "source_caption": "white entrance",
+                        "source_category": "building",
+                        "is_drivable_surface": False,
+                        "landmark_usable": True,
+                        "is_static": True,
+                        "semantic_confidence": 0.93,
+                        "semantic_source": "qwen3.8:27b",
+                        "visible_evidence": ["白色门框"],
+                        "num_detections": 30,
+                        "center": [11.0, 0.0, 1.0],
+                        "extent": [2.0, 2.0, 2.0],
+                        "semantic_embedding": {
+                            "provider": "ollama_local",
+                            "model": "qwen3-embedding:8b",
+                            "dimensions": 64,
+                            "text_sha256": hashlib.sha256(
+                                search_text.encode("utf-8")
+                            ).hexdigest(),
+                            "vector": vector,
+                        },
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    options = arguments(
+        map_yaml, boundary_yaml, semantics, None, tmp_path / "graph.json"
+    )
+
+    graph = MODULE.build_graph(options)
+
+    assert graph["parameters"]["semantic_mode"] == "ollama_chinese_instances"
+    assert graph["statistics"]["road_semantic_objects"] == 1
+    assert graph["statistics"]["landmarks"] == 1
+    assert graph["landmarks"][0]["caption"] == "白色建筑入口"
+    assert graph["landmarks"][0]["semantic_embedding"]["vector"] == vector
+    assert "landmark_localization" not in graph["source"]

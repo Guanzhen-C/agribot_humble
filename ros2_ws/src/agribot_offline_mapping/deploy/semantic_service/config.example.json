@@ -1,0 +1,36 @@
+{
+  "host": "0.0.0.0",
+  "port": 8090,
+  "ollama_url": "http://127.0.0.1:11434",
+  "model": "qwen3.8:27b",
+  "embedding_model": "qwen3-embedding:8b",
+  "embedding_dimensions": 4096,
+  "planning_timeout": 240.0,
+  "work_root": "/data/agribot/semantic_tasks",
+  "planner_script": "/data/agribot/semantic_service/plan_semantic_task_ollama.py",
+  "allowed_origins": ["*"],
+  "maps": {
+    "map_lio_sam_0811": {
+      "label": "室外园区语义图谱",
+      "graph": "/data/agribot/semantic_graphs/map_lio_sam_0811_navigation_graph.json",
+      "neo4j_http_uri": "http://127.0.0.1:7476",
+      "neo4j_user": "neo4j",
+      "neo4j_database": "neo4j",
+      "neo4j_password_env": "AGRIBOT_NEO4J_OUTDOOR_PASSWORD",
+      "retrieval_top_k": 5,
+      "maximum_start_distance": 10.0,
+      "avoidance_radius": 2.0
+    },
+    "map_lio_sam_zoulang_0813_indoor": {
+      "label": "室内走廊语义图谱",
+      "graph": "/data/agribot/semantic_graphs/map_lio_sam_zoulang_0813_indoor_navigation_graph.json",
+      "neo4j_http_uri": "http://127.0.0.1:7478",
+      "neo4j_user": "neo4j",
+      "neo4j_database": "neo4j",
+      "neo4j_password_env": "AGRIBOT_NEO4J_INDOOR_PASSWORD",
+      "retrieval_top_k": 5,
+      "maximum_start_distance": 5.0,
+      "avoidance_radius": 2.0
+    }
+  }
+}

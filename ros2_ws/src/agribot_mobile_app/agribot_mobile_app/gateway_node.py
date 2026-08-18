@@ -137,8 +137,10 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
-            "style-src 'self' 'unsafe-inline'; script-src 'self'",
+            "default-src 'self'; connect-src 'self' {}; img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self'".format(
+                self.gateway.semantic_service_url
+            ),
         )
         self.send_header(
             "Cache-Control",
@@ -187,7 +189,13 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._events()
                 return
             if parsed.path == "/api/v1/maps":
-                self._json(HTTPStatus.OK, {"maps": self.gateway.map_catalog.list()})
+                self._json(HTTPStatus.OK, {"maps": self.gateway.available_maps()})
+                return
+            if parsed.path == "/api/v1/semantic/config":
+                self._json(
+                    HTTPStatus.OK,
+                    self.gateway.semantic_public_config(),
+                )
                 return
             if parsed.path == "/api/v1/bags":
                 self._json(HTTPStatus.OK, {"bags": self.gateway.bag_catalog.list()})
@@ -216,7 +224,11 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             self._static(parsed.path)
         except ApiError as error:
             self._error(error.status, str(error))
-        except (CatalogError, ProfileError, ProcessError) as error:
+        except (
+            CatalogError,
+            ProfileError,
+            ProcessError,
+        ) as error:
             self._error(HTTPStatus.BAD_REQUEST, str(error))
         except BrokenPipeError:
             return
@@ -233,7 +245,11 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.OK, {"ok": True, **(result or {})})
         except ApiError as error:
             self._error(error.status, str(error))
-        except (CatalogError, ProfileError, ProcessError) as error:
+        except (
+            CatalogError,
+            ProfileError,
+            ProcessError,
+        ) as error:
             self._error(HTTPStatus.BAD_REQUEST, str(error))
         except Exception as error:  # pragma: no cover - defensive HTTP boundary
             self.gateway.get_logger().error(f"POST请求处理失败: {error}")
@@ -331,6 +347,23 @@ class MobileGateway(Node):
                     "runtime_profiles", str(share / "config" / "runtime_profiles.yaml")
                 ).value
             )
+        )
+        self.semantic_service_url = str(
+            self.declare_parameter(
+                "semantic_service_url", "http://172.18.80.26:8090"
+            ).value
+        ).rstrip("/")
+        if not self.semantic_service_url.startswith(("http://", "https://")):
+            raise ValueError("semantic_service_url必须是HTTP(S)地址")
+        self.semantic_map_ids = set(
+            str(value)
+            for value in self.declare_parameter(
+                "semantic_map_ids",
+                [
+                    "map_lio_sam_0811",
+                    "map_lio_sam_zoulang_0813_indoor",
+                ],
+            ).value
         )
 
         self.pose_topic = str(
@@ -439,6 +472,19 @@ class MobileGateway(Node):
                 "feedback": {},
                 "goal": None,
                 "route": [],
+            },
+            "semantic": {
+                "available": False,
+                "map_id": None,
+                "status": "idle",
+                "instruction": "",
+                "route": [],
+                "destinations": [],
+                "avoid_node_ids": [],
+                "execution_allowed": False,
+                "statistics": {},
+                "model": "",
+                "error": "",
             },
             "active_runtime": None,
             "active_collection": None,
@@ -694,6 +740,35 @@ class MobileGateway(Node):
             raise ApiError(HTTPStatus.NOT_FOUND, "该地图图层尚未发布")
         return grid
 
+    def available_maps(self) -> list[dict]:
+        maps = self.map_catalog.list()
+        for item in maps:
+            item["has_semantic"] = item["id"] in self.semantic_map_ids
+        return maps
+
+    def semantic_public_config(self) -> dict:
+        return {
+            "service_url": self.semantic_service_url,
+            "map_ids": sorted(self.semantic_map_ids),
+            "request_origin": "phone",
+            "provider": "ollama_local",
+        }
+
+    def _empty_semantic_state(self, map_id: str | None = None) -> dict:
+        return {
+            "available": bool(map_id and map_id in self.semantic_map_ids),
+            "map_id": map_id,
+            "status": "idle",
+            "instruction": "",
+            "route": [],
+            "destinations": [],
+            "avoid_node_ids": [],
+            "execution_allowed": False,
+            "statistics": {},
+            "model": "",
+            "error": "",
+        }
+
     def _grid_metadata(self) -> dict:
         with self._lock:
             return {
@@ -793,6 +868,9 @@ class MobileGateway(Node):
             "/api/v1/navigation/route": self.send_navigation_route,
             "/api/v1/navigation/cancel": self.cancel_navigation,
             "/api/v1/navigation/clear-costmaps": self.clear_costmaps,
+            "/api/v1/semantic/route": self.receive_semantic_route,
+            "/api/v1/semantic/execute": self.execute_semantic_navigation,
+            "/api/v1/semantic/clear": self.clear_semantic_navigation,
             "/api/v1/collection/start": self.start_collection,
             "/api/v1/collection/stop": self.stop_collection,
             "/api/v1/processing/start": self.start_processing,
@@ -840,9 +918,15 @@ class MobileGateway(Node):
     def _assert_navigation_ready(self):
         with self._lock:
             ready = self._state["localization"].get("fusion_ready")
+            navigation_status = self._state["navigation"].get("status")
         if ready is not True:
             raise ApiError(HTTPStatus.CONFLICT, "融合定位尚未就绪，禁止下发导航任务")
-        if self._goal_handle is not None:
+        if self._goal_handle is not None or navigation_status in (
+            "sending",
+            "accepted",
+            "executing",
+            "canceling",
+        ):
             raise ApiError(HTTPStatus.CONFLICT, "已有导航任务正在执行")
 
     def send_navigation_goal(self, body: dict) -> dict:
@@ -868,18 +952,21 @@ class MobileGateway(Node):
         return {"goal": pose}
 
     def send_navigation_route(self, body: dict) -> dict:
-        self._assert_navigation_ready()
         values = body.get("poses")
         if not isinstance(values, list) or not 2 <= len(values) <= MAX_ROUTE_POSES:
             raise ApiError(HTTPStatus.BAD_REQUEST, "连续路线必须包含2至100个位姿")
         route = [pose_document(value) for value in values]
+        return self._send_navigation_route(route, "route")
+
+    def _send_navigation_route(self, route: list[dict], kind: str) -> dict:
+        self._assert_navigation_ready()
         if not self._navigate_through_poses.wait_for_server(timeout_sec=0.2):
             raise ApiError(HTTPStatus.CONFLICT, "NavigateThroughPoses服务器尚未就绪")
         goal = NavigateThroughPoses.Goal()
         goal.poses = [self._stamped_pose(self, pose) for pose in route]
         with self._lock:
             self._state["navigation"] = {
-                "kind": "route",
+                "kind": kind,
                 "status": "sending",
                 "feedback": {},
                 "goal": route[-1],
@@ -891,6 +978,147 @@ class MobileGateway(Node):
         future.add_done_callback(self._goal_response_callback)
         self._touch()
         return {"poses": route}
+
+    def receive_semantic_route(self, body: dict) -> dict:
+        semantic = body.get("semantic")
+        if not isinstance(semantic, dict):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "缺少172服务器返回的语义路线")
+        with self._lock:
+            active_runtime = self._state.get("active_runtime")
+        if not isinstance(active_runtime, dict):
+            raise ApiError(HTTPStatus.CONFLICT, "请先启动一张导航地图")
+        map_id = str(active_runtime.get("map_id", ""))
+        if map_id not in self.semantic_map_ids:
+            raise ApiError(HTTPStatus.CONFLICT, "当前地图没有对应的语义图谱")
+        if semantic.get("map_id") != map_id:
+            raise ApiError(HTTPStatus.CONFLICT, "语义路线与当前运行地图不一致")
+        if semantic.get("provider") != "ollama_local":
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线不是由172本地模型生成")
+        if semantic.get("model") != "qwen3.8:27b":
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线模型版本不受支持")
+        graph_digest = semantic.get("graph_sha256")
+        if (
+            not isinstance(graph_digest, str)
+            or len(graph_digest) != 64
+            or any(value not in "0123456789abcdef" for value in graph_digest)
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义图谱摘要无效")
+        values = semantic.get("route")
+        if not isinstance(values, list) or not 2 <= len(values) <= MAX_ROUTE_POSES:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线必须包含2至100个位姿")
+        route = []
+        for value in values:
+            pose = pose_document(value)
+            pose["place_id"] = str(value.get("place_id", ""))
+            route.append(pose)
+        instruction = semantic.get("instruction")
+        if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 1000:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务描述无效")
+        avoid_node_ids = semantic.get("avoid_node_ids", [])
+        if (
+            not isinstance(avoid_node_ids, list)
+            or len(avoid_node_ids) > 16
+            or any(not isinstance(value, str) or not value for value in avoid_node_ids)
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让节点无效")
+        execution_allowed = semantic.get("execution_allowed")
+        if not isinstance(execution_allowed, bool):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线执行标记无效")
+        if avoid_node_ids and execution_allowed:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "包含避让区的路线不能直接执行")
+        destinations = semantic.get("destinations", [])
+        if not isinstance(destinations, list) or len(destinations) > 16:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地无效")
+        validated_destinations = []
+        for destination in destinations:
+            if not isinstance(destination, dict):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地无效")
+            summary = destination.get("semantic_summary", [])
+            if (
+                not isinstance(summary, list)
+                or any(not isinstance(value, str) for value in summary)
+            ):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地描述无效")
+            validated_destinations.append(
+                {
+                    "place_id": str(destination.get("place_id", "")),
+                    "name": str(destination.get("name", ""))[:100],
+                    "semantic_summary": [value[:100] for value in summary[:5]],
+                }
+            )
+        raw_statistics = semantic.get("statistics", {})
+        if not isinstance(raw_statistics, dict):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线统计无效")
+        raw_place_count = finite_number(
+            raw_statistics.get("route_navigation_places", len(route)),
+            "拓扑点数量",
+        )
+        if not raw_place_count.is_integer() or not 2 <= raw_place_count <= MAX_ROUTE_POSES:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "拓扑点数量无效")
+        route_length = finite_number(
+            raw_statistics.get("drivable_route_length_m", 0.0), "路线长度"
+        )
+        if route_length < 0.0:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "路线长度无效")
+        statistics = {
+            "route_navigation_places": int(raw_place_count),
+            "drivable_route_length_m": route_length,
+        }
+        self._assert_navigation_ready()
+        semantic_state = {
+            "available": True,
+            "map_id": map_id,
+            "status": "ready",
+            "instruction": instruction.strip(),
+            "route": route,
+            "destinations": validated_destinations,
+            "avoid_node_ids": avoid_node_ids,
+            "execution_allowed": execution_allowed,
+            "statistics": statistics,
+            "provider": "ollama_local",
+            "model": "qwen3.8:27b",
+            "graph_sha256": graph_digest,
+            "request_id": str(body.get("request_id", ""))[:64],
+            "error": "",
+        }
+        with self._lock:
+            current_runtime = self._state.get("active_runtime")
+            if not isinstance(current_runtime, dict) or current_runtime.get("map_id") != map_id:
+                raise ApiError(HTTPStatus.CONFLICT, "接收路线期间运行地图已切换")
+            self._state["semantic"] = semantic_state
+        self._touch()
+        return {"semantic": semantic_state}
+
+    def execute_semantic_navigation(self, _body: dict) -> dict:
+        with self._lock:
+            semantic = json.loads(json.dumps(self._state["semantic"]))
+            active_runtime = self._state.get("active_runtime")
+        if semantic.get("status") != "ready" or len(semantic.get("route", [])) < 2:
+            raise ApiError(HTTPStatus.CONFLICT, "请先生成有效的语义路线")
+        if not isinstance(active_runtime, dict) or semantic.get("map_id") != active_runtime.get(
+            "map_id"
+        ):
+            raise ApiError(HTTPStatus.CONFLICT, "语义路线与当前运行地图不一致")
+        if semantic.get("execution_allowed") is not True:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "该任务包含语义避让区，配置Nav2 Keepout Filter前禁止真车执行",
+            )
+        route = [pose_document(value) for value in semantic["route"]]
+        result = self._send_navigation_route(route, "semantic")
+        return {
+            **result,
+            "instruction": semantic["instruction"],
+            "map_id": semantic["map_id"],
+        }
+
+    def clear_semantic_navigation(self, _body: dict) -> dict:
+        with self._lock:
+            active_runtime = self._state.get("active_runtime")
+            map_id = active_runtime.get("map_id") if isinstance(active_runtime, dict) else None
+            self._state["semantic"] = self._empty_semantic_state(map_id)
+        self._touch()
+        return {"map_id": map_id}
 
     def _goal_response_callback(self, future):
         try:
@@ -985,6 +1213,7 @@ class MobileGateway(Node):
             self._state["active_runtime"] = None
             self._state["active_collection"] = None
             self._state["active_processing"] = None
+            self._state["semantic"] = self._empty_semantic_state()
             self._state["navigation"] = {
                 "kind": None,
                 "status": "idle",
@@ -1114,6 +1343,7 @@ class MobileGateway(Node):
                     "map_id": map_id,
                     "motion": motion,
                 }
+                self._state["semantic"] = self._empty_semantic_state(map_id)
         self._touch()
         return {
             "profile_id": profile_id,
@@ -1129,6 +1359,7 @@ class MobileGateway(Node):
             with self._lock:
                 runtime = self._state["active_runtime"]
                 self._state["active_runtime"] = None
+                self._state["semantic"] = self._empty_semantic_state()
         self._touch()
         return {"runtime": runtime}
 

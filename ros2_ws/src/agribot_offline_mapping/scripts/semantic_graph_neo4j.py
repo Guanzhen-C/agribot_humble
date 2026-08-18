@@ -12,9 +12,10 @@ import urllib.parse
 import urllib.request
 
 
-DEFAULT_NEO4J_HTTP_URI = "http://192.168.100.218:7476"
-DEFAULT_EMBEDDING_MODEL = "text-embedding-v4"
-DEFAULT_EMBEDDING_DIMENSIONS = 1024
+DEFAULT_NEO4J_HTTP_URI = "http://172.18.80.26:7476"
+DEFAULT_EMBEDDING_MODEL = "qwen3-embedding:8b"
+DEFAULT_EMBEDDING_DIMENSIONS = 4096
+DEFAULT_OLLAMA_BASE_URL = "http://172.18.80.26:11434"
 VECTOR_INDEX_NAME = "agribot_landmark_embedding"
 FULLTEXT_INDEX_NAME = "agribot_landmark_text"
 SEMANTIC_STOP_WORDS = {
@@ -203,7 +204,6 @@ class Neo4jHttpClient:
 
 def call_embeddings(
     texts,
-    api_key,
     base_url,
     model=DEFAULT_EMBEDDING_MODEL,
     dimensions=DEFAULT_EMBEDDING_DIMENSIONS,
@@ -214,29 +214,24 @@ def call_embeddings(
         raise Neo4jGraphError("embedding input must be a non-empty list")
     if any(not isinstance(text, str) or not text.strip() for text in texts):
         raise Neo4jGraphError("embedding input contains an empty text")
-    if not isinstance(api_key, str) or not api_key.strip():
-        raise Neo4jGraphError(
-            "environment variable DASHSCOPE_API_KEY is not configured"
-        )
     if not isinstance(dimensions, int) or not 64 <= dimensions <= 4096:
         raise Neo4jGraphError("embedding dimensions must be between 64 and 4096")
-    endpoint = validate_http_uri(base_url, require_https=True) + "/embeddings"
+    endpoint = validate_http_uri(base_url) + "/api/embed"
     request = urllib.request.Request(
         endpoint,
         data=json.dumps(
             {
                 "model": model,
                 "input": texts,
-                "dimensions": dimensions,
-                "encoding_format": "float",
+                "truncate": True,
+                "keep_alive": "30m",
             },
             ensure_ascii=False,
         ).encode("utf-8"),
         headers={
-            "Authorization": "Bearer {}".format(api_key.strip()),
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "agribot-semantic-embedding/1",
+            "User-Agent": "agribot-local-semantic-embedding/1",
         },
         method="POST",
     )
@@ -253,18 +248,13 @@ def call_embeddings(
         raise Neo4jGraphError("embedding request failed: {}".format(error)) from error
 
     document = strict_json_loads(payload, "embedding API response")
-    data = document.get("data")
+    data = document.get("embeddings")
     if not isinstance(data, list) or len(data) != len(texts):
         raise Neo4jGraphError("embedding response count does not match input count")
-    vectors = [None] * len(texts)
-    for item in data:
-        if not isinstance(item, dict) or not isinstance(item.get("index"), int):
-            raise Neo4jGraphError("embedding response contains an invalid item")
-        index = item["index"]
-        vector = item.get("embedding")
+    vectors = []
+    for vector in data:
         if (
-            not 0 <= index < len(texts)
-            or not isinstance(vector, list)
+            not isinstance(vector, list)
             or len(vector) != dimensions
             or any(
                 isinstance(value, bool)
@@ -274,15 +264,16 @@ def call_embeddings(
             )
         ):
             raise Neo4jGraphError("embedding response contains an invalid vector")
-        vectors[index] = [float(value) for value in vector]
-    if any(vector is None for vector in vectors):
-        raise Neo4jGraphError("embedding response omitted an input index")
+        normalized = [float(value) for value in vector]
+        norm = math.sqrt(sum(value * value for value in normalized))
+        if norm <= 0.0:
+            raise Neo4jGraphError("embedding response contains a zero vector")
+        vectors.append([value / norm for value in normalized])
     return vectors
 
 
 def embed_in_batches(
     texts,
-    api_key,
     base_url,
     model=DEFAULT_EMBEDDING_MODEL,
     dimensions=DEFAULT_EMBEDDING_DIMENSIONS,
@@ -296,7 +287,6 @@ def embed_in_batches(
         vectors.extend(
             call_embeddings(
                 texts[offset:offset + batch_size],
-                api_key,
                 base_url,
                 model,
                 dimensions,
@@ -307,6 +297,19 @@ def embed_in_batches(
 
 
 def create_schema(client, embedding_dimensions):
+    dimensions = int(embedding_dimensions)
+    existing = client.run(
+        "SHOW INDEXES YIELD name, type, options WHERE name = $name "
+        "RETURN type, options",
+        {"name": VECTOR_INDEX_NAME},
+    )
+    if existing:
+        options = existing[0].get("options")
+        config = options.get("indexConfig") if isinstance(options, dict) else None
+        current = config.get("vector.dimensions") if isinstance(config, dict) else None
+        if int(current or -1) != dimensions:
+            client.run("DROP INDEX {} IF EXISTS".format(VECTOR_INDEX_NAME))
+
     statements = [
         "CREATE CONSTRAINT agribot_map_unique IF NOT EXISTS "
         "FOR (n:AgribotMap) REQUIRE n.id IS UNIQUE",
@@ -319,7 +322,7 @@ def create_schema(client, embedding_dimensions):
         "CREATE VECTOR INDEX {} IF NOT EXISTS FOR (n:AgribotLandmark) "
         "ON (n.embedding) OPTIONS {{indexConfig: {{`vector.dimensions`: {}, "
         "`vector.similarity_function`: 'cosine'}}}}".format(
-            VECTOR_INDEX_NAME, int(embedding_dimensions)
+            VECTOR_INDEX_NAME, dimensions
         ),
     ]
     for statement in statements:

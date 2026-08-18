@@ -7,6 +7,8 @@ mobile_gateway:
     bag_root: /media/cgz/data/agribot_data/bags
     required_collection_mount: ""
     process_log_root: /media/cgz/data/agribot_data/mobile_logs
+    semantic_service_url: http://172.18.80.26:8090
+    semantic_map_ids: [map_lio_sam_0811, map_lio_sam_zoulang_0813_indoor]
     processing_enabled: true
     processing_domain_id: 71
     processing_playback_rate: 0.5

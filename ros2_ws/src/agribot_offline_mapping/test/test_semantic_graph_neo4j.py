@@ -89,28 +89,18 @@ def test_embedding_api_preserves_input_order_and_validates_dimensions():
     def opener(request, timeout):
         captured["url"] = request.full_url
         captured["document"] = json.loads(request.data)
-        captured["authorization"] = request.get_header("Authorization")
-        return Response(
-            {
-                "data": [
-                    {"index": 1, "embedding": vectors[1]},
-                    {"index": 0, "embedding": vectors[0]},
-                ]
-            }
-        )
+        return Response({"embeddings": vectors})
 
     result = MODULE.call_embeddings(
         ["white building", "green hedge"],
-        "api-key",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "http://172.18.80.26:11434",
         dimensions=64,
         opener=opener,
     )
 
-    assert result == vectors
-    assert captured["url"].endswith("/embeddings")
-    assert captured["document"]["dimensions"] == 64
-    assert captured["authorization"] == "Bearer api-key"
+    assert all(abs(sum(value * value for value in vector) - 1.0) < 1e-12 for vector in result)
+    assert captured["url"].endswith("/api/embed")
+    assert captured["document"]["model"] == "qwen3-embedding:8b"
 
 
 class RetrievalClient:

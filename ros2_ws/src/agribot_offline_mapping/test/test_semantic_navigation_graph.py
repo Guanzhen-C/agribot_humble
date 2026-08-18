@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -190,3 +191,134 @@ def test_builds_connected_semantic_route_graph(tmp_path):
         == 1
         for landmark in graph["landmarks"]
     )
+
+
+def test_applies_digest_bound_chinese_landmark_localization(tmp_path):
+    map_yaml = write_map(tmp_path)
+    poses = tmp_path / "poses.txt"
+    semantics = tmp_path / "semantics.json"
+    localization = tmp_path / "landmarks_zh.json"
+    output = tmp_path / "graph.json"
+    write_poses(poses, square_trajectory())
+    write_semantics(semantics)
+    localization.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "semantic_metadata_sha256": MODULE.file_sha256(semantics),
+                "translations": [
+                    {
+                        "source_caption": "a white building",
+                        "source_category": "building",
+                        "caption_zh": "白色建筑物",
+                        "category_zh": "建筑",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    options = arguments(map_yaml, semantics, poses, output)
+    options.landmark_localization = localization
+
+    graph = MODULE.build_navigation_graph(options)
+
+    assert graph["language"] == "zh-CN"
+    assert graph["landmarks"][0]["caption"] == "白色建筑物"
+    assert graph["landmarks"][0]["category"] == "建筑"
+    assert graph["landmarks"][0]["source_caption_en"] == "a white building"
+    assert graph["source"]["sha256"]["landmark_localization"] == MODULE.file_sha256(
+        localization
+    )
+
+
+def test_uses_audited_ollama_chinese_instances_and_preserves_embedding(tmp_path):
+    map_yaml = write_map(tmp_path)
+    poses = tmp_path / "poses.txt"
+    semantics = tmp_path / "semantics_zh.json"
+    output = tmp_path / "graph.json"
+    write_poses(poses, square_trajectory())
+    search_text = "带蓝色门牌的固定入口；类别：建筑入口"
+    vector = [1.0] + [0.0] * 63
+    semantics.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "frame_id": "map",
+                "language": "zh-CN",
+                "objects": [
+                    {
+                        "id": 1,
+                        "caption": "铺装道路",
+                        "caption_zh": "铺装道路",
+                        "category_zh": "道路",
+                        "is_drivable_surface": True,
+                        "landmark_usable": False,
+                        "is_static": True,
+                        "semantic_confidence": 0.99,
+                        "num_detections": 50,
+                        "center": [0.0, 0.0, 0.0],
+                        "extent": [20.0, 20.0, 0.1],
+                    },
+                    {
+                        "id": 2,
+                        "caption": "带蓝色门牌的固定入口",
+                        "caption_zh": "带蓝色门牌的固定入口",
+                        "category_zh": "建筑入口",
+                        "source_caption": "a fixed entrance with a blue sign",
+                        "source_category": "building",
+                        "landmark_usable": True,
+                        "is_static": True,
+                        "is_drivable_surface": False,
+                        "semantic_confidence": 0.94,
+                        "semantic_source": "qwen3.8:27b",
+                        "visible_evidence": ["蓝色门牌", "固定门框"],
+                        "num_detections": 20,
+                        "caption_consensus_ratio": 0.8,
+                        "center": [4.0, 3.5, 1.0],
+                        "extent": [2.0, 2.0, 3.0],
+                        "semantic_embedding": {
+                            "provider": "ollama_local",
+                            "model": "qwen3-embedding:8b",
+                            "dimensions": 64,
+                            "text_sha256": hashlib.sha256(
+                                search_text.encode("utf-8")
+                            ).hexdigest(),
+                            "vector": vector,
+                        },
+                    },
+                    {
+                        "id": 3,
+                        "caption": "行人",
+                        "caption_zh": "行人",
+                        "category_zh": "人员",
+                        "landmark_usable": False,
+                        "is_static": False,
+                        "is_drivable_surface": False,
+                        "semantic_confidence": 0.98,
+                        "num_detections": 30,
+                        "center": [-4.0, 3.5, 1.0],
+                        "extent": [1.0, 1.0, 2.0],
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    graph = MODULE.build_navigation_graph(
+        arguments(map_yaml, semantics, poses, output)
+    )
+
+    assert graph["language"] == "zh-CN"
+    assert graph["parameters"]["semantic_mode"] == "ollama_chinese_instances"
+    assert graph["statistics"]["landmarks"] == 1
+    assert graph["statistics"]["road_semantic_objects"] == 1
+    landmark = graph["landmarks"][0]
+    assert landmark["caption"] == "带蓝色门牌的固定入口"
+    assert landmark["category"] == "建筑入口"
+    assert landmark["semantic_confidence"] == 0.94
+    assert landmark["semantic_embedding"]["vector"] == vector
+    assert "landmark_localization" not in graph["source"]

@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from collections import defaultdict, deque
 from pathlib import Path
 
@@ -252,7 +253,9 @@ def node_tangent(sample_index, sample_to_node, node_positions):
     while following < len(sample_to_node) and int(sample_to_node[following]) == current:
         following += 1
     if previous >= 0 and following < len(sample_to_node):
-        vector = node_positions[int(sample_to_node[following])] - node_positions[int(sample_to_node[previous])]
+        vector = node_positions[int(sample_to_node[following])] - node_positions[
+            int(sample_to_node[previous])
+        ]
     elif following < len(sample_to_node):
         vector = node_positions[int(sample_to_node[following])] - node_positions[current]
     elif previous >= 0:
@@ -375,6 +378,105 @@ def load_semantics(path):
     return document, objects
 
 
+def contains_chinese(value):
+    return re.search(r"[\u3400-\u9fff]", value) is not None
+
+
+def load_localizations(path, semantic_metadata):
+    if path is None:
+        return None
+    document = json.loads(Path(path).read_text(encoding="utf-8"))
+    if document.get("schema_version") != 1:
+        raise GraphBuildError("unsupported Chinese localization schema")
+    expected_digest = document.get("semantic_metadata_sha256")
+    if expected_digest and expected_digest != file_sha256(semantic_metadata):
+        raise GraphBuildError("Chinese localization belongs to different semantics")
+    translations = document.get("translations")
+    if not isinstance(translations, list):
+        raise GraphBuildError("Chinese localization has no translations list")
+    lookup = {}
+    for item in translations:
+        if not isinstance(item, dict):
+            raise GraphBuildError("Chinese localization contains an invalid item")
+        key = (
+            str(item.get("source_caption", "")),
+            str(item.get("source_category", "")),
+        )
+        caption = str(item.get("caption_zh", "")).strip()
+        category = str(item.get("category_zh", "")).strip()
+        if not all(key) or not contains_chinese(caption) or not contains_chinese(category):
+            raise GraphBuildError(
+                "every localized caption and category must be Chinese"
+            )
+        if key in lookup and lookup[key] != (caption, category):
+            raise GraphBuildError("Chinese localization contains a conflicting key")
+        lookup[key] = (caption, category)
+    return lookup
+
+
+def uses_embedded_chinese_semantics(document):
+    return (
+        int(document.get("schema_version", 0)) >= 2
+        and document.get("language") == "zh-CN"
+    )
+
+
+def validated_semantic_embedding(item):
+    embedding = item.get("semantic_embedding")
+    if embedding is None:
+        return None
+    if not isinstance(embedding, dict):
+        raise GraphBuildError("semantic embedding must be an object")
+    model = str(embedding.get("model", "")).strip()
+    provider = str(embedding.get("provider", "")).strip()
+    dimensions = embedding.get("dimensions")
+    vector = embedding.get("vector")
+    if (
+        provider != "ollama_local"
+        or not model
+        or not isinstance(dimensions, int)
+        or dimensions < 64
+        or not isinstance(vector, list)
+        or len(vector) != dimensions
+        or any(
+            not isinstance(value, (int, float)) or not math.isfinite(value)
+            for value in vector
+        )
+    ):
+        raise GraphBuildError("semantic embedding is invalid")
+    norm = math.sqrt(sum(float(value) ** 2 for value in vector))
+    if not 0.99 <= norm <= 1.01:
+        raise GraphBuildError("semantic embedding must be normalized")
+    return {
+        "provider": provider,
+        "model": model,
+        "dimensions": dimensions,
+        "text_sha256": str(embedding.get("text_sha256", "")),
+        "vector": [float(value) for value in vector],
+    }
+
+
+def direct_landmark_semantics(item):
+    if (
+        item.get("landmark_usable") is not True
+        or item.get("is_static") is not True
+        or item.get("is_drivable_surface") is True
+    ):
+        return None
+    caption = str(item.get("caption_zh", item.get("caption", ""))).strip()
+    category = str(item.get("category_zh", "")).strip()
+    confidence = item.get("semantic_confidence")
+    if (
+        not contains_chinese(caption)
+        or not contains_chinese(category)
+        or not isinstance(confidence, (int, float))
+        or not math.isfinite(confidence)
+        or not 0.0 <= float(confidence) <= 1.0
+    ):
+        raise GraphBuildError("promoted landmark has invalid Chinese semantics")
+    return caption, category, float(confidence)
+
+
 def build_navigation_graph(arguments):
     occupancy_map = OccupancyMap(arguments.map_yaml)
     trajectory = load_trajectory(arguments.trajectory_poses)
@@ -469,11 +571,23 @@ def build_navigation_graph(arguments):
         )
 
     semantic_document, semantic_objects = load_semantics(arguments.semantic_metadata)
+    direct_semantics = uses_embedded_chinese_semantics(semantic_document)
+    localization = load_localizations(
+        getattr(arguments, "landmark_localization", None), arguments.semantic_metadata
+    )
+    if direct_semantics and localization is not None:
+        raise GraphBuildError(
+            "local-model semantics must not be translated a second time"
+        )
     road_tags = set(arguments.drivable_semantic_tags)
     road_objects = [
         item
         for item in semantic_objects
-        if str(item.get("legacy_semantickitti_tag", "")) in road_tags
+        if (
+            item.get("is_drivable_surface") is True
+            if direct_semantics
+            else str(item.get("legacy_semantickitti_tag", "")) in road_tags
+        )
     ]
     supported_nodes = 0
     for node_index, node in enumerate(nodes):
@@ -491,9 +605,17 @@ def build_navigation_graph(arguments):
 
     landmarks = []
     for item in semantic_objects:
-        if str(item.get("legacy_semantickitti_tag", "")) in road_tags:
+        source_category = str(item.get("legacy_semantickitti_tag", "unknown"))
+        if (
+            item.get("is_drivable_surface") is True
+            if direct_semantics
+            else source_category in road_tags
+        ):
             continue
         if int(item.get("num_detections", 0)) < arguments.minimum_landmark_detections:
+            continue
+        direct_values = direct_landmark_semantics(item) if direct_semantics else None
+        if direct_semantics and direct_values is None:
             continue
         center = np.asarray(item["center"], dtype=np.float64)[:2]
         distances = np.linalg.norm(node_positions - center, axis=1)
@@ -502,11 +624,28 @@ def build_navigation_graph(arguments):
         if route_distance > arguments.landmark_attach_radius:
             continue
         landmark_id = "landmark_{:04d}".format(int(item["id"]))
+        source_caption = str(item.get("source_caption", item.get("caption", "object")))
+        if direct_semantics:
+            caption, category, semantic_confidence = direct_values
+        elif localization is None:
+            caption = source_caption
+            category = source_category
+            semantic_confidence = None
+        else:
+            localized = localization.get((source_caption, source_category))
+            if localized is None:
+                raise GraphBuildError(
+                    "missing Chinese localization for {!r} / {!r}".format(
+                        source_caption, source_category
+                    )
+                )
+            caption, category = localized
+            semantic_confidence = None
         landmark = {
             "id": landmark_id,
             "semantic_object_id": int(item["id"]),
-            "caption": str(item.get("caption", "object")),
-            "category": str(item.get("legacy_semantickitti_tag", "unknown")),
+            "caption": caption,
+            "category": category,
             "position": {
                 "x": float(center[0]),
                 "y": float(center[1]),
@@ -516,6 +655,31 @@ def build_navigation_graph(arguments):
             "caption_consensus_ratio": float(item.get("caption_consensus_ratio", 0.0)),
             "distance_to_route_m": route_distance,
         }
+        if direct_semantics:
+            landmark.update(
+                {
+                    "language": "zh-CN",
+                    "source_caption_en": source_caption,
+                    "source_category_en": str(
+                        item.get("source_category", source_category)
+                    ),
+                    "semantic_confidence": semantic_confidence,
+                    "semantic_source": str(item.get("semantic_source", "")),
+                    "visible_evidence": list(item.get("visible_evidence", [])),
+                    "is_static": True,
+                }
+            )
+            embedding = validated_semantic_embedding(item)
+            if embedding is not None:
+                landmark["semantic_embedding"] = embedding
+        elif localization is not None:
+            landmark.update(
+                {
+                    "language": "zh-CN",
+                    "source_caption_en": source_caption,
+                    "source_category_en": source_category,
+                }
+            )
         landmarks.append(landmark)
 
     selected_place_nodes = {
@@ -606,6 +770,9 @@ def build_navigation_graph(arguments):
     result = {
         "schema_version": 3,
         "frame_id": str(semantic_document.get("frame_id", "map")),
+        "language": (
+            "zh-CN" if direct_semantics or localization is not None else "source"
+        ),
         "source": {
             "map_yaml": str(occupancy_map.yaml_path),
             "map_image": str(occupancy_map.image_path),
@@ -627,6 +794,11 @@ def build_navigation_graph(arguments):
             "road_support_distance_m": arguments.road_support_distance,
             "drivable_semantic_tags": sorted(road_tags),
             "place_spacing_m": arguments.place_spacing,
+            "semantic_mode": (
+                "ollama_chinese_instances"
+                if direct_semantics
+                else "legacy_localization" if localization is not None else "source"
+            ),
         },
         "statistics": {
             "trajectory_length_m": float(trajectory_distance[-1]),
@@ -651,6 +823,12 @@ def build_navigation_graph(arguments):
         "places": places,
         "connections": connections,
     }
+    if getattr(arguments, "landmark_localization", None) is not None:
+        localization_path = Path(arguments.landmark_localization).resolve()
+        result["source"]["landmark_localization"] = str(localization_path)
+        result["source"]["sha256"]["landmark_localization"] = file_sha256(
+            localization_path
+        )
     return result
 
 
@@ -659,6 +837,7 @@ def parse_args():
     parser.add_argument("--map-yaml", required=True, type=Path)
     parser.add_argument("--semantic-metadata", required=True, type=Path)
     parser.add_argument("--trajectory-poses", required=True, type=Path)
+    parser.add_argument("--landmark-localization", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--sample-spacing", type=float, default=1.5)
     parser.add_argument("--merge-radius", type=float, default=0.9)

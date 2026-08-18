@@ -9,6 +9,8 @@
 - 实时二维地图、全局/局部代价地图、真实车体轮廓和位姿。
 - 区分显示已行驶轨迹、Smac全局规划和MPPI局部跟踪路径。
 - RViz等价的初始位姿、单目标和连续多位姿导航。
+- 手动规划与自然语言语义导航并列；语义任务经Neo4j检索和Dijkstra生成拓扑经停点，
+  再交给同一套Nav2 `NavigateThroughPoses`执行。
 - 在RDK本地启动和安全停止原始传感器数据采集。
 - 在启用了离线处理的Jetson实例上调用标准LIO-SAM/RTK处理流程。
 - 浏览地图与数据包，按室内或室外配置启动观察阶段或底盘阶段。
@@ -22,6 +24,23 @@
 
 手机采集页固定记录右目相机，不启动NTRIP。结束实验时点击“停止采集并保存”，
 网关会向rosbag发送SIGINT并等待索引写盘完成；不要直接关机或强制终止采集进程。
+
+## 语义导航
+
+手机通过 VPN 直接请求 `http://172.18.80.26:8090`。服务器使用本地
+`qwen3.8:27b`、`qwen3-embedding:8b`、Neo4j混合检索和Dijkstra生成预览路线；
+手机再通过热点局域网把完整结果提交给RDK的`/api/v1/semantic/route`。RDK不访问
+大模型或Neo4j，也不保存模型与数据库凭据。手机不能访问Neo4j和Ollama端口，服务器
+也没有控制底盘的接口。
+
+语义规划只发送地图ID、自然语言任务和当前`map`二维位姿。服务器返回结果后，RDK会
+重新校验地图、模型、图谱哈希、路线数值和避让标记。包含“不要经过”约束的路线在Nav2
+Keepout Filter接入前只能预览，网关会拒绝真车执行。
+
+手动规划和语义导航的界面、草稿与API互相独立，但两者共享同一个Nav2 Action服务器，
+因此同一时刻只允许一个导航任务。切换界面不会停止当前任务；新任务必须先明确取消旧任务。
+语义服务地址由`config/mobile_gateway.yaml`中的`semantic_service_url`公开给手机网页。
+该地址只用于手机发起跨域请求，网关自身不会请求它。
 
 构建前端后再构建ROS包：
 
@@ -91,9 +110,14 @@ APK内置完整控制台资源；没有网络或暂时无法连接RDK时仍会�
 Android源码位于`android/`。安装Android SDK 35和JDK 17后可执行：
 
 ```bash
+rsync -a --delete --exclude downloads \
+  web/dist/ android/app/src/main/assets/web/
 cd android
 ./gradlew test lint assembleDebug
 ```
+
+`downloads/`必须排除，避免把旧APK递归打包进新APK。当前Jetson不保存Android SDK；
+构建使用`192.168.100.218`上的`/home/cgz/Android/Sdk`。
 
 正式包签名配置参考`android/signing.properties.example`。签名文件和密码不得提交到Git。
 

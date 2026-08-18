@@ -24,7 +24,7 @@ from semantic_graph_neo4j import (
 )
 
 
-DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_OLLAMA_BASE_URL = "http://172.18.80.26:11434"
 
 
 def contains_chinese(value):
@@ -137,7 +137,7 @@ def parse_args():
     parser.add_argument("--neo4j-timeout", type=float, default=30.0)
     parser.add_argument(
         "--embedding-base-url",
-        default=os.environ.get("DASHSCOPE_BASE_URL", DEFAULT_BAILIAN_BASE_URL),
+        default=os.environ.get("AGRIBOT_OLLAMA_URL", DEFAULT_OLLAMA_BASE_URL),
     )
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument(
@@ -169,7 +169,6 @@ def main():
                 "{}；类别：{}".format(item["caption"], item["category"])
                 for item in landmarks
             ],
-            os.environ.get("DASHSCOPE_API_KEY", ""),
             arguments.embedding_base_url,
             arguments.embedding_model,
             arguments.embedding_dimensions,

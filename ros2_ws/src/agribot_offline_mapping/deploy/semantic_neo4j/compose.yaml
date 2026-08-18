@@ -1,0 +1,41 @@
+services:
+  outdoor:
+    image: neo4j:5.26.0
+    container_name: agribot-neo4j
+    restart: unless-stopped
+    network_mode: host
+    cpus: "4"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_OUTDOOR_PASSWORD:?set NEO4J_OUTDOOR_PASSWORD}"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 1G
+      NEO4J_server_http_listen__address: :7476
+      NEO4J_server_http_advertised__address: "${AGRIBOT_NEO4J_HOST:-172.18.80.26}:7476"
+      NEO4J_server_bolt_listen__address: :7689
+      NEO4J_server_bolt_advertised__address: "${AGRIBOT_NEO4J_HOST:-172.18.80.26}:7689"
+    mem_limit: 4g
+    volumes:
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j/data:/data
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j/logs:/logs
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j/import:/var/lib/neo4j/import
+
+  indoor:
+    image: neo4j:5.26.0
+    container_name: agribot-neo4j-indoor
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_INDOOR_PASSWORD:?set NEO4J_INDOOR_PASSWORD}"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 1G
+      NEO4J_server_http_listen__address: :7478
+      NEO4J_server_http_advertised__address: "${AGRIBOT_NEO4J_HOST:-172.18.80.26}:7478"
+      NEO4J_server_bolt_listen__address: :7691
+      NEO4J_server_bolt_advertised__address: "${AGRIBOT_NEO4J_HOST:-172.18.80.26}:7691"
+    mem_limit: 2g
+    volumes:
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j-indoor/data:/data
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j-indoor/logs:/logs
+      - ${AGRIBOT_NEO4J_DATA_ROOT:-/data/agribot}/neo4j-indoor/import:/var/lib/neo4j/import

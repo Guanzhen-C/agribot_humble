@@ -38,10 +38,16 @@ def test_android_package_contains_the_offline_web_interface():
 
 def test_frontend_uses_guarded_api_not_raw_velocity():
     source = (PACKAGE / "web" / "src" / "App.jsx").read_text(encoding="utf-8")
+    api = (PACKAGE / "web" / "src" / "api.js").read_text(encoding="utf-8")
     gateway = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
         encoding="utf-8"
     )
     assert "/api/v1/navigation/route" in source
+    assert "/api/v1/semantic/plan" in api
+    assert "/api/v1/semantic/route" in source
+    assert "/api/v1/semantic/execute" in source
+    assert "手动规划" in source
+    assert "语义导航" in source
     assert "/api/v1/collection/start" in source
     assert "/api/v1/runtime/start" in source
     assert "/cmd_vel" not in source
@@ -55,6 +61,9 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     assert "manual_required" in source
     assert "/localization/initialization_stage" in gateway
     assert "RTK和视觉均失败后" in gateway
+    assert "semantic_runner" not in gateway
+    assert '"/api/v1/semantic/route"' in gateway
+    assert '"provider": "ollama_local"' in gateway
 
 
 def test_map_view_uses_live_vehicle_and_navigation_outputs():

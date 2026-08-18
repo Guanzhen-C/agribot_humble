@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   Check,
+  BrainCircuit,
   CircleStop,
   Crosshair,
   Database,
@@ -25,6 +26,7 @@ import MapView from "./MapView";
 import {
   formatDuration,
   getJson,
+  planSemanticTask,
   postJson,
   subscribeState,
 } from "./api";
@@ -42,6 +44,11 @@ const MODES = [
   { id: "initial", label: "初始位姿", icon: LocateFixed },
   { id: "goal", label: "目标", icon: MapPin },
   { id: "route", label: "经停点", icon: Route },
+];
+
+const NAVIGATION_KINDS = [
+  { id: "manual", label: "手动规划", icon: MapPin },
+  { id: "semantic", label: "语义导航", icon: BrainCircuit },
 ];
 
 const SENSOR_ROWS = [
@@ -90,11 +97,17 @@ function ProcessTail({ process }) {
 
 function NavigationPanel({
   state,
+  navigationKind,
+  setNavigationKind,
   interactionMode,
   setInteractionMode,
   target,
   route,
   setRoute,
+  semanticInstruction,
+  setSemanticInstruction,
+  semanticPlanning,
+  planSemantic,
   execute,
 }) {
   const navigation = state?.navigation || {};
@@ -103,9 +116,101 @@ function NavigationPanel({
   const running = ["sending", "accepted", "executing", "canceling"].includes(navigation.status);
   const sendGoal = () => target && execute("/api/v1/navigation/goal", { pose: target });
   const sendRoute = () => route.length >= 2 && execute("/api/v1/navigation/route", { poses: route });
+  const semantic = state?.semantic || {};
+  const semanticReady = semantic.status === "ready" && semantic.route?.length >= 2;
+  const semanticStatus = semanticPlanning ? "planning" : (semantic.status || "idle");
+
+  if (navigationKind === "semantic") {
+    return (
+      <div className="panel-content">
+        <div className="segmented navigation-kind-selector">
+          {NAVIGATION_KINDS.map(({ id, label, icon: Icon }) => (
+            <button type="button" key={id} className={navigationKind === id ? "selected" : ""} onClick={() => setNavigationKind(id)}>
+              <Icon size={16} /><span>{label}</span>
+            </button>
+          ))}
+        </div>
+        <section className="section-band">
+          <div className="section-heading">
+            <h2>自然语言任务</h2>
+            <Pill tone={semanticReady ? "green" : semanticPlanning ? "blue" : semantic.status === "failed" ? "red" : "neutral"}>
+              {semanticStatus}
+            </Pill>
+          </div>
+          {semantic.available ? (
+            <>
+              <label className="field-label">
+                <span>任务描述</span>
+                <textarea
+                  value={semanticInstruction}
+                  onChange={(event) => setSemanticInstruction(event.target.value)}
+                  maxLength={1000}
+                  disabled={semanticPlanning || running}
+                  placeholder="例如：先巡检北门，再去白色建筑附近"
+                />
+              </label>
+              <CommandButton
+                icon={BrainCircuit}
+                disabled={!semanticInstruction.trim() || semanticPlanning || running}
+                onClick={() => planSemantic(semanticInstruction)}
+              >
+                生成语义路线
+              </CommandButton>
+            </>
+          ) : (
+            <Empty>当前运行地图没有语义图谱</Empty>
+          )}
+          {semantic.error && <div className="status-message error-message">{semantic.error}</div>}
+        </section>
+        {semanticReady && (
+          <section className="section-band">
+            <div className="section-heading"><h2>Dijkstra 经停点</h2><Pill>{semantic.route.length}</Pill></div>
+            <div className="metric-grid semantic-metrics">
+              <div><span>拓扑点</span><strong>{semantic.statistics?.route_navigation_places ?? semantic.route.length}</strong></div>
+              <div><span>路线长度</span><strong>{Number.isFinite(semantic.statistics?.drivable_route_length_m) ? `${semantic.statistics.drivable_route_length_m.toFixed(1)} m` : "--"}</strong></div>
+            </div>
+            <div className="semantic-destinations">
+              {(semantic.destinations || []).map((destination, index) => (
+                <div className="semantic-destination" key={`${destination.place_id}-${index}`}>
+                  <span className="route-index">{index + 1}</span>
+                  <span><strong>{destination.name || destination.place_id}</strong><small>{(destination.semantic_summary || []).slice(0, 2).join(" · ")}</small></span>
+                </div>
+              ))}
+            </div>
+            {semantic.avoid_node_ids?.length > 0 && (
+              <div className="status-message error-message">该任务包含语义避让区，尚未配置 Keepout Filter，禁止真车执行。</div>
+            )}
+            <div className="button-stack semantic-actions">
+              <CommandButton icon={Navigation} disabled={!semantic.execution_allowed || running} onClick={() => execute("/api/v1/semantic/execute", {})}>
+                执行语义路线
+              </CommandButton>
+              <CommandButton icon={Trash2} tone="secondary" disabled={running} onClick={() => execute("/api/v1/semantic/clear", {})}>
+                清除语义路线
+              </CommandButton>
+            </div>
+          </section>
+        )}
+        <section className="section-band command-strip">
+          <CommandButton icon={CircleStop} tone="danger" onClick={() => execute("/api/v1/navigation/cancel", {})} disabled={!running}>
+            停止导航
+          </CommandButton>
+          <CommandButton icon={RefreshCw} tone="secondary" onClick={() => execute("/api/v1/navigation/clear-costmaps", {})}>
+            清除代价图
+          </CommandButton>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="panel-content">
+      <div className="segmented navigation-kind-selector">
+        {NAVIGATION_KINDS.map(({ id, label, icon: Icon }) => (
+          <button type="button" key={id} className={navigationKind === id ? "selected" : ""} onClick={() => setNavigationKind(id)}>
+            <Icon size={16} /><span>{label}</span>
+          </button>
+        ))}
+      </div>
       <div className="segmented mode-selector">
         {MODES.map(({ id, label, icon: Icon }) => (
           <button
@@ -272,6 +377,7 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
                 {map.has_3d && <Pill tone="blue">3D</Pill>}
                 {map.has_georeference && <Pill tone="green">RTK</Pill>}
                 {map.has_visual && <Pill tone="blue">视觉</Pill>}
+                {map.has_semantic && <Pill tone="green">语义</Pill>}
               </span>
               {selectedMap === map.id && <Check size={17} />}
             </button>
@@ -395,11 +501,14 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [activeTab, setActiveTab] = useState("navigate");
   const [interactionMode, setInteractionMode] = useState("browse");
+  const [navigationKind, setNavigationKind] = useState("manual");
   const [maps, setMaps] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [selectedMap, setSelectedMap] = useState("");
   const [target, setTarget] = useState(null);
   const [route, setRoute] = useState([]);
+  const [semanticInstruction, setSemanticInstruction] = useState("");
+  const [semanticPlanning, setSemanticPlanning] = useState(false);
   const [toast, setToast] = useState(null);
   const [motionRequest, setMotionRequest] = useState(null);
 
@@ -442,6 +551,13 @@ export default function App() {
     }
   }, [state?.localization?.manual_required]);
 
+  useEffect(() => {
+    const instruction = state?.semantic?.instruction;
+    if (typeof instruction === "string") {
+      setSemanticInstruction(instruction);
+    }
+  }, [state?.semantic?.instruction]);
+
   const execute = async (path, body) => {
     try {
       const result = await postJson(path, body);
@@ -451,6 +567,31 @@ export default function App() {
     } catch (error) {
       setToast({ tone: "error", text: error.message });
       return null;
+    }
+  };
+
+  const planSemantic = async (instruction) => {
+    const activeRuntime = state?.active_runtime;
+    const pose = state?.pose;
+    if (!activeRuntime?.map_id || !Number.isFinite(pose?.x) || !Number.isFinite(pose?.y)) {
+      setToast({ tone: "error", text: "请先启动地图并等待定位就绪" });
+      return null;
+    }
+    setSemanticPlanning(true);
+    try {
+      const planned = await planSemanticTask({
+        map_id: activeRuntime.map_id,
+        instruction,
+        start_position: { x: pose.x, y: pose.y },
+      });
+      const accepted = await postJson("/api/v1/semantic/route", planned);
+      setToast({ tone: "success", text: "172服务器已生成路线，请检查后执行" });
+      return accepted;
+    } catch (error) {
+      setToast({ tone: "error", text: error.message });
+      return null;
+    } finally {
+      setSemanticPlanning(false);
     }
   };
 
@@ -468,11 +609,17 @@ export default function App() {
       return (
         <NavigationPanel
           state={state}
+          navigationKind={navigationKind}
+          setNavigationKind={setNavigationKind}
           interactionMode={interactionMode}
           setInteractionMode={setInteractionMode}
           target={target}
           route={route}
           setRoute={setRoute}
+          semanticInstruction={semanticInstruction}
+          setSemanticInstruction={setSemanticInstruction}
+          semanticPlanning={semanticPlanning}
+          planSemantic={planSemantic}
           execute={execute}
         />
       );
@@ -484,7 +631,7 @@ export default function App() {
       return <MapsPanel maps={maps} profiles={profiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} />;
     }
     return <StatusPanel state={state} />;
-  }, [activeTab, interactionMode, maps, profiles, route, selectedMap, state, target]);
+  }, [activeTab, interactionMode, maps, navigationKind, profiles, route, selectedMap, semanticInstruction, semanticPlanning, state, target]);
 
   const localizationReady = state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);

@@ -20,7 +20,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-button, input, select { font: inherit; letter-spacing: 0; }
+button, input, select, textarea { font: inherit; letter-spacing: 0; }
 button { color: inherit; }
 
 .app-shell { display: grid; grid-template-rows: 58px 1fr; width: 100%; height: 100%; background: var(--surface); }
@@ -51,6 +51,7 @@ button { color: inherit; }
 
 .segmented { display: grid; margin: 12px 14px; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: #eef1f3; }
 .mode-selector { grid-template-columns: repeat(4, 1fr); }
+.navigation-kind-selector { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
 .segmented button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; height: 36px; padding: 0 5px; border: 0; border-radius: 5px; color: #596671; background: transparent; font-size: 11px; cursor: pointer; }
 .segmented button.selected { color: var(--green); background: #fff; box-shadow: 0 1px 2px rgba(20, 32, 43, .12); font-weight: 700; }
 .coordinate-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
@@ -83,8 +84,10 @@ button { color: inherit; }
 
 .field-label { display: grid; gap: 5px; margin-bottom: 10px; }
 .field-label > span { color: var(--muted); font-size: 10px; font-weight: 650; }
-input, select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #bcc5cc; border-radius: 5px; outline: none; color: #17212b; background: #fff; font-size: 12px; }
-input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(23, 107, 91, .13); }
+input, select, textarea { width: 100%; padding: 0 10px; border: 1px solid #bcc5cc; border-radius: 5px; outline: none; color: #17212b; background: #fff; font-size: 12px; }
+input, select { height: 38px; }
+textarea { min-height: 92px; padding-top: 9px; padding-bottom: 9px; resize: vertical; line-height: 1.5; }
+input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(23, 107, 91, .13); }
 .toggle-row { display: flex; flex-wrap: wrap; gap: 14px; min-height: 32px; margin-bottom: 10px; }
 .toggle-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
 .toggle-row input { width: 16px; height: 16px; accent-color: var(--green); }
@@ -115,6 +118,16 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .status-dot.ok { background: #16846f; box-shadow: 0 0 0 3px #dceee8; }
 .status-dot.warning { background: #d5820c; box-shadow: 0 0 0 3px #fff0d6; }
 .status-message { margin-top: 9px; padding: 8px; color: #53606b; background: var(--surface); border-radius: 5px; font-size: 10px; line-height: 1.45; word-break: break-word; }
+.status-message.error-message { color: #8f2119; background: var(--red-soft); }
+.semantic-metrics { margin-bottom: 10px; }
+.semantic-destinations { display: grid; gap: 1px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+.semantic-destination { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 7px; min-height: 42px; padding: 5px 7px; border-bottom: 1px solid #edf0f2; background: #fff; }
+.semantic-destination:last-child { border-bottom: 0; }
+.semantic-destination > span:last-child { display: grid; min-width: 0; gap: 2px; }
+.semantic-destination strong, .semantic-destination small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.semantic-destination strong { font-size: 11px; }
+.semantic-destination small { color: var(--muted); font-size: 9px; }
+.semantic-actions { margin-top: 10px; }
 .inline-field { display: grid; grid-template-columns: 1fr 38px; gap: 7px; }
 
 .map-shell { position: absolute; inset: 0; overflow: hidden; background: #e9eef0; touch-action: none; }
@@ -129,6 +142,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .map-legend i { display: block; width: 17px; height: 3px; border-radius: 2px; background: #687782; }
 .map-legend i.global { height: 4px; background: var(--blue); }
 .map-legend i.local { background: #d97706; }
+.map-legend i.semantic { background: #8b3f63; }
 .pose-readout { position: absolute; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, auto); align-items: center; gap: 7px; min-height: 30px; padding: 5px 8px; border: 1px solid rgba(171, 181, 190, .8); border-radius: 6px; color: #44515d; background: rgba(255, 255, 255, .94); font-size: 9px; font-variant-numeric: tabular-nums; }
 .pose-readout strong { color: #17212b; }
 .map-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #6d7983; font-size: 13px; pointer-events: none; }
