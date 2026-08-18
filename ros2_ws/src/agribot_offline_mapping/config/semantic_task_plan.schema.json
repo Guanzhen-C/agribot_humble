@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agribot.local/schemas/semantic_task_plan.schema.json",
+  "title": "Agribot semantic task plan",
+  "description": "Preview-only drivable place destinations selected from one immutable semantic navigation graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "graph_sha256",
+    "destination_node_ids"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 3
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "graph_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "destination_node_ids": {
+      "type": "array",
+      "description": "Ordered drivable places: first item is visited first and the final item is the final destination. The order must preserve the user's requested visit sequence.",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^place_[0-9]{3,}$"
+      }
+    },
+    "avoid_node_ids": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^place_[0-9]{3,}$"
+      }
+    }
+  }
+}

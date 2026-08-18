@@ -197,3 +197,221 @@ filters run before scan matching and accumulation, so excluded returns do not
 appear in either the final PCD or its 2D projection. The adapter also converts
 the CX driver's scan-end cloud stamp and start-relative point times into the
 scan-start stamp plus start-relative `ring/time` layout expected by LIO-SAM.
+
+## Semantic navigation graph
+
+`build_map_semantic_navigation_graph.py` creates the executable topology from
+the two-dimensional map, not from a manually driven trajectory. It identifies
+the nested outer and inner boundaries in a road-boundary occupancy map, smooths
+both boundaries, extracts their equidistant centerline, projects the line into
+free space with a configurable clearance margin, and samples a closed set of
+places at equal arc-length intervals. Each `drivable` connection stores its
+smooth centerline geometry and raster clearance. The production graph has no
+trajectory source field or recorded vehicle footprint.
+
+`localize_semantic_landmarks_zh.py` converts each unique stable OpenGraph
+caption/category pair to concise Chinese and keeps a digest-bound, resumable
+translation cache. Re-running it only translates newly observed descriptions.
+The map graph uses Chinese `name`, `caption`, `category` and
+`semantic_summary` fields while retaining the original English observation in
+explicit audit fields. Every landmark is associated with exactly one nearest
+uniformly sampled place. Landmark associations remain `executable: false` and
+never become vehicle edges.
+
+The current outdoor graph uses a 1.0 m centerline clearance contract, about
+10 m place spacing, 42 places and 244 Chinese landmarks. Dijkstra searches only
+the closed place graph. Smac and Nav2 still independently apply the real
+Ackermann footprint and minimum turning radius before execution.
+
+Example map-derived construction sequence:
+
+```bash
+ros2 run agribot_offline_mapping localize_semantic_landmarks_zh.py \
+  --semantic-metadata /path/to/semantic_instances.json \
+  --output /path/to/landmarks_zh.json
+
+ros2 run agribot_offline_mapping build_map_semantic_navigation_graph.py \
+  --map-yaml /path/to/map.yaml \
+  --road-boundary-map-yaml /path/to/road_edges.yaml \
+  --semantic-metadata /path/to/semantic_instances.json \
+  --landmark-localization /path/to/landmarks_zh.json \
+  --minimum-centerline-clearance 1.0 \
+  --output /path/to/navigation_graph.json
+```
+
+`opengraph_semantic_map.launch.py` accepts an optional `navigation_graph`
+argument. When set, RViz displays places, landmarks, drivable connections and
+thin landmark-association links alongside the occupancy and OpenGraph maps.
+
+Resolve a start, ordered intermediate places and a goal without starting Nav2:
+
+```bash
+ros2 run agribot_offline_mapping plan_semantic_route.py \
+  --graph /path/to/navigation_graph.json \
+  --start place_000 \
+  --via place_010 \
+  --via place_020 \
+  --goal place_030 \
+  --output /path/to/route_preview.json
+```
+
+The start may instead come from the current localization estimate with
+`--start-position X Y`. It must lie within `--maximum-start-distance` of the
+nearest semantic place. The planner validates all identifiers, connection
+clearances and connectivity before running deterministic Dijkstra searches
+between consecutive requested stops. Its output is explicitly marked
+`preview_only`; it is not a Nav2 goal and cannot command the chassis.
+
+Pass the resulting file as `route_plan:=/path/to/route_preview.json` to the
+semantic-map launch. It publishes a transient `nav_msgs/Path` on
+`/semantic_navigation/route_preview` plus labeled stop markers. Smac and Nav2
+remain responsible for generating and collision-checking the executable path.
+
+Use the unified dry-run launch to compare that semantic route with the real
+Ackermann Smac planner configuration:
+
+```bash
+ros2 launch agribot_offline_mapping \
+  semantic_smac_planner_validation.launch.py \
+  map:=/path/to/map.yaml \
+  navigation_graph:=/path/to/navigation_graph.json \
+  route_plan:=/path/to/route_preview.json \
+  rviz:=true
+```
+
+The launch verifies that the route was generated from the supplied graph. The
+first Dijkstra pose is the explicit Smac start and every remaining Dijkstra pose
+is passed, in order, to `ComputePathThroughPoses`; Smac must therefore plan
+through the complete semantic corridor rather than only the requested task
+destinations. No sensor, controller or chassis process is started. RViz shows
+the map-derived centerline and Chinese places plus the collision-checked Smac
+path in green. Recorded teleoperation footprints are not loaded. Red areas are
+semantic avoidance constraints. This planner-only
+launch deliberately does not install a Nav2 Keepout Filter; it reports any Smac
+path intersection with a red area as an error while retaining both paths for
+inspection. The result remains preview-only and cannot command the vehicle. A
+new RViz 2D Pose Estimate clears the loaded semantic task and returns to the
+original manual Smac validation workflow.
+
+`config/semantic_task_plan.schema.json` is the language-model boundary. The
+model may return only an immutable graph SHA-256, a task identifier, an ordered
+list of destination `place_NNN` identifiers and a separate list of place nodes
+to avoid. Landmarks are never executable destinations; their unique
+`NEAREST_PLACE` relationship supplies the navigation anchor. The robot supplies
+its own current start pose.
+Extra fields such as
+speed, steering, coordinates or direct commands are rejected, as are stale
+graph hashes, unknown nodes, duplicate identifiers and a node appearing in
+both lists. `plan_semantic_route.py --task-plan FILE` consumes this contract.
+
+## Alibaba Cloud Bailian semantic task planning
+
+The live planner does not send the complete semantic graph to the language
+model. The graph is stored in a dedicated Neo4j 5.26 instance on
+`192.168.100.218` (HTTP `7476`, Bolt `7689`). Places and landmarks are isolated
+by `map_id`; each landmark has one `NEAREST_PLACE` edge, while `DRIVABLE` edges
+join executable places. `build_semantic_model_context.py` remains an offline
+audit/export utility only.
+
+`plan_semantic_task_bailian.py` uses two bounded model calls:
+
+1. Parse the user instruction into ordered Chinese destination search phrases
+   and Chinese avoidance phrases without exposing any map node or translating
+   the request to English.
+2. Retrieve at most `--retrieval-top-k` place candidates per phrase using
+   Neo4j vector and full-text indexes, then ask the model to select only among
+   those candidates.
+
+The final result must contain exactly one place for every ordered destination
+query. Local validation rejects a place selected for the wrong query index,
+stale graph hashes, unknown nodes, duplicate destinations, missing avoidance
+matches and all extra fields. Deterministic Dijkstra routing remains local. The
+implementation uses Python's standard HTTP library and adds no Neo4j or OpenAI
+SDK dependency.
+
+The default model is `qwen3.7-flash` and the default mainland China endpoint is
+`https://dashscope.aliyuncs.com/compatible-mode/v1`. Set
+`DASHSCOPE_BASE_URL` only when the API key belongs to another Bailian workspace
+or endpoint. The API key is accepted only through `DASHSCOPE_API_KEY`; it is
+never accepted on the command line or written to an output artifact.
+
+Import or refresh a graph after generating a new navigation-graph JSON. The
+Neo4j credentials are read only from environment variables; query and landmark
+embeddings use `text-embedding-v4` by default. Both full-text and vector
+retrieval operate on the Chinese caption and category fields.
+
+```bash
+source ~/.config/agribot/neo4j.env
+read -rsp "Bailian API key: " DASHSCOPE_API_KEY; echo
+export DASHSCOPE_API_KEY
+
+ros2 run agribot_offline_mapping import_semantic_graph_neo4j.py \
+  --graph /path/to/navigation_graph.json \
+  --map-id map_lio_sam_0811
+```
+
+Additional Chinese landmarks can be added later without rebuilding or deleting
+the place topology. The incremental file is deliberately small:
+
+```json
+{
+  "schema_version": 1,
+  "language": "zh-CN",
+  "landmarks": [
+    {
+      "id": "landmark_zh_north_gate",
+      "caption": "园区北门",
+      "category": "入口",
+      "position": {"x": 12.3, "y": 45.6, "z": 1.2}
+    }
+  ]
+}
+```
+
+`upsert_semantic_landmarks_neo4j.py` computes the nearest existing place,
+updates only the named landmark with `MERGE`, replaces its single
+`NEAREST_PLACE` relationship, and leaves all other nodes and edges unchanged:
+
+```bash
+ros2 run agribot_offline_mapping upsert_semantic_landmarks_neo4j.py \
+  --graph /path/to/navigation_graph.json \
+  --map-id map_lio_sam_0811 \
+  --landmarks /path/to/new_chinese_landmarks.json \
+  --resolved-output /path/to/new_chinese_landmarks_resolved.json
+```
+
+```bash
+ros2 run agribot_offline_mapping plan_semantic_task_bailian.py \
+  --graph /path/to/navigation_graph.json \
+  --map-id map_lio_sam_0811 \
+  --model qwen3.7-flash \
+  --instruction "先巡检园区北门，再去白色建筑附近" \
+  --task-id outdoor_inspection_001 \
+  --start-position 0.70 0.80 \
+  --avoidance-radius 2.0 \
+  --intent-output /path/to/parsed_intent.json \
+  --context-output /path/to/retrieved_candidates.json \
+  --task-plan-output /path/to/validated_task_plan.json \
+  --route-output /path/to/route_preview.json
+
+unset DASHSCOPE_API_KEY
+```
+
+Both Bailian requests use JSON mode with thinking disabled and intentionally do
+not set `max_tokens`, avoiding a truncated JSON document. Captions returned by
+Neo4j are treated as untrusted sensor observations, not instructions. The model
+cannot select the start, invent coordinates or authorize motion. A returned
+landmark ID or a place outside the corresponding query's candidate list is
+rejected. The final route is always marked `preview_only`, and Nav2 must
+independently plan and collision-check every executable segment before any
+future integration may command the vehicle.
+
+Natural-language exclusions such as "do not pass the blue bicycle area" are
+translated to that landmark's nearest place and returned as `avoid_node_ids`.
+The deterministic router blocks every drivable place and connection
+intersecting the configured `--avoidance-radius` around those places. It rejects
+the task when a destination or the current start lies in a forbidden zone, or
+when no alternate route exists. RViz displays these preview zones as
+translucent red cylinders. This graph-level exclusion does not by itself
+constrain Nav2: the same zones must be installed in Nav2's Keepout Filter before
+an executable route may be authorized.

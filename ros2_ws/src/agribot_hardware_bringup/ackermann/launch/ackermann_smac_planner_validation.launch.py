@@ -24,6 +24,17 @@ def validate_inputs(context):
             raise RuntimeError("pcd_map must be a .pcd file when show_3d_map is true")
         if not pcd_path.is_file():
             raise RuntimeError(f"3D map file does not exist: {pcd_path}")
+
+    route_plan = LaunchConfiguration("route_plan").perform(context).strip()
+    if route_plan:
+        route_path = Path(route_plan).expanduser()
+        if route_path.suffix.lower() != ".json":
+            raise RuntimeError("route_plan must be a semantic route .json file")
+        if not route_path.is_file():
+            raise RuntimeError(f"semantic route file does not exist: {route_path}")
+    path_output = LaunchConfiguration("path_output").perform(context).strip()
+    if path_output and Path(path_output).expanduser().suffix.lower() != ".json":
+        raise RuntimeError("path_output must use the .json suffix")
     return []
 
 
@@ -52,6 +63,27 @@ def generate_launch_description():
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument(
+                "route_plan",
+                default_value="",
+                description=(
+                    "Optional preview-only semantic route JSON; its requested "
+                    "stops are planned automatically with Smac"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "route_waypoint_mode",
+                default_value="all_dijkstra",
+                description=(
+                    "all_dijkstra for normal validation; requested_stops is "
+                    "reserved for exporting a Smac topology reference path"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "path_output",
+                default_value="",
+                description="Optional planner-certified path JSON output",
+            ),
             DeclareLaunchArgument(
                 "params_file",
                 default_value=str(
@@ -90,7 +122,18 @@ def generate_launch_description():
                 executable="planner_validation_bridge.py",
                 name="planner_validation_bridge",
                 output="screen",
-                parameters=[{"use_sim_time": use_sim_time}],
+                parameters=[
+                    {
+                        "use_sim_time": use_sim_time,
+                        "route_plan": LaunchConfiguration("route_plan"),
+                        "route_waypoint_mode": LaunchConfiguration(
+                            "route_waypoint_mode"
+                        ),
+                        "path_output_file": LaunchConfiguration("path_output"),
+                        "map_yaml": LaunchConfiguration("map"),
+                        "planner_params_file": LaunchConfiguration("params_file"),
+                    }
+                ],
             ),
             Node(
                 package="nav2_lifecycle_manager",

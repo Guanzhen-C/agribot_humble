@@ -57,11 +57,25 @@ install(TARGETS
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS
+  scripts/build_semantic_model_context.py
+  scripts/build_map_semantic_navigation_graph.py
+  scripts/build_semantic_navigation_graph.py
+  scripts/export_opengraph_dataset.py
   scripts/finalize_lio_sam_map.py
+  scripts/import_semantic_graph_neo4j.py
   scripts/mapping_result_trajectory_publisher.py
+  scripts/localize_semantic_landmarks_zh.py
+  scripts/plan_semantic_route.py
+  scripts/plan_semantic_task_bailian.py
+  scripts/publish_opengraph_semantic_map.py
+  scripts/publish_semantic_navigation_graph.py
+  scripts/publish_semantic_route.py
+  scripts/refine_semantic_navigation_graph.py
   scripts/run_indoor_fastlivo_fusion_validation.py
   scripts/run_localization_comparison.py
   scripts/run_rtk_mapping_pipeline.py
+  scripts/semantic_graph_neo4j.py
+  scripts/upsert_semantic_landmarks_neo4j.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
@@ -94,6 +108,42 @@ if(BUILD_TESTING)
     test/test_localization_comparison_runner.py
   )
   ament_add_pytest_test(test_offline_contracts test/test_offline_contracts.py)
+  ament_add_pytest_test(
+    test_semantic_navigation_graph
+    test/test_semantic_navigation_graph.py
+  )
+  ament_add_pytest_test(
+    test_map_semantic_navigation_graph
+    test/test_map_semantic_navigation_graph.py
+  )
+  ament_add_pytest_test(
+    test_refine_semantic_navigation_graph
+    test/test_refine_semantic_navigation_graph.py
+  )
+  ament_add_pytest_test(
+    test_semantic_model_context
+    test/test_semantic_model_context.py
+  )
+  ament_add_pytest_test(
+    test_semantic_graph_neo4j
+    test/test_semantic_graph_neo4j.py
+  )
+  ament_add_pytest_test(
+    test_chinese_semantic_pipeline
+    test/test_chinese_semantic_pipeline.py
+  )
+  ament_add_pytest_test(
+    test_semantic_route_planner
+    test/test_semantic_route_planner.py
+  )
+  ament_add_pytest_test(
+    test_semantic_task_bailian
+    test/test_semantic_task_bailian.py
+  )
+  ament_add_pytest_test(
+    test_semantic_smac_planner_validation
+    test/test_semantic_smac_planner_validation.py
+  )
   ament_add_pytest_test(test_rtk_mapping_pipeline test/test_rtk_mapping_pipeline.py)
   ament_add_pytest_test(test_trajectory_comparison test/test_trajectory_comparison.py)
 endif()

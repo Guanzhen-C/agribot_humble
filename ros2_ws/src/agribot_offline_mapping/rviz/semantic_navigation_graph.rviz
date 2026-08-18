@@ -1,0 +1,143 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: 显示
+  - Class: rviz_common/Views
+    Name: 视角
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.25
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 130; 130; 130
+      Enabled: true
+      Name: 网格
+      Plane: XY
+      Plane Cell Count: 200
+      Reference Frame: <Fixed Frame>
+    - Alpha: 0.9
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: 二维占据栅格地图
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 1
+        Min Value: 0
+        Value: true
+      Axis: Z
+      Channel Name: rgb
+      Class: rviz_default_plugins/PointCloud2
+      Color Transformer: RGB8
+      Decay Time: 0
+      Enabled: false
+      Name: OpenGraph三维语义实例（按需开启）
+      Position Transformer: XYZ
+      Queue Size: 2
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.04
+      Style: Points
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /opengraph/semantic_cloud
+      Use Fixed Frame: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: false
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /opengraph/semantic_markers
+      Name: 开放词汇标签（按需开启）
+      Namespaces:
+        opengraph_boxes: false
+        opengraph_labels: true
+      Queue Size: 10
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/topology_markers
+      Name: 语义道路拓扑和地点节点
+      Namespaces:
+        place_labels: true
+        place_nodes: true
+        place_connections: true
+        landmark_nodes: true
+        landmark_associations: true
+      Queue Size: 10
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 90; 5
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.15
+      Name: 确定性语义路线预览
+      Offset: {X: 0, Y: 0, Z: 0.22}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/route_preview
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: 语义路线经停点
+      Namespaces:
+        route_preview: true
+        route_stop_labels: true
+        route_stops: true
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/route_preview_markers
+      Queue Size: 10
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 35
+    Fixed Frame: map
+    Frame Rate: 20
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Scale: 4.5
+      Target Frame: map
+      X: 68.8
+      Y: 8.5
+Window Geometry:
+  Height: 900
+  Width: 1500

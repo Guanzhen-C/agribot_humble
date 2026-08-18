@@ -1,0 +1,244 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: 显示
+  - Class: rviz_common/Views
+    Name: 视角
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.8
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: 二维静态地图
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+    - Alpha: 0.55
+      Class: rviz_default_plugins/Map
+      Color Scheme: costmap
+      Draw Behind: false
+      Enabled: false
+      Name: Smac全局代价地图与膨胀区
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/costmap
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/costmap_updates
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 3
+        Min Value: -1
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: false
+      Name: 三维地图（按需开启）
+      Position Transformer: XYZ
+      Queue Size: 2
+      Selectable: false
+      Size (Pixels): 1
+      Size (m): 0.03
+      Style: Points
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planning_test/map_3d
+      Use Fixed Frame: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: 二维地图提取的中文拓扑
+      Namespaces:
+        landmark_associations: false
+        landmark_nodes: false
+        place_connections: true
+        place_labels: true
+        place_nodes: true
+      Queue Size: 10
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/topology_markers
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 90; 5
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.12
+      Name: 语义Dijkstra预览（橙色）
+      Offset: {X: 0, Y: 0, Z: 0.12}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/route_preview
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: 语义任务点与禁行区
+      Namespaces:
+        route_avoidance_labels: true
+        route_avoidance_zones: true
+        route_landmark_anchor_links: true
+        route_landmark_anchors: true
+        route_preview: false
+        route_stop_labels: true
+        route_stops: true
+      Queue Size: 10
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /semantic_navigation/route_preview_markers
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 230; 80
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.16
+      Name: Smac阿克曼可行路径（绿色）
+      Offset: {X: 0, Y: 0, Z: 0.18}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planning_test/path
+    - Alpha: 1
+      Arrow Length: 1.2
+      Axes Length: 0.5
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/PoseArray
+      Color: 0; 95; 255
+      Enabled: false
+      Head Length: 0.45
+      Head Radius: 0.18
+      Name: Smac约束点（与42个拓扑点重合）
+      Shaft Length: 0.75
+      Shaft Radius: 0.09
+      Shape: Arrow (Flat)
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planning_test/waypoints
+    - Alpha: 1
+      Axes Length: 0.5
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/Pose
+      Color: 0; 170; 255
+      Enabled: true
+      Head Length: 0.25
+      Head Radius: 0.09
+      Name: Smac起点
+      Queue Size: 5
+      Shaft Length: 0.45
+      Shaft Radius: 0.05
+      Shape: Arrow
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planning_test/initial_pose
+    - Alpha: 1
+      Axes Length: 0.5
+      Axes Radius: 0.05
+      Class: rviz_default_plugins/Pose
+      Color: 255; 80; 80
+      Enabled: true
+      Head Length: 0.25
+      Head Radius: 0.09
+      Name: 最终目标
+      Queue Size: 5
+      Shaft Length: 0.45
+      Shaft Radius: 0.05
+      Shape: Arrow
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /planning_test/goal_pose
+    - Alpha: 1
+      Class: rviz_default_plugins/Polygon
+      Color: 255; 180; 0
+      Enabled: false
+      Name: 真机规划轮廓
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_costmap/published_footprint
+  Enabled: true
+  Global Options:
+    Background Color: 32; 32; 32
+    Fixed Frame: map
+    Frame Rate: 20
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891945200942
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Scale: 4.5
+      Target Frame: map
+      X: 68.8
+      Y: 8.5
+Window Geometry:
+  Height: 900
+  Width: 1500
