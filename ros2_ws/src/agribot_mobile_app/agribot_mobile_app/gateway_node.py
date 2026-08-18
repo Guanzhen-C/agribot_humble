@@ -1358,8 +1358,16 @@ class MobileGateway(Node):
             self.processes.runtime.stop()
             with self._lock:
                 runtime = self._state["active_runtime"]
+                self._goal_handle = None
                 self._state["active_runtime"] = None
                 self._state["semantic"] = self._empty_semantic_state()
+                self._state["navigation"] = {
+                    "kind": None,
+                    "status": "idle",
+                    "feedback": {},
+                    "goal": None,
+                    "route": [],
+                }
         self._touch()
         return {"runtime": runtime}
 

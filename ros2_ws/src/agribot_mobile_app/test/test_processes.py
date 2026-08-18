@@ -1,10 +1,13 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
+import threading
 import time
 
 import pytest
 
 from agribot_mobile_app.processes import ManagedProcess, ProcessError, ProcessSlots
+from agribot_mobile_app.gateway_node import MobileGateway
 
 
 def fake_ros2(tmp_path: Path):
@@ -82,3 +85,39 @@ def test_slots_stop_motion_before_other_jobs():
 
     slots.stop_all()
     assert stopped == ["runtime", "collection", "processing"]
+
+
+def test_stopping_runtime_clears_stale_navigation_state():
+    gateway = object.__new__(MobileGateway)
+    gateway._task_transition_lock = threading.RLock()
+    gateway._lock = threading.RLock()
+    gateway._goal_handle = object()
+    gateway._state = {
+        "active_runtime": {"profile_id": "test", "map_id": "map_test"},
+        "semantic": {"status": "ready"},
+        "navigation": {
+            "kind": "semantic",
+            "status": "canceling",
+            "feedback": {"distance_remaining": 1.0},
+            "goal": {"x": 1.0, "y": 2.0, "yaw": 0.0},
+            "route": [{"x": 0.0, "y": 0.0, "yaw": 0.0}],
+        },
+    }
+    gateway.cancel_navigation = lambda _body: {"status": "canceling"}
+    gateway.processes = SimpleNamespace(runtime=SimpleNamespace(stop=lambda: None))
+    gateway._empty_semantic_state = lambda: {"status": "idle"}
+    gateway._touch = lambda: None
+
+    result = gateway.stop_runtime({})
+
+    assert result["runtime"]["map_id"] == "map_test"
+    assert gateway._goal_handle is None
+    assert gateway._state["active_runtime"] is None
+    assert gateway._state["semantic"] == {"status": "idle"}
+    assert gateway._state["navigation"] == {
+        "kind": None,
+        "status": "idle",
+        "feedback": {},
+        "goal": None,
+        "route": [],
+    }
