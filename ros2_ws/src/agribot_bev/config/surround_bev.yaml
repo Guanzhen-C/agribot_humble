@@ -1,0 +1,28 @@
+surround_bev:
+  ros__parameters:
+    use_sim_time: true
+    front_topic: /bev/cameras/front/image_raw
+    left_topic: /bev/cameras/left/image_raw
+    rear_topic: /bev/cameras/rear/image_raw
+    right_topic: /bev/cameras/right/image_raw
+    bev_image_topic: /bev/image
+    valid_mask_topic: /bev/valid_mask
+    occupancy_grid_topic: /bev/ground_grid
+    base_frame: base_footprint
+    extent_m: 10.0
+    resolution_m: 0.1
+    min_range_m: 0.3
+    camera_height_m: 1.0
+    camera_radius_m: 0.09
+    camera_pitch_deg: 25.0
+    horizontal_fov_deg: 180.0
+    vehicle_length_m: 2.4
+    vehicle_width_m: 1.35
+    sync_queue_size: 12
+    sync_slop_sec: 0.12
+    fuse_pointcloud: false
+    pointcloud_topic: /points
+    pointcloud_timeout_sec: 0.5
+    obstacle_min_height_m: 0.15
+    obstacle_max_height_m: 2.5
+    pointcloud_stride: 1

@@ -95,13 +95,14 @@ def _write_orchard_geometry_sdf(gazebo_share):
     return orchard_model_file
 
 
-def _write_ackermann_localized_sdf(ackermann_share):
+def _write_ackermann_localized_sdf(ackermann_share, include_bev_cameras):
     source_file = os.path.join(ackermann_share, "models", "ackermann_scout.sdf")
     sensor_file = os.path.join(
         ackermann_share, "models", "ackermann_scout_sensor.sdf"
     )
+    suffix = "bev" if include_bev_cameras else "no_bev"
     target_file = os.path.join(
-        tempfile.gettempdir(), "ackermann_scout_localized.generated.sdf"
+        tempfile.gettempdir(), f"ackermann_scout_localized.{suffix}.generated.sdf"
     )
 
     robot_tree = ET.parse(source_file)
@@ -115,13 +116,16 @@ def _write_ackermann_localized_sdf(ackermann_share):
     if robot_base_link is None or sensor_base_link is None:
         raise RuntimeError("Robot and sensor SDF files must each contain base_link")
 
-    sensor_names = {
-        sensor.get("name") for sensor in sensor_base_link.findall("sensor")
-    }
+    selected_sensors = [
+        sensor
+        for sensor in sensor_base_link.findall("sensor")
+        if include_bev_cameras or not sensor.get("name", "").startswith("bev_")
+    ]
+    sensor_names = {sensor.get("name") for sensor in selected_sensors}
     for existing_sensor in list(robot_base_link.findall("sensor")):
         if existing_sensor.get("name") in sensor_names:
             robot_base_link.remove(existing_sensor)
-    for sensor in sensor_base_link.findall("sensor"):
+    for sensor in selected_sensors:
         robot_base_link.append(copy.deepcopy(sensor))
 
     publish_tf = robot_model.find(".//publish_tf")
@@ -139,6 +143,7 @@ def _write_ackermann_localized_sdf(ackermann_share):
 def generate_launch_description():
     ackermann_share = get_package_share_directory("agribot_ackermann_mppi")
     autonomy_share = get_package_share_directory("agribot_autonomy")
+    bev_share = get_package_share_directory("agribot_bev")
     rl_nav_share = get_package_share_directory("agribot_rl_nav")
     scout_gazebo_share = get_package_share_directory("scout_gazebo")
     scout_navigation_share = get_package_share_directory("scout_navigation")
@@ -146,7 +151,12 @@ def generate_launch_description():
     gazebo_ros_share = get_package_share_directory("gazebo_ros")
     xacro_exec = os.path.join(get_package_prefix("xacro"), "bin", "xacro")
     description_file = os.path.join(ackermann_share, "urdf", "ackermann_scout.urdf.xacro")
-    localized_gazebo_spawn_file = _write_ackermann_localized_sdf(ackermann_share)
+    localized_gazebo_spawn_file = _write_ackermann_localized_sdf(
+        ackermann_share, include_bev_cameras=True
+    )
+    localized_gazebo_spawn_file_no_bev = _write_ackermann_localized_sdf(
+        ackermann_share, include_bev_cameras=False
+    )
     orchard_model_file = _write_orchard_geometry_sdf(scout_gazebo_share)
     map_path = PathJoinSubstitution(
         [LaunchConfiguration("map_file_location"), LaunchConfiguration("map_file")]
@@ -168,6 +178,17 @@ def generate_launch_description():
     )
     fastlio_condition = IfCondition(
         PythonExpression(["'", localization_mode, "' == 'fast_lio'"])
+    )
+    bev_node_condition = IfCondition(
+        PythonExpression(
+            [
+                "'",
+                LaunchConfiguration("enable_bev_cameras"),
+                "' == 'true' and '",
+                LaunchConfiguration("enable_bev_node"),
+                "' == 'true'",
+            ]
+        )
     )
 
     system_model_paths = [
@@ -218,7 +239,17 @@ def generate_launch_description():
             "-entity",
             LaunchConfiguration("robot_name"),
             "-file",
-            localized_gazebo_spawn_file,
+            PythonExpression(
+                [
+                    "'",
+                    localized_gazebo_spawn_file,
+                    "' if '",
+                    LaunchConfiguration("enable_bev_cameras"),
+                    "' == 'true' else '",
+                    localized_gazebo_spawn_file_no_bev,
+                    "'",
+                ]
+            ),
             "-x",
             LaunchConfiguration("initial_pose_x"),
             "-y",
@@ -397,12 +428,22 @@ def generate_launch_description():
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument(
                 "gazebo_ip",
-                default_value=os.environ.get("GAZEBO_IP", "172.17.0.1"),
+                default_value=os.environ.get("GAZEBO_IP", "127.0.0.1"),
             ),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument("rviz_start_delay", default_value="5.0"),
             DeclareLaunchArgument("headless", default_value="false"),
+            DeclareLaunchArgument("enable_bev_cameras", default_value="true"),
+            DeclareLaunchArgument("enable_bev_node", default_value="true"),
+            DeclareLaunchArgument(
+                "bev_config_file",
+                default_value=os.path.join(
+                    bev_share, "config", "surround_bev.yaml"
+                ),
+            ),
+            DeclareLaunchArgument("bev_fuse_pointcloud", default_value="true"),
+            DeclareLaunchArgument("bev_pointcloud_topic", default_value="/points"),
             DeclareLaunchArgument("use_static_map", default_value="true"),
             DeclareLaunchArgument("localization_mode", default_value="navsat"),
             DeclareLaunchArgument("enable_slam_map", default_value="false"),
@@ -570,6 +611,25 @@ def generate_launch_description():
                 )
             ),
             robot_spawn,
+            Node(
+                package="agribot_bev",
+                executable="surround_bev",
+                name="surround_bev",
+                output="screen",
+                condition=bev_node_condition,
+                parameters=[
+                    LaunchConfiguration("bev_config_file"),
+                    {
+                        "use_sim_time": LaunchConfiguration("use_sim_time"),
+                        "fuse_pointcloud": LaunchConfiguration(
+                            "bev_fuse_pointcloud"
+                        ),
+                        "pointcloud_topic": LaunchConfiguration(
+                            "bev_pointcloud_topic"
+                        ),
+                    },
+                ],
+            ),
             Node(
                 package="agribot_autonomy",
                 executable="pointcloud_ring_to_laserscan",

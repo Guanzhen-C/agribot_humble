@@ -23,6 +23,9 @@
   <xacro:property name="wheel_length" value="1.1653e-01" />
   <xacro:property name="wheel_radius" value="1.6459e-01" />
   <xacro:property name="wheel_joint_friction" value="20.0" />
+  <xacro:property name="bev_camera_radius" value="0.09" />
+  <xacro:property name="bev_camera_height" value="0.76521" />
+  <xacro:property name="bev_camera_pitch" value="0.436332" />
 
   <xacro:macro name="ackermann_wheel_link" params="wheel_prefix is_right">
     <link name="${wheel_prefix}_wheel_link">
@@ -55,6 +58,32 @@
     <gazebo reference="${ref}">
       <gravity>false</gravity>
     </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="bev_camera_frame" params="name xyz yaw">
+    <link name="${name}_camera_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <box size="0.05 0.035 0.035" />
+        </geometry>
+        <material name="${name}_camera_dark">
+          <color rgba="0.08 0.08 0.08 1.0" />
+        </material>
+      </visual>
+    </link>
+    <joint name="${name}_camera_joint" type="fixed">
+      <origin xyz="${xyz}" rpy="0 ${bev_camera_pitch} ${yaw}" />
+      <parent link="base_link" />
+      <child link="${name}_camera_link" />
+    </joint>
+
+    <link name="${name}_camera_optical_frame" />
+    <joint name="${name}_camera_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+      <parent link="${name}_camera_link" />
+      <child link="${name}_camera_optical_frame" />
+    </joint>
   </xacro:macro>
 
   <link name="base_link">
@@ -97,6 +126,15 @@
     <parent link="base_link" />
     <child link="imu_link" />
   </joint>
+
+  <xacro:bev_camera_frame
+    name="bev_front" xyz="${bev_camera_radius} 0 ${bev_camera_height}" yaw="0" />
+  <xacro:bev_camera_frame
+    name="bev_left" xyz="0 ${bev_camera_radius} ${bev_camera_height}" yaw="${M_PI/2}" />
+  <xacro:bev_camera_frame
+    name="bev_rear" xyz="${-bev_camera_radius} 0 ${bev_camera_height}" yaw="${M_PI}" />
+  <xacro:bev_camera_frame
+    name="bev_right" xyz="0 ${-bev_camera_radius} ${bev_camera_height}" yaw="${-M_PI/2}" />
 
   <xacro:ackermann_wheel_link wheel_prefix="front_left" is_right="false" />
   <xacro:ackermann_wheel_link wheel_prefix="front_right" is_right="true" />

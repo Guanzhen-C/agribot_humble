@@ -119,6 +119,134 @@
           <gaussian_noise>0.003</gaussian_noise>
         </plugin>
       </sensor>
+
+      <sensor name='bev_front_camera' type='wideanglecamera'>
+        <pose>0.09 0 0.76521 0 0.436332 0</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <camera name='front'>
+          <horizontal_fov>3.141592</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20.0</far>
+          </clip>
+          <lens>
+            <type>stereographic</type>
+            <scale_to_hfov>true</scale_to_hfov>
+            <cutoff_angle>1.570796</cutoff_angle>
+            <env_texture_size>512</env_texture_size>
+          </lens>
+        </camera>
+        <plugin name='bev_front_camera_controller' filename='libgazebo_ros_camera.so'>
+          <ros>
+            <namespace>/bev/cameras</namespace>
+          </ros>
+          <camera_name>front</camera_name>
+          <frame_name>bev_front_camera_optical_frame</frame_name>
+        </plugin>
+      </sensor>
+
+      <sensor name='bev_left_camera' type='wideanglecamera'>
+        <pose>0 0.09 0.76521 0 0.436332 1.570795</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <camera name='left'>
+          <horizontal_fov>3.141592</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20.0</far>
+          </clip>
+          <lens>
+            <type>stereographic</type>
+            <scale_to_hfov>true</scale_to_hfov>
+            <cutoff_angle>1.570796</cutoff_angle>
+            <env_texture_size>512</env_texture_size>
+          </lens>
+        </camera>
+        <plugin name='bev_left_camera_controller' filename='libgazebo_ros_camera.so'>
+          <ros>
+            <namespace>/bev/cameras</namespace>
+          </ros>
+          <camera_name>left</camera_name>
+          <frame_name>bev_left_camera_optical_frame</frame_name>
+        </plugin>
+      </sensor>
+
+      <sensor name='bev_rear_camera' type='wideanglecamera'>
+        <pose>-0.09 0 0.76521 0 0.436332 3.14159</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <camera name='rear'>
+          <horizontal_fov>3.141592</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20.0</far>
+          </clip>
+          <lens>
+            <type>stereographic</type>
+            <scale_to_hfov>true</scale_to_hfov>
+            <cutoff_angle>1.570796</cutoff_angle>
+            <env_texture_size>512</env_texture_size>
+          </lens>
+        </camera>
+        <plugin name='bev_rear_camera_controller' filename='libgazebo_ros_camera.so'>
+          <ros>
+            <namespace>/bev/cameras</namespace>
+          </ros>
+          <camera_name>rear</camera_name>
+          <frame_name>bev_rear_camera_optical_frame</frame_name>
+        </plugin>
+      </sensor>
+
+      <sensor name='bev_right_camera' type='wideanglecamera'>
+        <pose>0 -0.09 0.76521 0 0.436332 -1.570795</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <camera name='right'>
+          <horizontal_fov>3.141592</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20.0</far>
+          </clip>
+          <lens>
+            <type>stereographic</type>
+            <scale_to_hfov>true</scale_to_hfov>
+            <cutoff_angle>1.570796</cutoff_angle>
+            <env_texture_size>512</env_texture_size>
+          </lens>
+        </camera>
+        <plugin name='bev_right_camera_controller' filename='libgazebo_ros_camera.so'>
+          <ros>
+            <namespace>/bev/cameras</namespace>
+          </ros>
+          <camera_name>right</camera_name>
+          <frame_name>bev_right_camera_optical_frame</frame_name>
+        </plugin>
+      </sensor>
     </link>
   </model>
 </sdf>

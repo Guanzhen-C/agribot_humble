@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_bev</name>
+  <version>0.1.0</version>
+  <description>Four-camera ground-plane BEV and local occupancy grid for Agribot.</description>
+
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+
+  <test_depend>ament_pytest</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

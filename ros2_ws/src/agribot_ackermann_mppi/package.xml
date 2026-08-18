@@ -21,6 +21,7 @@
   <depend>tf2_ros</depend>
 
   <exec_depend>agribot_autonomy</exec_depend>
+  <exec_depend>agribot_bev</exec_depend>
   <exec_depend>agribot_rl_nav</exec_depend>
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>launch</exec_depend>
