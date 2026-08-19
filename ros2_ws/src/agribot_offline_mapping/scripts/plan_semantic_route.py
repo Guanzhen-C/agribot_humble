@@ -549,10 +549,15 @@ def point_to_segment_distance(px, py, ax, ay, bx, by):
     return math.hypot(px - closest_x, py - closest_y)
 
 
-def build_avoidance_constraints(graph, avoid_node_ids, avoidance_radius):
+def build_avoidance_constraints(
+    graph, avoid_node_ids, avoidance_radius, decay_length=0.5
+):
     avoidance_radius = finite_number(avoidance_radius, "avoidance radius")
     if avoidance_radius < 0.0:
         raise RoutePlanningError("avoidance radius must be non-negative")
+    decay_length = finite_number(decay_length, "avoidance decay length")
+    if decay_length <= 0.0:
+        raise RoutePlanningError("avoidance decay length must be positive")
     if not isinstance(avoid_node_ids, list):
         raise RoutePlanningError("avoid node ids must be a list")
     if len(avoid_node_ids) != len(set(avoid_node_ids)):
@@ -599,7 +604,8 @@ def build_avoidance_constraints(graph, avoid_node_ids, avoidance_radius):
 
     return {
         "node_ids": list(avoid_node_ids),
-        "radius_m": avoidance_radius,
+        "influence_radius_m": avoidance_radius,
+        "decay_length_m": decay_length,
         "nodes": nodes,
         "blocked_node_ids": sorted(blocked_nodes),
         "blocked_connection_ids": sorted(blocked_connections),
@@ -763,7 +769,8 @@ def plan_route(
         "selectors": selectors,
         "minimum_connection_clearance_m": minimum_edge_clearance,
         "avoid_node_ids": avoidance["node_ids"],
-        "avoidance_radius_m": avoidance["radius_m"],
+        "avoidance_influence_radius_m": avoidance["influence_radius_m"],
+        "avoidance_decay_length_m": avoidance["decay_length_m"],
     }
     route_identity = hashlib.sha256(
         (graph_digest + json.dumps(request_document, sort_keys=True)).encode("utf-8")
@@ -780,7 +787,8 @@ def plan_route(
             "goal": selectors[-1],
             "minimum_connection_clearance_m": minimum_edge_clearance,
             "avoid_node_ids": avoidance["node_ids"],
-            "avoidance_radius_m": avoidance["radius_m"],
+            "avoidance_influence_radius_m": avoidance["influence_radius_m"],
+            "avoidance_decay_length_m": avoidance["decay_length_m"],
         },
         "resolved_stops": stops,
         "avoidance_constraints": avoidance,
@@ -815,7 +823,7 @@ def plan_route(
             "execution_authorized": False,
             "requires_nav2_path_planning": True,
             "requires_live_collision_checking": True,
-            "requires_nav2_keepout_enforcement": bool(avoidance["node_ids"]),
+            "requires_nav2_proximity_layer": bool(avoidance["node_ids"]),
             "semantic_associations_are_executable": False,
             "landmark_targets_projected_to_nearest_place": contains_landmark_targets,
         },

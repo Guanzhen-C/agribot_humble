@@ -60,6 +60,7 @@ def test_task_boundary_returns_only_targets_and_keepouts(tmp_path):
         graph,
         "map_test",
         2.0,
+        0.5,
     )
 
     assert result["provider"] == "alibaba_cloud_bailian"
@@ -67,19 +68,21 @@ def test_task_boundary_returns_only_targets_and_keepouts(tmp_path):
     assert result["destination_poses"][0]["place_id"] == "place_001"
     assert result["destination_poses"][0]["yaw"] == 0.2
     assert result["avoidance_zones"][0]["selector"] == "place_000"
-    assert result["avoidance_zones"][0]["radius_m"] == 2.0
+    assert result["avoidance_zones"][0]["influence_radius_m"] == 2.0
+    assert result["avoidance_zones"][0]["decay_length_m"] == 0.5
     assert "route" not in result
     assert "route_centerline" not in result
     assert result["costmap_policy"] == {
         "semantic_route_preference_enabled": False,
-        "semantic_avoidance_is_lethal": True,
-        "requires_nav2_keepout_filter": True,
+        "semantic_avoidance_is_lethal": False,
+        "semantic_proximity_cost_model": "exponential",
+        "requires_nav2_proximity_layer": True,
     }
     assert result["statistics"]["path_planner"] == "nav2_smac_hybrid"
 
     with pytest.raises(MODULE.SemanticServiceError, match="过期图谱"):
         MODULE.validate_task_document(
-            task_document("0" * 64), graph, "map_test", 2.0
+            task_document("0" * 64), graph, "map_test", 2.0, 0.5
         )
 
 
@@ -137,5 +140,5 @@ def test_task_boundary_rejects_malformed_output(tmp_path, updates, error):
     graph, digest = write_graph(tmp_path)
     with pytest.raises(MODULE.SemanticServiceError, match=error):
         MODULE.validate_task_document(
-            task_document(digest, **updates), graph, "map_test", 2.0
+            task_document(digest, **updates), graph, "map_test", 2.0, 0.5
         )

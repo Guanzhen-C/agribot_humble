@@ -1,0 +1,8 @@
+<library path="semantic_proximity_layer">
+  <class
+    name="agribot_hardware_bringup::SemanticProximityLayer"
+    type="agribot_hardware_bringup::SemanticProximityLayer"
+    base_class_type="nav2_costmap_2d::Layer">
+    <description>Applies a bounded, non-lethal semantic proximity cost map.</description>
+  </class>
+</library>

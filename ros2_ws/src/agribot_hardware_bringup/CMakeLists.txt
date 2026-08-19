@@ -15,6 +15,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(GTSAM_UNSTABLE REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(nav2_costmap_2d REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(PCL REQUIRED COMPONENTS
   common
@@ -26,6 +27,7 @@ find_package(PCL REQUIRED COMPONENTS
   search
 )
 find_package(pcl_conversions REQUIRED)
+find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(scout_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -92,6 +94,23 @@ target_include_directories(ackermann_chassis_serial PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(ackermann_chassis_serial ackermann_chassis_can)
+
+add_library(semantic_proximity_layer SHARED
+  semantic/src/semantic_proximity_layer.cpp
+)
+target_include_directories(semantic_proximity_layer PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/semantic/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(semantic_proximity_layer
+  nav2_costmap_2d
+  nav_msgs
+  pluginlib
+  rclcpp
+)
+pluginlib_export_plugin_description_file(
+  nav2_costmap_2d semantic_proximity_layer.xml
+)
 
 add_executable(
   differential_chassis_can_node
@@ -326,11 +345,13 @@ install(DIRECTORY differential/include/ DESTINATION include)
 install(DIRECTORY ackermann/include/ DESTINATION include)
 install(DIRECTORY localization/navsat/include/ DESTINATION include)
 install(DIRECTORY localization/fusion/include/ DESTINATION include)
+install(DIRECTORY semantic/include/ DESTINATION include)
 install(TARGETS
   chassis_can_common
   differential_chassis_can
   ackermann_chassis_can
   ackermann_chassis_serial
+  semantic_proximity_layer
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -355,6 +376,7 @@ ament_export_libraries(
   differential_chassis_can
   ackermann_chassis_can
   ackermann_chassis_serial
+  semantic_proximity_layer
 )
 
 if(BUILD_TESTING)

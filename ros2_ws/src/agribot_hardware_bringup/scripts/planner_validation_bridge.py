@@ -197,11 +197,14 @@ def load_semantic_route_plan(route_file, map_frame):
     avoidance = document.get("avoidance_constraints", {})
     if not isinstance(avoidance, dict):
         raise RuntimeError("semantic route avoidance constraints must be an object")
-    radius = finite_number(
-        avoidance.get("radius_m", 0.0), "semantic avoidance radius"
+    influence_radius = finite_number(
+        avoidance.get("influence_radius_m", 0.0), "semantic avoidance influence radius"
     )
-    if radius < 0.0:
-        raise RuntimeError("semantic avoidance radius must not be negative")
+    decay_length = finite_number(
+        avoidance.get("decay_length_m", 0.0), "semantic avoidance decay length"
+    )
+    if influence_radius <= 0.0 or decay_length <= 0.0:
+        raise RuntimeError("semantic avoidance influence radius and decay length must be positive")
     avoidance_nodes = avoidance.get("nodes", [])
     if not isinstance(avoidance_nodes, list):
         raise RuntimeError("semantic avoidance nodes must be a list")
@@ -218,14 +221,15 @@ def load_semantic_route_plan(route_file, map_frame):
                 "position": validated_position(
                     node.get("position"), f"semantic avoidance node {selector}"
                 ),
-                "radius_m": radius,
+                "influence_radius_m": influence_radius,
+                "decay_length_m": decay_length,
             }
         )
     if bool(avoidance_zones) != bool(
-        policy.get("requires_nav2_keepout_enforcement", False)
+        policy.get("requires_nav2_proximity_layer", False)
     ):
         raise RuntimeError(
-            "semantic avoidance zones do not match the keepout policy"
+            "semantic avoidance zones do not match the proximity-cost policy"
         )
     return {
         "route_id": str(document.get("route_id", route_path.stem)),
@@ -275,8 +279,8 @@ class PlannerValidationBridge(Node):
         planner_state_service = self.declare_parameter(
             "planner_state_service", "/planner_server/get_state"
         ).value
-        semantic_filter_mask_topic = self.declare_parameter(
-            "semantic_filter_mask_topic", "/semantic_navigation/costmap_mask"
+        semantic_proximity_costmap_topic = self.declare_parameter(
+            "semantic_proximity_costmap_topic", "/semantic_navigation/proximity_costmap"
         ).value
         global_costmap_topic = self.declare_parameter(
             "global_costmap_topic", "/global_costmap/costmap"
@@ -345,8 +349,8 @@ class PlannerValidationBridge(Node):
         )
         self.create_subscription(
             OccupancyGrid,
-            semantic_filter_mask_topic,
-            self.semantic_filter_mask_callback,
+            semantic_proximity_costmap_topic,
+            self.semantic_proximity_costmap_callback,
             transient_qos,
         )
         self.create_subscription(
@@ -382,8 +386,8 @@ class PlannerValidationBridge(Node):
         self.goal_generation = 0
         self.dispatched_generation = 0
         self.request_in_flight = False
-        self.semantic_filter_mask_ready = False
-        self.semantic_filter_applied = False
+        self.semantic_proximity_costmap_ready = False
+        self.semantic_proximity_applied = False
 
         if route_plan:
             if not self.direct_planning_enabled:
@@ -461,17 +465,17 @@ class PlannerValidationBridge(Node):
         pose.pose.orientation.w = math.cos(0.5 * stop["yaw"])
         return pose
 
-    def semantic_filter_mask_callback(self, message):
+    def semantic_proximity_costmap_callback(self, message):
         if not message.data or message.info.width == 0 or message.info.height == 0:
             return
-        if not self.semantic_filter_mask_ready:
-            self.semantic_filter_mask_ready = True
+        if not self.semantic_proximity_costmap_ready:
+            self.semantic_proximity_costmap_ready = True
             self.get_logger().info(
-                "Semantic route costmap mask is ready; waiting for the global costmap"
+                "Semantic proximity costmap is ready; waiting for the global costmap"
             )
 
     def global_costmap_callback(self, message):
-        if not self.semantic_filter_mask_ready or self.semantic_filter_applied:
+        if not self.semantic_proximity_costmap_ready or self.semantic_proximity_applied:
             return
         if not message.data or message.info.width == 0 or message.info.height == 0:
             return
@@ -503,10 +507,10 @@ class PlannerValidationBridge(Node):
             if (
                 not 0 <= column < message.info.width
                 or not 0 <= row < message.info.height
-                or message.data[row * message.info.width + column] != 100
+                or (message.data[row * message.info.width + column] & 0xFF) < 150
             ):
                 return
-        self.semantic_filter_applied = True
+        self.semantic_proximity_applied = True
         self.get_logger().info(
             "Semantic route costs are present in the global costmap; Smac planning may start"
         )
@@ -574,7 +578,7 @@ class PlannerValidationBridge(Node):
             self.direct_planning_enabled
             and self.planner_is_active
             and self.waypoints
-            and (not self.semantic_route_id or self.semantic_filter_applied)
+            and (not self.semantic_route_id or self.semantic_proximity_applied)
             and not self.request_in_flight
             and self.goal_generation > self.dispatched_generation
             and self.planner_client.server_is_ready()
@@ -704,19 +708,11 @@ class PlannerValidationBridge(Node):
         path.header.frame_id = self.map_frame
         path.header.stamp = self.get_clock().now().to_msg()
         self.path_publisher.publish(path)
-        intersected_zones = self.path_avoidance_intersections(path)
-        if intersected_zones:
-            self.get_logger().error(
-                "Smac path intersects semantic avoidance zone(s): "
-                + ", ".join(intersected_zones)
-                + ". The Nav2 semantic costmap filter did not enforce its "
-                "lethal keepout contract."
-            )
-        elif self.avoidance_zones:
+        if self.avoidance_zones:
             self.get_logger().info(
-                "Smac path stays outside all semantic avoidance zones"
+                "Smac path uses the bounded semantic proximity costs"
             )
-        if self.path_output_path is not None and not intersected_zones:
+        if self.path_output_path is not None:
             self.write_path_output(path)
         goal_kind = (
             self.route_point_description() if self.semantic_route_id else "waypoint(s)"
@@ -820,23 +816,6 @@ class PlannerValidationBridge(Node):
         self.get_logger().info(
             f"Saved planner-certified reference path to {self.path_output_path}"
         )
-
-    def path_avoidance_intersections(self, path):
-        intersections = []
-        for zone in self.avoidance_zones:
-            center = zone["position"]
-            radius = zone["radius_m"]
-            if any(
-                math.hypot(
-                    pose.pose.position.x - center["x"],
-                    pose.pose.position.y - center["y"],
-                )
-                <= radius
-                for pose in path.poses
-            ):
-                intersections.append(zone["selector"])
-        return intersections
-
 
 def main(args=None):
     rclpy.init(args=args)

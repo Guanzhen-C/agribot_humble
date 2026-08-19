@@ -21,5 +21,4 @@ mobile_gateway:
     map_topic: /map
     global_costmap_topic: /global_costmap/costmap
     local_costmap_topic: /local_costmap/costmap
-    semantic_filter_info_topic: /semantic_navigation/costmap_filter_info
-    semantic_filter_mask_topic: /semantic_navigation/costmap_mask
+    semantic_proximity_costmap_topic: /semantic_navigation/proximity_costmap

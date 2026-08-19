@@ -49,8 +49,12 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     costmap = planner_only["global_costmap"]["global_costmap"]["ros__parameters"]
     mapped_costmap = mapped["global_costmap"]["global_costmap"]["ros__parameters"]
 
-    assert costmap["plugins"] == ["static_layer", "inflation_layer"]
-    assert costmap["filters"] == ["semantic_route_filter"]
+    assert costmap["plugins"] == [
+        "static_layer",
+        "inflation_layer",
+        "semantic_proximity_layer",
+    ]
+    assert "filters" not in costmap
     assert "stvl_layer" not in costmap
     assert costmap["footprint"] == mapped_costmap["footprint"]
     assert costmap["footprint_padding"] == 0.0
@@ -60,8 +64,14 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     )
     assert costmap["inflation_layer"]["inflation_radius"] == 2.0
     assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
-    assert costmap["semantic_route_filter"]["plugin"] == (
-        "nav2_costmap_2d::KeepoutFilter"
+    assert costmap["semantic_proximity_layer"] == {
+        "plugin": "agribot_hardware_bringup::SemanticProximityLayer",
+        "enabled": True,
+        "source_topic": "/semantic_navigation/proximity_costmap",
+        "maximum_cost": 200,
+    }
+    assert mapped_costmap["semantic_proximity_layer"] == (
+        costmap["semantic_proximity_layer"]
     )
 
 
@@ -116,13 +126,12 @@ def test_planner_validation_bridge_uses_multiple_waypoints_and_explicit_start():
     assert 'route_poses = semantic_route["requested_stops"]' in source
     assert "for stop in route_poses[1:]" in source
     assert "write_path_output" in source
-    assert "path_avoidance_intersections" in source
     assert "State.PRIMARY_STATE_ACTIVE" in source
     assert '"/planner_server/get_state"' in source
-    assert '"/semantic_navigation/costmap_mask"' in source
-    assert "self.semantic_filter_mask_ready" in source
+    assert '"/semantic_navigation/proximity_costmap"' in source
+    assert "self.semantic_proximity_costmap_ready" in source
     assert '"/global_costmap/costmap"' in source
-    assert "self.semantic_filter_applied" in source
+    assert "self.semantic_proximity_applied" in source
 
 
 def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):
@@ -139,7 +148,7 @@ def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):
             "preview_only": True,
             "execution_authorized": False,
             "requires_nav2_path_planning": True,
-            "requires_nav2_keepout_enforcement": True,
+            "requires_nav2_proximity_layer": True,
         },
         "request": {"start": "place_000", "via": [], "goal": "place_001"},
         "resolved_stops": [
@@ -176,7 +185,8 @@ def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):
             ]
         },
         "avoidance_constraints": {
-            "radius_m": 1.5,
+            "influence_radius_m": 1.5,
+            "decay_length_m": 0.5,
             "nodes": [
                 {
                     "selector": "place_009",
@@ -200,7 +210,8 @@ def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):
         "place_000",
         "place_001",
     ]
-    assert loaded["avoidance_zones"][0]["radius_m"] == 1.5
+    assert loaded["avoidance_zones"][0]["influence_radius_m"] == 1.5
+    assert loaded["avoidance_zones"][0]["decay_length_m"] == 0.5
 
     route["request"]["goal"] = "place_999"
     route_path.write_text(json.dumps(route), encoding="utf-8")

@@ -247,16 +247,26 @@ export default function MapView({
     drawPath(state?.paths?.local, "#d97706", 3);
     drawPath(route.map((pose) => [pose.x, pose.y]), "#176b5b", 2);
     const semanticDestinations = state?.semantic?.destination_poses || [];
-    const semanticKeepouts = state?.semantic?.avoidance_zones || [];
-    semanticKeepouts.forEach((zone) => {
+    const semanticAvoidanceZones = state?.semantic?.avoidance_zones || [];
+    semanticAvoidanceZones.forEach((zone) => {
       const point = worldToScreen(zone.x, zone.y);
-      context.fillStyle = "rgba(190, 24, 24, 0.24)";
-      context.strokeStyle = "#b91c1c";
-      context.lineWidth = 2;
+      const radius = zone.influence_radius_m || 0;
+      const decay = Math.max(zone.decay_length_m || 0.5, 0.01);
+      [1.0, 0.72, 0.44, 0.2].forEach((fraction) => {
+        const distance = radius * fraction;
+        const strength = Math.exp(-distance / decay);
+        context.strokeStyle = `rgba(190, 24, 24, ${0.16 + strength * 0.55})`;
+        context.lineWidth = 1.5;
+        context.setLineDash(fraction === 1.0 ? [5, 4] : []);
+        context.beginPath();
+        context.arc(point.x, point.y, distance * view.scale, 0, Math.PI * 2);
+        context.stroke();
+      });
+      context.setLineDash([]);
+      context.fillStyle = "#b91c1c";
       context.beginPath();
-      context.arc(point.x, point.y, zone.radius_m * view.scale, 0, Math.PI * 2);
+      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
       context.fill();
-      context.stroke();
     });
 
     semanticDestinations.forEach((pose, index) => {

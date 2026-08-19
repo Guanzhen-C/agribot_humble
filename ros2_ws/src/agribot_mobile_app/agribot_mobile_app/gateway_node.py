@@ -29,7 +29,6 @@ from geometry_msgs.msg import (
     Twist,
 )
 from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
-from nav2_msgs.msg import CostmapFilterInfo
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 import rclpy
@@ -57,7 +56,7 @@ from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
 from .route_costmap import (
     RouteCostmapError,
-    build_keepout_costmap,
+    build_proximity_costmap,
     neutral_route_costmap,
     world_to_grid,
 )
@@ -429,14 +428,10 @@ class MobileGateway(Node):
                 ).value
             ),
         }
-        self.semantic_filter_info_topic = str(
+        self.semantic_proximity_costmap_topic = str(
             self.declare_parameter(
-                "semantic_filter_info_topic", "/semantic_navigation/costmap_filter_info"
-            ).value
-        )
-        self.semantic_filter_mask_topic = str(
-            self.declare_parameter(
-                "semantic_filter_mask_topic", "/semantic_navigation/costmap_mask"
+                "semantic_proximity_costmap_topic",
+                "/semantic_navigation/proximity_costmap",
             ).value
         )
         self.map_catalog = MapCatalog(self.map_root)
@@ -521,10 +516,7 @@ class MobileGateway(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
         self._semantic_mask_publisher = self.create_publisher(
-            OccupancyGrid, self.semantic_filter_mask_topic, latched
-        )
-        self._semantic_filter_info_publisher = self.create_publisher(
-            CostmapFilterInfo, self.semantic_filter_info_topic, latched
+            OccupancyGrid, self.semantic_proximity_costmap_topic, latched
         )
         normal = QoSProfile(depth=20)
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
@@ -738,13 +730,11 @@ class MobileGateway(Node):
                 try:
                     self._publish_semantic_costmap(grid, semantic)
                 except RouteCostmapError as error:
-                    self.get_logger().error(
-                        f"无法更新语义禁行区掩膜: {error}"
-                    )
+                    self.get_logger().error(f"无法更新语义避让代价层: {error}")
             if (
                 layer == "global_costmap"
                 and active_costmap_source is not None
-                and self._semantic_keepouts_applied(
+                and self._semantic_proximity_costs_applied(
                     grid, active_costmap_source["avoidance_zones"]
                 )
             ):
@@ -754,7 +744,7 @@ class MobileGateway(Node):
                         and self._state["semantic"].get("status") == "ready"
                     ):
                         self._state["semantic"]["costmap_ready"] = True
-                self.get_logger().info("语义禁行区已写入全局代价地图")
+                self.get_logger().info("语义避让代价已写入全局代价地图")
                 self._touch()
 
         return callback
@@ -781,15 +771,7 @@ class MobileGateway(Node):
         if semantic is None:
             mask = neutral_route_costmap(grid)
         else:
-            mask = build_keepout_costmap(grid, semantic["avoidance_zones"])
-        info = CostmapFilterInfo()
-        info.header.stamp = self.get_clock().now().to_msg()
-        info.header.frame_id = "map"
-        info.type = 0
-        info.filter_mask_topic = self.semantic_filter_mask_topic
-        info.base = 0.0
-        info.multiplier = 1.0
-        self._semantic_filter_info_publisher.publish(info)
+            mask = build_proximity_costmap(grid, semantic["avoidance_zones"])
         self._semantic_mask_publisher.publish(self._costmap_message(grid, mask))
 
     def _publish_neutral_semantic_costmap(self) -> None:
@@ -799,14 +781,15 @@ class MobileGateway(Node):
             self._publish_semantic_costmap(grid, None)
 
     @staticmethod
-    def _semantic_keepouts_applied(grid: GridData, zones: list[dict]) -> bool:
+    def _semantic_proximity_costs_applied(grid: GridData, zones: list[dict]) -> bool:
         if not zones:
             return True
         for zone in zones:
             column, row = world_to_grid(grid, zone["x"], zone["y"])
             if not 0 <= column < grid.width or not 0 <= row < grid.height:
                 return False
-            if grid.data[row * grid.width + column] != 100:
+            # The custom layer maps source 100 to 200, below Nav2's lethal cost.
+            if grid.data[row * grid.width + column] < 150:
                 return False
         return True
 
@@ -1188,31 +1171,38 @@ class MobileGateway(Node):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地顺序不一致")
         raw_zones = semantic.get("avoidance_zones", [])
         if not isinstance(raw_zones, list) or len(raw_zones) > 16:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让区域无效")
         avoidance_zones = []
         for zone in raw_zones:
             if not isinstance(zone, dict):
-                raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让区域无效")
             selector = str(zone.get("selector", ""))
-            radius = finite_number(zone.get("radius_m"), "语义禁行半径")
-            if not selector or radius < 0.0:
-                raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+            influence_radius = finite_number(
+                zone.get("influence_radius_m"), "语义避让影响半径"
+            )
+            decay_length = finite_number(
+                zone.get("decay_length_m"), "语义避让衰减距离"
+            )
+            if not selector or influence_radius <= 0.0 or decay_length <= 0.0:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让区域无效")
             avoidance_zones.append(
                 {
                     "selector": selector,
-                    "x": finite_number(zone.get("x"), "语义禁行X坐标"),
-                    "y": finite_number(zone.get("y"), "语义禁行Y坐标"),
-                    "radius_m": radius,
+                    "x": finite_number(zone.get("x"), "语义避让X坐标"),
+                    "y": finite_number(zone.get("y"), "语义避让Y坐标"),
+                    "influence_radius_m": influence_radius,
+                    "decay_length_m": decay_length,
                 }
             )
         if sorted(item["selector"] for item in avoidance_zones) != sorted(
             avoid_node_ids
         ):
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区与避让节点不一致")
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让区域与避让节点不一致")
         expected_costmap_policy = {
             "semantic_route_preference_enabled": False,
-            "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": bool(avoidance_zones),
+            "semantic_avoidance_is_lethal": False,
+            "semantic_proximity_cost_model": "exponential",
+            "requires_nav2_proximity_layer": bool(avoidance_zones),
         }
         if semantic.get("costmap_policy") != expected_costmap_policy:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行区策略无效")
@@ -1262,7 +1252,7 @@ class MobileGateway(Node):
             self._publish_semantic_costmap(map_grid, costmap_source)
         except RouteCostmapError as error:
             raise ApiError(
-                HTTPStatus.BAD_REQUEST, f"无法生成语义禁行区掩膜: {error}"
+                HTTPStatus.BAD_REQUEST, f"无法生成语义避让代价层: {error}"
             ) from error
         with self._lock:
             current_runtime = self._state.get("active_runtime")
@@ -1291,7 +1281,7 @@ class MobileGateway(Node):
                 "语义路线尚未通过执行策略校验",
             )
         if semantic.get("costmap_ready") is not True:
-            raise ApiError(HTTPStatus.CONFLICT, "语义禁行区掩膜尚未就绪")
+            raise ApiError(HTTPStatus.CONFLICT, "语义避让代价层尚未就绪")
         destination_poses = [
             pose_document(value) for value in semantic["destination_poses"]
         ]

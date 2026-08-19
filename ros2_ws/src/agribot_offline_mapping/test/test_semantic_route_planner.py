@@ -308,13 +308,14 @@ def test_avoidance_zone_forces_alternate_route_and_is_auditable():
     ]
     assert "place_via" not in result["route"]["semantic_node_ids"]
     assert result["request"]["avoid_node_ids"] == ["place_via"]
-    assert result["avoidance_constraints"]["radius_m"] == 0.10
+    assert result["avoidance_constraints"]["influence_radius_m"] == 0.10
+    assert result["avoidance_constraints"]["decay_length_m"] == 0.5
     assert "place_via" in result["avoidance_constraints"]["blocked_node_ids"]
     assert set(result["avoidance_constraints"]["blocked_connection_ids"]) == {
         "connection_ab",
         "connection_bc",
     }
-    assert result["execution_policy"]["requires_nav2_keepout_enforcement"] is True
+    assert result["execution_policy"]["requires_nav2_proximity_layer"] is True
 
 
 def test_avoidance_rejects_destination_or_start_inside_forbidden_zone():

@@ -23,8 +23,9 @@ def semantic_document(**updates):
         "execution_allowed": True,
         "costmap_policy": {
             "semantic_route_preference_enabled": False,
-            "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": False,
+            "semantic_avoidance_is_lethal": False,
+            "semantic_proximity_cost_model": "exponential",
+            "requires_nav2_proximity_layer": False,
         },
         "statistics": {
             "destination_count": 1,
@@ -83,7 +84,7 @@ def test_semantic_execution_sends_only_ordered_model_destinations():
     assert sent[0][0][0]["x"] == 2.0
 
 
-def test_semantic_keepout_task_waits_for_the_global_costmap():
+def test_semantic_proximity_task_waits_for_the_global_costmap():
     gateway = gateway_stub()
     result = gateway.receive_semantic_route(
         {
@@ -94,13 +95,15 @@ def test_semantic_keepout_task_waits_for_the_global_costmap():
                         "selector": "place_009",
                         "x": 4.0,
                         "y": 5.0,
-                        "radius_m": 2.0,
+                        "influence_radius_m": 2.0,
+                        "decay_length_m": 0.5,
                     }
                 ],
                 costmap_policy={
                     "semantic_route_preference_enabled": False,
-                    "semantic_avoidance_is_lethal": True,
-                    "requires_nav2_keepout_filter": True,
+                    "semantic_avoidance_is_lethal": False,
+                    "semantic_proximity_cost_model": "exponential",
+                    "requires_nav2_proximity_layer": True,
                 },
                 statistics={
                     "destination_count": 1,

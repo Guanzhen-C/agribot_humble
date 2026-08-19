@@ -68,7 +68,12 @@ def finite(value, description):
 
 
 def validate_task_document(
-    document, graph_path, map_id, avoidance_radius, model="qwen3.7-flash"
+    document,
+    graph_path,
+    map_id,
+    proximity_influence_radius_m,
+    proximity_decay_length_m,
+    model="qwen3.7-flash",
 ):
     if not isinstance(document, dict):
         raise SemanticServiceError("语义任务格式无效")
@@ -159,9 +164,14 @@ def validate_task_document(
                 "place_id": place_id,
             }
         )
-    avoidance_radius = finite(avoidance_radius, "语义避让半径")
-    if avoidance_radius < 0.0:
-        raise SemanticServiceError("语义避让半径不能为负数")
+    proximity_influence_radius_m = finite(
+        proximity_influence_radius_m, "语义避让影响半径"
+    )
+    proximity_decay_length_m = finite(
+        proximity_decay_length_m, "语义避让衰减距离"
+    )
+    if proximity_influence_radius_m <= 0.0 or proximity_decay_length_m <= 0.0:
+        raise SemanticServiceError("语义避让影响半径和衰减距离必须为正数")
     avoidance_zones = []
     for place_id in avoid_nodes:
         place = places[place_id]
@@ -170,7 +180,8 @@ def validate_task_document(
                 "selector": place_id,
                 "x": place["x"],
                 "y": place["y"],
-                "radius_m": avoidance_radius,
+                "influence_radius_m": proximity_influence_radius_m,
+                "decay_length_m": proximity_decay_length_m,
             }
         )
     return {
@@ -184,8 +195,9 @@ def validate_task_document(
         "execution_allowed": True,
         "costmap_policy": {
             "semantic_route_preference_enabled": False,
-            "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": bool(avoidance_zones),
+            "semantic_avoidance_is_lethal": False,
+            "semantic_proximity_cost_model": "exponential",
+            "requires_nav2_proximity_layer": bool(avoidance_zones),
         },
         "statistics": {
             "destination_count": len(destination_poses),
@@ -247,7 +259,15 @@ class SemanticPlannerService:
                 "neo4j_password_env": password_env,
                 "retrieval_top_k": int(value.get("retrieval_top_k", 5)),
                 "maximum_start_distance": float(value.get("maximum_start_distance", 10.0)),
-                "avoidance_radius": float(value.get("avoidance_radius", 2.0)),
+                "proximity_influence_radius_m": float(
+                    value.get(
+                        "proximity_influence_radius_m",
+                        value.get("avoidance_radius", 2.0),
+                    )
+                ),
+                "proximity_decay_length_m": float(
+                    value.get("proximity_decay_length_m", 0.5)
+                ),
             }
         if not self.planner_script.is_file():
             raise SemanticServiceError("规划脚本不存在: {}".format(self.planner_script))
@@ -364,7 +384,8 @@ class SemanticPlannerService:
                 task_plan,
                 profile["graph"],
                 map_id,
-                profile["avoidance_radius"],
+                profile["proximity_influence_radius_m"],
+                profile["proximity_decay_length_m"],
                 self.model,
             )
             semantic["instruction"] = instruction

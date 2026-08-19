@@ -167,7 +167,7 @@ function NavigationPanel({
             <div className="section-heading"><h2>有序语义目标</h2><Pill>{semantic.destination_poses.length}</Pill></div>
             <div className="metric-grid semantic-metrics">
               <div><span>目标数</span><strong>{semantic.statistics?.destination_count ?? semantic.destination_poses.length}</strong></div>
-              <div><span>禁行区</span><strong>{semantic.statistics?.avoidance_zone_count ?? semantic.avoidance_zones?.length ?? 0}</strong></div>
+              <div><span>避让点</span><strong>{semantic.statistics?.avoidance_zone_count ?? semantic.avoidance_zones?.length ?? 0}</strong></div>
             </div>
             <div className="semantic-destinations">
               {(semantic.destinations || []).map((destination, index) => (
@@ -178,7 +178,7 @@ function NavigationPanel({
               ))}
             </div>
             {semantic.avoid_node_ids?.length > 0 && (
-              <div className="status-message">语义禁行区已按致命障碍物写入Nav2代价地图。</div>
+              <div className="status-message">语义避让点已按局部指数代价写入 Nav2 代价地图。</div>
             )}
             <div className="button-stack semantic-actions">
               <CommandButton icon={Navigation} disabled={!semantic.execution_allowed || running} onClick={() => execute("/api/v1/semantic/execute", {})}>

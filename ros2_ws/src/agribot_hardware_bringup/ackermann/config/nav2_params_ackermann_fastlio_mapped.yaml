@@ -184,8 +184,7 @@ global_costmap:
       # Measured body outline plus 0.10 m fore/aft and 0.15 m lateral clearance.
       footprint: "[[0.754818, 0.485974], [0.754818, -0.485974], [-0.227500, -0.485974], [-0.227500, 0.485974]]"
       footprint_padding: 0.0
-      plugins: [static_layer, stvl_layer, inflation_layer]
-      filters: [semantic_route_filter]
+      plugins: [static_layer, stvl_layer, inflation_layer, semantic_proximity_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
         map_subscribe_transient_local: true
@@ -234,11 +233,11 @@ global_costmap:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 1.0
         inflation_radius: 2.0
-      semantic_route_filter:
-        plugin: nav2_costmap_2d::KeepoutFilter
+      semantic_proximity_layer:
+        plugin: agribot_hardware_bringup::SemanticProximityLayer
         enabled: true
-        filter_info_topic: /semantic_navigation/costmap_filter_info
-        transform_tolerance: 0.3
+        source_topic: /semantic_navigation/proximity_costmap
+        maximum_cost: 200
 
 local_costmap:
   local_costmap:
@@ -256,8 +255,7 @@ local_costmap:
       # Measured body outline plus 0.10 m fore/aft and 0.15 m lateral clearance.
       footprint: "[[0.754818, 0.485974], [0.754818, -0.485974], [-0.227500, -0.485974], [-0.227500, 0.485974]]"
       footprint_padding: 0.0
-      plugins: [static_layer, stvl_layer, inflation_layer]
-      filters: [semantic_route_filter]
+      plugins: [static_layer, stvl_layer, inflation_layer, semantic_proximity_layer]
       static_layer:
         plugin: nav2_costmap_2d::StaticLayer
         map_subscribe_transient_local: true
@@ -306,11 +304,11 @@ local_costmap:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 1.0
         inflation_radius: 2.0
-      semantic_route_filter:
-        plugin: nav2_costmap_2d::KeepoutFilter
+      semantic_proximity_layer:
+        plugin: agribot_hardware_bringup::SemanticProximityLayer
         enabled: true
-        filter_info_topic: /semantic_navigation/costmap_filter_info
-        transform_tolerance: 0.3
+        source_topic: /semantic_navigation/proximity_costmap
+        maximum_cost: 200
 
 map_server:
   ros__parameters:

@@ -19,7 +19,8 @@
       "neo4j_password_env": "AGRIBOT_NEO4J_OUTDOOR_PASSWORD",
       "retrieval_top_k": 5,
       "maximum_start_distance": 10.0,
-      "avoidance_radius": 2.0
+      "proximity_influence_radius_m": 2.0,
+      "proximity_decay_length_m": 0.5
     },
     "map_lio_sam_zoulang_0813_indoor": {
       "label": "室内走廊语义图谱",
@@ -30,7 +31,8 @@
       "neo4j_password_env": "AGRIBOT_NEO4J_INDOOR_PASSWORD",
       "retrieval_top_k": 5,
       "maximum_start_distance": 5.0,
-      "avoidance_radius": 2.0
+      "proximity_influence_radius_m": 2.0,
+      "proximity_decay_length_m": 0.5
     }
   }
 }
