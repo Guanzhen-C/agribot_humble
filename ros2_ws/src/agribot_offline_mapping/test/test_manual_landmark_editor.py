@@ -96,3 +96,18 @@ def test_dialog_accepts_name_and_category_without_editing_coordinates():
     assert dialog.category_edit.text() == "充电设施"
     dialog.deleteLater()
     application.processEvents()
+
+
+def test_editor_application_stays_alive_after_dialog_closes():
+    application = QApplication.instance() or QApplication([])
+    application.setQuitOnLastWindowClosed(False)
+
+    dialog = MODULE.LandmarkDialog(1.0, 2.0, 0.0)
+    dialog.show()
+    application.processEvents()
+    dialog.reject()
+    application.processEvents()
+
+    assert not application.quitOnLastWindowClosed()
+    assert not dialog.isVisible()
+    dialog.deleteLater()

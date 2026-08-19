@@ -423,6 +423,7 @@ def main(args=None):
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
     application = QApplication.instance() or QApplication([sys.argv[0]])
     application.setApplicationName("农机地图地标编辑器")
+    application.setQuitOnLastWindowClosed(False)
     node = None
     timer = QTimer()
 
