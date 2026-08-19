@@ -6,8 +6,7 @@ import pytest
 from agribot_mobile_app.catalog import GridData
 from agribot_mobile_app.route_costmap import (
     RouteCostmapError,
-    RouteCostmapPolicy,
-    build_route_costmap,
+    build_keepout_costmap,
     neutral_route_costmap,
     world_to_grid,
 )
@@ -25,28 +24,16 @@ def grid(yaw=0.0):
     )
 
 
-def test_astar_centerline_is_free_and_cost_rises_outward():
-    mask = build_route_costmap(
-        grid(),
-        [{"x": 2.0, "y": 10.0}, {"x": 17.0, "y": 10.0}],
-        [],
-        RouteCostmapPolicy(
-            core_half_width_m=0.5,
-            gradient_width_m=4.0,
-            maximum_preference_cost=80,
-        ),
-    )
+def test_empty_semantic_task_does_not_change_the_original_costmap():
+    mask = build_keepout_costmap(grid(), [])
 
     assert mask.dtype == np.uint8
-    assert mask[10, 10] == 0
-    assert 0 < mask[12, 10] < mask[14, 10]
-    assert mask[16, 10] == 80
+    assert np.count_nonzero(mask) == 0
 
 
-def test_semantic_avoidance_zone_overrides_route_with_lethal_cost():
-    mask = build_route_costmap(
+def test_semantic_avoidance_zone_is_the_only_lethal_area():
+    mask = build_keepout_costmap(
         grid(),
-        [{"x": 2.0, "y": 10.0}, {"x": 17.0, "y": 10.0}],
         [
             {
                 "selector": "place_blocked",
@@ -55,12 +42,12 @@ def test_semantic_avoidance_zone_overrides_route_with_lethal_cost():
                 "radius_m": 2.0,
             }
         ],
-        RouteCostmapPolicy(),
     )
 
     assert mask[10, 10] == 100
     assert mask[10, 12] == 100
-    assert mask[10, 13] < 100
+    assert mask[10, 13] == 0
+    assert set(np.unique(mask)) == {0, 100}
 
 
 def test_world_to_grid_supports_rotated_map_origins_and_neutral_mask():
@@ -69,21 +56,12 @@ def test_world_to_grid_supports_rotated_map_origins_and_neutral_mask():
     assert np.count_nonzero(neutral_route_costmap(rotated)) == 0
 
 
-def test_rejects_route_outside_map_and_duplicate_avoidance_ids():
-    with pytest.raises(RouteCostmapError, match="does not intersect"):
-        build_route_costmap(
-            grid(),
-            [{"x": -20.0, "y": -20.0}, {"x": -10.0, "y": -10.0}],
-            [],
-            RouteCostmapPolicy(),
-        )
+def test_duplicate_avoidance_ids_are_rejected():
     with pytest.raises(RouteCostmapError, match="unique"):
-        build_route_costmap(
+        build_keepout_costmap(
             grid(),
-            [{"x": 2.0, "y": 10.0}, {"x": 17.0, "y": 10.0}],
             [
                 {"selector": "same", "x": 2.0, "y": 2.0, "radius_m": 1.0},
                 {"selector": "same", "x": 3.0, "y": 3.0, "radius_m": 1.0},
             ],
-            RouteCostmapPolicy(),
         )

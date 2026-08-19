@@ -767,11 +767,13 @@ ros2 run agribot_offline_mapping describe_opengraph_instances_ollama.py \
 # 手机App语义导航的数据流：
 # 1. 手机通过热点访问RDK的http://RDK_IP:8088，同时通过VPN访问172.18.80.26:8090
 # 2. App发送自然语言、当前map坐标和地图ID给172服务器
-# 3. 服务器调用百炼Qwen、执行Neo4j混合检索和A*，只返回预览路线与代价约束
-# 4. App把完整路线提交给RDK复核；用户在App检查后再点击“执行语义路线”
+# 3. 服务器调用百炼Qwen和Neo4j混合检索，只返回按用户顺序排列的目标地点与禁行地点
+# 4. App把目标与禁行区提交给RDK复核；用户检查后点击“执行语义任务”
+# 5. RDK仅把禁行区作为致命障碍写入代价地图，目标之间的完整可行路径由Smac生成
+# 不使用拓扑A*，不生成A*中心线，也不向原有Nav2代价地图增加路线偏好代价
 # 手机断开服务器不会影响已提交给Nav2的任务；RDK不会访问模型或Neo4j
 
-# 调试服务器API（只生成路线，不启动Nav2，不创建底盘节点）
+# 调试服务器API（只生成目标与禁行区，不启动Nav2，不创建底盘节点）
 curl -fsS http://172.18.80.26:8090/api/v1/semantic/plan \
   -H 'Content-Type: application/json' \
   -d '{"map_id":"map_lio_sam_0811","instruction":"先去浅蓝色建筑，再到混凝土台阶","start_position":{"x":0.70,"y":0.80}}' \
@@ -781,39 +783,6 @@ curl -fsS http://172.18.80.26:8090/api/v1/semantic/plan \
 ssh dcliu@172.18.80.26
 systemctl status agribot-semantic.service --no-pager
 journalctl -u agribot-semantic.service -f
-
-# 生成覆盖整个二维地图闭环的离线A*验证路线
-ros2 run agribot_offline_mapping plan_semantic_route.py \
-  --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-  --start place_000 \
-  --via place_010 \
-  --via place_020 \
-  --via place_030 \
-  --goal place_041 \
-  --output /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_route_preview.json
-
-# 统一验证语义导航和Smac阿克曼规划：只启动二维地图、中文拓扑、Smac和RViz
-# 青色线和红色地点来自二维地图中心线，绿色线是Smac按真机几何约束生成的路径
-# 大模型指定的地点是Smac必须依次到达的硬目标，A*稠密中心线不是硬经停点
-# A*中心线在半个车宽内代价为0，向外2米线性升至80，用作Smac的软路线引导
-# 大模型指定的禁行圆区写入Keepout Filter并按致命障碍处理，和原障碍物代价取较大值
-# 原遥控足迹、旧拓扑、橙色预览默认都不显示
-# 路线会自动送入Smac，不需要再手工点击起点和目标
-# 本测试不启动传感器、控制器或底盘，绝不会让真车运动
-source /opt/ros/humble/setup.bash
-source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
-export DISPLAY=:1
-export XAUTHORITY=/run/user/1000/gdm/Xauthority
-ros2 launch agribot_offline_mapping \
-  semantic_smac_planner_validation.launch.py \
-  map:=/media/cgz/data/agribot_data/maps/map_lio_sam_0811.yaml \
-  navigation_graph:=/media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
-  route_plan:=/media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_route_preview.json \
-  show_3d_map:=false \
-  rviz:=true
-
-# 重新使用RViz手工测试Smac时，点击2D Pose Estimate会清空已加载的语义任务和禁行区
-# 随后可连续点击2D Goal Pose，绿色路径会按新的人工起点和经停点重新规划
 
 # 在Jetson的RViz查看二维地图、中文地点、中文地标和两类连接
 # 三维语义点云和全部开放词汇标签默认关闭，需要核对语义实例时在RViz中手动勾选

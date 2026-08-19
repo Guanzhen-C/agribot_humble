@@ -57,8 +57,7 @@ from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
 from .route_costmap import (
     RouteCostmapError,
-    RouteCostmapPolicy,
-    build_route_costmap,
+    build_keepout_costmap,
     neutral_route_costmap,
     world_to_grid,
 )
@@ -66,7 +65,6 @@ from .route_costmap import (
 
 MAX_JSON_BODY = 256 * 1024
 MAX_ROUTE_POSES = 100
-MAX_ROUTE_CENTERLINE_POINTS = 10000
 MONITORED_TOPICS = (
     "/lidar/points",
     "/imu/data",
@@ -441,25 +439,6 @@ class MobileGateway(Node):
                 "semantic_filter_mask_topic", "/semantic_navigation/costmap_mask"
             ).value
         )
-        self.semantic_costmap_policy = RouteCostmapPolicy(
-            core_half_width_m=float(
-                self.declare_parameter(
-                    "semantic_route_core_half_width_m", 0.485974
-                ).value
-            ),
-            gradient_width_m=float(
-                self.declare_parameter(
-                    "semantic_route_gradient_width_m", 2.0
-                ).value
-            ),
-            maximum_preference_cost=int(
-                self.declare_parameter(
-                    "semantic_route_maximum_preference_cost", 80
-                ).value
-            ),
-        )
-        self.semantic_costmap_policy.validate()
-
         self.map_catalog = MapCatalog(self.map_root)
         self.bag_catalog = BagCatalog(self.bag_root)
         self.runtime_profiles = RuntimeProfiles(profile_path)
@@ -517,7 +496,6 @@ class MobileGateway(Node):
                 "map_id": None,
                 "status": "idle",
                 "instruction": "",
-                "route": [],
                 "destination_poses": [],
                 "destinations": [],
                 "avoid_node_ids": [],
@@ -761,7 +739,7 @@ class MobileGateway(Node):
                     self._publish_semantic_costmap(grid, semantic)
                 except RouteCostmapError as error:
                     self.get_logger().error(
-                        f"无法更新语义路线代价掩膜: {error}"
+                        f"无法更新语义禁行区掩膜: {error}"
                     )
             if (
                 layer == "global_costmap"
@@ -776,7 +754,7 @@ class MobileGateway(Node):
                         and self._state["semantic"].get("status") == "ready"
                     ):
                         self._state["semantic"]["costmap_ready"] = True
-                self.get_logger().info("语义路线代价已写入全局代价地图")
+                self.get_logger().info("语义禁行区已写入全局代价地图")
                 self._touch()
 
         return callback
@@ -803,12 +781,7 @@ class MobileGateway(Node):
         if semantic is None:
             mask = neutral_route_costmap(grid)
         else:
-            mask = build_route_costmap(
-                grid,
-                semantic["route_centerline"],
-                semantic["avoidance_zones"],
-                self.semantic_costmap_policy,
-            )
+            mask = build_keepout_costmap(grid, semantic["avoidance_zones"])
         info = CostmapFilterInfo()
         info.header.stamp = self.get_clock().now().to_msg()
         info.header.frame_id = "map"
@@ -900,7 +873,6 @@ class MobileGateway(Node):
             "map_id": map_id,
             "status": "idle",
             "instruction": "",
-            "route": [],
             "destination_poses": [],
             "destinations": [],
             "avoid_node_ids": [],
@@ -1161,32 +1133,6 @@ class MobileGateway(Node):
             or any(value not in "0123456789abcdef" for value in graph_digest)
         ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义图谱摘要无效")
-        values = semantic.get("route")
-        if not isinstance(values, list) or not 2 <= len(values) <= MAX_ROUTE_POSES:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线必须包含2至100个位姿")
-        route = []
-        for value in values:
-            pose = pose_document(value)
-            pose["place_id"] = str(value.get("place_id", ""))
-            if not pose["place_id"]:
-                raise ApiError(HTTPStatus.BAD_REQUEST, "A*路线地点编号无效")
-            route.append(pose)
-        raw_centerline = semantic.get("route_centerline")
-        if (
-            not isinstance(raw_centerline, list)
-            or not 2 <= len(raw_centerline) <= MAX_ROUTE_CENTERLINE_POINTS
-        ):
-            raise ApiError(HTTPStatus.BAD_REQUEST, "A*中心线点数无效")
-        route_centerline = []
-        for point in raw_centerline:
-            if not isinstance(point, dict):
-                raise ApiError(HTTPStatus.BAD_REQUEST, "A*中心线点无效")
-            route_centerline.append(
-                {
-                    "x": finite_number(point.get("x"), "A*中心线X坐标"),
-                    "y": finite_number(point.get("y"), "A*中心线Y坐标"),
-                }
-            )
         instruction = semantic.get("instruction")
         if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 1000:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务描述无效")
@@ -1200,13 +1146,6 @@ class MobileGateway(Node):
         execution_allowed = semantic.get("execution_allowed")
         if execution_allowed is not True:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线执行标记无效")
-        raw_costmap_policy = semantic.get("costmap_policy")
-        if raw_costmap_policy != {
-            "astar_centerline_is_soft_preference": True,
-            "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": True,
-        }:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线代价地图策略无效")
         raw_destination_poses = semantic.get("destination_poses")
         if (
             not isinstance(raw_destination_poses, list)
@@ -1270,23 +1209,28 @@ class MobileGateway(Node):
             avoid_node_ids
         ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区与避让节点不一致")
+        expected_costmap_policy = {
+            "semantic_route_preference_enabled": False,
+            "semantic_avoidance_is_lethal": True,
+            "requires_nav2_keepout_filter": bool(avoidance_zones),
+        }
+        if semantic.get("costmap_policy") != expected_costmap_policy:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行区策略无效")
         raw_statistics = semantic.get("statistics", {})
         if not isinstance(raw_statistics, dict):
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线统计无效")
-        raw_place_count = finite_number(
-            raw_statistics.get("route_navigation_places", len(route)),
-            "拓扑点数量",
-        )
-        if not raw_place_count.is_integer() or not 2 <= raw_place_count <= MAX_ROUTE_POSES:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "拓扑点数量无效")
-        route_length = finite_number(
-            raw_statistics.get("drivable_route_length_m", 0.0), "路线长度"
-        )
-        if route_length < 0.0:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "路线长度无效")
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务统计无效")
+        destination_count = raw_statistics.get("destination_count")
+        avoidance_zone_count = raw_statistics.get("avoidance_zone_count")
+        if (
+            destination_count != len(destination_poses)
+            or avoidance_zone_count != len(avoidance_zones)
+            or raw_statistics.get("path_planner") != "nav2_smac_hybrid"
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务统计无效")
         statistics = {
-            "route_navigation_places": int(raw_place_count),
-            "drivable_route_length_m": route_length,
+            "destination_count": destination_count,
+            "avoidance_zone_count": avoidance_zone_count,
+            "path_planner": "nav2_smac_hybrid",
         }
         self._assert_navigation_ready()
         semantic_state = {
@@ -1294,7 +1238,6 @@ class MobileGateway(Node):
             "map_id": map_id,
             "status": "ready",
             "instruction": instruction.strip(),
-            "route": route,
             "destination_poses": destination_poses,
             "destinations": validated_destinations,
             "avoid_node_ids": avoid_node_ids,
@@ -1309,7 +1252,6 @@ class MobileGateway(Node):
             "error": "",
         }
         costmap_source = {
-            "route_centerline": route_centerline,
             "avoidance_zones": avoidance_zones,
         }
         with self._lock:
@@ -1320,7 +1262,7 @@ class MobileGateway(Node):
             self._publish_semantic_costmap(map_grid, costmap_source)
         except RouteCostmapError as error:
             raise ApiError(
-                HTTPStatus.BAD_REQUEST, f"无法生成语义路线代价层: {error}"
+                HTTPStatus.BAD_REQUEST, f"无法生成语义禁行区掩膜: {error}"
             ) from error
         with self._lock:
             current_runtime = self._state.get("active_runtime")
@@ -1335,8 +1277,10 @@ class MobileGateway(Node):
         with self._lock:
             semantic = json.loads(json.dumps(self._state["semantic"]))
             active_runtime = self._state.get("active_runtime")
-        if semantic.get("status") != "ready" or len(semantic.get("route", [])) < 2:
-            raise ApiError(HTTPStatus.CONFLICT, "请先生成有效的语义路线")
+        if semantic.get("status") != "ready" or not semantic.get(
+            "destination_poses"
+        ):
+            raise ApiError(HTTPStatus.CONFLICT, "请先生成有效的语义目标")
         if not isinstance(active_runtime, dict) or semantic.get("map_id") != active_runtime.get(
             "map_id"
         ):
@@ -1347,7 +1291,7 @@ class MobileGateway(Node):
                 "语义路线尚未通过执行策略校验",
             )
         if semantic.get("costmap_ready") is not True:
-            raise ApiError(HTTPStatus.CONFLICT, "语义路线代价层尚未就绪")
+            raise ApiError(HTTPStatus.CONFLICT, "语义禁行区掩膜尚未就绪")
         destination_poses = [
             pose_document(value) for value in semantic["destination_poses"]
         ]

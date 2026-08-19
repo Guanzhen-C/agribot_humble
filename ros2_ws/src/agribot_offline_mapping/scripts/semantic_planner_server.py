@@ -17,8 +17,8 @@ import uuid
 
 
 MAXIMUM_REQUEST_BYTES = 64 * 1024
-MAXIMUM_ROUTE_POSES = 100
-MAXIMUM_ROUTE_CENTERLINE_POINTS = 10000
+MAXIMUM_DESTINATIONS = 16
+MAXIMUM_AVOIDANCE_ZONES = 16
 
 
 class SemanticServiceError(RuntimeError):
@@ -67,165 +67,135 @@ def finite(value, description):
     return result
 
 
-def validate_route_document(document, graph_path, map_id):
-    if not isinstance(document, dict) or document.get("schema_version") != 3:
-        raise SemanticServiceError("语义路线格式无效")
-    if document.get("frame_id") != "map":
-        raise SemanticServiceError("语义路线不在map坐标系")
+def validate_task_document(
+    document, graph_path, map_id, avoidance_radius, model="qwen3.7-flash"
+):
+    if not isinstance(document, dict):
+        raise SemanticServiceError("语义任务格式无效")
+    allowed_fields = {
+        "schema_version",
+        "task_id",
+        "graph_sha256",
+        "destination_node_ids",
+        "avoid_node_ids",
+    }
+    if set(document) != allowed_fields or document.get("schema_version") != 3:
+        raise SemanticServiceError("语义任务格式无效")
     graph_digest = file_sha256(graph_path)
     if document.get("graph_sha256") != graph_digest:
-        raise SemanticServiceError("语义路线引用了过期图谱")
-    policy = document.get("execution_policy")
-    if not isinstance(policy, dict) or policy.get("preview_only") is not True:
-        raise SemanticServiceError("语义路线缺少预览安全标记")
-    route = document.get("route")
-    poses = route.get("poses") if isinstance(route, dict) else None
-    if not isinstance(poses, list) or not 2 <= len(poses) <= MAXIMUM_ROUTE_POSES:
-        raise SemanticServiceError("A*路线必须包含2至100个位姿")
-    validated_poses = []
-    for item in poses:
-        position = item.get("position") if isinstance(item, dict) else None
-        if not isinstance(position, dict):
-            raise SemanticServiceError("A*路线位姿无效")
-        validated_poses.append(
-            {
-                "x": finite(position.get("x"), "A* X坐标"),
-                "y": finite(position.get("y"), "A* Y坐标"),
-                "yaw": finite(item.get("yaw", 0.0), "A*航向角"),
-                "place_id": str(item.get("place_id", "")),
-            }
-        )
-    raw_centerline = route.get("centerline")
-    if (
-        not isinstance(raw_centerline, list)
-        or not 2 <= len(raw_centerline) <= MAXIMUM_ROUTE_CENTERLINE_POINTS
-    ):
-        raise SemanticServiceError("A*中心线点数无效")
-    centerline = []
-    for item in raw_centerline:
+        raise SemanticServiceError("语义任务引用了过期图谱")
+    task_id = document.get("task_id")
+    if not isinstance(task_id, str) or not task_id or len(task_id) > 128:
+        raise SemanticServiceError("语义任务编号无效")
+
+    graph = strict_json_loads(
+        Path(graph_path).read_text(encoding="utf-8"), "语义导航图谱"
+    )
+    if not isinstance(graph, dict) or graph.get("schema_version") != 3:
+        raise SemanticServiceError("语义导航图谱格式无效")
+    raw_places = graph.get("places")
+    if not isinstance(raw_places, list) or not raw_places:
+        raise SemanticServiceError("语义导航图谱没有地点")
+    places = {}
+    for item in raw_places:
         if not isinstance(item, dict):
-            raise SemanticServiceError("A*中心线点无效")
-        centerline.append(
-            {
-                "x": finite(item.get("x"), "A*中心线X坐标"),
-                "y": finite(item.get("y"), "A*中心线Y坐标"),
-            }
-        )
-    task_plan = document.get("task_plan")
-    if not isinstance(task_plan, dict):
-        raise SemanticServiceError("语义路线缺少已校验任务计划")
-    avoid_nodes = task_plan.get("avoid_node_ids", [])
-    if not isinstance(avoid_nodes, list):
-        raise SemanticServiceError("语义避让节点格式无效")
-    resolved_stops = document.get("resolved_stops")
-    if not isinstance(resolved_stops, list) or len(resolved_stops) < 2:
-        raise SemanticServiceError("语义路线缺少有序目的地")
+            raise SemanticServiceError("语义地点格式无效")
+        place_id = item.get("id")
+        position = item.get("position")
+        summary = item.get("semantic_summary", [])
+        if (
+            not isinstance(place_id, str)
+            or not place_id
+            or place_id in places
+            or not isinstance(position, dict)
+            or not isinstance(summary, list)
+            or any(not isinstance(value, str) for value in summary)
+        ):
+            raise SemanticServiceError("语义地点格式无效")
+        places[place_id] = {
+            "place_id": place_id,
+            "name": str(item.get("name", place_id)),
+            "x": finite(position.get("x"), "语义地点X坐标"),
+            "y": finite(position.get("y"), "语义地点Y坐标"),
+            "yaw": finite(item.get("yaw", 0.0), "语义地点航向角"),
+            "semantic_summary": summary[:5],
+        }
+
+    destination_ids = document.get("destination_node_ids")
+    avoid_nodes = document.get("avoid_node_ids")
+    if (
+        not isinstance(destination_ids, list)
+        or not 1 <= len(destination_ids) <= MAXIMUM_DESTINATIONS
+        or any(not isinstance(value, str) or value not in places for value in destination_ids)
+        or len(destination_ids) != len(set(destination_ids))
+    ):
+        raise SemanticServiceError("语义目的地无效")
+    if (
+        not isinstance(avoid_nodes, list)
+        or len(avoid_nodes) > MAXIMUM_AVOIDANCE_ZONES
+        or any(not isinstance(value, str) or value not in places for value in avoid_nodes)
+        or len(avoid_nodes) != len(set(avoid_nodes))
+    ):
+        raise SemanticServiceError("语义避让节点无效")
+    if set(destination_ids).intersection(avoid_nodes):
+        raise SemanticServiceError("同一地点不能同时作为目的地和禁行区")
+
     destinations = []
     destination_poses = []
-    for stop in resolved_stops[1:]:
-        if not isinstance(stop, dict):
-            raise SemanticServiceError("语义目的地无效")
-        summary = stop.get("semantic_summary", [])
-        if not isinstance(summary, list) or any(
-            not isinstance(value, str) for value in summary
-        ):
-            raise SemanticServiceError("语义目的地描述无效")
-        route_index = stop.get("navigation_route_index")
-        if (
-            isinstance(route_index, bool)
-            or not isinstance(route_index, int)
-            or not 0 <= route_index < len(validated_poses)
-        ):
-            raise SemanticServiceError("语义目的地没有有效的A*锚点")
-        route_pose = validated_poses[route_index]
-        place_id = str(stop.get("place_id", stop.get("selector", "")))
-        if not place_id or route_pose["place_id"] != place_id:
-            raise SemanticServiceError("语义目的地与A*锚点不一致")
+    for place_id in destination_ids:
+        place = places[place_id]
         destinations.append(
             {
                 "place_id": place_id,
-                "name": str(stop.get("name", stop.get("selector", ""))),
-                "semantic_summary": summary[:5],
+                "name": place["name"],
+                "semantic_summary": place["semantic_summary"],
             }
         )
-        destination_poses.append(dict(route_pose))
-    avoidance = document.get("avoidance_constraints")
-    if not isinstance(avoidance, dict):
-        raise SemanticServiceError("语义避让约束无效")
-    avoidance_radius = finite(avoidance.get("radius_m", 0.0), "语义避让半径")
+        destination_poses.append(
+            {
+                "x": place["x"],
+                "y": place["y"],
+                "yaw": place["yaw"],
+                "place_id": place_id,
+            }
+        )
+    avoidance_radius = finite(avoidance_radius, "语义避让半径")
     if avoidance_radius < 0.0:
         raise SemanticServiceError("语义避让半径不能为负数")
-    avoidance_nodes = avoidance.get("nodes", [])
-    if not isinstance(avoidance_nodes, list):
-        raise SemanticServiceError("语义避让节点无效")
     avoidance_zones = []
-    for node in avoidance_nodes:
-        position = node.get("position") if isinstance(node, dict) else None
-        selector = str(node.get("selector", "")) if isinstance(node, dict) else ""
-        if not selector or not isinstance(position, dict):
-            raise SemanticServiceError("语义避让节点无效")
+    for place_id in avoid_nodes:
+        place = places[place_id]
         avoidance_zones.append(
             {
-                "selector": selector,
-                "x": finite(position.get("x"), "语义避让X坐标"),
-                "y": finite(position.get("y"), "语义避让Y坐标"),
+                "selector": place_id,
+                "x": place["x"],
+                "y": place["y"],
                 "radius_m": avoidance_radius,
             }
         )
-    if sorted(zone["selector"] for zone in avoidance_zones) != sorted(
-        str(value) for value in avoid_nodes
-    ):
-        raise SemanticServiceError("语义避让圆区与任务计划不一致")
-    statistics = document.get("statistics", {})
-    if not isinstance(statistics, dict):
-        raise SemanticServiceError("语义路线统计无效")
-    place_count = finite(
-        statistics.get("route_navigation_places", len(validated_poses)),
-        "拓扑点数量",
-    )
-    if not place_count.is_integer() or not 2 <= place_count <= MAXIMUM_ROUTE_POSES:
-        raise SemanticServiceError("拓扑点数量无效")
-    route_length = finite(
-        statistics.get("drivable_route_length_m", 0.0), "路线长度"
-    )
-    if route_length < 0.0:
-        raise SemanticServiceError("路线长度无效")
-    search_algorithm = statistics.get("search_algorithm")
-    if search_algorithm != "astar_euclidean_admissible":
-        raise SemanticServiceError("语义路线未使用A*搜索")
-    astar_cost = finite(statistics.get("astar_cost_m"), "A*代价")
-    if astar_cost < 0.0:
-        raise SemanticServiceError("A*代价无效")
-    provenance = document.get("model_provenance", {})
-    if provenance.get("provider") != "alibaba_cloud_bailian":
-        raise SemanticServiceError("语义路线不是由阿里百炼生成")
     return {
         "available": True,
         "map_id": map_id,
         "status": "ready",
-        "route": validated_poses,
-        "route_centerline": centerline,
         "destination_poses": destination_poses,
         "destinations": destinations,
         "avoid_node_ids": [str(value) for value in avoid_nodes],
         "avoidance_zones": avoidance_zones,
         "execution_allowed": True,
         "costmap_policy": {
-            "astar_centerline_is_soft_preference": True,
+            "semantic_route_preference_enabled": False,
             "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": True,
+            "requires_nav2_keepout_filter": bool(avoidance_zones),
         },
         "statistics": {
-            "route_navigation_places": int(place_count),
-            "drivable_route_length_m": route_length,
-            "search_algorithm": search_algorithm,
-            "astar_cost_m": astar_cost,
+            "destination_count": len(destination_poses),
+            "avoidance_zone_count": len(avoidance_zones),
+            "path_planner": "nav2_smac_hybrid",
         },
-        "model": str(provenance.get("model", "")),
+        "model": model,
         "provider": "alibaba_cloud_bailian",
         "graph_sha256": graph_digest,
-        "task_id": str(task_plan.get("task_id", "")),
-        "route_id": str(document.get("route_id", "")),
+        "task_id": task_id,
         "error": "",
     }
 
@@ -328,7 +298,7 @@ class SemanticPlannerService:
             request_id = uuid.uuid4().hex[:16]
             directory = self.work_root / map_id / request_id
             directory.mkdir(parents=True, exist_ok=False)
-            route_path = directory / "route.json"
+            task_plan_path = directory / "task_plan.json"
             command = [
                 "python3",
                 str(self.planner_script),
@@ -345,8 +315,6 @@ class SemanticPlannerService:
                 str(start_y),
                 "--maximum-start-distance",
                 str(profile["maximum_start_distance"]),
-                "--avoidance-radius",
-                str(profile["avoidance_radius"]),
                 "--model",
                 self.model,
                 "--base-url",
@@ -368,9 +336,7 @@ class SemanticPlannerService:
                 "--context-output",
                 str(directory / "context.json"),
                 "--task-plan-output",
-                str(directory / "task_plan.json"),
-                "--route-output",
-                str(route_path),
+                str(task_plan_path),
             ]
             environment = os.environ.copy()
             environment["AGRIBOT_NEO4J_PASSWORD"] = environment[
@@ -391,10 +357,16 @@ class SemanticPlannerService:
             if completed.returncode != 0:
                 tail = (completed.stdout or "语义规划失败").strip().splitlines()[-1]
                 raise SemanticServiceError(tail[:500])
-            document = strict_json_loads(
-                route_path.read_text(encoding="utf-8"), "语义路线"
+            task_plan = strict_json_loads(
+                task_plan_path.read_text(encoding="utf-8"), "语义任务"
             )
-            semantic = validate_route_document(document, profile["graph"], map_id)
+            semantic = validate_task_document(
+                task_plan,
+                profile["graph"],
+                map_id,
+                profile["avoidance_radius"],
+                self.model,
+            )
             semantic["instruction"] = instruction
             return {"request_id": request_id, "semantic": semantic}
         except subprocess.TimeoutExpired as error:

@@ -59,15 +59,14 @@ const mockState = {
     map_id: "map_lio_sam_0811",
     status: "ready",
     instruction: "去白色建筑入口",
-    route: [
-      { x: -2.4, y: 0.3, yaw: 0.1, place_id: "place_000" },
-      { x: 0.0, y: 0.8, yaw: 0.2, place_id: "place_001" },
+    destination_poses: [
       { x: 3.5, y: 1.5, yaw: 0.3, place_id: "place_002" },
     ],
     destinations: [{ place_id: "place_002", name: "道路地点002", semantic_summary: ["白色建筑入口"] }],
     avoid_node_ids: [],
+    avoidance_zones: [],
     execution_allowed: true,
-    statistics: { route_navigation_places: 3, drivable_route_length_m: 8.4 },
+    statistics: { destination_count: 1, avoidance_zone_count: 0, path_planner: "nav2_smac_hybrid" },
     provider: "alibaba_cloud_bailian",
     model: "qwen3.7-flash",
     graph_sha256: "e".repeat(64),
@@ -270,7 +269,7 @@ test("semantic navigation coexists with the unchanged manual planner", async ({ 
   await page.screenshot({ path: "/tmp/agribot-semantic-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "/tmp/agribot-semantic-phone.png", fullPage: true });
-  await page.getByRole("button", { name: "执行语义路线" }).click();
+  await page.getByRole("button", { name: "执行语义任务" }).click();
   await expect.poll(() => posts.length).toBe(1);
   expect(posts[0]).toEqual({ path: "/api/v1/semantic/execute", body: {} });
   await page.getByRole("button", { name: "手动规划" }).click();
@@ -283,13 +282,13 @@ test("phone requests the 172 model service then submits the validated route to R
   const idleState = {
     ...mockState,
     navigation: { kind: null, status: "idle", feedback: {}, goal: null, route: [] },
-    semantic: { ...mockState.semantic, status: "idle", instruction: "", route: [], destinations: [] },
+    semantic: { ...mockState.semantic, status: "idle", instruction: "", destination_poses: [], destinations: [] },
   };
   await mockApi(page, { state: idleState, onPost: (request) => posts.push(request) });
   await page.goto("/");
   await page.getByRole("button", { name: "语义导航" }).click();
   await page.getByRole("textbox", { name: "任务描述" }).fill("先去白色建筑，再到北门");
-  await page.getByRole("button", { name: "生成语义路线" }).click();
+  await page.getByRole("button", { name: "生成语义目标" }).click();
   await expect.poll(() => posts.length).toBe(2);
   expect(posts[0]).toEqual({
     path: "server:/api/v1/semantic/plan",
@@ -302,7 +301,7 @@ test("phone requests the 172 model service then submits the validated route to R
   expect(posts[1].path).toBe("/api/v1/semantic/route");
   expect(posts[1].body.request_id).toBe("phone_test");
   expect(posts[1].body.semantic.provider).toBe("alibaba_cloud_bailian");
-  await expect(page.getByText("172服务器已生成路线，请检查后执行")).toBeVisible();
+  await expect(page.getByText("172服务器已生成语义目标，请检查后执行")).toBeVisible();
 });
 
 

@@ -1,8 +1,7 @@
-"""Build a Nav2 costmap-filter mask from a semantic A* route."""
+"""Build a Nav2 costmap-filter mask containing semantic keepout zones only."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 
 import cv2
@@ -13,27 +12,6 @@ from .catalog import GridData
 
 class RouteCostmapError(RuntimeError):
     pass
-
-
-@dataclass(frozen=True)
-class RouteCostmapPolicy:
-    core_half_width_m: float = 0.485974
-    gradient_width_m: float = 2.0
-    maximum_preference_cost: int = 80
-
-    def validate(self) -> None:
-        if (
-            not math.isfinite(self.core_half_width_m)
-            or self.core_half_width_m < 0.0
-        ):
-            raise RouteCostmapError("route core half width must be non-negative")
-        if (
-            not math.isfinite(self.gradient_width_m)
-            or self.gradient_width_m <= 0.0
-        ):
-            raise RouteCostmapError("route gradient width must be positive")
-        if not 1 <= self.maximum_preference_cost <= 99:
-            raise RouteCostmapError("route preference cost must be between 1 and 99")
 
 
 def _finite(value, description: str) -> float:
@@ -61,13 +39,9 @@ def world_to_grid(grid: GridData, x: float, y: float) -> tuple[int, int]:
     )
 
 
-def build_route_costmap(
-    grid: GridData,
-    centerline: list[dict],
-    avoidance_zones: list[dict],
-    policy: RouteCostmapPolicy,
+def build_keepout_costmap(
+    grid: GridData, avoidance_zones: list[dict]
 ) -> np.ndarray:
-    policy.validate()
     if (
         grid.width <= 0
         or grid.height <= 0
@@ -75,44 +49,9 @@ def build_route_costmap(
         or grid.resolution <= 0.0
     ):
         raise RouteCostmapError("map geometry is invalid")
-    if not isinstance(centerline, list) or len(centerline) < 2:
-        raise RouteCostmapError("semantic route centerline needs at least two points")
-
-    route_pixels = np.zeros((grid.height, grid.width), dtype=np.uint8)
-    pixels = []
-    for point in centerline:
-        if not isinstance(point, dict):
-            raise RouteCostmapError("semantic route centerline point is invalid")
-        pixels.append(
-            world_to_grid(
-                grid,
-                _finite(point.get("x"), "route x"),
-                _finite(point.get("y"), "route y"),
-            )
-        )
-    cv2.polylines(
-        route_pixels,
-        [np.asarray(pixels, dtype=np.int32).reshape((-1, 1, 2))],
-        False,
-        255,
-        1,
-        cv2.LINE_8,
-    )
-    if not np.any(route_pixels):
-        raise RouteCostmapError("semantic route does not intersect the active map")
-
-    distance_m = cv2.distanceTransform(
-        (route_pixels == 0).astype(np.uint8), cv2.DIST_L2, 5
-    ) * grid.resolution
-    normalized = np.clip(
-        (distance_m - policy.core_half_width_m) / policy.gradient_width_m,
-        0.0,
-        1.0,
-    )
-    mask = np.rint(normalized * policy.maximum_preference_cost).astype(np.uint8)
-
     if not isinstance(avoidance_zones, list):
         raise RouteCostmapError("semantic avoidance zones must be a list")
+    mask = neutral_route_costmap(grid)
     selectors = set()
     for zone in avoidance_zones:
         if not isinstance(zone, dict):

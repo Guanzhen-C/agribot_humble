@@ -286,31 +286,10 @@ semantic-map launch. It publishes a transient `nav_msgs/Path` on
 `/semantic_navigation/route_preview` plus labeled stop markers. Smac and Nav2
 remain responsible for generating and collision-checking the executable path.
 
-Use the unified dry-run launch to compare that semantic route with the real
-Ackermann Smac planner configuration:
-
-```bash
-ros2 launch agribot_offline_mapping \
-  semantic_smac_planner_validation.launch.py \
-  map:=/path/to/map.yaml \
-  navigation_graph:=/path/to/navigation_graph.json \
-  route_plan:=/path/to/route_preview.json \
-  rviz:=true
-```
-
-The launch verifies that the route was generated from the supplied graph. The
-first A* pose is the explicit Smac start and every remaining A* pose
-is passed, in order, to `ComputePathThroughPoses`; Smac must therefore plan
-through the complete semantic corridor rather than only the requested task
-destinations. No sensor, controller or chassis process is started. RViz shows
-the map-derived centerline and Chinese places plus the collision-checked Smac
-path in green. Recorded teleoperation footprints are not loaded. Red areas are
-semantic avoidance constraints. This planner-only
-launch deliberately does not install a Nav2 Keepout Filter; it reports any Smac
-path intersection with a red area as an error while retaining both paths for
-inspection. The result remains preview-only and cannot command the vehicle. A
-new RViz 2D Pose Estimate clears the loaded semantic task and returns to the
-original manual Smac validation workflow.
+`plan_semantic_route.py` remains an offline graph-audit utility. It is not used
+by the phone semantic-navigation service. Production navigation sends only the
+ordered model-selected destinations to Nav2; Smac generates and collision-checks
+the complete Ackermann path against the live costmaps.
 
 `config/semantic_task_plan.schema.json` is the language-model boundary. The
 model may return only an immutable graph SHA-256, a task identifier, an ordered
@@ -365,9 +344,9 @@ graph uses HTTP `7476`/Bolt `7689`, and the indoor graph uses HTTP `7478`/Bolt
 The final result must contain exactly one place for every ordered destination
 query. Local validation rejects a place selected for the wrong query index,
 stale graph hashes, unknown nodes, duplicate destinations, missing avoidance
-matches and all extra fields. Deterministic A* routing remains on the server. The
-implementation uses Python's standard HTTP library and adds no Neo4j or OpenAI
-SDK dependency.
+matches and all extra fields. The server does not generate a topology route or
+route-preference cost. The implementation uses Python's standard HTTP library
+and adds no Neo4j or OpenAI SDK dependency.
 
 The production models are Bailian `qwen3.7-flash` and `text-embedding-v4`.
 The phone and RDK reach only the bounded semantic HTTP service on
@@ -403,11 +382,9 @@ ros2 run agribot_offline_mapping plan_semantic_task_bailian.py \
   --instruction "先巡检园区北门，再去白色建筑附近" \
   --task-id outdoor_inspection_001 \
   --start-position 0.70 0.80 \
-  --avoidance-radius 2.0 \
   --intent-output /path/to/parsed_intent.json \
   --context-output /path/to/retrieved_candidates.json \
-  --task-plan-output /path/to/validated_task_plan.json \
-  --route-output /path/to/route_preview.json
+  --task-plan-output /path/to/validated_task_plan.json
 
 ```
 
@@ -416,8 +393,8 @@ not set `max_tokens`, avoiding a truncated JSON document. Captions returned by
 Neo4j are treated as untrusted sensor observations, not instructions. The model
 cannot select the start, invent coordinates or authorize motion. A returned
 landmark ID or a place outside the corresponding query's candidate list is
-rejected. The final route is always marked `preview_only`, and Nav2 must
-independently plan and collision-check every executable segment before any
+rejected. The returned task contains only ordered targets and keepout places;
+Nav2 must independently plan and collision-check every executable segment before any
 future integration may command the vehicle.
 
 Natural-language exclusions such as "do not pass the blue bicycle area" are

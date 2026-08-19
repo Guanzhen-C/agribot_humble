@@ -246,22 +246,30 @@ export default function MapView({
     drawPath(state?.paths?.global, "#2463a5", 4);
     drawPath(state?.paths?.local, "#d97706", 3);
     drawPath(route.map((pose) => [pose.x, pose.y]), "#176b5b", 2);
-    const semanticRoute = state?.semantic?.route || [];
-    drawPath(semanticRoute.map((pose) => [pose.x, pose.y]), "#8b3f63", 3);
+    const semanticDestinations = state?.semantic?.destination_poses || [];
+    const semanticKeepouts = state?.semantic?.avoidance_zones || [];
+    semanticKeepouts.forEach((zone) => {
+      const point = worldToScreen(zone.x, zone.y);
+      context.fillStyle = "rgba(190, 24, 24, 0.24)";
+      context.strokeStyle = "#b91c1c";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(point.x, point.y, zone.radius_m * view.scale, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    });
 
-    semanticRoute.forEach((pose, index) => {
+    semanticDestinations.forEach((pose, index) => {
       const point = worldToScreen(pose.x, pose.y);
       context.fillStyle = "#8b3f63";
       context.beginPath();
-      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+      context.arc(point.x, point.y, 11, 0, Math.PI * 2);
       context.fill();
-      if (index === 0 || index === semanticRoute.length - 1) {
-        context.fillStyle = "#ffffff";
-        context.font = "700 9px system-ui";
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillText(index === 0 ? "S" : "G", point.x, point.y);
-      }
+      context.fillStyle = "#ffffff";
+      context.font = "700 10px system-ui";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(String(index + 1), point.x, point.y);
     });
 
     route.forEach((pose, index) => {
@@ -518,7 +526,7 @@ export default function MapView({
         <span><i className="history" />行驶轨迹</span>
         <span><i className="global" />全局规划</span>
         <span><i className="local" />局部跟踪</span>
-        {state?.semantic?.route?.length > 1 && <span><i className="semantic" />语义路线</span>}
+        {state?.semantic?.destination_poses?.length > 0 && <span><i className="semantic" />语义目标</span>}
       </div>
       {state?.pose && (
         <div className="pose-readout" aria-label="车辆当前位置">

@@ -12,15 +12,6 @@ def semantic_document(**updates):
         "model": "qwen3.7-flash",
         "graph_sha256": "e" * 64,
         "instruction": "先去白色建筑，再到北门",
-        "route": [
-            {"x": 0.0, "y": 0.0, "yaw": 0.0, "place_id": "place_000"},
-            {"x": 2.0, "y": 1.0, "yaw": 0.2, "place_id": "place_001"},
-        ],
-        "route_centerline": [
-            {"x": 0.0, "y": 0.0},
-            {"x": 1.0, "y": 0.4},
-            {"x": 2.0, "y": 1.0},
-        ],
         "destination_poses": [
             {"x": 2.0, "y": 1.0, "yaw": 0.2, "place_id": "place_001"}
         ],
@@ -31,11 +22,15 @@ def semantic_document(**updates):
         "avoidance_zones": [],
         "execution_allowed": True,
         "costmap_policy": {
-            "astar_centerline_is_soft_preference": True,
+            "semantic_route_preference_enabled": False,
             "semantic_avoidance_is_lethal": True,
-            "requires_nav2_keepout_filter": True,
+            "requires_nav2_keepout_filter": False,
         },
-        "statistics": {"route_navigation_places": 2, "drivable_route_length_m": 2.3},
+        "statistics": {
+            "destination_count": 1,
+            "avoidance_zone_count": 0,
+            "path_planner": "nav2_smac_hybrid",
+        },
     }
     document.update(updates)
     return document
@@ -57,20 +52,22 @@ def gateway_stub():
     return gateway
 
 
-def test_rdk_accepts_server_route_without_contacting_the_model():
+def test_rdk_accepts_targets_without_astar_route_or_centerline():
     gateway = gateway_stub()
     result = gateway.receive_semantic_route(
         {"request_id": "phone_01", "semantic": semantic_document()}
     )
-    assert result["semantic"]["route"][1]["place_id"] == "place_001"
-    assert result["semantic"]["provider"] == "alibaba_cloud_bailian"
-    assert result["semantic"]["request_id"] == "phone_01"
-    assert result["semantic"]["costmap_ready"] is False
-    assert "route_centerline" not in result["semantic"]
-    assert len(gateway._semantic_costmap_source["route_centerline"]) == 3
+
+    semantic = result["semantic"]
+    assert semantic["destination_poses"][0]["place_id"] == "place_001"
+    assert semantic["provider"] == "alibaba_cloud_bailian"
+    assert semantic["request_id"] == "phone_01"
+    assert semantic["costmap_ready"] is False
+    assert "route" not in semantic
+    assert gateway._semantic_costmap_source == {"avoidance_zones": []}
 
 
-def test_semantic_execution_sends_only_model_destinations_not_all_astar_nodes():
+def test_semantic_execution_sends_only_ordered_model_destinations():
     gateway = gateway_stub()
     gateway.receive_semantic_route({"semantic": semantic_document()})
     gateway._state["semantic"]["costmap_ready"] = True
@@ -86,7 +83,7 @@ def test_semantic_execution_sends_only_model_destinations_not_all_astar_nodes():
     assert sent[0][0][0]["x"] == 2.0
 
 
-def test_semantic_keepout_route_waits_for_the_global_costmap():
+def test_semantic_keepout_task_waits_for_the_global_costmap():
     gateway = gateway_stub()
     result = gateway.receive_semantic_route(
         {
@@ -100,11 +97,22 @@ def test_semantic_keepout_route_waits_for_the_global_costmap():
                         "radius_m": 2.0,
                     }
                 ],
+                costmap_policy={
+                    "semantic_route_preference_enabled": False,
+                    "semantic_avoidance_is_lethal": True,
+                    "requires_nav2_keepout_filter": True,
+                },
+                statistics={
+                    "destination_count": 1,
+                    "avoidance_zone_count": 1,
+                    "path_planner": "nav2_smac_hybrid",
+                },
             )
         }
     )
 
     assert result["semantic"]["costmap_ready"] is False
+    assert gateway._semantic_costmap_source["avoidance_zones"][0]["x"] == 4.0
 
 
 @pytest.mark.parametrize(
@@ -114,7 +122,7 @@ def test_semantic_keepout_route_waits_for_the_global_costmap():
         semantic_document(model="qwen3.8:27b"),
         semantic_document(map_id="other_map"),
         semantic_document(graph_sha256="invalid"),
-        semantic_document(route=[{"x": 0.0, "y": 0.0, "yaw": 0.0}]),
+        semantic_document(destination_poses=[]),
         semantic_document(
             destinations=[
                 {
@@ -125,13 +133,21 @@ def test_semantic_keepout_route_waits_for_the_global_costmap():
             ]
         ),
         semantic_document(
-            statistics={"route_navigation_places": 2.5, "drivable_route_length_m": 2.3}
+            statistics={
+                "destination_count": 2,
+                "avoidance_zone_count": 0,
+                "path_planner": "nav2_smac_hybrid",
+            }
         ),
         semantic_document(
-            statistics={"route_navigation_places": 2, "drivable_route_length_m": -1.0}
+            statistics={
+                "destination_count": 1,
+                "avoidance_zone_count": 0,
+                "path_planner": "dijkstra",
+            }
         ),
     ],
 )
-def test_rdk_rejects_untrusted_or_stale_semantic_routes(semantic):
+def test_rdk_rejects_untrusted_or_stale_semantic_tasks(semantic):
     with pytest.raises(ApiError):
         gateway_stub().receive_semantic_route({"semantic": semantic})

@@ -117,7 +117,7 @@ function NavigationPanel({
   const sendGoal = () => target && execute("/api/v1/navigation/goal", { pose: target });
   const sendRoute = () => route.length >= 2 && execute("/api/v1/navigation/route", { poses: route });
   const semantic = state?.semantic || {};
-  const semanticReady = semantic.status === "ready" && semantic.route?.length >= 2;
+  const semanticReady = semantic.status === "ready" && semantic.destination_poses?.length >= 1;
   const semanticStatus = semanticPlanning ? "planning" : (semantic.status || "idle");
 
   if (navigationKind === "semantic") {
@@ -154,7 +154,7 @@ function NavigationPanel({
                 disabled={!semanticInstruction.trim() || semanticPlanning || running}
                 onClick={() => planSemantic(semanticInstruction)}
               >
-                生成语义路线
+                生成语义目标
               </CommandButton>
             </>
           ) : (
@@ -164,10 +164,10 @@ function NavigationPanel({
         </section>
         {semanticReady && (
           <section className="section-band">
-            <div className="section-heading"><h2>A* 经停点</h2><Pill>{semantic.route.length}</Pill></div>
+            <div className="section-heading"><h2>有序语义目标</h2><Pill>{semantic.destination_poses.length}</Pill></div>
             <div className="metric-grid semantic-metrics">
-              <div><span>拓扑点</span><strong>{semantic.statistics?.route_navigation_places ?? semantic.route.length}</strong></div>
-              <div><span>路线长度</span><strong>{Number.isFinite(semantic.statistics?.drivable_route_length_m) ? `${semantic.statistics.drivable_route_length_m.toFixed(1)} m` : "--"}</strong></div>
+              <div><span>目标数</span><strong>{semantic.statistics?.destination_count ?? semantic.destination_poses.length}</strong></div>
+              <div><span>禁行区</span><strong>{semantic.statistics?.avoidance_zone_count ?? semantic.avoidance_zones?.length ?? 0}</strong></div>
             </div>
             <div className="semantic-destinations">
               {(semantic.destinations || []).map((destination, index) => (
@@ -178,14 +178,14 @@ function NavigationPanel({
               ))}
             </div>
             {semantic.avoid_node_ids?.length > 0 && (
-              <div className="status-message error-message">该任务包含语义避让区，尚未配置 Keepout Filter，禁止真车执行。</div>
+              <div className="status-message">语义禁行区已按致命障碍物写入Nav2代价地图。</div>
             )}
             <div className="button-stack semantic-actions">
               <CommandButton icon={Navigation} disabled={!semantic.execution_allowed || running} onClick={() => execute("/api/v1/semantic/execute", {})}>
-                执行语义路线
+                执行语义任务
               </CommandButton>
               <CommandButton icon={Trash2} tone="secondary" disabled={running} onClick={() => execute("/api/v1/semantic/clear", {})}>
-                清除语义路线
+                清除语义任务
               </CommandButton>
             </div>
           </section>
@@ -585,7 +585,7 @@ export default function App() {
         start_position: { x: pose.x, y: pose.y },
       });
       const accepted = await postJson("/api/v1/semantic/route", planned);
-      setToast({ tone: "success", text: "172服务器已生成路线，请检查后执行" });
+      setToast({ tone: "success", text: "172服务器已生成语义目标，请检查后执行" });
       return accepted;
     } catch (error) {
       setToast({ tone: "error", text: error.message });
