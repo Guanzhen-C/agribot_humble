@@ -231,7 +231,7 @@ def load_semantic_route_plan(route_file, map_frame):
         "route_id": str(document.get("route_id", route_path.stem)),
         "route_path": route_path,
         "route_sha256": hashlib.sha256(route_path.read_bytes()).hexdigest(),
-        "dijkstra_poses": route_poses,
+        "astar_poses": route_poses,
         "requested_stops": stop_poses,
         "avoidance_zones": avoidance_zones,
     }
@@ -280,12 +280,12 @@ class PlannerValidationBridge(Node):
         ).value
         self.route_waypoint_mode = str(
             self.declare_parameter(
-                "route_waypoint_mode", "all_dijkstra"
+                "route_waypoint_mode", "all_astar"
             ).value
         ).strip()
-        if self.route_waypoint_mode not in ("all_dijkstra", "requested_stops"):
+        if self.route_waypoint_mode not in ("all_astar", "requested_stops"):
             raise RuntimeError(
-                "route_waypoint_mode must be 'all_dijkstra' or 'requested_stops'"
+                "route_waypoint_mode must be 'all_astar' or 'requested_stops'"
             )
         path_output_file = str(
             self.declare_parameter("path_output_file", "").value
@@ -372,7 +372,7 @@ class PlannerValidationBridge(Node):
             if self.route_waypoint_mode == "requested_stops":
                 route_poses = semantic_route["requested_stops"]
             else:
-                route_poses = semantic_route["dijkstra_poses"]
+                route_poses = semantic_route["astar_poses"]
             self.initial_pose = self.pose_from_semantic_stop(
                 route_poses[0]
             )
@@ -419,7 +419,7 @@ class PlannerValidationBridge(Node):
     def route_point_description(self):
         if self.route_waypoint_mode == "requested_stops":
             return "ordered semantic certification anchor(s)"
-        return "ordered Dijkstra point(s)"
+        return "ordered A* point(s)"
 
     def pose_from_semantic_stop(self, stop):
         pose = PoseStamped()

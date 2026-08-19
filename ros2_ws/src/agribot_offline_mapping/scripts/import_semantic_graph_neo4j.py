@@ -21,7 +21,7 @@ from semantic_graph_neo4j import (
 )
 
 
-DEFAULT_OLLAMA_BASE_URL = "http://172.18.80.26:11434"
+DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 def landmark_embedding_text(item):
@@ -39,7 +39,7 @@ def reusable_embedding(item, model, dimensions):
     expected_digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     vector = embedding.get("vector")
     if (
-        embedding.get("provider") != "ollama_local"
+        embedding.get("provider") != "alibaba_cloud_bailian"
         or embedding.get("model") != model
         or embedding.get("dimensions") != dimensions
         or embedding.get("text_sha256") != expected_digest
@@ -60,6 +60,7 @@ def reusable_embedding(item, model, dimensions):
 
 def resolve_embeddings(
     landmarks,
+    api_key,
     base_url,
     model,
     dimensions,
@@ -79,6 +80,7 @@ def resolve_embeddings(
     if missing_texts:
         generated = embed_in_batches(
             missing_texts,
+            api_key,
             base_url,
             model,
             dimensions,
@@ -108,7 +110,7 @@ def parse_args():
     parser.add_argument("--neo4j-timeout", type=float, default=30.0)
     parser.add_argument(
         "--embedding-base-url",
-        default=os.environ.get("AGRIBOT_OLLAMA_URL", DEFAULT_OLLAMA_BASE_URL),
+        default=os.environ.get("DASHSCOPE_BASE_URL", DEFAULT_BAILIAN_BASE_URL),
     )
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument(
@@ -133,6 +135,7 @@ def main():
     if not arguments.skip_embeddings:
         embeddings, reused_count, generated_count = resolve_embeddings(
             landmarks,
+            os.environ.get("DASHSCOPE_API_KEY", ""),
             arguments.embedding_base_url,
             arguments.embedding_model,
             arguments.embedding_dimensions,

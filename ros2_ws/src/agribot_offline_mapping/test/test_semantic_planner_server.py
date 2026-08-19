@@ -12,7 +12,7 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def route_document(graph_digest, provider="ollama_local"):
+def route_document(graph_digest, provider="alibaba_cloud_bailian"):
     return {
         "schema_version": 3,
         "frame_id": "map",
@@ -33,25 +33,31 @@ def route_document(graph_digest, provider="ollama_local"):
             {"place_id": "place_000"},
             {"place_id": "place_001", "name": "白色建筑", "semantic_summary": ["入口"]},
         ],
-        "statistics": {"route_navigation_places": 2, "drivable_route_length_m": 2.3},
-        "model_provenance": {"provider": provider, "model": "qwen3.8:27b"},
+        "statistics": {
+            "route_navigation_places": 2,
+            "drivable_route_length_m": 2.3,
+            "search_algorithm": "astar_euclidean_admissible",
+            "astar_cost_m": 2.3,
+        },
+        "model_provenance": {"provider": provider, "model": "qwen3.7-flash"},
     }
 
 
-def test_route_boundary_accepts_only_local_model_and_current_graph(tmp_path):
+def test_route_boundary_accepts_only_bailian_and_current_graph(tmp_path):
     graph = tmp_path / "graph.json"
     graph.write_text('{"schema_version":3}', encoding="utf-8")
     digest = hashlib.sha256(graph.read_bytes()).hexdigest()
 
     result = MODULE.validate_route_document(route_document(digest), graph, "map_test")
-    assert result["provider"] == "ollama_local"
-    assert result["model"] == "qwen3.8:27b"
+    assert result["provider"] == "alibaba_cloud_bailian"
+    assert result["model"] == "qwen3.7-flash"
     assert result["route"][1]["place_id"] == "place_001"
     assert result["execution_allowed"] is True
+    assert result["statistics"]["search_algorithm"] == "astar_euclidean_admissible"
 
-    with pytest.raises(MODULE.SemanticServiceError, match="本地模型"):
+    with pytest.raises(MODULE.SemanticServiceError, match="阿里百炼"):
         MODULE.validate_route_document(
-            route_document(digest, provider="alibaba_cloud_bailian"), graph, "map_test"
+            route_document(digest, provider="ollama_local"), graph, "map_test"
         )
     with pytest.raises(MODULE.SemanticServiceError, match="过期图谱"):
         MODULE.validate_route_document(route_document("0" * 64), graph, "map_test")
@@ -68,9 +74,9 @@ def test_service_configuration_keeps_secrets_server_side(tmp_path, monkeypatch):
             {
                 "planner_script": str(planner),
                 "work_root": str(tmp_path / "tasks"),
-                "model": "qwen3.8:27b",
-                "embedding_model": "qwen3-embedding:8b",
-                "embedding_dimensions": 4096,
+                "model": "qwen3.7-flash",
+                "embedding_model": "text-embedding-v4",
+                "embedding_dimensions": 1024,
                 "maps": {
                     "map_test": {
                         "graph": str(graph),
@@ -83,6 +89,7 @@ def test_service_configuration_keeps_secrets_server_side(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("TEST_NEO4J_PASSWORD", "server-only-secret")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "server-only-api-key")
     service = MODULE.SemanticPlannerService(config)
 
     public = service.public_maps()

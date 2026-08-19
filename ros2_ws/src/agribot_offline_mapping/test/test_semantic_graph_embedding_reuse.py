@@ -17,8 +17,8 @@ def landmark(caption, category, vector=None):
     if vector is not None:
         text = "{}；类别：{}".format(caption, category)
         item["semantic_embedding"] = {
-            "provider": "ollama_local",
-            "model": "qwen3-embedding:8b",
+            "provider": "alibaba_cloud_bailian",
+            "model": "text-embedding-v4",
             "dimensions": 64,
             "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
             "vector": vector,
@@ -26,7 +26,7 @@ def landmark(caption, category, vector=None):
     return item
 
 
-def test_reuses_precomputed_ollama_vectors_without_an_api_call(monkeypatch):
+def test_reuses_precomputed_bailian_vectors_without_an_api_call(monkeypatch):
     vector = [1.0] + [0.0] * 63
 
     def unexpected_call(*_args, **_kwargs):
@@ -35,8 +35,9 @@ def test_reuses_precomputed_ollama_vectors_without_an_api_call(monkeypatch):
     monkeypatch.setattr(MODULE, "embed_in_batches", unexpected_call)
     result, reused, generated = MODULE.resolve_embeddings(
         [landmark("蓝色门牌入口", "建筑入口", vector)],
-        "http://172.18.80.26:11434",
-        "qwen3-embedding:8b",
+        "server-only-api-key",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "text-embedding-v4",
         64,
         10,
     )
@@ -61,8 +62,9 @@ def test_only_generates_vectors_missing_from_legacy_landmarks(monkeypatch):
             landmark("蓝色门牌入口", "建筑入口", reused_vector),
             landmark("白色立柱", "立柱"),
         ],
-        "http://172.18.80.26:11434",
-        "qwen3-embedding:8b",
+        "server-only-api-key",
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "text-embedding-v4",
         64,
         10,
     )

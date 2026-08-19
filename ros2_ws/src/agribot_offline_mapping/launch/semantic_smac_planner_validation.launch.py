@@ -118,7 +118,7 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
-                "route_waypoint_mode", default_value="all_dijkstra"
+                "route_waypoint_mode", default_value="all_astar"
             ),
             DeclareLaunchArgument("path_output", default_value=""),
             DeclareLaunchArgument(

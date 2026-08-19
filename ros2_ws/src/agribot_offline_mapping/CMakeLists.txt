@@ -67,7 +67,7 @@ install(PROGRAMS
   scripts/import_semantic_graph_neo4j.py
   scripts/mapping_result_trajectory_publisher.py
   scripts/plan_semantic_route.py
-  scripts/plan_semantic_task_ollama.py
+  scripts/plan_semantic_task_bailian.py
   scripts/publish_opengraph_semantic_map.py
   scripts/publish_semantic_navigation_graph.py
   scripts/publish_semantic_route.py
@@ -143,8 +143,8 @@ if(BUILD_TESTING)
     test/test_semantic_route_planner.py
   )
   ament_add_pytest_test(
-    test_semantic_task_ollama
-    test/test_semantic_task_ollama.py
+    test_semantic_task_bailian
+    test/test_semantic_task_bailian.py
   )
   ament_add_pytest_test(
     test_semantic_planner_server

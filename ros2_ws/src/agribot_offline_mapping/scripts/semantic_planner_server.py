@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""HTTP boundary for phone-initiated local semantic route planning."""
+"""HTTP boundary for phone-initiated Bailian semantic route planning."""
 
 import argparse
 import hashlib
@@ -13,8 +13,6 @@ from pathlib import Path
 import subprocess
 import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
 
 
@@ -82,17 +80,17 @@ def validate_route_document(document, graph_path, map_id):
     route = document.get("route")
     poses = route.get("poses") if isinstance(route, dict) else None
     if not isinstance(poses, list) or not 2 <= len(poses) <= MAXIMUM_ROUTE_POSES:
-        raise SemanticServiceError("Dijkstra路线必须包含2至100个位姿")
+        raise SemanticServiceError("A*路线必须包含2至100个位姿")
     validated_poses = []
     for item in poses:
         position = item.get("position") if isinstance(item, dict) else None
         if not isinstance(position, dict):
-            raise SemanticServiceError("Dijkstra路线位姿无效")
+            raise SemanticServiceError("A*路线位姿无效")
         validated_poses.append(
             {
-                "x": finite(position.get("x"), "Dijkstra X坐标"),
-                "y": finite(position.get("y"), "Dijkstra Y坐标"),
-                "yaw": finite(item.get("yaw", 0.0), "Dijkstra航向角"),
+                "x": finite(position.get("x"), "A* X坐标"),
+                "y": finite(position.get("y"), "A* Y坐标"),
+                "yaw": finite(item.get("yaw", 0.0), "A*航向角"),
                 "place_id": str(item.get("place_id", "")),
             }
         )
@@ -132,9 +130,15 @@ def validate_route_document(document, graph_path, map_id):
     )
     if route_length < 0.0:
         raise SemanticServiceError("路线长度无效")
+    search_algorithm = statistics.get("search_algorithm")
+    if search_algorithm != "astar_euclidean_admissible":
+        raise SemanticServiceError("语义路线未使用A*搜索")
+    astar_cost = finite(statistics.get("astar_cost_m"), "A*代价")
+    if astar_cost < 0.0:
+        raise SemanticServiceError("A*代价无效")
     provenance = document.get("model_provenance", {})
-    if provenance.get("provider") != "ollama_local":
-        raise SemanticServiceError("语义路线不是由本地模型生成")
+    if provenance.get("provider") != "alibaba_cloud_bailian":
+        raise SemanticServiceError("语义路线不是由阿里百炼生成")
     return {
         "available": True,
         "map_id": map_id,
@@ -146,9 +150,11 @@ def validate_route_document(document, graph_path, map_id):
         "statistics": {
             "route_navigation_places": int(place_count),
             "drivable_route_length_m": route_length,
+            "search_algorithm": search_algorithm,
+            "astar_cost_m": astar_cost,
         },
         "model": str(provenance.get("model", "")),
-        "provider": "ollama_local",
+        "provider": "alibaba_cloud_bailian",
         "graph_sha256": graph_digest,
         "task_id": str(task_plan.get("task_id", "")),
         "route_id": str(document.get("route_id", "")),
@@ -164,12 +170,17 @@ class SemanticPlannerService:
         )
         self.host = str(document.get("host", "0.0.0.0"))
         self.port = int(document.get("port", 8090))
-        self.ollama_url = str(document.get("ollama_url", "http://127.0.0.1:11434"))
-        self.model = str(document.get("model", "qwen3.8:27b"))
-        self.embedding_model = str(
-            document.get("embedding_model", "qwen3-embedding:8b")
+        self.bailian_url = str(
+            document.get(
+                "bailian_url",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            )
         )
-        self.embedding_dimensions = int(document.get("embedding_dimensions", 4096))
+        self.model = str(document.get("model", "qwen3.7-flash"))
+        self.embedding_model = str(
+            document.get("embedding_model", "text-embedding-v4")
+        )
+        self.embedding_dimensions = int(document.get("embedding_dimensions", 1024))
         self.timeout = float(document.get("planning_timeout", 240.0))
         self.work_root = Path(document.get("work_root", "./tasks")).expanduser().resolve()
         planner = document.get("planner_script")
@@ -204,8 +215,12 @@ class SemanticPlannerService:
             raise SemanticServiceError("规划脚本不存在: {}".format(self.planner_script))
         if not 1 <= self.port <= 65535 or not 10.0 <= self.timeout <= 600.0:
             raise SemanticServiceError("语义服务端口或超时无效")
-        if self.embedding_dimensions != 4096:
-            raise SemanticServiceError("qwen3-embedding:8b必须使用4096维向量")
+        if self.model != "qwen3.7-flash":
+            raise SemanticServiceError("语义服务必须使用qwen3.7-flash")
+        if self.embedding_model != "text-embedding-v4" or self.embedding_dimensions != 1024:
+            raise SemanticServiceError("百炼向量检索必须使用1024维text-embedding-v4")
+        if not os.environ.get("DASHSCOPE_API_KEY", "").strip():
+            raise SemanticServiceError("未配置DASHSCOPE_API_KEY")
         self.work_root.mkdir(parents=True, exist_ok=True)
         self.planning_lock = threading.Lock()
         self.started_at = time.time()
@@ -219,22 +234,6 @@ class SemanticPlannerService:
             }
             for map_id, value in sorted(self.maps.items())
         ]
-
-    def check_models(self):
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({})).open
-        try:
-            with opener(self.ollama_url.rstrip("/") + "/api/tags", timeout=5.0) as response:
-                document = strict_json_loads(response.read().decode("utf-8"), "Ollama模型列表")
-        except (OSError, urllib.error.URLError) as error:
-            raise SemanticServiceError("无法访问Ollama: {}".format(error)) from error
-        names = {
-            str(item.get("name", ""))
-            for item in document.get("models", [])
-            if isinstance(item, dict)
-        }
-        missing = {self.model, self.embedding_model} - names
-        if missing:
-            raise SemanticServiceError("Ollama缺少模型: {}".format(", ".join(sorted(missing))))
 
     def plan(self, body):
         map_id = str(body.get("map_id", ""))
@@ -283,7 +282,7 @@ class SemanticPlannerService:
                 "--model",
                 self.model,
                 "--base-url",
-                self.ollama_url,
+                self.bailian_url,
                 "--embedding-model",
                 self.embedding_model,
                 "--embedding-dimensions",
@@ -331,7 +330,7 @@ class SemanticPlannerService:
             semantic["instruction"] = instruction
             return {"request_id": request_id, "semantic": semantic}
         except subprocess.TimeoutExpired as error:
-            raise SemanticServiceError("本地模型语义规划超时") from error
+            raise SemanticServiceError("阿里百炼语义规划超时") from error
         finally:
             self.planning_lock.release()
 
@@ -392,7 +391,7 @@ class SemanticRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "status": "ready",
-                    "provider": "ollama_local",
+                    "provider": "alibaba_cloud_bailian",
                     "model": self.service.model,
                     "embedding_model": self.service.embedding_model,
                     "embedding_dimensions": self.service.embedding_dimensions,
@@ -449,10 +448,9 @@ def parse_args():
 def main():
     arguments = parse_args()
     service = SemanticPlannerService(arguments.config)
-    service.check_models()
     server = SemanticHttpServer((service.host, service.port), service)
     print(
-        "Agribot local semantic service listening on {}:{} with {} and {}.".format(
+        "Agribot Bailian semantic service listening on {}:{} with {} and {}.".format(
             service.host, service.port, service.model, service.embedding_model
         ),
         flush=True,

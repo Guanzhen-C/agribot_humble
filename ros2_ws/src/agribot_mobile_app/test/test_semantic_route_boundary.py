@@ -8,8 +8,8 @@ from agribot_mobile_app.gateway_node import ApiError, MobileGateway
 def semantic_document(**updates):
     document = {
         "map_id": "map_lio_sam_0811",
-        "provider": "ollama_local",
-        "model": "qwen3.8:27b",
+        "provider": "alibaba_cloud_bailian",
+        "model": "qwen3.7-flash",
         "graph_sha256": "e" * 64,
         "instruction": "先去白色建筑，再到北门",
         "route": [
@@ -46,15 +46,15 @@ def test_rdk_accepts_server_route_without_contacting_the_model():
         {"request_id": "phone_01", "semantic": semantic_document()}
     )
     assert result["semantic"]["route"][1]["place_id"] == "place_001"
-    assert result["semantic"]["provider"] == "ollama_local"
+    assert result["semantic"]["provider"] == "alibaba_cloud_bailian"
     assert result["semantic"]["request_id"] == "phone_01"
 
 
 @pytest.mark.parametrize(
     "semantic",
     [
-        semantic_document(provider="alibaba_cloud_bailian"),
-        semantic_document(model="qwen3.7-flash"),
+        semantic_document(provider="ollama_local"),
+        semantic_document(model="qwen3.8:27b"),
         semantic_document(map_id="other_map"),
         semantic_document(graph_sha256="invalid"),
         semantic_document(route=[{"x": 0.0, "y": 0.0, "yaw": 0.0}]),

@@ -102,7 +102,7 @@ def build_model_context(graph_document, graph_digest):
             "robot_supplies_start": True,
             "landmarks_are_context_only": True,
             "model_maps_landmarks_to_nearest_place": True,
-            "dijkstra_searches_drivable_places_only": True,
+            "astar_searches_drivable_places_only": True,
             "semantic_associations_are_not_drivable": True,
             "nav2_must_replan_and_collision_check": True,
             "direct_motion_commands_forbidden": True,

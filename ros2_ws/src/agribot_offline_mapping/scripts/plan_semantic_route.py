@@ -86,7 +86,23 @@ class SemanticRouteGraph:
         self.connections, self.adjacency = self._index_connections(
             document.get("connections")
         )
+        self.astar_heuristic_scale = self._compute_astar_heuristic_scale()
         self._validate_connected()
+
+    def _compute_astar_heuristic_scale(self):
+        ratios = []
+        for connection in self.connections.values():
+            if connection.get("kind") != "drivable":
+                continue
+            source = self.places[connection["source"]]["position"]
+            target = self.places[connection["target"]]["position"]
+            straight_line = math.hypot(
+                float(target["x"]) - float(source["x"]),
+                float(target["y"]) - float(source["y"]),
+            )
+            if straight_line > 1e-12:
+                ratios.append(float(connection["length_m"]) / straight_line)
+        return min(1.0, min(ratios)) if ratios else 0.0
 
     def _index_places(self, items):
         if not isinstance(items, list) or not items:
@@ -393,7 +409,7 @@ class SemanticRouteGraph:
         blocked_connections = set(blocked_connections or [])
         if start not in self.places or goal not in self.places:
             raise RoutePlanningError(
-                "Dijkstra endpoints must be drivable semantic places"
+                "A* endpoints must be drivable semantic places"
             )
         if start in blocked_nodes or goal in blocked_nodes:
             raise RoutePlanningError(
@@ -401,11 +417,19 @@ class SemanticRouteGraph:
             )
         if start == goal:
             return [start], [], 0.0
+        def heuristic(node_id):
+            position = self.places[node_id]["position"]
+            target = self.places[goal]["position"]
+            return self.astar_heuristic_scale * math.hypot(
+                float(target["x"]) - float(position["x"]),
+                float(target["y"]) - float(position["y"]),
+            )
+
         distances = {start: 0.0}
         predecessor = {}
-        pending = [(0.0, start)]
+        pending = [(heuristic(start), 0.0, start)]
         while pending:
-            distance, node_id = heapq.heappop(pending)
+            _, distance, node_id = heapq.heappop(pending)
             if distance > distances[node_id] + 1e-12:
                 continue
             if node_id == goal:
@@ -422,7 +446,10 @@ class SemanticRouteGraph:
                 if candidate + 1e-12 < distances.get(neighbor, math.inf):
                     distances[neighbor] = candidate
                     predecessor[neighbor] = (node_id, connection_id)
-                    heapq.heappush(pending, (candidate, neighbor))
+                    heapq.heappush(
+                        pending,
+                        (candidate + heuristic(neighbor), candidate, neighbor),
+                    )
         if goal not in distances:
             raise RoutePlanningError(
                 "no route from {} to {} with minimum connection clearance "
@@ -592,7 +619,7 @@ def plan_route(
     blocked_connections = set(avoidance["blocked_connection_ids"])
     semantic_node_ids = []
     semantic_connection_ids = []
-    dijkstra_cost = 0.0
+    astar_cost = 0.0
     semantic_stop_indices = []
     for segment_index, (start, goal) in enumerate(zip(stops[:-1], stops[1:])):
         nodes, connections, cost = graph.shortest_path(
@@ -608,7 +635,7 @@ def plan_route(
         else:
             semantic_node_ids.extend(nodes[1:])
         semantic_connection_ids.extend(connections)
-        dijkstra_cost += cost
+        astar_cost += cost
         semantic_stop_indices.append(len(semantic_node_ids) - 1)
 
     navigation_place_ids, semantic_to_navigation_index = project_navigation_route(
@@ -717,7 +744,8 @@ def plan_route(
             "route_semantic_nodes": len(semantic_node_ids),
             "route_semantic_connections": len(semantic_connection_ids),
             "route_navigation_places": len(navigation_place_ids),
-            "dijkstra_cost_m": dijkstra_cost,
+            "astar_cost_m": astar_cost,
+            "search_algorithm": "astar_euclidean_admissible",
             "drivable_route_length_m": drivable_length,
             "semantic_association_cost_m": association_cost,
             "minimum_route_clearance_m": min(clearances) if clearances else None,
@@ -915,7 +943,7 @@ def main():
     print(
         "Planned {stops} stops through {route_semantic_nodes} semantic nodes and "
         "{route_navigation_places} navigation places; drivable length "
-        "{drivable_route_length_m:.2f} m, Dijkstra cost {dijkstra_cost_m:.2f} m, "
+        "{drivable_route_length_m:.2f} m, A* cost {astar_cost_m:.2f} m, "
         "minimum clearance {clearance}.".format(clearance=clearance_text, **stats)
     )
     print("Saved preview-only route to {}".format(arguments.output))

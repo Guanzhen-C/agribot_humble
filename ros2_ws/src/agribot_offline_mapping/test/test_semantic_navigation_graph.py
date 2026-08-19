@@ -233,7 +233,7 @@ def test_applies_digest_bound_chinese_landmark_localization(tmp_path):
     )
 
 
-def test_uses_audited_ollama_chinese_instances_and_preserves_embedding(tmp_path):
+def test_uses_audited_bailian_chinese_instances_and_preserves_embedding(tmp_path):
     map_yaml = write_map(tmp_path)
     poses = tmp_path / "poses.txt"
     semantics = tmp_path / "semantics_zh.json"
@@ -272,15 +272,15 @@ def test_uses_audited_ollama_chinese_instances_and_preserves_embedding(tmp_path)
                         "is_static": True,
                         "is_drivable_surface": False,
                         "semantic_confidence": 0.94,
-                        "semantic_source": "qwen3.8:27b",
+                        "semantic_source": "qwen3.7-flash",
                         "visible_evidence": ["蓝色门牌", "固定门框"],
                         "num_detections": 20,
                         "caption_consensus_ratio": 0.8,
                         "center": [4.0, 3.5, 1.0],
                         "extent": [2.0, 2.0, 3.0],
                         "semantic_embedding": {
-                            "provider": "ollama_local",
-                            "model": "qwen3-embedding:8b",
+                            "provider": "alibaba_cloud_bailian",
+                            "model": "text-embedding-v4",
                             "dimensions": 64,
                             "text_sha256": hashlib.sha256(
                                 search_text.encode("utf-8")
@@ -313,7 +313,7 @@ def test_uses_audited_ollama_chinese_instances_and_preserves_embedding(tmp_path)
     )
 
     assert graph["language"] == "zh-CN"
-    assert graph["parameters"]["semantic_mode"] == "ollama_chinese_instances"
+    assert graph["parameters"]["semantic_mode"] == "bailian_chinese_instances"
     assert graph["statistics"]["landmarks"] == 1
     assert graph["statistics"]["road_semantic_objects"] == 1
     landmark = graph["landmarks"][0]

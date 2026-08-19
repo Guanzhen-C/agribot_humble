@@ -9,7 +9,7 @@
 - 实时二维地图、全局/局部代价地图、真实车体轮廓和位姿。
 - 区分显示已行驶轨迹、Smac全局规划和MPPI局部跟踪路径。
 - RViz等价的初始位姿、单目标和连续多位姿导航。
-- 手动规划与自然语言语义导航并列；语义任务经Neo4j检索和Dijkstra生成拓扑经停点，
+- 手动规划与自然语言语义导航并列；语义任务经Neo4j检索和A*生成拓扑经停点，
   再交给同一套Nav2 `NavigateThroughPoses`执行。
 - 在RDK本地启动和安全停止原始传感器数据采集。
 - 在启用了离线处理的Jetson实例上调用标准LIO-SAM/RTK处理流程。
@@ -28,7 +28,7 @@
 ## 语义导航
 
 手机通过 VPN 直接请求 `http://172.18.80.26:8090`。服务器使用本地
-`qwen3.8:27b`、`qwen3-embedding:8b`、Neo4j混合检索和Dijkstra生成预览路线；
+`qwen3.7-flash`、`text-embedding-v4`、Neo4j混合检索和A*生成预览路线；
 手机再通过热点局域网把完整结果提交给RDK的`/api/v1/semantic/route`。RDK不访问
 大模型或Neo4j，也不保存模型与数据库凭据。手机不能访问Neo4j和Ollama端口，服务器
 也没有控制底盘的接口。

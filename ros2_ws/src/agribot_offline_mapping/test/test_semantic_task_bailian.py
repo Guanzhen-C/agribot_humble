@@ -8,8 +8,8 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-SCRIPT = SCRIPTS / "plan_semantic_task_ollama.py"
-SPEC = importlib.util.spec_from_file_location("plan_semantic_task_ollama", SCRIPT)
+SCRIPT = SCRIPTS / "plan_semantic_task_bailian.py"
+SPEC = importlib.util.spec_from_file_location("plan_semantic_task_bailian", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
@@ -105,13 +105,22 @@ def task_plan(**updates):
 
 def api_response(document=None):
     return {
-        "model": "qwen3.8:27b",
-        "message": {
-            "role": "assistant",
-            "content": json.dumps(document or task_plan()),
+        "id": "chatcmpl-test",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": json.dumps(document or task_plan()),
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
         },
-        "prompt_eval_count": 100,
-        "eval_count": 20,
     }
 
 
@@ -192,11 +201,11 @@ def test_intent_plan_is_strictly_validated():
         intent_plan(), "inspection_001", GRAPH_DIGEST
     )["destination_queries"] == ["白色建筑"]
 
-    with pytest.raises(MODULE.LocalPlanningError, match="unsupported fields"):
+    with pytest.raises(MODULE.BailianPlanningError, match="unsupported fields"):
         MODULE.validate_intent_plan(
             intent_plan(speed_mps=0.5), "inspection_001", GRAPH_DIGEST
         )
-    with pytest.raises(MODULE.LocalPlanningError, match="changed the requested"):
+    with pytest.raises(MODULE.BailianPlanningError, match="changed the requested"):
         MODULE.validate_intent_plan(
             intent_plan(task_id="other"), "inspection_001", GRAPH_DIGEST
         )
@@ -244,7 +253,7 @@ def test_retrieval_context_contains_only_top_candidates(monkeypatch):
 
 def test_selection_request_uses_only_per_query_neo4j_candidates():
     _, _, _, start = context_and_start()
-    request = MODULE.build_model_request(
+    request = MODULE.build_bailian_request(
         MODULE.DEFAULT_MODEL,
         retrieval_context(),
         "去白色建筑物附近巡检",
@@ -263,10 +272,10 @@ def test_selection_request_uses_only_per_query_neo4j_candidates():
     assert '"places"' not in serialized
 
 
-def test_validated_local_model_plan_creates_preview_only_route():
+def test_validated_bailian_plan_creates_preview_only_route():
     document, graph, selector, start = context_and_start()
     context = retrieval_context()
-    request = MODULE.build_model_request(
+    request = MODULE.build_bailian_request(
         MODULE.DEFAULT_MODEL,
         context,
         "去白色建筑物附近巡检",
@@ -294,8 +303,8 @@ def test_validated_local_model_plan_creates_preview_only_route():
     assert route["statistics"]["drivable_route_length_m"] == 4.0
     assert route["execution_policy"]["preview_only"] is True
     assert route["execution_policy"]["execution_authorized"] is False
-    assert route["model_provenance"]["provider"] == "ollama_local"
-    assert route["model_provenance"]["model"] == "qwen3.8:27b"
+    assert route["model_provenance"]["provider"] == "alibaba_cloud_bailian"
+    assert route["model_provenance"]["model"] == "qwen3.7-flash"
     assert route["model_provenance"]["selection_usage"]["total_tokens"] == 120
     assert route["model_provenance"]["neo4j_map_id"] == "test_map"
 
@@ -322,7 +331,7 @@ def test_destination_order_is_enforced_per_retrieval_query():
     )
     swapped = task_plan(destination_node_ids=["place_000", "place_001"])
 
-    with pytest.raises(MODULE.LocalPlanningError, match="semantic query 0"):
+    with pytest.raises(MODULE.BailianPlanningError, match="semantic query 0"):
         MODULE.validated_model_plan(
             api_response(swapped), GRAPH_DIGEST, graph, "inspection_001", context
         )
@@ -340,7 +349,7 @@ def test_every_avoidance_query_requires_a_retrieved_candidate():
             }
         ]
     )
-    with pytest.raises(MODULE.LocalPlanningError, match="did not select"):
+    with pytest.raises(MODULE.BailianPlanningError, match="did not select"):
         MODULE.validate_plan_against_retrieval(task_plan(), context)
 
     selected = task_plan(avoid_node_ids=["place_000"])
@@ -372,7 +381,7 @@ def test_model_output_must_pass_existing_task_plan_contract(invalid_plan):
 def test_model_cannot_change_task_id():
     _, graph, _, _ = context_and_start()
 
-    with pytest.raises(MODULE.LocalPlanningError, match="changed the requested"):
+    with pytest.raises(MODULE.BailianPlanningError, match="changed the requested"):
         MODULE.validated_model_plan(
             api_response(task_plan(task_id="other")),
             GRAPH_DIGEST,
@@ -383,23 +392,23 @@ def test_model_cannot_change_task_id():
 
 def test_markdown_or_duplicate_json_keys_are_rejected():
     fenced = api_response()
-    fenced["message"]["content"] = "```json\n{}\n```"
+    fenced["choices"][0]["message"]["content"] = "```json\n{}\n```"
     duplicate = api_response()
-    duplicate["message"]["content"] = (
+    duplicate["choices"][0]["message"]["content"] = (
         '{"schema_version":3,"schema_version":3}'
     )
 
-    with pytest.raises(MODULE.LocalPlanningError):
+    with pytest.raises(MODULE.BailianPlanningError):
         MODULE.extract_task_plan(fenced)
-    with pytest.raises(MODULE.LocalPlanningError, match="duplicate JSON key"):
+    with pytest.raises(MODULE.BailianPlanningError, match="duplicate JSON key"):
         MODULE.extract_task_plan(duplicate)
 
 
-def test_local_request_and_base_url_are_strict():
-    with pytest.raises(MODULE.LocalPlanningError, match="document is invalid"):
-        MODULE.call_ollama({}, MODULE.DEFAULT_BASE_URL, 1.0)
-    with pytest.raises(MODULE.LocalPlanningError, match="without credentials"):
-        MODULE.validate_base_url("http://secret@example.com:11434")
+def test_api_key_is_required_and_not_accepted_in_base_url():
+    with pytest.raises(MODULE.BailianPlanningError, match="DASHSCOPE_API_KEY"):
+        MODULE.call_bailian({}, "", MODULE.DEFAULT_BASE_URL, 1.0)
+    with pytest.raises(MODULE.BailianPlanningError, match="without credentials"):
+        MODULE.validate_base_url("https://secret@example.com/v1")
 
 
 def test_start_position_is_bounded_by_semantic_place_graph():

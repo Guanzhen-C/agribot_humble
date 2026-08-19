@@ -751,7 +751,7 @@ class MobileGateway(Node):
             "service_url": self.semantic_service_url,
             "map_ids": sorted(self.semantic_map_ids),
             "request_origin": "phone",
-            "provider": "ollama_local",
+            "provider": "alibaba_cloud_bailian",
         }
 
     def _empty_semantic_state(self, map_id: str | None = None) -> dict:
@@ -992,9 +992,9 @@ class MobileGateway(Node):
             raise ApiError(HTTPStatus.CONFLICT, "当前地图没有对应的语义图谱")
         if semantic.get("map_id") != map_id:
             raise ApiError(HTTPStatus.CONFLICT, "语义路线与当前运行地图不一致")
-        if semantic.get("provider") != "ollama_local":
-            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线不是由172本地模型生成")
-        if semantic.get("model") != "qwen3.8:27b":
+        if semantic.get("provider") != "alibaba_cloud_bailian":
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线不是由阿里百炼生成")
+        if semantic.get("model") != "qwen3.7-flash":
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线模型版本不受支持")
         graph_digest = semantic.get("graph_sha256")
         if (
@@ -1075,8 +1075,8 @@ class MobileGateway(Node):
             "avoid_node_ids": avoid_node_ids,
             "execution_allowed": execution_allowed,
             "statistics": statistics,
-            "provider": "ollama_local",
-            "model": "qwen3.8:27b",
+            "provider": "alibaba_cloud_bailian",
+            "model": "qwen3.7-flash",
             "graph_sha256": graph_digest,
             "request_id": str(body.get("request_id", ""))[:64],
             "error": "",

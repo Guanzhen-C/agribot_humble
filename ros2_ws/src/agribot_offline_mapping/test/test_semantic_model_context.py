@@ -122,7 +122,7 @@ def test_exports_all_places_landmarks_connections_and_contract():
     assert contract["allowed_output_node_types"] == ["place"]
     assert contract["landmarks_are_context_only"] is True
     assert contract["model_maps_landmarks_to_nearest_place"] is True
-    assert contract["dijkstra_searches_drivable_places_only"] is True
+    assert contract["astar_searches_drivable_places_only"] is True
     assert "user-requested visit order" in contract["destination_order"]
     assert context["planning_contract"]["direct_motion_commands_forbidden"] is True
 

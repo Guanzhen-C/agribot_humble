@@ -164,7 +164,7 @@ function NavigationPanel({
         </section>
         {semanticReady && (
           <section className="section-band">
-            <div className="section-heading"><h2>Dijkstra 经停点</h2><Pill>{semantic.route.length}</Pill></div>
+            <div className="section-heading"><h2>A* 经停点</h2><Pill>{semantic.route.length}</Pill></div>
             <div className="metric-grid semantic-metrics">
               <div><span>拓扑点</span><strong>{semantic.statistics?.route_navigation_places ?? semantic.route.length}</strong></div>
               <div><span>路线长度</span><strong>{Number.isFinite(semantic.statistics?.drivable_route_length_m) ? `${semantic.statistics.drivable_route_length_m.toFixed(1)} m` : "--"}</strong></div>

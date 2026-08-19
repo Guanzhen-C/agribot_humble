@@ -68,8 +68,8 @@ const mockState = {
     avoid_node_ids: [],
     execution_allowed: true,
     statistics: { route_navigation_places: 3, drivable_route_length_m: 8.4 },
-    provider: "ollama_local",
-    model: "qwen3.8:27b",
+    provider: "alibaba_cloud_bailian",
+    model: "qwen3.7-flash",
     graph_sha256: "e".repeat(64),
     error: "",
   },
@@ -132,7 +132,7 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
       return;
     }
     if (url.pathname === "/api/v1/semantic/config") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ service_url: "http://172.18.80.26:8090", map_ids: ["map_lio_sam_0811"], provider: "ollama_local" }) });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ service_url: "http://172.18.80.26:8090", map_ids: ["map_lio_sam_0811"], provider: "alibaba_cloud_bailian" }) });
       return;
     }
     if (url.pathname === "/api/v1/bags") {
@@ -301,7 +301,7 @@ test("phone requests the 172 model service then submits the validated route to R
   });
   expect(posts[1].path).toBe("/api/v1/semantic/route");
   expect(posts[1].body.request_id).toBe("phone_test");
-  expect(posts[1].body.semantic.provider).toBe("ollama_local");
+  expect(posts[1].body.semantic.provider).toBe("alibaba_cloud_bailian");
   await expect(page.getByText("172服务器已生成路线，请检查后执行")).toBeVisible();
 });
 

@@ -1,13 +1,13 @@
 {
   "host": "0.0.0.0",
   "port": 8090,
-  "ollama_url": "http://127.0.0.1:11434",
-  "model": "qwen3.8:27b",
-  "embedding_model": "qwen3-embedding:8b",
-  "embedding_dimensions": 4096,
+  "bailian_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "model": "qwen3.7-flash",
+  "embedding_model": "text-embedding-v4",
+  "embedding_dimensions": 1024,
   "planning_timeout": 240.0,
   "work_root": "/data/agribot/semantic_tasks",
-  "planner_script": "/data/agribot/semantic_service/plan_semantic_task_ollama.py",
+  "planner_script": "/data/agribot/semantic_service/plan_semantic_task_bailian.py",
   "allowed_origins": ["*"],
   "maps": {
     "map_lio_sam_0811": {

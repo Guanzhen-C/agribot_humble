@@ -91,7 +91,7 @@ Visualization Manager:
       Enabled: true
       Line Style: Lines
       Line Width: 0.12
-      Name: 语义Dijkstra预览（橙色）
+      Name: 语义A*预览（橙色）
       Offset: {X: 0, Y: 0, Z: 0.12}
       Pose Style: None
       Topic:

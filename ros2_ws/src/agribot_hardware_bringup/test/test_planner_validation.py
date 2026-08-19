@@ -107,7 +107,7 @@ def test_planner_validation_bridge_uses_multiple_waypoints_and_explicit_start():
     assert "self.waypoints.clear()" in source
     assert "TransformBroadcaster" in source
     assert "load_semantic_route_plan" in source
-    assert 'route_poses = semantic_route["dijkstra_poses"]' in source
+    assert 'route_poses = semantic_route["astar_poses"]' in source
     assert "for stop in route_poses[1:]" in source
     assert "write_path_output" in source
     assert "path_avoidance_intersections" in source
@@ -181,7 +181,7 @@ def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):
     loaded = module.load_semantic_route_plan(str(route_path), "map")
 
     assert loaded["route_id"] == "route_test"
-    assert [item["selector"] for item in loaded["dijkstra_poses"]] == [
+    assert [item["selector"] for item in loaded["astar_poses"]] == [
         "place_000",
         "place_middle",
         "place_001",

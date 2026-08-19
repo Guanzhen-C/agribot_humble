@@ -73,9 +73,9 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "route_waypoint_mode",
-                default_value="all_dijkstra",
+                default_value="all_astar",
                 description=(
-                    "all_dijkstra for normal validation; requested_stops is "
+                    "all_astar for normal validation; requested_stops is "
                     "reserved for exporting a Smac topology reference path"
                 ),
             ),

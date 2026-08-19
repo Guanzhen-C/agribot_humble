@@ -119,14 +119,15 @@ def test_plans_shortest_route_through_requested_places():
         "place_goal",
     ]
     assert result["statistics"]["drivable_route_length_m"] == 2.0
-    assert result["statistics"]["dijkstra_cost_m"] == 2.0
+    assert result["statistics"]["astar_cost_m"] == 2.0
+    assert result["statistics"]["search_algorithm"] == "astar_euclidean_admissible"
     assert result["statistics"]["minimum_route_clearance_m"] == 0.5
     assert result["statistics"]["road_semantic_coverage_ratio"] == 1.0
     assert result["execution_policy"]["preview_only"] is True
     assert result["execution_policy"]["execution_authorized"] is False
 
 
-def test_dijkstra_uses_only_drivable_places_and_rejects_landmark_targets():
+def test_astar_uses_only_drivable_places_and_rejects_landmark_targets():
     graph = MODULE.SemanticRouteGraph(graph_document())
 
     assert set(graph.adjacency) == set(graph.places)
@@ -135,7 +136,7 @@ def test_dijkstra_uses_only_drivable_places_and_rejects_landmark_targets():
         for neighbors in graph.adjacency.values()
         for _, _, connection_id, _, _ in neighbors
     )
-    with pytest.raises(MODULE.RoutePlanningError, match="Dijkstra endpoints"):
+    with pytest.raises(MODULE.RoutePlanningError, match=r"A\* endpoints"):
         graph.shortest_path("place_start", "landmark_building", 0.0)
     with pytest.raises(MODULE.RoutePlanningError, match="drivable semantic places"):
         MODULE.plan_route(

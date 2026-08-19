@@ -400,7 +400,7 @@ def validated_semantic_embedding(item):
     dimensions = embedding.get("dimensions")
     vector = embedding.get("vector")
     if (
-        provider != "ollama_local"
+        provider != "alibaba_cloud_bailian"
         or not model
         or not isinstance(dimensions, int)
         or dimensions < 64
@@ -729,7 +729,7 @@ def build_graph(arguments):
             "start_yaw_deg": arguments.start_yaw_deg,
             "drivable_semantic_tags": sorted(road_tags),
             "semantic_mode": (
-                "ollama_chinese_instances" if direct_semantics else "legacy_localization"
+                "bailian_chinese_instances" if direct_semantics else "legacy_localization"
             ),
         },
         "statistics": {

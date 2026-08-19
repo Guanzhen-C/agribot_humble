@@ -191,7 +191,7 @@ def test_map_boundaries_create_smooth_uniform_chinese_topology(tmp_path):
         assert associations[0]["source"] == expected
 
 
-def test_map_topology_accepts_local_model_instances_without_second_translation(tmp_path):
+def test_map_topology_accepts_bailian_instances_without_second_translation(tmp_path):
     image = np.full((400, 400), 254, dtype=np.uint8)
     cv2.circle(image, (200, 200), 150, 0, 1)
     cv2.circle(image, (200, 200), 80, 0, 1)
@@ -229,14 +229,14 @@ def test_map_topology_accepts_local_model_instances_without_second_translation(t
                         "landmark_usable": True,
                         "is_static": True,
                         "semantic_confidence": 0.93,
-                        "semantic_source": "qwen3.8:27b",
+                            "semantic_source": "qwen3.7-flash",
                         "visible_evidence": ["白色门框"],
                         "num_detections": 30,
                         "center": [11.0, 0.0, 1.0],
                         "extent": [2.0, 2.0, 2.0],
                         "semantic_embedding": {
-                            "provider": "ollama_local",
-                            "model": "qwen3-embedding:8b",
+                                "provider": "alibaba_cloud_bailian",
+                                "model": "text-embedding-v4",
                             "dimensions": 64,
                             "text_sha256": hashlib.sha256(
                                 search_text.encode("utf-8")
@@ -256,7 +256,7 @@ def test_map_topology_accepts_local_model_instances_without_second_translation(t
 
     graph = MODULE.build_graph(options)
 
-    assert graph["parameters"]["semantic_mode"] == "ollama_chinese_instances"
+    assert graph["parameters"]["semantic_mode"] == "bailian_chinese_instances"
     assert graph["statistics"]["road_semantic_objects"] == 1
     assert graph["statistics"]["landmarks"] == 1
     assert graph["landmarks"][0]["caption"] == "白色建筑入口"

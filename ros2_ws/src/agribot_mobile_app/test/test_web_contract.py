@@ -63,7 +63,7 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     assert "RTK和视觉均失败后" in gateway
     assert "semantic_runner" not in gateway
     assert '"/api/v1/semantic/route"' in gateway
-    assert '"provider": "ollama_local"' in gateway
+    assert '"provider": "alibaba_cloud_bailian"' in gateway
 
 
 def test_map_view_uses_live_vehicle_and_navigation_outputs():
