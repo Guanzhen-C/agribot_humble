@@ -782,7 +782,7 @@ ssh dcliu@172.18.80.26
 systemctl status agribot-semantic.service --no-pager
 journalctl -u agribot-semantic.service -f
 
-# 生成覆盖整个二维地图闭环的离线Dijkstra验证路线
+# 生成覆盖整个二维地图闭环的离线A*验证路线
 ros2 run agribot_offline_mapping plan_semantic_route.py \
   --graph /media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_navigation_graph.json \
   --start place_000 \
@@ -795,8 +795,8 @@ ros2 run agribot_offline_mapping plan_semantic_route.py \
 # 统一验证语义导航和Smac阿克曼规划：只启动二维地图、中文拓扑、Smac和RViz
 # 青色线和红色地点来自二维地图中心线，绿色线是Smac按真机几何约束生成的路径
 # 原遥控足迹、旧拓扑、代价地图覆盖和橙色预览默认都不显示
-# Dijkstra路线的第一个点作为Smac起点，其余全部路线点按顺序作为必须经过的目标
-# Smac因此必须沿Dijkstra选出的语义通道规划，不只是经过大模型指定的少数任务点
+# A*路线的第一个点作为Smac起点，其余全部路线点按顺序作为必须经过的目标
+# Smac因此必须沿A*选出的语义通道规划，不只是经过大模型指定的少数任务点
 # 路线会自动送入Smac，不需要再手工点击起点和目标
 # 本测试不启动传感器、控制器或底盘，绝不会让真车运动
 # 该测试尚未给Nav2安装Keepout Filter；若绿色路径穿过红区，终端会明确报错且禁止把结果用于真车
@@ -829,4 +829,16 @@ ros2 launch agribot_offline_mapping opengraph_semantic_map.launch.py \
   minimum_detections:=5 \
   maximum_labels:=823 \
   show_bounding_boxes:=true \
+  rviz:=true
+
+# 离线手工添加室外地图地标：不会修改正式图谱、Neo4j或图谱哈希
+# 在RViz工具栏选择Publish Point，点击地图后填写“地标名称”和“地标类别”，再点击保存
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export DISPLAY=:1
+export XAUTHORITY=/run/user/1000/gdm/Xauthority
+ros2 launch agribot_offline_mapping manual_landmark_editor.launch.py \
+  map_yaml:=/media/cgz/data/agribot_data/maps/map_lio_sam_0811.yaml \
+  map_id:=map_lio_sam_0811 \
+  output_file:=/media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_manual_landmarks.yaml \
   rviz:=true

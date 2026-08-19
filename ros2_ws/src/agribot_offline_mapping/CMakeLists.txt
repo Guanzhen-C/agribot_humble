@@ -65,6 +65,7 @@ install(PROGRAMS
   scripts/export_opengraph_dataset.py
   scripts/finalize_lio_sam_map.py
   scripts/import_semantic_graph_neo4j.py
+  scripts/manual_landmark_editor.py
   scripts/mapping_result_trajectory_publisher.py
   scripts/plan_semantic_route.py
   scripts/plan_semantic_task_bailian.py
@@ -108,6 +109,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_localization_comparison_runner
     test/test_localization_comparison_runner.py
+  )
+  ament_add_pytest_test(
+    test_manual_landmark_editor
+    test/test_manual_landmark_editor.py
   )
   ament_add_pytest_test(test_offline_contracts test/test_offline_contracts.py)
   ament_add_pytest_test(

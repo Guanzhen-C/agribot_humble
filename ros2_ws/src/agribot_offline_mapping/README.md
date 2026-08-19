@@ -323,6 +323,27 @@ speed, steering, coordinates or direct commands are rejected, as are stale
 graph hashes, unknown nodes, duplicate identifiers and a node appearing in
 both lists. `plan_semantic_route.py --task-plan FILE` consumes this contract.
 
+## Manual landmark draft editor
+
+`manual_landmark_editor.launch.py` opens an existing occupancy map without
+starting localization, Nav2, sensors, a chassis node or a semantic graph
+publisher. Select RViz `Publish Point`, click the map, enter a landmark name
+and category, then choose Save. The clicked `map` coordinates are read-only in the dialog.
+Saved draft landmarks are immediately shown on
+`/manual_landmarks/markers` and survive an editor restart.
+
+The editor writes only a map-specific YAML draft. It does not modify the
+semantic graph JSON, graph hash, Neo4j, embeddings or the server. A draft also
+cannot become a Nav2 destination by itself.
+
+```bash
+ros2 launch agribot_offline_mapping manual_landmark_editor.launch.py \
+  map_yaml:=/path/to/map.yaml \
+  map_id:=map_lio_sam_0811 \
+  output_file:=/path/to/map_lio_sam_0811_manual_landmarks.yaml \
+  rviz:=true
+```
+
 ## Server-side Bailian semantic task planning
 
 The live planner does not send the complete semantic graph to the language
