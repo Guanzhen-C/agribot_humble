@@ -14,7 +14,7 @@ import tempfile
 
 import yaml
 
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -233,6 +233,7 @@ class LandmarkDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("添加地图地标")
         self.setModal(True)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.setMinimumWidth(420)
 
         self.name_edit = QLineEdit(self)
@@ -320,6 +321,9 @@ class ManualLandmarkEditor(Node):
             return
         if self.active_dialog is not None:
             self.get_logger().warning("已有地标编辑窗口，忽略重复点击")
+            self.active_dialog.showNormal()
+            self.active_dialog.raise_()
+            self.active_dialog.activateWindow()
             return
         point = message.point
         dialog = LandmarkDialog(point.x, point.y, point.z)
@@ -329,6 +333,8 @@ class ManualLandmarkEditor(Node):
         dialog.finished.connect(self._close_dialog)
         self.active_dialog = dialog
         dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def _save_landmark(self, dialog: LandmarkDialog, x: float, y: float, z: float):
         try:

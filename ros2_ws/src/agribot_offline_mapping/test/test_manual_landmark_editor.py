@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 import yaml
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QDialog
 
 
@@ -92,6 +93,7 @@ def test_dialog_accepts_name_and_category_without_editing_coordinates():
     dialog._accept_if_valid()
 
     assert dialog.result() == QDialog.Accepted
+    assert dialog.windowFlags() & Qt.WindowStaysOnTopHint
     assert dialog.name_edit.text() == "东侧充电站入口"
     assert dialog.category_edit.text() == "充电设施"
     dialog.deleteLater()
