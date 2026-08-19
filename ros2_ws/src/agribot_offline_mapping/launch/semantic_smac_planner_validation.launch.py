@@ -118,8 +118,11 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
-                "route_waypoint_mode", default_value="all_astar"
+                "route_waypoint_mode", default_value="semantic_stops"
             ),
+            DeclareLaunchArgument("route_core_half_width_m", default_value="0.485974"),
+            DeclareLaunchArgument("route_gradient_width_m", default_value="2.0"),
+            DeclareLaunchArgument("maximum_preference_cost", default_value="80"),
             DeclareLaunchArgument("path_output", default_value=""),
             DeclareLaunchArgument(
                 "params_file",
@@ -139,6 +142,27 @@ def generate_launch_description():
                 ),
             ),
             OpaqueFunction(function=_validate_inputs),
+            Node(
+                package="agribot_offline_mapping",
+                executable="publish_semantic_route_costmap.py",
+                name="semantic_route_costmap_publisher",
+                output="screen",
+                parameters=[
+                    {
+                        "map_yaml": LaunchConfiguration("map"),
+                        "route_file": LaunchConfiguration("route_plan"),
+                        "route_core_half_width_m": LaunchConfiguration(
+                            "route_core_half_width_m"
+                        ),
+                        "route_gradient_width_m": LaunchConfiguration(
+                            "route_gradient_width_m"
+                        ),
+                        "maximum_preference_cost": LaunchConfiguration(
+                            "maximum_preference_cost"
+                        ),
+                    }
+                ],
+            ),
             GroupAction(
                 scoped=True,
                 actions=[

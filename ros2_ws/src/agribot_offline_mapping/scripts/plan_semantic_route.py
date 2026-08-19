@@ -488,6 +488,54 @@ def route_yaw(graph, place_ids, index):
     return float(graph.places[place_ids[index]].get("yaw", 0.0))
 
 
+def route_centerline(graph, place_ids, connection_ids):
+    if len(connection_ids) != max(0, len(place_ids) - 1):
+        raise RoutePlanningError(
+            "A* route place and connection counts are inconsistent"
+        )
+    centerline = []
+    for index, connection_id in enumerate(connection_ids):
+        connection = graph.connections[connection_id]
+        source_id = place_ids[index]
+        target_id = place_ids[index + 1]
+        if connection.get("kind") != "drivable":
+            raise RoutePlanningError(
+                "A* route contains a non-drivable connection"
+            )
+        geometry = connection.get("centerline")
+        if not isinstance(geometry, list) or len(geometry) < 2:
+            geometry = [
+                graph.places[connection["source"]]["position"],
+                graph.places[connection["target"]]["position"],
+            ]
+        if (
+            connection["source"] == source_id
+            and connection["target"] == target_id
+        ):
+            oriented = geometry
+        elif (
+            connection["source"] == target_id
+            and connection["target"] == source_id
+        ):
+            oriented = list(reversed(geometry))
+        else:
+            raise RoutePlanningError(
+                "A* route connection endpoints do not match its places"
+            )
+        for point in oriented[bool(centerline):]:
+            if not isinstance(point, dict):
+                raise RoutePlanningError("A* centerline point is invalid")
+            centerline.append(
+                {
+                    "x": finite_number(point.get("x"), "A* centerline x"),
+                    "y": finite_number(point.get("y"), "A* centerline y"),
+                }
+            )
+    if len(centerline) < 2:
+        raise RoutePlanningError("A* route centerline has fewer than two points")
+    return centerline
+
+
 def point_to_segment_distance(px, py, ax, ay, bx, by):
     dx = bx - ax
     dy = by - ay
@@ -641,6 +689,9 @@ def plan_route(
     navigation_place_ids, semantic_to_navigation_index = project_navigation_route(
         graph, semantic_node_ids
     )
+    centerline = route_centerline(
+        graph, navigation_place_ids, semantic_connection_ids
+    )
     navigation_stop_indices = [
         semantic_to_navigation_index[index] for index in semantic_stop_indices
     ]
@@ -738,6 +789,7 @@ def plan_route(
             "semantic_connection_ids": semantic_connection_ids,
             "navigation_place_ids": navigation_place_ids,
             "poses": poses,
+            "centerline": centerline,
         },
         "statistics": {
             "stops": len(stops),

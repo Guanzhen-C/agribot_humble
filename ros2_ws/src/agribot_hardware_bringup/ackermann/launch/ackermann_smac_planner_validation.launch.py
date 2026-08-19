@@ -73,10 +73,10 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "route_waypoint_mode",
-                default_value="all_astar",
+                default_value="semantic_stops",
                 description=(
-                    "all_astar for normal validation; requested_stops is "
-                    "reserved for exporting a Smac topology reference path"
+                    "semantic_stops sends only language-model destinations to "
+                    "Smac; all_astar remains available for legacy comparison"
                 ),
             ),
             DeclareLaunchArgument(

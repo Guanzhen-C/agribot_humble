@@ -17,7 +17,7 @@ from geometry_msgs.msg import (
 from lifecycle_msgs.msg import State
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import ComputePathThroughPoses
-from nav_msgs.msg import Path
+from nav_msgs.msg import OccupancyGrid, Path
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -275,17 +275,28 @@ class PlannerValidationBridge(Node):
         planner_state_service = self.declare_parameter(
             "planner_state_service", "/planner_server/get_state"
         ).value
+        semantic_filter_mask_topic = self.declare_parameter(
+            "semantic_filter_mask_topic", "/semantic_navigation/costmap_mask"
+        ).value
+        global_costmap_topic = self.declare_parameter(
+            "global_costmap_topic", "/global_costmap/costmap"
+        ).value
         self.planner_id = self.declare_parameter(
             "planner_id", "GridBased"
         ).value
         self.route_waypoint_mode = str(
             self.declare_parameter(
-                "route_waypoint_mode", "all_astar"
+                "route_waypoint_mode", "semantic_stops"
             ).value
         ).strip()
-        if self.route_waypoint_mode not in ("all_astar", "requested_stops"):
+        if self.route_waypoint_mode not in (
+            "semantic_stops",
+            "all_astar",
+            "requested_stops",
+        ):
             raise RuntimeError(
-                "route_waypoint_mode must be 'all_astar' or 'requested_stops'"
+                "route_waypoint_mode must be 'semantic_stops', 'all_astar' "
+                "or 'requested_stops'"
             )
         path_output_file = str(
             self.declare_parameter("path_output_file", "").value
@@ -332,6 +343,18 @@ class PlannerValidationBridge(Node):
             self.initial_pose_callback,
             10,
         )
+        self.create_subscription(
+            OccupancyGrid,
+            semantic_filter_mask_topic,
+            self.semantic_filter_mask_callback,
+            transient_qos,
+        )
+        self.create_subscription(
+            OccupancyGrid,
+            global_costmap_topic,
+            self.global_costmap_callback,
+            transient_qos,
+        )
         if self.direct_planning_enabled:
             self.create_subscription(
                 PoseStamped, goal_topic, self.goal_callback, 10
@@ -359,6 +382,8 @@ class PlannerValidationBridge(Node):
         self.goal_generation = 0
         self.dispatched_generation = 0
         self.request_in_flight = False
+        self.semantic_filter_mask_ready = False
+        self.semantic_filter_applied = False
 
         if route_plan:
             if not self.direct_planning_enabled:
@@ -369,7 +394,10 @@ class PlannerValidationBridge(Node):
             self.semantic_route_id = semantic_route["route_id"]
             self.semantic_route_path = semantic_route["route_path"]
             self.semantic_route_sha256 = semantic_route["route_sha256"]
-            if self.route_waypoint_mode == "requested_stops":
+            if self.route_waypoint_mode in (
+                "semantic_stops",
+                "requested_stops",
+            ):
                 route_poses = semantic_route["requested_stops"]
             else:
                 route_poses = semantic_route["astar_poses"]
@@ -419,6 +447,8 @@ class PlannerValidationBridge(Node):
     def route_point_description(self):
         if self.route_waypoint_mode == "requested_stops":
             return "ordered semantic certification anchor(s)"
+        if self.route_waypoint_mode == "semantic_stops":
+            return "ordered language-model destination(s)"
         return "ordered A* point(s)"
 
     def pose_from_semantic_stop(self, stop):
@@ -430,6 +460,56 @@ class PlannerValidationBridge(Node):
         pose.pose.orientation.z = math.sin(0.5 * stop["yaw"])
         pose.pose.orientation.w = math.cos(0.5 * stop["yaw"])
         return pose
+
+    def semantic_filter_mask_callback(self, message):
+        if not message.data or message.info.width == 0 or message.info.height == 0:
+            return
+        if not self.semantic_filter_mask_ready:
+            self.semantic_filter_mask_ready = True
+            self.get_logger().info(
+                "Semantic route costmap mask is ready; waiting for the global costmap"
+            )
+
+    def global_costmap_callback(self, message):
+        if not self.semantic_filter_mask_ready or self.semantic_filter_applied:
+            return
+        if not message.data or message.info.width == 0 or message.info.height == 0:
+            return
+        origin = message.info.origin
+        yaw = math.atan2(
+            2.0
+            * (
+                origin.orientation.w * origin.orientation.z
+                + origin.orientation.x * origin.orientation.y
+            ),
+            1.0
+            - 2.0
+            * (
+                origin.orientation.y * origin.orientation.y
+                + origin.orientation.z * origin.orientation.z
+            ),
+        )
+        cosine = math.cos(yaw)
+        sine = math.sin(yaw)
+        for zone in self.avoidance_zones:
+            dx = zone["position"]["x"] - origin.position.x
+            dy = zone["position"]["y"] - origin.position.y
+            column = int(
+                math.floor((cosine * dx + sine * dy) / message.info.resolution)
+            )
+            row = int(
+                math.floor((-sine * dx + cosine * dy) / message.info.resolution)
+            )
+            if (
+                not 0 <= column < message.info.width
+                or not 0 <= row < message.info.height
+                or message.data[row * message.info.width + column] != 100
+            ):
+                return
+        self.semantic_filter_applied = True
+        self.get_logger().info(
+            "Semantic route costs are present in the global costmap; Smac planning may start"
+        )
 
     def initial_pose_callback(self, message):
         frame = normalized_frame(message.header.frame_id or self.map_frame)
@@ -494,6 +574,7 @@ class PlannerValidationBridge(Node):
             self.direct_planning_enabled
             and self.planner_is_active
             and self.waypoints
+            and (not self.semantic_route_id or self.semantic_filter_applied)
             and not self.request_in_flight
             and self.goal_generation > self.dispatched_generation
             and self.planner_client.server_is_ready()
@@ -628,8 +709,8 @@ class PlannerValidationBridge(Node):
             self.get_logger().error(
                 "Smac path intersects semantic avoidance zone(s): "
                 + ", ".join(intersected_zones)
-                + ". This planner-only test does not install a Nav2 Keepout "
-                "Filter; the route remains preview-only and must not be executed."
+                + ". The Nav2 semantic costmap filter did not enforce its "
+                "lethal keepout contract."
             )
         elif self.avoidance_zones:
             self.get_logger().info(

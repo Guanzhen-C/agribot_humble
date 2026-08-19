@@ -50,6 +50,7 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     mapped_costmap = mapped["global_costmap"]["global_costmap"]["ros__parameters"]
 
     assert costmap["plugins"] == ["static_layer", "inflation_layer"]
+    assert costmap["filters"] == ["semantic_route_filter"]
     assert "stvl_layer" not in costmap
     assert costmap["footprint"] == mapped_costmap["footprint"]
     assert costmap["footprint_padding"] == 0.0
@@ -59,6 +60,9 @@ def test_planner_validation_uses_only_static_2d_map_layers():
     )
     assert costmap["inflation_layer"]["inflation_radius"] == 2.0
     assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
+    assert costmap["semantic_route_filter"]["plugin"] == (
+        "nav2_costmap_2d::KeepoutFilter"
+    )
 
 
 def test_planner_validation_launch_has_no_motion_or_sensor_nodes():
@@ -108,11 +112,17 @@ def test_planner_validation_bridge_uses_multiple_waypoints_and_explicit_start():
     assert "TransformBroadcaster" in source
     assert "load_semantic_route_plan" in source
     assert 'route_poses = semantic_route["astar_poses"]' in source
+    assert '"semantic_stops"' in source
+    assert 'route_poses = semantic_route["requested_stops"]' in source
     assert "for stop in route_poses[1:]" in source
     assert "write_path_output" in source
     assert "path_avoidance_intersections" in source
     assert "State.PRIMARY_STATE_ACTIVE" in source
     assert '"/planner_server/get_state"' in source
+    assert '"/semantic_navigation/costmap_mask"' in source
+    assert "self.semantic_filter_mask_ready" in source
+    assert '"/global_costmap/costmap"' in source
+    assert "self.semantic_filter_applied" in source
 
 
 def test_planner_validation_bridge_loads_only_ordered_preview_route(tmp_path):

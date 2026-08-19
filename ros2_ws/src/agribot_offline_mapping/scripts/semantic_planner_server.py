@@ -18,6 +18,7 @@ import uuid
 
 MAXIMUM_REQUEST_BYTES = 64 * 1024
 MAXIMUM_ROUTE_POSES = 100
+MAXIMUM_ROUTE_CENTERLINE_POINTS = 10000
 
 
 class SemanticServiceError(RuntimeError):
@@ -94,28 +95,87 @@ def validate_route_document(document, graph_path, map_id):
                 "place_id": str(item.get("place_id", "")),
             }
         )
+    raw_centerline = route.get("centerline")
+    if (
+        not isinstance(raw_centerline, list)
+        or not 2 <= len(raw_centerline) <= MAXIMUM_ROUTE_CENTERLINE_POINTS
+    ):
+        raise SemanticServiceError("A*中心线点数无效")
+    centerline = []
+    for item in raw_centerline:
+        if not isinstance(item, dict):
+            raise SemanticServiceError("A*中心线点无效")
+        centerline.append(
+            {
+                "x": finite(item.get("x"), "A*中心线X坐标"),
+                "y": finite(item.get("y"), "A*中心线Y坐标"),
+            }
+        )
     task_plan = document.get("task_plan")
     if not isinstance(task_plan, dict):
         raise SemanticServiceError("语义路线缺少已校验任务计划")
     avoid_nodes = task_plan.get("avoid_node_ids", [])
     if not isinstance(avoid_nodes, list):
         raise SemanticServiceError("语义避让节点格式无效")
+    resolved_stops = document.get("resolved_stops")
+    if not isinstance(resolved_stops, list) or len(resolved_stops) < 2:
+        raise SemanticServiceError("语义路线缺少有序目的地")
     destinations = []
-    for stop in document.get("resolved_stops", [])[1:]:
+    destination_poses = []
+    for stop in resolved_stops[1:]:
         if not isinstance(stop, dict):
-            continue
+            raise SemanticServiceError("语义目的地无效")
         summary = stop.get("semantic_summary", [])
         if not isinstance(summary, list) or any(
             not isinstance(value, str) for value in summary
         ):
             raise SemanticServiceError("语义目的地描述无效")
+        route_index = stop.get("navigation_route_index")
+        if (
+            isinstance(route_index, bool)
+            or not isinstance(route_index, int)
+            or not 0 <= route_index < len(validated_poses)
+        ):
+            raise SemanticServiceError("语义目的地没有有效的A*锚点")
+        route_pose = validated_poses[route_index]
+        place_id = str(stop.get("place_id", stop.get("selector", "")))
+        if not place_id or route_pose["place_id"] != place_id:
+            raise SemanticServiceError("语义目的地与A*锚点不一致")
         destinations.append(
             {
-                "place_id": str(stop.get("place_id", stop.get("selector", ""))),
+                "place_id": place_id,
                 "name": str(stop.get("name", stop.get("selector", ""))),
                 "semantic_summary": summary[:5],
             }
         )
+        destination_poses.append(dict(route_pose))
+    avoidance = document.get("avoidance_constraints")
+    if not isinstance(avoidance, dict):
+        raise SemanticServiceError("语义避让约束无效")
+    avoidance_radius = finite(avoidance.get("radius_m", 0.0), "语义避让半径")
+    if avoidance_radius < 0.0:
+        raise SemanticServiceError("语义避让半径不能为负数")
+    avoidance_nodes = avoidance.get("nodes", [])
+    if not isinstance(avoidance_nodes, list):
+        raise SemanticServiceError("语义避让节点无效")
+    avoidance_zones = []
+    for node in avoidance_nodes:
+        position = node.get("position") if isinstance(node, dict) else None
+        selector = str(node.get("selector", "")) if isinstance(node, dict) else ""
+        if not selector or not isinstance(position, dict):
+            raise SemanticServiceError("语义避让节点无效")
+        avoidance_zones.append(
+            {
+                "selector": selector,
+                "x": finite(position.get("x"), "语义避让X坐标"),
+                "y": finite(position.get("y"), "语义避让Y坐标"),
+                "radius_m": avoidance_radius,
+            }
+        )
+    if sorted(zone["selector"] for zone in avoidance_zones) != sorted(
+        str(value) for value in avoid_nodes
+    ):
+        raise SemanticServiceError("语义避让圆区与任务计划不一致")
     statistics = document.get("statistics", {})
     if not isinstance(statistics, dict):
         raise SemanticServiceError("语义路线统计无效")
@@ -144,9 +204,17 @@ def validate_route_document(document, graph_path, map_id):
         "map_id": map_id,
         "status": "ready",
         "route": validated_poses,
+        "route_centerline": centerline,
+        "destination_poses": destination_poses,
         "destinations": destinations,
         "avoid_node_ids": [str(value) for value in avoid_nodes],
-        "execution_allowed": not avoid_nodes,
+        "avoidance_zones": avoidance_zones,
+        "execution_allowed": True,
+        "costmap_policy": {
+            "astar_centerline_is_soft_preference": True,
+            "semantic_avoidance_is_lethal": True,
+            "requires_nav2_keepout_filter": True,
+        },
         "statistics": {
             "route_navigation_places": int(place_count),
             "drivable_route_length_m": route_length,

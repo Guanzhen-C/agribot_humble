@@ -6,6 +6,7 @@ from __future__ import annotations
 from action_msgs.msg import GoalStatus, GoalStatusArray
 from action_msgs.srv import CancelGoal
 from ament_index_python.packages import get_package_share_directory
+from array import array
 import json
 import math
 import mimetypes
@@ -28,6 +29,7 @@ from geometry_msgs.msg import (
     Twist,
 )
 from nav2_msgs.action import NavigateThroughPoses, NavigateToPose
+from nav2_msgs.msg import CostmapFilterInfo
 from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 import rclpy
@@ -53,10 +55,18 @@ from .catalog import (
 )
 from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
+from .route_costmap import (
+    RouteCostmapError,
+    RouteCostmapPolicy,
+    build_route_costmap,
+    neutral_route_costmap,
+    world_to_grid,
+)
 
 
 MAX_JSON_BODY = 256 * 1024
 MAX_ROUTE_POSES = 100
+MAX_ROUTE_CENTERLINE_POINTS = 10000
 MONITORED_TOPICS = (
     "/lidar/points",
     "/imu/data",
@@ -421,6 +431,34 @@ class MobileGateway(Node):
                 ).value
             ),
         }
+        self.semantic_filter_info_topic = str(
+            self.declare_parameter(
+                "semantic_filter_info_topic", "/semantic_navigation/costmap_filter_info"
+            ).value
+        )
+        self.semantic_filter_mask_topic = str(
+            self.declare_parameter(
+                "semantic_filter_mask_topic", "/semantic_navigation/costmap_mask"
+            ).value
+        )
+        self.semantic_costmap_policy = RouteCostmapPolicy(
+            core_half_width_m=float(
+                self.declare_parameter(
+                    "semantic_route_core_half_width_m", 0.485974
+                ).value
+            ),
+            gradient_width_m=float(
+                self.declare_parameter(
+                    "semantic_route_gradient_width_m", 2.0
+                ).value
+            ),
+            maximum_preference_cost=int(
+                self.declare_parameter(
+                    "semantic_route_maximum_preference_cost", 80
+                ).value
+            ),
+        )
+        self.semantic_costmap_policy.validate()
 
         self.map_catalog = MapCatalog(self.map_root)
         self.bag_catalog = BagCatalog(self.bag_root)
@@ -439,6 +477,7 @@ class MobileGateway(Node):
         self._event_cache = None
         self._grids: dict[str, GridData] = {}
         self._grid_revisions = defaultdict(int)
+        self._semantic_costmap_source: dict | None = None
         self._state = {
             "pose": None,
             "paths": {"history": [], "global": [], "local": []},
@@ -479,9 +518,12 @@ class MobileGateway(Node):
                 "status": "idle",
                 "instruction": "",
                 "route": [],
+                "destination_poses": [],
                 "destinations": [],
                 "avoid_node_ids": [],
+                "avoidance_zones": [],
                 "execution_allowed": False,
+                "costmap_ready": False,
                 "statistics": {},
                 "model": "",
                 "error": "",
@@ -499,6 +541,12 @@ class MobileGateway(Node):
             depth=1,
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self._semantic_mask_publisher = self.create_publisher(
+            OccupancyGrid, self.semantic_filter_mask_topic, latched
+        )
+        self._semantic_filter_info_publisher = self.create_publisher(
+            CostmapFilterInfo, self.semantic_filter_info_topic, latched
         )
         normal = QoSProfile(depth=20)
         self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
@@ -694,8 +742,100 @@ class MobileGateway(Node):
             )
             with self._lock:
                 self._grids[layer] = grid
+                semantic = (
+                    self._semantic_costmap_source
+                    if layer == "map"
+                    and self._semantic_costmap_source is not None
+                    else None
+                )
+                active_costmap_source = (
+                    self._semantic_costmap_source
+                    if layer == "global_costmap"
+                    and self._semantic_costmap_source is not None
+                    and self._state["semantic"].get("status") == "ready"
+                    and self._state["semantic"].get("costmap_ready") is not True
+                    else None
+                )
+            if layer == "map":
+                try:
+                    self._publish_semantic_costmap(grid, semantic)
+                except RouteCostmapError as error:
+                    self.get_logger().error(
+                        f"无法更新语义路线代价掩膜: {error}"
+                    )
+            if (
+                layer == "global_costmap"
+                and active_costmap_source is not None
+                and self._semantic_keepouts_applied(
+                    grid, active_costmap_source["avoidance_zones"]
+                )
+            ):
+                with self._lock:
+                    if (
+                        self._semantic_costmap_source is active_costmap_source
+                        and self._state["semantic"].get("status") == "ready"
+                    ):
+                        self._state["semantic"]["costmap_ready"] = True
+                self.get_logger().info("语义路线代价已写入全局代价地图")
+                self._touch()
 
         return callback
+
+    def _costmap_message(self, grid: GridData, mask) -> OccupancyGrid:
+        message = OccupancyGrid()
+        stamp = self.get_clock().now().to_msg()
+        message.header.stamp = stamp
+        message.header.frame_id = "map"
+        message.info.map_load_time = stamp
+        message.info.resolution = grid.resolution
+        message.info.width = grid.width
+        message.info.height = grid.height
+        message.info.origin.position.x = grid.origin_x
+        message.info.origin.position.y = grid.origin_y
+        message.info.origin.orientation.z = math.sin(0.5 * grid.origin_yaw)
+        message.info.origin.orientation.w = math.cos(0.5 * grid.origin_yaw)
+        message.data = array("b", mask.reshape(-1).tobytes())
+        return message
+
+    def _publish_semantic_costmap(
+        self, grid: GridData, semantic: dict | None
+    ) -> None:
+        if semantic is None:
+            mask = neutral_route_costmap(grid)
+        else:
+            mask = build_route_costmap(
+                grid,
+                semantic["route_centerline"],
+                semantic["avoidance_zones"],
+                self.semantic_costmap_policy,
+            )
+        info = CostmapFilterInfo()
+        info.header.stamp = self.get_clock().now().to_msg()
+        info.header.frame_id = "map"
+        info.type = 0
+        info.filter_mask_topic = self.semantic_filter_mask_topic
+        info.base = 0.0
+        info.multiplier = 1.0
+        self._semantic_filter_info_publisher.publish(info)
+        self._semantic_mask_publisher.publish(self._costmap_message(grid, mask))
+
+    def _publish_neutral_semantic_costmap(self) -> None:
+        with self._lock:
+            grid = self._grids.get("map")
+        if grid is not None:
+            self._publish_semantic_costmap(grid, None)
+
+    @staticmethod
+    def _semantic_keepouts_applied(grid: GridData, zones: list[dict]) -> bool:
+        if not zones:
+            return True
+        for zone in zones:
+            column, row = world_to_grid(grid, zone["x"], zone["y"])
+            if not 0 <= column < grid.width or not 0 <= row < grid.height:
+                return False
+            if grid.data[row * grid.width + column] != 100:
+                return False
+        return True
 
     def _chassis_callback(self, message: ScoutStatus):
         with self._lock:
@@ -761,9 +901,12 @@ class MobileGateway(Node):
             "status": "idle",
             "instruction": "",
             "route": [],
+            "destination_poses": [],
             "destinations": [],
             "avoid_node_ids": [],
+            "avoidance_zones": [],
             "execution_allowed": False,
+            "costmap_ready": False,
             "statistics": {},
             "model": "",
             "error": "",
@@ -929,10 +1072,23 @@ class MobileGateway(Node):
         ):
             raise ApiError(HTTPStatus.CONFLICT, "已有导航任务正在执行")
 
+    def _clear_semantic_for_manual_navigation(self) -> None:
+        with self._lock:
+            active_runtime = self._state.get("active_runtime")
+            map_id = (
+                active_runtime.get("map_id")
+                if isinstance(active_runtime, dict)
+                else None
+            )
+            self._state["semantic"] = self._empty_semantic_state(map_id)
+            self._semantic_costmap_source = None
+        self._publish_neutral_semantic_costmap()
+
     def send_navigation_goal(self, body: dict) -> dict:
         self._assert_navigation_ready()
         if not self._navigate_to_pose.wait_for_server(timeout_sec=0.2):
             raise ApiError(HTTPStatus.CONFLICT, "NavigateToPose服务器尚未就绪")
+        self._clear_semantic_for_manual_navigation()
         pose = pose_document(body.get("pose"))
         goal = NavigateToPose.Goal()
         goal.pose = self._stamped_pose(self, pose)
@@ -962,6 +1118,8 @@ class MobileGateway(Node):
         self._assert_navigation_ready()
         if not self._navigate_through_poses.wait_for_server(timeout_sec=0.2):
             raise ApiError(HTTPStatus.CONFLICT, "NavigateThroughPoses服务器尚未就绪")
+        if kind != "semantic":
+            self._clear_semantic_for_manual_navigation()
         goal = NavigateThroughPoses.Goal()
         goal.poses = [self._stamped_pose(self, pose) for pose in route]
         with self._lock:
@@ -1010,7 +1168,25 @@ class MobileGateway(Node):
         for value in values:
             pose = pose_document(value)
             pose["place_id"] = str(value.get("place_id", ""))
+            if not pose["place_id"]:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "A*路线地点编号无效")
             route.append(pose)
+        raw_centerline = semantic.get("route_centerline")
+        if (
+            not isinstance(raw_centerline, list)
+            or not 2 <= len(raw_centerline) <= MAX_ROUTE_CENTERLINE_POINTS
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "A*中心线点数无效")
+        route_centerline = []
+        for point in raw_centerline:
+            if not isinstance(point, dict):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "A*中心线点无效")
+            route_centerline.append(
+                {
+                    "x": finite_number(point.get("x"), "A*中心线X坐标"),
+                    "y": finite_number(point.get("y"), "A*中心线Y坐标"),
+                }
+            )
         instruction = semantic.get("instruction")
         if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 1000:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务描述无效")
@@ -1022,12 +1198,33 @@ class MobileGateway(Node):
         ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让节点无效")
         execution_allowed = semantic.get("execution_allowed")
-        if not isinstance(execution_allowed, bool):
+        if execution_allowed is not True:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线执行标记无效")
-        if avoid_node_ids and execution_allowed:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "包含避让区的路线不能直接执行")
+        raw_costmap_policy = semantic.get("costmap_policy")
+        if raw_costmap_policy != {
+            "astar_centerline_is_soft_preference": True,
+            "semantic_avoidance_is_lethal": True,
+            "requires_nav2_keepout_filter": True,
+        }:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线代价地图策略无效")
+        raw_destination_poses = semantic.get("destination_poses")
+        if (
+            not isinstance(raw_destination_poses, list)
+            or not 1 <= len(raw_destination_poses) <= 16
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地位姿无效")
+        destination_poses = []
+        for value in raw_destination_poses:
+            pose = pose_document(value)
+            pose["place_id"] = str(value.get("place_id", ""))
+            if not pose["place_id"]:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地编号无效")
+            destination_poses.append(pose)
         destinations = semantic.get("destinations", [])
-        if not isinstance(destinations, list) or len(destinations) > 16:
+        if (
+            not isinstance(destinations, list)
+            or len(destinations) != len(destination_poses)
+        ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地无效")
         validated_destinations = []
         for destination in destinations:
@@ -1046,6 +1243,33 @@ class MobileGateway(Node):
                     "semantic_summary": [value[:100] for value in summary[:5]],
                 }
             )
+        if [item["place_id"] for item in validated_destinations] != [
+            item["place_id"] for item in destination_poses
+        ]:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义目的地顺序不一致")
+        raw_zones = semantic.get("avoidance_zones", [])
+        if not isinstance(raw_zones, list) or len(raw_zones) > 16:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+        avoidance_zones = []
+        for zone in raw_zones:
+            if not isinstance(zone, dict):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+            selector = str(zone.get("selector", ""))
+            radius = finite_number(zone.get("radius_m"), "语义禁行半径")
+            if not selector or radius < 0.0:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区无效")
+            avoidance_zones.append(
+                {
+                    "selector": selector,
+                    "x": finite_number(zone.get("x"), "语义禁行X坐标"),
+                    "y": finite_number(zone.get("y"), "语义禁行Y坐标"),
+                    "radius_m": radius,
+                }
+            )
+        if sorted(item["selector"] for item in avoidance_zones) != sorted(
+            avoid_node_ids
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行圆区与避让节点不一致")
         raw_statistics = semantic.get("statistics", {})
         if not isinstance(raw_statistics, dict):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线统计无效")
@@ -1071,9 +1295,12 @@ class MobileGateway(Node):
             "status": "ready",
             "instruction": instruction.strip(),
             "route": route,
+            "destination_poses": destination_poses,
             "destinations": validated_destinations,
             "avoid_node_ids": avoid_node_ids,
-            "execution_allowed": execution_allowed,
+            "avoidance_zones": avoidance_zones,
+            "execution_allowed": True,
+            "costmap_ready": False,
             "statistics": statistics,
             "provider": "alibaba_cloud_bailian",
             "model": "qwen3.7-flash",
@@ -1081,11 +1308,26 @@ class MobileGateway(Node):
             "request_id": str(body.get("request_id", ""))[:64],
             "error": "",
         }
+        costmap_source = {
+            "route_centerline": route_centerline,
+            "avoidance_zones": avoidance_zones,
+        }
+        with self._lock:
+            map_grid = self._grids.get("map")
+        if map_grid is None:
+            raise ApiError(HTTPStatus.CONFLICT, "二维地图尚未发布，无法生成语义代价层")
+        try:
+            self._publish_semantic_costmap(map_grid, costmap_source)
+        except RouteCostmapError as error:
+            raise ApiError(
+                HTTPStatus.BAD_REQUEST, f"无法生成语义路线代价层: {error}"
+            ) from error
         with self._lock:
             current_runtime = self._state.get("active_runtime")
             if not isinstance(current_runtime, dict) or current_runtime.get("map_id") != map_id:
                 raise ApiError(HTTPStatus.CONFLICT, "接收路线期间运行地图已切换")
             self._state["semantic"] = semantic_state
+            self._semantic_costmap_source = costmap_source
         self._touch()
         return {"semantic": semantic_state}
 
@@ -1102,10 +1344,14 @@ class MobileGateway(Node):
         if semantic.get("execution_allowed") is not True:
             raise ApiError(
                 HTTPStatus.CONFLICT,
-                "该任务包含语义避让区，配置Nav2 Keepout Filter前禁止真车执行",
+                "语义路线尚未通过执行策略校验",
             )
-        route = [pose_document(value) for value in semantic["route"]]
-        result = self._send_navigation_route(route, "semantic")
+        if semantic.get("costmap_ready") is not True:
+            raise ApiError(HTTPStatus.CONFLICT, "语义路线代价层尚未就绪")
+        destination_poses = [
+            pose_document(value) for value in semantic["destination_poses"]
+        ]
+        result = self._send_navigation_route(destination_poses, "semantic")
         return {
             **result,
             "instruction": semantic["instruction"],
@@ -1117,6 +1363,8 @@ class MobileGateway(Node):
             active_runtime = self._state.get("active_runtime")
             map_id = active_runtime.get("map_id") if isinstance(active_runtime, dict) else None
             self._state["semantic"] = self._empty_semantic_state(map_id)
+            self._semantic_costmap_source = None
+        self._publish_neutral_semantic_costmap()
         self._touch()
         return {"map_id": map_id}
 
@@ -1214,6 +1462,7 @@ class MobileGateway(Node):
             self._state["active_collection"] = None
             self._state["active_processing"] = None
             self._state["semantic"] = self._empty_semantic_state()
+            self._semantic_costmap_source = None
             self._state["navigation"] = {
                 "kind": None,
                 "status": "idle",
@@ -1344,6 +1593,7 @@ class MobileGateway(Node):
                     "motion": motion,
                 }
                 self._state["semantic"] = self._empty_semantic_state(map_id)
+                self._semantic_costmap_source = None
         self._touch()
         return {
             "profile_id": profile_id,
@@ -1361,6 +1611,7 @@ class MobileGateway(Node):
                 self._goal_handle = None
                 self._state["active_runtime"] = None
                 self._state["semantic"] = self._empty_semantic_state()
+                self._semantic_costmap_source = None
                 self._state["navigation"] = {
                     "kind": None,
                     "status": "idle",

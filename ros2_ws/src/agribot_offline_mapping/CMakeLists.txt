@@ -72,6 +72,7 @@ install(PROGRAMS
   scripts/publish_opengraph_semantic_map.py
   scripts/publish_semantic_navigation_graph.py
   scripts/publish_semantic_route.py
+  scripts/publish_semantic_route_costmap.py
   scripts/refine_semantic_navigation_graph.py
   scripts/run_indoor_fastlivo_fusion_validation.py
   scripts/run_localization_comparison.py
@@ -158,6 +159,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_semantic_smac_planner_validation
     test/test_semantic_smac_planner_validation.py
+  )
+  ament_add_pytest_test(
+    test_upsert_semantic_landmarks
+    test/test_upsert_semantic_landmarks.py
   )
   ament_add_pytest_test(test_rtk_mapping_pipeline test/test_rtk_mapping_pipeline.py)
   ament_add_pytest_test(test_trajectory_comparison test/test_trajectory_comparison.py)

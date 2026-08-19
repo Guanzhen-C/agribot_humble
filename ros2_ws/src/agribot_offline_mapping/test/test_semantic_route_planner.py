@@ -118,6 +118,11 @@ def test_plans_shortest_route_through_requested_places():
         "place_via",
         "place_goal",
     ]
+    assert result["route"]["centerline"] == [
+        {"x": 0.0, "y": 0.0},
+        {"x": 1.0, "y": 0.0},
+        {"x": 2.0, "y": 0.0},
+    ]
     assert result["statistics"]["drivable_route_length_m"] == 2.0
     assert result["statistics"]["astar_cost_m"] == 2.0
     assert result["statistics"]["search_algorithm"] == "astar_euclidean_admissible"

@@ -74,6 +74,8 @@ def test_unified_launch_combines_semantics_and_smac_without_motion_nodes():
     assert '"route_plan": LaunchConfiguration("route_plan")' in source
     assert 'executable="publish_semantic_navigation_graph.py"' in source
     assert 'executable="publish_semantic_route.py"' in source
+    assert 'executable="publish_semantic_route_costmap.py"' in source
+    assert 'default_value="semantic_stops"' in source
     assert '"rviz": "false"' in source
     assert "GroupAction(" in source
     assert "scoped=True" in source

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 
 import numpy as np
+import yaml
 
 from plan_semantic_route import GraphValidationError, SemanticRouteGraph, file_sha256
 from semantic_graph_neo4j import (
@@ -24,19 +25,25 @@ from semantic_graph_neo4j import (
 )
 
 
-DEFAULT_OLLAMA_BASE_URL = "http://172.18.80.26:11434"
+DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 def contains_chinese(value):
     return bool(re.search(r"[\u3400-\u9fff]", str(value)))
 
 
-def load_incremental_landmarks(path, graph_document, maximum_distance):
-    document = json.loads(path.read_text(encoding="utf-8"))
+def load_incremental_landmarks(
+    path, graph_document, maximum_distance, expected_map_id
+):
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict) or document.get("schema_version") != 1:
         raise Neo4jGraphError("unsupported incremental landmark schema")
-    if document.get("language") != "zh-CN":
+    if document.get("language", "zh-CN") != "zh-CN":
         raise Neo4jGraphError("incremental landmarks must declare language zh-CN")
+    if document.get("map_id") not in (None, expected_map_id):
+        raise Neo4jGraphError("incremental landmarks belong to another map")
+    if document.get("frame_id", "map") != "map":
+        raise Neo4jGraphError("incremental landmarks must use the map frame")
     raw_landmarks = document.get("landmarks")
     if not isinstance(raw_landmarks, list) or not raw_landmarks:
         raise Neo4jGraphError("incremental landmark file has no landmarks")
@@ -58,7 +65,7 @@ def load_incremental_landmarks(path, graph_document, maximum_distance):
         if landmark_id in seen:
             raise Neo4jGraphError("incremental landmark ids must be unique")
         seen.add(landmark_id)
-        caption = str(item.get("caption", "")).strip()
+        caption = str(item.get("caption", item.get("name", ""))).strip()
         category = str(item.get("category", "")).strip()
         if not contains_chinese(caption) or not contains_chinese(category):
             raise Neo4jGraphError("incremental landmark text must be Chinese")
@@ -137,7 +144,7 @@ def parse_args():
     parser.add_argument("--neo4j-timeout", type=float, default=30.0)
     parser.add_argument(
         "--embedding-base-url",
-        default=os.environ.get("AGRIBOT_OLLAMA_URL", DEFAULT_OLLAMA_BASE_URL),
+        default=os.environ.get("DASHSCOPE_BASE_URL", DEFAULT_BAILIAN_BASE_URL),
     )
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument(
@@ -161,6 +168,7 @@ def main():
         arguments.landmarks.expanduser().resolve(),
         graph_document,
         arguments.maximum_place_distance,
+        arguments.map_id,
     )
     embeddings = None
     if not arguments.skip_embeddings:
@@ -169,6 +177,7 @@ def main():
                 "{}；类别：{}".format(item["caption"], item["category"])
                 for item in landmarks
             ],
+            os.environ.get("DASHSCOPE_API_KEY", ""),
             arguments.embedding_base_url,
             arguments.embedding_model,
             arguments.embedding_dimensions,
@@ -214,5 +223,6 @@ if __name__ == "__main__":
         UnicodeDecodeError,
         ValueError,
         json.JSONDecodeError,
+        yaml.YAMLError,
     ) as error:
         raise SystemExit("error: {}".format(error)) from error

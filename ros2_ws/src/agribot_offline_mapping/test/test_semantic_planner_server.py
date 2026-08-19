@@ -27,12 +27,23 @@ def route_document(graph_digest, provider="alibaba_cloud_bailian"):
             "poses": [
                 {"place_id": "place_000", "position": {"x": 0.0, "y": 0.0}, "yaw": 0.0},
                 {"place_id": "place_001", "position": {"x": 2.0, "y": 1.0}, "yaw": 0.2},
-            ]
+            ],
+            "centerline": [
+                {"x": 0.0, "y": 0.0},
+                {"x": 1.0, "y": 0.4},
+                {"x": 2.0, "y": 1.0},
+            ],
         },
         "resolved_stops": [
-            {"place_id": "place_000"},
-            {"place_id": "place_001", "name": "白色建筑", "semantic_summary": ["入口"]},
+            {"place_id": "place_000", "navigation_route_index": 0},
+            {
+                "place_id": "place_001",
+                "name": "白色建筑",
+                "semantic_summary": ["入口"],
+                "navigation_route_index": 1,
+            },
         ],
+        "avoidance_constraints": {"radius_m": 2.0, "nodes": []},
         "statistics": {
             "route_navigation_places": 2,
             "drivable_route_length_m": 2.3,
@@ -52,7 +63,10 @@ def test_route_boundary_accepts_only_bailian_and_current_graph(tmp_path):
     assert result["provider"] == "alibaba_cloud_bailian"
     assert result["model"] == "qwen3.7-flash"
     assert result["route"][1]["place_id"] == "place_001"
+    assert result["destination_poses"][0]["place_id"] == "place_001"
+    assert len(result["route_centerline"]) == 3
     assert result["execution_allowed"] is True
+    assert result["costmap_policy"]["semantic_avoidance_is_lethal"] is True
     assert result["statistics"]["search_algorithm"] == "astar_euclidean_admissible"
 
     with pytest.raises(MODULE.SemanticServiceError, match="阿里百炼"):

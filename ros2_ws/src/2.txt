@@ -767,7 +767,7 @@ ros2 run agribot_offline_mapping describe_opengraph_instances_ollama.py \
 # 手机App语义导航的数据流：
 # 1. 手机通过热点访问RDK的http://RDK_IP:8088，同时通过VPN访问172.18.80.26:8090
 # 2. App发送自然语言、当前map坐标和地图ID给172服务器
-# 3. 服务器执行本地Qwen解析、Neo4j混合检索和Dijkstra，只返回预览路线
+# 3. 服务器调用百炼Qwen、执行Neo4j混合检索和A*，只返回预览路线与代价约束
 # 4. App把完整路线提交给RDK复核；用户在App检查后再点击“执行语义路线”
 # 手机断开服务器不会影响已提交给Nav2的任务；RDK不会访问模型或Neo4j
 
@@ -794,12 +794,12 @@ ros2 run agribot_offline_mapping plan_semantic_route.py \
 
 # 统一验证语义导航和Smac阿克曼规划：只启动二维地图、中文拓扑、Smac和RViz
 # 青色线和红色地点来自二维地图中心线，绿色线是Smac按真机几何约束生成的路径
-# 原遥控足迹、旧拓扑、代价地图覆盖和橙色预览默认都不显示
-# A*路线的第一个点作为Smac起点，其余全部路线点按顺序作为必须经过的目标
-# Smac因此必须沿A*选出的语义通道规划，不只是经过大模型指定的少数任务点
+# 大模型指定的地点是Smac必须依次到达的硬目标，A*稠密中心线不是硬经停点
+# A*中心线在半个车宽内代价为0，向外2米线性升至80，用作Smac的软路线引导
+# 大模型指定的禁行圆区写入Keepout Filter并按致命障碍处理，和原障碍物代价取较大值
+# 原遥控足迹、旧拓扑、橙色预览默认都不显示
 # 路线会自动送入Smac，不需要再手工点击起点和目标
 # 本测试不启动传感器、控制器或底盘，绝不会让真车运动
-# 该测试尚未给Nav2安装Keepout Filter；若绿色路径穿过红区，终端会明确报错且禁止把结果用于真车
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export DISPLAY=:1
@@ -831,7 +831,7 @@ ros2 launch agribot_offline_mapping opengraph_semantic_map.launch.py \
   show_bounding_boxes:=true \
   rviz:=true
 
-# 离线手工添加室外地图地标：不会修改正式图谱、Neo4j或图谱哈希
+# 离线手工添加室外地图地标：保存后用后续命令增量写入Neo4j，不修改42个地点拓扑和图谱哈希
 # 在RViz工具栏选择Publish Point，点击地图后填写“地标名称”和“地标类别”，再点击保存
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
@@ -842,3 +842,17 @@ ros2 launch agribot_offline_mapping manual_landmark_editor.launch.py \
   map_id:=map_lio_sam_0811 \
   output_file:=/media/cgz/data/agribot_data/semantic_maps/map_lio_sam_0811_manual_landmarks.yaml \
   rviz:=true
+
+# 将新加的室外地标增量写入Neo4j；在172语义服务器上执行，已有地标按编号更新
+set -a
+source /data/agribot/semantic_service/semantic.env
+set +a
+export AGRIBOT_NEO4J_PASSWORD="$AGRIBOT_NEO4J_OUTDOOR_PASSWORD"
+python3 /data/agribot/semantic_service/upsert_semantic_landmarks_neo4j.py \
+  --graph /data/agribot/semantic_graphs/map_lio_sam_0811_navigation_graph.json \
+  --map-id map_lio_sam_0811 \
+  --landmarks /data/agribot/semantic_graphs/map_lio_sam_0811_manual_landmarks.yaml \
+  --neo4j-http-uri http://127.0.0.1:7476 \
+  --embedding-model text-embedding-v4 \
+  --embedding-dimensions 1024 \
+  --resolved-output /data/agribot/semantic_graphs/map_lio_sam_0811_manual_landmarks_resolved.json
