@@ -3,6 +3,7 @@
 """Resolve natural-language tasks through Neo4j retrieval and Bailian."""
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -17,6 +18,7 @@ from plan_semantic_route import (
     RoutePlanningError,
     SemanticRouteGraph,
     file_sha256,
+    plan_route,
     validate_task_plan,
 )
 from semantic_graph_neo4j import (
@@ -524,6 +526,18 @@ def validated_model_plan(
     return plan
 
 
+def response_usage(response_document):
+    usage = response_document.get("usage")
+    if not isinstance(usage, dict):
+        return {}
+    result = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            result[key] = value
+    return result
+
+
 def atomic_write_json(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -531,6 +545,52 @@ def atomic_write_json(path, document):
         json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     temporary.replace(path)
+
+
+def create_route_preview(
+    graph_document,
+    graph_digest,
+    task_plan,
+    start_selector,
+    start_resolution,
+    minimum_edge_clearance,
+    model,
+    request_document,
+    usage,
+    avoidance_radius=2.0,
+    intent_request_document=None,
+    intent_usage=None,
+    map_id=None,
+):
+    route = plan_route(
+        graph_document,
+        [start_selector] + task_plan["destination_node_ids"],
+        minimum_edge_clearance,
+        graph_digest,
+        task_plan,
+        task_plan.get("avoid_node_ids", []),
+        avoidance_radius,
+    )
+    route["start_resolution"] = start_resolution
+    provenance = {
+        "provider": "alibaba_cloud_bailian",
+        "model": model,
+        "response_format": "json_object",
+        "selection_request_sha256": hashlib.sha256(
+            json.dumps(request_document, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "selection_usage": usage,
+        "retrieval_backend": "neo4j_hybrid_landmark_retrieval",
+    }
+    if intent_request_document is not None:
+        provenance["intent_request_sha256"] = hashlib.sha256(
+            json.dumps(intent_request_document, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+        provenance["intent_usage"] = intent_usage or {}
+    if map_id is not None:
+        provenance["neo4j_map_id"] = map_id
+    route["model_provenance"] = provenance
+    return route
 
 
 def parse_args():
@@ -543,6 +603,8 @@ def parse_args():
     start.add_argument("--start")
     start.add_argument("--start-position", nargs=2, type=float, metavar=("X", "Y"))
     parser.add_argument("--maximum-start-distance", type=float, default=5.0)
+    parser.add_argument("--minimum-edge-clearance", type=float, default=None)
+    parser.add_argument("--avoidance-radius", type=float, default=2.0)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument(
         "--base-url",
@@ -572,6 +634,7 @@ def parse_args():
     parser.add_argument("--intent-output", type=Path)
     parser.add_argument("--context-output", type=Path)
     parser.add_argument("--task-plan-output", required=True, type=Path)
+    parser.add_argument("--route-output", required=True, type=Path)
     return parser.parse_args()
 
 
@@ -587,7 +650,7 @@ def main():
     )
     graph_digest = file_sha256(graph_path)
     graph = SemanticRouteGraph(graph_document)
-    _, start_resolution = resolve_start(
+    start_selector, start_resolution = resolve_start(
         graph,
         arguments.start,
         arguments.start_position,
@@ -686,15 +749,36 @@ def main():
         arguments.task_id,
         context,
     )
+    route = create_route_preview(
+        graph_document,
+        graph_digest,
+        task_plan,
+        start_selector,
+        start_resolution,
+        arguments.minimum_edge_clearance,
+        arguments.model,
+        request_document,
+        response_usage(response_document),
+        arguments.avoidance_radius,
+        intent_request,
+        response_usage(intent_response),
+        arguments.map_id,
+    )
     atomic_write_json(arguments.task_plan_output.expanduser().resolve(), task_plan)
+    atomic_write_json(arguments.route_output.expanduser().resolve(), route)
+    stats = route["statistics"]
     print(
-        "Bailian resolved {} ordered destination(s) and {} avoidance place(s) "
-        "through Neo4j; Nav2 Smac will create the drivable path.".format(
+        "Bailian resolved {} destination query/queries through Neo4j; "
+        "deterministic preview contains {} "
+        "semantic nodes and {} navigation places over {:.2f} drivable meters.".format(
             len(task_plan["destination_node_ids"]),
-            len(task_plan["avoid_node_ids"]),
+            stats["route_semantic_nodes"],
+            stats["route_navigation_places"],
+            stats["drivable_route_length_m"],
         )
     )
     print("Saved validated task plan to {}".format(arguments.task_plan_output))
+    print("Saved preview-only route to {}".format(arguments.route_output))
 
 
 if __name__ == "__main__":

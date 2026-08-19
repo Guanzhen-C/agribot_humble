@@ -12,82 +12,92 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-def graph_document():
+def route_document(graph_digest, provider="alibaba_cloud_bailian"):
     return {
         "schema_version": 3,
         "frame_id": "map",
-        "places": [
+        "graph_sha256": graph_digest,
+        "execution_policy": {"preview_only": True},
+        "route_id": "route_test",
+        "start_resolution": {
+            "source": "nearest_semantic_place",
+            "input_position": {"x": -0.5, "y": 0.0},
+        },
+        "task_plan": {
+            "task_id": "phone_test",
+            "avoid_node_ids": [],
+        },
+        "route": {
+            "poses": [
+                {"place_id": "place_000", "position": {"x": 0.0, "y": 0.0}, "yaw": 0.0},
+                {"place_id": "place_001", "position": {"x": 2.0, "y": 1.0}, "yaw": 0.2},
+            ],
+            "centerline": [
+                {"x": 0.0, "y": 0.0},
+                {"x": 1.0, "y": 0.4},
+                {"x": 2.0, "y": 1.0},
+            ],
+        },
+        "resolved_stops": [
+            {"place_id": "place_000", "navigation_route_index": 0},
             {
-                "id": "place_000",
-                "name": "起点",
-                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "yaw": 0.0,
-                "semantic_summary": ["道路"],
-            },
-            {
-                "id": "place_001",
+                "place_id": "place_001",
                 "name": "白色建筑",
-                "position": {"x": 2.0, "y": 1.0, "z": 0.0},
-                "yaw": 0.2,
                 "semantic_summary": ["入口"],
+                "navigation_route_index": 1,
             },
         ],
+        "avoidance_constraints": {
+            "influence_radius_m": 2.0,
+            "decay_length_m": 0.5,
+            "nodes": [],
+        },
+        "statistics": {
+            "route_navigation_places": 2,
+            "drivable_route_length_m": 2.3,
+            "search_algorithm": "astar_euclidean_admissible",
+            "astar_cost_m": 2.3,
+        },
+        "model_provenance": {"provider": provider, "model": "qwen3.7-flash"},
     }
 
 
-def task_document(graph_digest, **updates):
-    document = {
-        "schema_version": 3,
-        "task_id": "phone_test",
-        "graph_sha256": graph_digest,
-        "destination_node_ids": ["place_001"],
-        "avoid_node_ids": [],
-    }
-    document.update(updates)
-    return document
-
-
-def write_graph(tmp_path):
+def test_route_boundary_accepts_only_bailian_and_current_graph(tmp_path):
     graph = tmp_path / "graph.json"
-    graph.write_text(json.dumps(graph_document()), encoding="utf-8")
-    return graph, hashlib.sha256(graph.read_bytes()).hexdigest()
+    graph.write_text('{"schema_version":3}', encoding="utf-8")
+    digest = hashlib.sha256(graph.read_bytes()).hexdigest()
 
-
-def test_task_boundary_returns_only_targets_and_keepouts(tmp_path):
-    graph, digest = write_graph(tmp_path)
-    result = MODULE.validate_task_document(
-        task_document(digest, avoid_node_ids=["place_000"]),
-        graph,
-        "map_test",
-        2.0,
-        0.5,
-    )
-
+    result = MODULE.validate_route_document(route_document(digest), graph, "map_test")
     assert result["provider"] == "alibaba_cloud_bailian"
     assert result["model"] == "qwen3.7-flash"
+    assert result["route"][1]["place_id"] == "place_001"
     assert result["destination_poses"][0]["place_id"] == "place_001"
-    assert result["destination_poses"][0]["yaw"] == 0.2
-    assert result["avoidance_zones"][0]["selector"] == "place_000"
-    assert result["avoidance_zones"][0]["influence_radius_m"] == 2.0
-    assert result["avoidance_zones"][0]["decay_length_m"] == 0.5
-    assert "route" not in result
-    assert "route_centerline" not in result
+    assert len(result["route_centerline"]) == 4
+    assert result["route_centerline"][0] == {"x": -0.5, "y": 0.0}
+    assert result["execution_allowed"] is True
     assert result["costmap_policy"] == {
-        "semantic_route_preference_enabled": False,
+        "semantic_route_preference_enabled": True,
+        "route_corridor_model": "wide_free_core_additive_outside",
+        "route_corridor_half_width_m": 2.0,
+        "route_corridor_transition_width_m": 1.0,
+        "route_corridor_outside_cost": 100,
         "semantic_avoidance_is_lethal": False,
-        "semantic_proximity_cost_model": "exponential",
+        "semantic_proximity_cost_model": "exponential_additive",
         "requires_nav2_proximity_layer": True,
     }
-    assert result["statistics"]["path_planner"] == "nav2_smac_hybrid"
+    assert result["statistics"]["search_algorithm"] == "astar_euclidean_admissible"
 
-    with pytest.raises(MODULE.SemanticServiceError, match="过期图谱"):
-        MODULE.validate_task_document(
-            task_document("0" * 64), graph, "map_test", 2.0, 0.5
+    with pytest.raises(MODULE.SemanticServiceError, match="阿里百炼"):
+        MODULE.validate_route_document(
+            route_document(digest, provider="ollama_local"), graph, "map_test"
         )
+    with pytest.raises(MODULE.SemanticServiceError, match="过期图谱"):
+        MODULE.validate_route_document(route_document("0" * 64), graph, "map_test")
 
 
 def test_service_configuration_keeps_secrets_server_side(tmp_path, monkeypatch):
-    graph, _ = write_graph(tmp_path)
+    graph = tmp_path / "graph.json"
+    graph.write_text('{"schema_version":3}', encoding="utf-8")
     planner = tmp_path / "planner.py"
     planner.write_text("pass\n", encoding="utf-8")
     config = tmp_path / "config.json"
@@ -121,24 +131,37 @@ def test_service_configuration_keeps_secrets_server_side(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "updates,error",
+    "field,value,error",
     [
-        ({"destination_node_ids": []}, "目的地"),
-        ({"destination_node_ids": ["place_999"]}, "目的地"),
-        ({"avoid_node_ids": ["place_999"]}, "避让"),
         (
-            {
-                "destination_node_ids": ["place_001"],
-                "avoid_node_ids": ["place_001"],
-            },
-            "同时作为",
+            "statistics",
+            {"route_navigation_places": 2.5, "drivable_route_length_m": 2.3},
+            "拓扑点数量",
         ),
-        ({"extra": True}, "格式"),
+        (
+            "statistics",
+            {"route_navigation_places": 2, "drivable_route_length_m": -1.0},
+            "路线长度",
+        ),
+        (
+            "resolved_stops",
+            [
+                {"place_id": "place_000"},
+                {
+                    "place_id": "place_001",
+                    "semantic_summary": "不是列表",
+                },
+            ],
+            "目的地描述",
+        ),
     ],
 )
-def test_task_boundary_rejects_malformed_output(tmp_path, updates, error):
-    graph, digest = write_graph(tmp_path)
+def test_route_boundary_rejects_malformed_server_output(tmp_path, field, value, error):
+    graph = tmp_path / "graph.json"
+    graph.write_text('{"schema_version":3}', encoding="utf-8")
+    digest = hashlib.sha256(graph.read_bytes()).hexdigest()
+    document = route_document(digest)
+    document[field] = value
+
     with pytest.raises(MODULE.SemanticServiceError, match=error):
-        MODULE.validate_task_document(
-            task_document(digest, **updates), graph, "map_test", 2.0, 0.5
-        )
+        MODULE.validate_route_document(document, graph, "map_test")

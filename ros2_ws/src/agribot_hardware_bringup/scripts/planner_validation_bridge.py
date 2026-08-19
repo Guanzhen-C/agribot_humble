@@ -507,7 +507,10 @@ class PlannerValidationBridge(Node):
             if (
                 not 0 <= column < message.info.width
                 or not 0 <= row < message.info.height
-                or (message.data[row * message.info.width + column] & 0xFF) < 150
+                # Costmap2DPublisher scales internal costs (0..254) to the
+                # OccupancyGrid range (0..100). A 240 semantic cost is about
+                # 94 on this topic, so validate in the published scale.
+                or (message.data[row * message.info.width + column] & 0xFF) < 80
             ):
                 return
         self.semantic_proximity_applied = True

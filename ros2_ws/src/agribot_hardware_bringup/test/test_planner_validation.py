@@ -68,7 +68,9 @@ def test_planner_validation_uses_only_static_2d_map_layers():
         "plugin": "agribot_hardware_bringup::SemanticProximityLayer",
         "enabled": True,
         "source_topic": "/semantic_navigation/proximity_costmap",
-        "maximum_cost": 200,
+        "maximum_cost": 240,
+        "obstacle_costmap_topic": "obstacle_costmap",
+        "obstacle_costmap_publish_frequency": 1.0,
     }
     assert mapped_costmap["semantic_proximity_layer"] == (
         costmap["semantic_proximity_layer"]

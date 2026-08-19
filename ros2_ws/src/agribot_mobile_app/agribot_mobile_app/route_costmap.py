@@ -1,9 +1,11 @@
-"""Build a bounded exponential semantic proximity-cost map for Nav2."""
+"""Build semantic route-corridor and avoidance costs for Nav2."""
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 from .catalog import GridData
@@ -11,6 +13,26 @@ from .catalog import GridData
 
 class RouteCostmapError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class RouteCorridorPolicy:
+    """Normalized costs used by the vehicle-side semantic cost layer."""
+
+    half_width_m: float = 2.0
+    transition_width_m: float = 1.0
+    outside_cost: int = 100
+
+    def validate(self) -> None:
+        if not math.isfinite(self.half_width_m) or self.half_width_m <= 0.0:
+            raise RouteCostmapError("route corridor half width must be positive")
+        if (
+            not math.isfinite(self.transition_width_m)
+            or self.transition_width_m <= 0.0
+        ):
+            raise RouteCostmapError("route corridor transition width must be positive")
+        if not 1 <= self.outside_cost <= 100:
+            raise RouteCostmapError("route corridor outside cost must be between 1 and 100")
 
 
 def _finite(value, description: str) -> float:
@@ -38,13 +60,14 @@ def world_to_grid(grid: GridData, x: float, y: float) -> tuple[int, int]:
     )
 
 
-def build_proximity_costmap(grid: GridData, avoidance_zones: list[dict]) -> np.ndarray:
-    """Return normalized 0..100 costs for semantic avoidance points.
-
-    The Nav2 layer scales these source values below lethal cost.  Each zone uses
-    ``100 * exp(-distance / decay_length_m)`` inside its finite influence radius;
-    overlapping zones use the maximum cost rather than accumulating.
-    """
+def build_route_costmap(
+    grid: GridData,
+    centerline: list[dict],
+    avoidance_zones: list[dict],
+    policy: RouteCorridorPolicy,
+) -> np.ndarray:
+    """Return normalized additive costs for a wide A* route corridor."""
+    policy.validate()
     if (
         grid.width <= 0
         or grid.height <= 0
@@ -52,9 +75,46 @@ def build_proximity_costmap(grid: GridData, avoidance_zones: list[dict]) -> np.n
         or grid.resolution <= 0.0
     ):
         raise RouteCostmapError("map geometry is invalid")
+    if not isinstance(centerline, list) or len(centerline) < 2:
+        raise RouteCostmapError("semantic A* centerline needs at least two points")
     if not isinstance(avoidance_zones, list):
         raise RouteCostmapError("semantic avoidance zones must be a list")
-    mask = neutral_route_costmap(grid)
+
+    route_pixels = np.zeros((grid.height, grid.width), dtype=np.uint8)
+    pixels = []
+    for point in centerline:
+        if not isinstance(point, dict):
+            raise RouteCostmapError("semantic A* centerline point is invalid")
+        pixels.append(
+            world_to_grid(
+                grid,
+                _finite(point.get("x"), "route x"),
+                _finite(point.get("y"), "route y"),
+            )
+        )
+    cv2.polylines(
+        route_pixels,
+        [np.asarray(pixels, dtype=np.int32).reshape((-1, 1, 2))],
+        False,
+        255,
+        1,
+        cv2.LINE_8,
+    )
+    if not np.any(route_pixels):
+        raise RouteCostmapError("semantic A* centerline does not intersect the map")
+
+    distance_m = cv2.distanceTransform(
+        (route_pixels == 0).astype(np.uint8), cv2.DIST_L2, 5
+    ) * grid.resolution
+    transition = np.clip(
+        (distance_m - policy.half_width_m) / policy.transition_width_m,
+        0.0,
+        1.0,
+    )
+    # Smoothstep avoids an abrupt cost derivative at both corridor boundaries.
+    transition = transition * transition * (3.0 - 2.0 * transition)
+    accumulated = transition * float(policy.outside_cost)
+
     selectors = set()
     for zone in avoidance_zones:
         if not isinstance(zone, dict):
@@ -100,10 +160,9 @@ def build_proximity_costmap(grid: GridData, avoidance_zones: list[dict]) -> np.n
             100.0 * np.exp(-distance / decay_length),
             0.0,
         )
-        normalized = np.rint(costs).astype(np.uint8)
-        current = mask[row_min:row_max, column_min:column_max]
-        np.maximum(current, normalized, out=current)
-    return mask
+        accumulated[row_min:row_max, column_min:column_max] += costs
+
+    return np.rint(np.clip(accumulated, 0.0, 100.0)).astype(np.uint8)
 
 
 def neutral_route_costmap(grid: GridData) -> np.ndarray:

@@ -20,7 +20,10 @@
       "retrieval_top_k": 5,
       "maximum_start_distance": 10.0,
       "proximity_influence_radius_m": 2.0,
-      "proximity_decay_length_m": 0.5
+      "proximity_decay_length_m": 0.5,
+      "route_corridor_half_width_m": 2.0,
+      "route_corridor_transition_width_m": 1.0,
+      "route_corridor_outside_cost": 100
     },
     "map_lio_sam_zoulang_0813_indoor": {
       "label": "室内走廊语义图谱",
@@ -32,7 +35,10 @@
       "retrieval_top_k": 5,
       "maximum_start_distance": 5.0,
       "proximity_influence_radius_m": 2.0,
-      "proximity_decay_length_m": 0.5
+      "proximity_decay_length_m": 0.5,
+      "route_corridor_half_width_m": 2.0,
+      "route_corridor_transition_width_m": 1.0,
+      "route_corridor_outside_cost": 100
     }
   }
 }

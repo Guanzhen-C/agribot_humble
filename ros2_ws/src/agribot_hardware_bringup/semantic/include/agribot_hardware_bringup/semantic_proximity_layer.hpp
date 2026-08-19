@@ -16,6 +16,7 @@ class SemanticProximityLayer : public nav2_costmap_2d::Layer
 {
 public:
   void onInitialize() override;
+  void activate() override;
   void updateBounds(
     double robot_x, double robot_y, double robot_yaw, double * min_x,
     double * min_y, double * max_x, double * max_y) override;
@@ -44,13 +45,21 @@ private:
   static bool worldToGrid(
     const nav_msgs::msg::OccupancyGrid & grid, double world_x, double world_y,
     unsigned int * column, unsigned int * row);
+  void publishObstacleCostmap(
+    const nav2_costmap_2d::Costmap2D & master_grid,
+    int min_i, int min_j, int max_i, int max_j);
 
   std::mutex mutex_;
   nav_msgs::msg::OccupancyGrid::SharedPtr source_grid_;
   std::optional<Bounds> current_bounds_;
   std::optional<Bounds> stale_bounds_;
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr source_subscription_;
+  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr obstacle_costmap_publisher_;
+  nav_msgs::msg::OccupancyGrid obstacle_costmap_;
   std::string source_topic_;
+  std::string obstacle_costmap_topic_;
+  double obstacle_costmap_publish_frequency_{1.0};
+  rclcpp::Time last_obstacle_costmap_publish_time_{0, 0, RCL_ROS_TIME};
   unsigned char maximum_cost_{200};
 };
 

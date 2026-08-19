@@ -286,10 +286,11 @@ semantic-map launch. It publishes a transient `nav_msgs/Path` on
 `/semantic_navigation/route_preview` plus labeled stop markers. Smac and Nav2
 remain responsible for generating and collision-checking the executable path.
 
-`plan_semantic_route.py` remains an offline graph-audit utility. It is not used
-by the phone semantic-navigation service. Production navigation sends only the
-ordered model-selected destinations to Nav2; Smac generates and collision-checks
-the complete Ackermann path against the live costmaps.
+`plan_semantic_route.py` is also the deterministic routing stage used by the
+phone semantic-navigation service. Its A* centerline selects a broad route
+corridor but is never sent to Nav2 as a dense waypoint list. Production
+navigation sends only the ordered model-selected destinations to Nav2; Smac
+generates and collision-checks the complete Ackermann path within the corridor.
 
 `config/semantic_task_plan.schema.json` is the language-model boundary. The
 model may return only an immutable graph SHA-256, a task identifier, an ordered
@@ -344,9 +345,10 @@ graph uses HTTP `7476`/Bolt `7689`, and the indoor graph uses HTTP `7478`/Bolt
 The final result must contain exactly one place for every ordered destination
 query. Local validation rejects a place selected for the wrong query index,
 stale graph hashes, unknown nodes, duplicate destinations, missing avoidance
-matches and all extra fields. The server does not generate a topology route or
-route-preference cost. The implementation uses Python's standard HTTP library
-and adds no Neo4j or OpenAI SDK dependency.
+matches and all extra fields. A deterministic A* stage then removes prohibited
+nodes and road connections and returns a centerline for the vehicle-side wide
+corridor cost. The implementation uses Python's standard HTTP library and adds
+no Neo4j or OpenAI SDK dependency.
 
 The production models are Bailian `qwen3.7-flash` and `text-embedding-v4`.
 The phone and RDK reach only the bounded semantic HTTP service on

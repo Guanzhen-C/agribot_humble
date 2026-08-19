@@ -272,10 +272,10 @@ def test_selection_request_uses_only_per_query_neo4j_candidates():
     assert '"places"' not in serialized
 
 
-def test_validated_bailian_plan_returns_targets_without_topology_route():
-    _, graph, _, start = context_and_start()
+def test_validated_bailian_plan_creates_preview_only_route():
+    document, graph, selector, start = context_and_start()
     context = retrieval_context()
-    MODULE.build_bailian_request(
+    request = MODULE.build_bailian_request(
         MODULE.DEFAULT_MODEL,
         context,
         "去白色建筑物附近巡检",
@@ -286,9 +286,27 @@ def test_validated_bailian_plan_returns_targets_without_topology_route():
     plan = MODULE.validated_model_plan(
         response, GRAPH_DIGEST, graph, "inspection_001", context
     )
-    assert plan["destination_node_ids"] == ["place_001"]
-    assert plan["avoid_node_ids"] == []
-    assert not hasattr(MODULE, "create_route_preview")
+    route = MODULE.create_route_preview(
+        document,
+        GRAPH_DIGEST,
+        plan,
+        selector,
+        start,
+        0.2,
+        MODULE.DEFAULT_MODEL,
+        request,
+        MODULE.response_usage(response),
+        map_id="test_map",
+    )
+
+    assert route["request"]["goal"] == "place_001"
+    assert route["statistics"]["drivable_route_length_m"] == 4.0
+    assert route["execution_policy"]["preview_only"] is True
+    assert route["execution_policy"]["execution_authorized"] is False
+    assert route["model_provenance"]["provider"] == "alibaba_cloud_bailian"
+    assert route["model_provenance"]["model"] == "qwen3.7-flash"
+    assert route["model_provenance"]["selection_usage"]["total_tokens"] == 120
+    assert route["model_provenance"]["neo4j_map_id"] == "test_map"
 
 
 def test_destination_order_is_enforced_per_retrieval_query():

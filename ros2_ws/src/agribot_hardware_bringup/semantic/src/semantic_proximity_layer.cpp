@@ -33,10 +33,15 @@ void SemanticProximityLayer::onInitialize()
     "source_topic",
     rclcpp::ParameterValue("/semantic_navigation/proximity_costmap"));
   declareParameter("maximum_cost", rclcpp::ParameterValue(200));
+  declareParameter("obstacle_costmap_topic", rclcpp::ParameterValue(""));
+  declareParameter("obstacle_costmap_publish_frequency", rclcpp::ParameterValue(1.0));
   node->get_parameter(name_ + ".enabled", enabled_);
   node->get_parameter(name_ + ".source_topic", source_topic_);
   int configured_maximum_cost = 200;
   node->get_parameter(name_ + ".maximum_cost", configured_maximum_cost);
+  node->get_parameter(name_ + ".obstacle_costmap_topic", obstacle_costmap_topic_);
+  node->get_parameter(
+    name_ + ".obstacle_costmap_publish_frequency", obstacle_costmap_publish_frequency_);
   configured_maximum_cost = std::clamp(configured_maximum_cost, 1, 252);
   maximum_cost_ = static_cast<unsigned char>(configured_maximum_cost);
 
@@ -46,10 +51,28 @@ void SemanticProximityLayer::onInitialize()
   source_subscription_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
     source_topic_, qos,
     std::bind(&SemanticProximityLayer::sourceCallback, this, std::placeholders::_1));
+  if (!obstacle_costmap_topic_.empty()) {
+    obstacle_costmap_publish_frequency_ = std::max(0.01, obstacle_costmap_publish_frequency_);
+    obstacle_costmap_publisher_ = rclcpp::create_publisher<nav_msgs::msg::OccupancyGrid>(
+      *node, obstacle_costmap_topic_, qos);
+  }
   current_ = true;
   RCLCPP_INFO(
-    logger_, "Semantic proximity layer subscribed to '%s' with maximum cost %u",
+    logger_, "Semantic route layer subscribed to '%s' with additive maximum cost %u",
     source_topic_.c_str(), static_cast<unsigned int>(maximum_cost_));
+}
+
+void SemanticProximityLayer::activate()
+{
+  if (obstacle_costmap_publisher_) {
+    const auto * costmap = layered_costmap_->getCostmap();
+    const Bounds full_bounds{
+      costmap->getOriginX(), costmap->getOriginY(),
+      costmap->getOriginX() + costmap->getSizeInMetersX(),
+      costmap->getOriginY() + costmap->getSizeInMetersY()};
+    std::lock_guard<std::mutex> lock(mutex_);
+    mergeBounds(&stale_bounds_, full_bounds);
+  }
 }
 
 void SemanticProximityLayer::sourceCallback(
@@ -62,6 +85,9 @@ void SemanticProximityLayer::sourceCallback(
   }
   source_grid_ = message;
   current_bounds_ = bounds;
+  if (current_bounds_.has_value()) {
+    mergeBounds(&stale_bounds_, *current_bounds_);
+  }
   current_ = true;
 }
 
@@ -148,11 +174,9 @@ void SemanticProximityLayer::updateBounds(
     return;
   }
   std::lock_guard<std::mutex> lock(mutex_);
-  if (current_bounds_.has_value()) {
-    expandBounds(*current_bounds_, min_x, min_y, max_x, max_y);
-  }
   if (stale_bounds_.has_value()) {
     expandBounds(*stale_bounds_, min_x, min_y, max_x, max_y);
+    stale_bounds_.reset();
   }
 }
 
@@ -187,11 +211,15 @@ void SemanticProximityLayer::updateCosts(
     return;
   }
 
+  // Capture the static/dynamic obstacle and inflation layers before semantic
+  // route preference is added. RViz can display this without exposing the
+  // internal A* corridor cost used by Smac.
+  publishObstacleCostmap(master_grid, min_i, min_j, max_i, max_j);
+
   nav_msgs::msg::OccupancyGrid::SharedPtr source;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     source = source_grid_;
-    stale_bounds_.reset();
   }
   if (!source || source->data.empty()) {
     return;
@@ -230,12 +258,79 @@ void SemanticProximityLayer::updateCosts(
       {
         continue;
       }
-      if (semantic_cost > existing) {
-        master_grid.setCost(
-          static_cast<unsigned int>(column), static_cast<unsigned int>(row), semantic_cost);
+      const auto combined = static_cast<unsigned char>(std::min(
+        static_cast<int>(nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) - 1,
+        static_cast<int>(existing) + static_cast<int>(semantic_cost)));
+      master_grid.setCost(
+        static_cast<unsigned int>(column), static_cast<unsigned int>(row), combined);
+    }
+  }
+}
+
+void SemanticProximityLayer::publishObstacleCostmap(
+  const nav2_costmap_2d::Costmap2D & master_grid,
+  int min_i, int min_j, int max_i, int max_j)
+{
+  if (!obstacle_costmap_publisher_) {
+    return;
+  }
+
+  const auto width = master_grid.getSizeInCellsX();
+  const auto height = master_grid.getSizeInCellsY();
+  const auto cell_count = static_cast<std::size_t>(width) * height;
+  const bool geometry_changed =
+    obstacle_costmap_.info.width != width ||
+    obstacle_costmap_.info.height != height ||
+    obstacle_costmap_.info.resolution != master_grid.getResolution() ||
+    obstacle_costmap_.info.origin.position.x != master_grid.getOriginX() ||
+    obstacle_costmap_.info.origin.position.y != master_grid.getOriginY();
+  if (geometry_changed) {
+    obstacle_costmap_.info.resolution = master_grid.getResolution();
+    obstacle_costmap_.info.width = width;
+    obstacle_costmap_.info.height = height;
+    obstacle_costmap_.info.origin.position.x = master_grid.getOriginX();
+    obstacle_costmap_.info.origin.position.y = master_grid.getOriginY();
+    obstacle_costmap_.info.origin.orientation.w = 1.0;
+    obstacle_costmap_.data.assign(cell_count, -1);
+    min_i = 0;
+    min_j = 0;
+    max_i = static_cast<int>(width);
+    max_j = static_cast<int>(height);
+  }
+
+  const int first_column = std::max(0, min_i);
+  const int first_row = std::max(0, min_j);
+  const int last_column = std::min(static_cast<int>(width), max_i);
+  const int last_row = std::min(static_cast<int>(height), max_j);
+  const auto * costs = master_grid.getCharMap();
+  for (int row = first_row; row < last_row; ++row) {
+    for (int column = first_column; column < last_column; ++column) {
+      const auto index = static_cast<std::size_t>(row) * width + column;
+      const auto cost = costs[index];
+      if (cost == nav2_costmap_2d::NO_INFORMATION) {
+        obstacle_costmap_.data[index] = -1;
+      } else {
+        obstacle_costmap_.data[index] = static_cast<int8_t>(std::lround(
+          100.0 * static_cast<double>(cost) /
+          static_cast<double>(nav2_costmap_2d::LETHAL_OBSTACLE)));
       }
     }
   }
+
+  const auto now = clock_->now();
+  const auto period = rclcpp::Duration::from_seconds(
+    1.0 / obstacle_costmap_publish_frequency_);
+  if (last_obstacle_costmap_publish_time_.nanoseconds() != 0 &&
+    now - last_obstacle_costmap_publish_time_ < period)
+  {
+    return;
+  }
+
+  obstacle_costmap_.header.stamp = now;
+  obstacle_costmap_.header.frame_id = layered_costmap_->getGlobalFrameID();
+  obstacle_costmap_.info.map_load_time = now;
+  obstacle_costmap_publisher_->publish(obstacle_costmap_);
+  last_obstacle_costmap_publish_time_ = now;
 }
 
 void SemanticProximityLayer::reset()

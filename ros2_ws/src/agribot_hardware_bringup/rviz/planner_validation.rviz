@@ -37,20 +37,20 @@ Visualization Manager:
       Class: rviz_default_plugins/Map
       Color Scheme: costmap
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: 全局代价地图与膨胀区
       Topic:
         Depth: 1
         Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /global_costmap/costmap
+        Value: /global_costmap/obstacle_costmap
       Update Topic:
         Depth: 10
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /global_costmap/costmap_updates
+        Value: /global_costmap/obstacle_costmap_updates
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -193,12 +193,12 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 68.97
-      Focal Point: {X: 64.543, Y: -6.6748, Z: 11.96}
+      Distance: 130.0
+      Focal Point: {X: 43.0, Y: 34.0, Z: 0.0}
       Name: Current View
-      Pitch: 0.56
+      Pitch: 1.57
       Target Frame: map
-      Yaw: 1.31
+      Yaw: 0.0
 Window Geometry:
   Height: 900
   Width: 1440

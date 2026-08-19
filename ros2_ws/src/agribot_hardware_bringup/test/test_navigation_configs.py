@@ -645,12 +645,21 @@ def test_ackermann_fastlio_mapped_uses_real_vehicle_limits_and_static_map():
         assert costmap["static_layer"]["subscribe_to_updates"] is True
         assert costmap["inflation_layer"]["inflation_radius"] == 2.0
         assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
-        assert costmap["semantic_proximity_layer"] == {
+        semantic_layer = costmap["semantic_proximity_layer"]
+        for key, value in {
             "plugin": "agribot_hardware_bringup::SemanticProximityLayer",
             "enabled": True,
             "source_topic": "/semantic_navigation/proximity_costmap",
-            "maximum_cost": 200,
-        }
+            "maximum_cost": 240,
+        }.items():
+            assert semantic_layer[key] == value
+    assert global_costmap["semantic_proximity_layer"]["obstacle_costmap_topic"] == (
+        "obstacle_costmap"
+    )
+    assert global_costmap["semantic_proximity_layer"][
+        "obstacle_costmap_publish_frequency"
+    ] == 1.0
+    assert "obstacle_costmap_topic" not in local_costmap["semantic_proximity_layer"]
 
 
 def test_ackermann_fastlio_local_config_limits_steering_corrections():

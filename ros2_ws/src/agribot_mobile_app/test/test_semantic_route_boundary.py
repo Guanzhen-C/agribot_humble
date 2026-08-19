@@ -1,7 +1,9 @@
 import threading
 
+import numpy as np
 import pytest
 
+from agribot_mobile_app.catalog import GridData
 from agribot_mobile_app.gateway_node import ApiError, MobileGateway
 
 
@@ -12,6 +14,11 @@ def semantic_document(**updates):
         "model": "qwen3.7-flash",
         "graph_sha256": "e" * 64,
         "instruction": "先去白色建筑，再到北门",
+        "route": [
+            {"x": 0.0, "y": 0.0, "yaw": 0.0, "place_id": "place_000"},
+            {"x": 2.0, "y": 1.0, "yaw": 0.2, "place_id": "place_001"},
+        ],
+        "route_centerline": [{"x": 0.0, "y": 0.0}, {"x": 2.0, "y": 1.0}],
         "destination_poses": [
             {"x": 2.0, "y": 1.0, "yaw": 0.2, "place_id": "place_001"}
         ],
@@ -22,15 +29,23 @@ def semantic_document(**updates):
         "avoidance_zones": [],
         "execution_allowed": True,
         "costmap_policy": {
-            "semantic_route_preference_enabled": False,
+            "semantic_route_preference_enabled": True,
+            "route_corridor_model": "wide_free_core_additive_outside",
+            "route_corridor_half_width_m": 2.0,
+            "route_corridor_transition_width_m": 1.0,
+            "route_corridor_outside_cost": 100,
             "semantic_avoidance_is_lethal": False,
-            "semantic_proximity_cost_model": "exponential",
-            "requires_nav2_proximity_layer": False,
+            "semantic_proximity_cost_model": "exponential_additive",
+            "requires_nav2_proximity_layer": True,
         },
         "statistics": {
             "destination_count": 1,
             "avoidance_zone_count": 0,
             "path_planner": "nav2_smac_hybrid",
+            "route_navigation_places": 2,
+            "drivable_route_length_m": 2.2,
+            "search_algorithm": "astar_euclidean_admissible",
+            "astar_cost_m": 2.2,
         },
     }
     document.update(updates)
@@ -44,16 +59,28 @@ def gateway_stub():
         "active_runtime": {"map_id": "map_lio_sam_0811"},
         "semantic": {},
     }
-    gateway._grids = {"map": object()}
+    gateway._grids = {
+        "map": GridData(
+            width=10,
+            height=10,
+            resolution=1.0,
+            origin_x=-5.0,
+            origin_y=-5.0,
+            origin_yaw=0.0,
+            data=bytes(100),
+        )
+    }
     gateway._semantic_costmap_source = None
     gateway.semantic_map_ids = {"map_lio_sam_0811"}
     gateway._assert_navigation_ready = lambda: None
-    gateway._publish_semantic_costmap = lambda *_args: None
+    gateway._publish_semantic_costmap = lambda *_args: np.full(
+        (10, 10), 100, dtype=np.uint8
+    )
     gateway._touch = lambda: None
     return gateway
 
 
-def test_rdk_accepts_targets_without_astar_route_or_centerline():
+def test_rdk_accepts_astar_corridor_but_keeps_model_destinations():
     gateway = gateway_stub()
     result = gateway.receive_semantic_route(
         {"request_id": "phone_01", "semantic": semantic_document()}
@@ -64,8 +91,9 @@ def test_rdk_accepts_targets_without_astar_route_or_centerline():
     assert semantic["provider"] == "alibaba_cloud_bailian"
     assert semantic["request_id"] == "phone_01"
     assert semantic["costmap_ready"] is False
-    assert "route" not in semantic
-    assert gateway._semantic_costmap_source == {"avoidance_zones": []}
+    assert len(semantic["route"]) == 2
+    assert len(semantic["route_centerline"]) == 2
+    assert gateway._semantic_costmap_source["corridor_policy"].half_width_m == 2.0
 
 
 def test_semantic_execution_sends_only_ordered_model_destinations():
@@ -100,15 +128,23 @@ def test_semantic_proximity_task_waits_for_the_global_costmap():
                     }
                 ],
                 costmap_policy={
-                    "semantic_route_preference_enabled": False,
+                    "semantic_route_preference_enabled": True,
+                    "route_corridor_model": "wide_free_core_additive_outside",
+                    "route_corridor_half_width_m": 2.0,
+                    "route_corridor_transition_width_m": 1.0,
+                    "route_corridor_outside_cost": 100,
                     "semantic_avoidance_is_lethal": False,
-                    "semantic_proximity_cost_model": "exponential",
+                    "semantic_proximity_cost_model": "exponential_additive",
                     "requires_nav2_proximity_layer": True,
                 },
                 statistics={
                     "destination_count": 1,
                     "avoidance_zone_count": 1,
                     "path_planner": "nav2_smac_hybrid",
+                    "route_navigation_places": 2,
+                    "drivable_route_length_m": 2.2,
+                    "search_algorithm": "astar_euclidean_admissible",
+                    "astar_cost_m": 2.2,
                 },
             )
         }
@@ -116,6 +152,9 @@ def test_semantic_proximity_task_waits_for_the_global_costmap():
 
     assert result["semantic"]["costmap_ready"] is False
     assert gateway._semantic_costmap_source["avoidance_zones"][0]["x"] == 4.0
+    assert gateway._semantic_costmap_source["verification_points"][0][
+        "minimum_cost"
+    ] == 180
 
 
 @pytest.mark.parametrize(

@@ -48,13 +48,13 @@ Visualization Manager:
         Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /global_costmap/costmap
+        Value: /global_costmap/obstacle_costmap
       Update Topic:
         Depth: 10
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /global_costmap/costmap_updates
+        Value: /global_costmap/obstacle_costmap_updates
     - Alpha: 0.65
       Class: rviz_default_plugins/Map
       Color Scheme: costmap

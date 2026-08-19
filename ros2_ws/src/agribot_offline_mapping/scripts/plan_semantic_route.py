@@ -586,18 +586,24 @@ def build_avoidance_constraints(
     for connection_id, connection in graph.connections.items():
         if connection["kind"] != "drivable":
             continue
-        source = graph.places[connection["source"]]["position"]
-        target = graph.places[connection["target"]]["position"]
+        geometry = connection.get("centerline")
+        if not isinstance(geometry, list) or len(geometry) < 2:
+            geometry = [
+                graph.places[connection["source"]]["position"],
+                graph.places[connection["target"]]["position"],
+            ]
         if any(
-            point_to_segment_distance(
-                cx,
-                cy,
-                float(source["x"]),
-                float(source["y"]),
-                float(target["x"]),
-                float(target["y"]),
-            )
-            <= avoidance_radius + 1e-12
+            min(
+                point_to_segment_distance(
+                    cx,
+                    cy,
+                    float(first["x"]),
+                    float(first["y"]),
+                    float(second["x"]),
+                    float(second["y"]),
+                )
+                for first, second in zip(geometry[:-1], geometry[1:])
+            ) <= avoidance_radius + 1e-12
             for cx, cy in centers
         ):
             blocked_connections.add(connection_id)

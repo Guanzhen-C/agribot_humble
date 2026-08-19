@@ -237,7 +237,9 @@ global_costmap:
         plugin: agribot_hardware_bringup::SemanticProximityLayer
         enabled: true
         source_topic: /semantic_navigation/proximity_costmap
-        maximum_cost: 200
+        maximum_cost: 240
+        obstacle_costmap_topic: obstacle_costmap
+        obstacle_costmap_publish_frequency: 1.0
 
 local_costmap:
   local_costmap:
@@ -308,7 +310,7 @@ local_costmap:
         plugin: agribot_hardware_bringup::SemanticProximityLayer
         enabled: true
         source_topic: /semantic_navigation/proximity_costmap
-        maximum_cost: 200
+        maximum_cost: 240
 
 map_server:
   ros__parameters:

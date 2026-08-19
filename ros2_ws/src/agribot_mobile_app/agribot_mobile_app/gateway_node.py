@@ -22,6 +22,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+import numpy as np
+
 from geometry_msgs.msg import (
     PolygonStamped,
     PoseStamped,
@@ -55,8 +57,9 @@ from .catalog import (
 from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
 from .route_costmap import (
+    RouteCorridorPolicy,
     RouteCostmapError,
-    build_proximity_costmap,
+    build_route_costmap,
     neutral_route_costmap,
     world_to_grid,
 )
@@ -64,6 +67,7 @@ from .route_costmap import (
 
 MAX_JSON_BODY = 256 * 1024
 MAX_ROUTE_POSES = 100
+MAX_ROUTE_CENTERLINE_POINTS = 10000
 MONITORED_TOPICS = (
     "/lidar/points",
     "/imu/data",
@@ -734,8 +738,8 @@ class MobileGateway(Node):
             if (
                 layer == "global_costmap"
                 and active_costmap_source is not None
-                and self._semantic_proximity_costs_applied(
-                    grid, active_costmap_source["avoidance_zones"]
+                and self._semantic_costs_applied(
+                    grid, active_costmap_source["verification_points"]
                 )
             ):
                 with self._lock:
@@ -744,7 +748,7 @@ class MobileGateway(Node):
                         and self._state["semantic"].get("status") == "ready"
                     ):
                         self._state["semantic"]["costmap_ready"] = True
-                self.get_logger().info("语义避让代价已写入全局代价地图")
+                self.get_logger().info("A*宽走廊和语义避让代价已写入全局代价地图")
                 self._touch()
 
         return callback
@@ -767,12 +771,18 @@ class MobileGateway(Node):
 
     def _publish_semantic_costmap(
         self, grid: GridData, semantic: dict | None
-    ) -> None:
+    ):
         if semantic is None:
             mask = neutral_route_costmap(grid)
         else:
-            mask = build_proximity_costmap(grid, semantic["avoidance_zones"])
+            mask = build_route_costmap(
+                grid,
+                semantic["route_centerline"],
+                semantic["avoidance_zones"],
+                semantic["corridor_policy"],
+            )
         self._semantic_mask_publisher.publish(self._costmap_message(grid, mask))
+        return mask
 
     def _publish_neutral_semantic_costmap(self) -> None:
         with self._lock:
@@ -781,15 +791,14 @@ class MobileGateway(Node):
             self._publish_semantic_costmap(grid, None)
 
     @staticmethod
-    def _semantic_proximity_costs_applied(grid: GridData, zones: list[dict]) -> bool:
-        if not zones:
-            return True
-        for zone in zones:
-            column, row = world_to_grid(grid, zone["x"], zone["y"])
+    def _semantic_costs_applied(grid: GridData, points: list[dict]) -> bool:
+        if not points:
+            return False
+        for point in points:
+            column, row = world_to_grid(grid, point["x"], point["y"])
             if not 0 <= column < grid.width or not 0 <= row < grid.height:
                 return False
-            # The custom layer maps source 100 to 200, below Nav2's lethal cost.
-            if grid.data[row * grid.width + column] < 150:
+            if grid.data[row * grid.width + column] < point["minimum_cost"]:
                 return False
         return True
 
@@ -858,6 +867,8 @@ class MobileGateway(Node):
             "instruction": "",
             "destination_poses": [],
             "destinations": [],
+            "route": [],
+            "route_centerline": [],
             "avoid_node_ids": [],
             "avoidance_zones": [],
             "execution_allowed": False,
@@ -1116,6 +1127,35 @@ class MobileGateway(Node):
             or any(value not in "0123456789abcdef" for value in graph_digest)
         ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义图谱摘要无效")
+        raw_route = semantic.get("route")
+        if (
+            not isinstance(raw_route, list)
+            or not 2 <= len(raw_route) <= MAX_ROUTE_POSES
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义A*路线位姿数量无效")
+        route = []
+        for value in raw_route:
+            pose = pose_document(value)
+            pose["place_id"] = str(value.get("place_id", ""))
+            if not pose["place_id"]:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义A*路线地点编号无效")
+            route.append(pose)
+        raw_centerline = semantic.get("route_centerline")
+        if (
+            not isinstance(raw_centerline, list)
+            or not 2 <= len(raw_centerline) <= MAX_ROUTE_CENTERLINE_POINTS
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义A*中心线点数无效")
+        route_centerline = []
+        for point in raw_centerline:
+            if not isinstance(point, dict):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "语义A*中心线点无效")
+            route_centerline.append(
+                {
+                    "x": finite_number(point.get("x"), "语义A*中心线X坐标"),
+                    "y": finite_number(point.get("y"), "语义A*中心线Y坐标"),
+                }
+            )
         instruction = semantic.get("instruction")
         if not isinstance(instruction, str) or not instruction.strip() or len(instruction) > 1000:
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务描述无效")
@@ -1198,14 +1238,39 @@ class MobileGateway(Node):
             avoid_node_ids
         ):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义避让区域与避让节点不一致")
-        expected_costmap_policy = {
-            "semantic_route_preference_enabled": False,
-            "semantic_avoidance_is_lethal": False,
-            "semantic_proximity_cost_model": "exponential",
-            "requires_nav2_proximity_layer": bool(avoidance_zones),
-        }
-        if semantic.get("costmap_policy") != expected_costmap_policy:
+        raw_costmap_policy = semantic.get("costmap_policy")
+        if not isinstance(raw_costmap_policy, dict):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义禁行区策略无效")
+        half_width = finite_number(
+            raw_costmap_policy.get("route_corridor_half_width_m"),
+            "语义路线走廊半宽",
+        )
+        transition_width = finite_number(
+            raw_costmap_policy.get("route_corridor_transition_width_m"),
+            "语义路线走廊过渡宽度",
+        )
+        outside_cost = raw_costmap_policy.get("route_corridor_outside_cost")
+        if (
+            raw_costmap_policy.get("semantic_route_preference_enabled") is not True
+            or raw_costmap_policy.get("route_corridor_model")
+            != "wide_free_core_additive_outside"
+            or half_width <= 0.0
+            or transition_width <= 0.0
+            or isinstance(outside_cost, bool)
+            or not isinstance(outside_cost, int)
+            or not 1 <= outside_cost <= 100
+            or raw_costmap_policy.get("semantic_avoidance_is_lethal") is not False
+            or raw_costmap_policy.get("semantic_proximity_cost_model")
+            != "exponential_additive"
+            or raw_costmap_policy.get("requires_nav2_proximity_layer") is not True
+        ):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "语义路线走廊策略无效")
+        corridor_policy = RouteCorridorPolicy(
+            half_width_m=half_width,
+            transition_width_m=transition_width,
+            outside_cost=outside_cost,
+        )
+        corridor_policy.validate()
         raw_statistics = semantic.get("statistics", {})
         if not isinstance(raw_statistics, dict):
             raise ApiError(HTTPStatus.BAD_REQUEST, "语义任务统计无效")
@@ -1221,6 +1286,14 @@ class MobileGateway(Node):
             "destination_count": destination_count,
             "avoidance_zone_count": avoidance_zone_count,
             "path_planner": "nav2_smac_hybrid",
+            "route_navigation_places": raw_statistics.get(
+                "route_navigation_places"
+            ),
+            "drivable_route_length_m": raw_statistics.get(
+                "drivable_route_length_m"
+            ),
+            "search_algorithm": raw_statistics.get("search_algorithm"),
+            "astar_cost_m": raw_statistics.get("astar_cost_m"),
         }
         self._assert_navigation_ready()
         semantic_state = {
@@ -1230,6 +1303,8 @@ class MobileGateway(Node):
             "instruction": instruction.strip(),
             "destination_poses": destination_poses,
             "destinations": validated_destinations,
+            "route": route,
+            "route_centerline": route_centerline,
             "avoid_node_ids": avoid_node_ids,
             "avoidance_zones": avoidance_zones,
             "execution_allowed": True,
@@ -1242,18 +1317,33 @@ class MobileGateway(Node):
             "error": "",
         }
         costmap_source = {
+            "route_centerline": route_centerline,
             "avoidance_zones": avoidance_zones,
+            "corridor_policy": corridor_policy,
+            "verification_points": [],
         }
         with self._lock:
             map_grid = self._grids.get("map")
         if map_grid is None:
             raise ApiError(HTTPStatus.CONFLICT, "二维地图尚未发布，无法生成语义代价层")
         try:
-            self._publish_semantic_costmap(map_grid, costmap_source)
+            mask = self._publish_semantic_costmap(map_grid, costmap_source)
         except RouteCostmapError as error:
             raise ApiError(
                 HTTPStatus.BAD_REQUEST, f"无法生成语义避让代价层: {error}"
             ) from error
+        row, column = np.unravel_index(int(np.argmax(mask)), mask.shape)
+        local_x = (float(column) + 0.5) * map_grid.resolution
+        local_y = (float(row) + 0.5) * map_grid.resolution
+        cosine = math.cos(map_grid.origin_yaw)
+        sine = math.sin(map_grid.origin_yaw)
+        costmap_source["verification_points"] = [
+            {
+                "x": map_grid.origin_x + cosine * local_x - sine * local_y,
+                "y": map_grid.origin_y + sine * local_x + cosine * local_y,
+                "minimum_cost": 180,
+            }
+        ]
         with self._lock:
             current_runtime = self._state.get("active_runtime")
             if not isinstance(current_runtime, dict) or current_runtime.get("map_id") != map_id:
