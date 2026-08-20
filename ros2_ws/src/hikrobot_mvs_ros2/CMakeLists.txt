@@ -8,7 +8,9 @@ endif()
 add_compile_options(-Wall -Wextra -Wpedantic)
 
 find_package(ament_cmake REQUIRED)
+find_package(agribot_time_sync REQUIRED)
 find_package(camera_info_manager REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -48,6 +50,8 @@ target_link_libraries(hikrobot_mvs_camera_node
 )
 ament_target_dependencies(hikrobot_mvs_camera_node
   camera_info_manager
+  agribot_time_sync
+  diagnostic_msgs
   rclcpp
   sensor_msgs
   std_msgs

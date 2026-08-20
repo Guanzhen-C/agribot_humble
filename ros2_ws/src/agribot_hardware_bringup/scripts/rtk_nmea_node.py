@@ -6,10 +6,12 @@ import socket
 import threading
 import time
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import rclpy
 import serial
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import PoseWithCovarianceStamped, QuaternionStamped
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix, NavSatStatus
@@ -46,6 +48,90 @@ class GgaMetadata:
     hdop: Optional[float]
     differential_age_sec: Optional[float]
     reference_station_id: str
+
+
+GPS_EPOCH_UNIX_SEC = 315964800.0
+
+
+def parse_utc_time_of_day(value: str) -> Optional[tuple[int, int, float]]:
+    if len(value) < 6:
+        return None
+    try:
+        hour = int(value[0:2])
+        minute = int(value[2:4])
+        second = float(value[4:])
+    except ValueError:
+        return None
+    if not 0 <= hour < 24 or not 0 <= minute < 60 or not 0.0 <= second < 61.0:
+        return None
+    return hour, minute, second
+
+
+def combine_utc_date_and_time(utc_date: date, value: str) -> Optional[float]:
+    parsed = parse_utc_time_of_day(value)
+    if parsed is None:
+        return None
+    hour, minute, second = parsed
+    instant = datetime(
+        utc_date.year,
+        utc_date.month,
+        utc_date.day,
+        hour,
+        minute,
+        0,
+        tzinfo=timezone.utc,
+    ) + timedelta(seconds=second)
+    return instant.timestamp()
+
+
+def parse_rmc_datetime(sentence: str) -> Optional[float]:
+    if not nmea_checksum_valid(sentence):
+        return None
+    fields = sentence.split("*", 1)[0].split(",")
+    if len(fields) < 10 or not fields[0].endswith("RMC"):
+        return None
+    if not fields[1] or not fields[9]:
+        return None
+    raw_date = fields[9]
+    if len(raw_date) != 6 or not raw_date.isdigit():
+        return None
+    day = int(raw_date[0:2])
+    month = int(raw_date[2:4])
+    year_two_digits = int(raw_date[4:6])
+    year = 2000 + year_two_digits if year_two_digits < 80 else 1900 + year_two_digits
+    try:
+        utc_date = date(year, month, day)
+    except ValueError:
+        return None
+    return combine_utc_date_and_time(utc_date, fields[1])
+
+
+def parse_zda_datetime(sentence: str) -> Optional[float]:
+    if not nmea_checksum_valid(sentence):
+        return None
+    fields = sentence.split("*", 1)[0].split(",")
+    if len(fields) < 5 or not fields[0].endswith("ZDA"):
+        return None
+    try:
+        utc_date = date(int(fields[4]), int(fields[3]), int(fields[2]))
+    except (ValueError, TypeError):
+        return None
+    return combine_utc_date_and_time(utc_date, fields[1])
+
+
+def gps_week_milliseconds_to_unix(
+    gps_week: int, milliseconds: float, leap_seconds: int = 18
+) -> Optional[float]:
+    if gps_week < 0 or not math.isfinite(milliseconds) or milliseconds < 0.0:
+        return None
+    if milliseconds >= 604800000.0:
+        return None
+    return (
+        GPS_EPOCH_UNIX_SEC
+        + gps_week * 604800.0
+        + milliseconds * 1.0e-3
+        - leap_seconds
+    )
 
 
 def parse_gga_metadata(sentence: str) -> Optional[GgaMetadata]:
@@ -134,6 +220,7 @@ class UniHeadingSolution:
     pitch_deg: float
     heading_std_deg: float
     pitch_std_deg: float
+    measurement_time_unix_sec: Optional[float] = None
 
     @property
     def valid(self) -> bool:
@@ -144,7 +231,8 @@ def parse_uniheading_sentence(sentence: str) -> Optional[UniHeadingSolution]:
     if not novatel_crc_valid(sentence) or ";" not in sentence:
         return None
     header, payload_with_crc = sentence.split(";", 1)
-    if not header.split(",", 1)[0].endswith("UNIHEADINGA"):
+    header_fields = header.split(",")
+    if not header_fields[0].endswith("UNIHEADINGA"):
         return None
     fields = payload_with_crc.split("*", 1)[0].split(",")
     if len(fields) < 8:
@@ -155,6 +243,17 @@ def parse_uniheading_sentence(sentence: str) -> Optional[UniHeadingSolution]:
         return None
     if not all(math.isfinite(value) for value in numeric):
         return None
+    measurement_time = None
+    if len(header_fields) >= 9:
+        try:
+            gps_week = int(header_fields[4])
+            gps_milliseconds = float(header_fields[5])
+            leap_seconds = int(header_fields[8])
+            measurement_time = gps_week_milliseconds_to_unix(
+                gps_week, gps_milliseconds, leap_seconds
+            )
+        except ValueError:
+            measurement_time = None
     return UniHeadingSolution(
         solution_status=fields[0],
         position_type=fields[1],
@@ -163,6 +262,7 @@ def parse_uniheading_sentence(sentence: str) -> Optional[UniHeadingSolution]:
         pitch_deg=numeric[2],
         heading_std_deg=numeric[3],
         pitch_std_deg=numeric[4],
+        measurement_time_unix_sec=measurement_time,
     )
 
 
@@ -251,6 +351,18 @@ class RtkNmeaNode(Node):
         self.vertical_std_scale = float(
             self.declare_parameter("vertical_std_scale", 1.5).value
         )
+        self.use_gnss_measurement_time = bool(
+            self.declare_parameter("use_gnss_measurement_time", True).value
+        )
+        self.gnss_time_offset_sec = float(
+            self.declare_parameter("gnss_time_offset_sec", 0.0).value
+        )
+        self.gnss_time_max_error_sec = float(
+            self.declare_parameter("gnss_time_max_error_sec", 5.0).value
+        )
+        self.heading_pair_tolerance_sec = float(
+            self.declare_parameter("heading_pair_tolerance_sec", 0.25).value
+        )
 
         self.enable_ntrip = bool(self.declare_parameter("enable_ntrip", False).value)
         self.ntrip_host = self.declare_parameter("ntrip_host", "").value
@@ -293,13 +405,23 @@ class RtkNmeaNode(Node):
         self.reference_station_publisher = self.create_publisher(
             String, reference_station_topic, 10
         )
+        self.diagnostics_publisher = self.create_publisher(
+            DiagnosticArray, "/diagnostics", 10
+        )
         self.serial: Optional[serial.Serial] = None
         self.serial_lock = threading.Lock()
         self.receive_buffer = bytearray()
         self.latest_gga: Optional[bytes] = None
         self.last_open_attempt = 0.0
         self.stop_event = threading.Event()
+        self.latest_utc_date: Optional[date] = None
+        self.latest_fix_measurement_sec: Optional[float] = None
+        self.latest_fix_receipt_monotonic: Optional[float] = None
+        self.last_time_source = "receipt"
+        self.last_time_error_sec = math.nan
+        self.gnss_time_reject_count = 0
         self.create_timer(0.01, self.poll_serial)
+        self.create_timer(1.0, self.publish_time_diagnostics)
 
         self.ntrip_thread = None
         if self.enable_ntrip:
@@ -393,6 +515,12 @@ class RtkNmeaNode(Node):
         fields = sentence.split("*")[0].split(",")
         if not fields:
             return
+        if fields[0].endswith("RMC"):
+            self.update_absolute_gnss_time(parse_rmc_datetime(sentence))
+            return
+        if fields[0].endswith("ZDA"):
+            self.update_absolute_gnss_time(parse_zda_datetime(sentence))
+            return
         if fields[0].endswith("THS"):
             self.handle_ths(sentence)
             return
@@ -439,8 +567,18 @@ class RtkNmeaNode(Node):
         horizontal_std = self.horizontal_standard_deviation(quality, hdop)
         vertical_std = horizontal_std * self.vertical_std_scale
 
+        receipt_time = self.get_clock().now()
+        measurement_time = self.gga_measurement_time(
+            metadata.utc_time, receipt_time.nanoseconds * 1.0e-9
+        )
+        stamp_sec = self.accept_measurement_time(measurement_time, receipt_time)
+        self.latest_fix_measurement_sec = stamp_sec
+        self.latest_fix_receipt_monotonic = time.monotonic()
+
         fix = NavSatFix()
-        fix.header.stamp = self.get_clock().now().to_msg()
+        fix.header.stamp = rclpy.time.Time(
+            nanoseconds=int(round(stamp_sec * 1.0e9))
+        ).to_msg()
         fix.header.frame_id = self.frame_id
         fix.status.status = (
             NavSatStatus.STATUS_GBAS_FIX
@@ -475,8 +613,19 @@ class RtkNmeaNode(Node):
             heading_deg + self.heading_offset_deg
         )
         yaw = gnss_heading_to_enu_yaw(vehicle_heading_deg)
+        receipt_time = self.get_clock().now()
+        stamp_sec = receipt_time.nanoseconds * 1.0e-9
+        if (
+            self.latest_fix_measurement_sec is not None
+            and self.latest_fix_receipt_monotonic is not None
+            and time.monotonic() - self.latest_fix_receipt_monotonic
+            <= self.heading_pair_tolerance_sec
+        ):
+            stamp_sec = self.latest_fix_measurement_sec
         heading = QuaternionStamped()
-        heading.header.stamp = self.get_clock().now().to_msg()
+        heading.header.stamp = rclpy.time.Time(
+            nanoseconds=int(round(stamp_sec * 1.0e9))
+        ).to_msg()
         heading.header.frame_id = self.heading_reference_frame
         heading.quaternion.z = math.sin(yaw / 2.0)
         heading.quaternion.w = math.cos(yaw / 2.0)
@@ -502,8 +651,15 @@ class RtkNmeaNode(Node):
             solution.heading_deg + self.heading_offset_deg
         )
         yaw = gnss_heading_to_enu_yaw(vehicle_heading_deg)
+        receipt_time = self.get_clock().now()
+        stamp_sec = self.accept_measurement_time(
+            solution.measurement_time_unix_sec, receipt_time
+        )
+        self.update_absolute_gnss_time(solution.measurement_time_unix_sec)
         heading = PoseWithCovarianceStamped()
-        heading.header.stamp = self.get_clock().now().to_msg()
+        heading.header.stamp = rclpy.time.Time(
+            nanoseconds=int(round(stamp_sec * 1.0e9))
+        ).to_msg()
         heading.header.frame_id = self.heading_reference_frame
         heading.pose.pose.orientation.z = math.sin(yaw / 2.0)
         heading.pose.pose.orientation.w = math.cos(yaw / 2.0)
@@ -511,6 +667,89 @@ class RtkNmeaNode(Node):
             heading.pose.covariance[index] = 1e6
         heading.pose.covariance[35] = math.radians(heading_std_deg) ** 2
         self.heading_covariance_publisher.publish(heading)
+
+    def update_absolute_gnss_time(self, measurement_time: Optional[float]) -> None:
+        if measurement_time is None or not math.isfinite(measurement_time):
+            return
+        self.latest_utc_date = datetime.fromtimestamp(
+            measurement_time, tz=timezone.utc
+        ).date()
+
+    def gga_measurement_time(
+        self, utc_time: str, receipt_time_sec: float
+    ) -> Optional[float]:
+        receipt_date = datetime.fromtimestamp(
+            receipt_time_sec, tz=timezone.utc
+        ).date()
+        base_date = self.latest_utc_date or receipt_date
+        candidates = []
+        for day_offset in (-1, 0, 1):
+            candidate = combine_utc_date_and_time(
+                base_date + timedelta(days=day_offset), utc_time
+            )
+            if candidate is not None:
+                candidates.append(candidate)
+        if not candidates:
+            return None
+        return min(candidates, key=lambda value: abs(value - receipt_time_sec))
+
+    def accept_measurement_time(
+        self, measurement_time: Optional[float], receipt_time
+    ) -> float:
+        receipt_sec = receipt_time.nanoseconds * 1.0e-9
+        if not self.use_gnss_measurement_time:
+            self.last_time_source = "receipt_disabled"
+            self.last_time_error_sec = math.nan
+            return receipt_sec
+        if measurement_time is None or not math.isfinite(measurement_time):
+            self.last_time_source = "receipt_missing_gnss"
+            self.last_time_error_sec = math.nan
+            return receipt_sec
+        corrected_time = measurement_time + self.gnss_time_offset_sec
+        self.last_time_error_sec = receipt_sec - corrected_time
+        if abs(self.last_time_error_sec) > self.gnss_time_max_error_sec:
+            self.gnss_time_reject_count += 1
+            self.last_time_source = "receipt_invalid_gnss"
+            return receipt_sec
+        self.last_time_source = "gnss_measurement"
+        return corrected_time
+
+    def publish_time_diagnostics(self) -> None:
+        message = DiagnosticArray()
+        message.header.stamp = self.get_clock().now().to_msg()
+        status = DiagnosticStatus()
+        status.name = "rtk_nmea/time_sync"
+        status.hardware_id = self.serial_port
+        if self.last_time_source == "gnss_measurement":
+            status.level = DiagnosticStatus.OK
+            status.message = "using GNSS measurement time"
+        elif self.last_time_source == "receipt_invalid_gnss":
+            status.level = DiagnosticStatus.ERROR
+            status.message = "GNSS time differs from RDK clock; using receipt time"
+        else:
+            status.level = DiagnosticStatus.WARN
+            status.message = "using serial receipt time"
+        status.values = [
+            KeyValue(key="source", value=self.last_time_source),
+            KeyValue(
+                key="measurement_to_receipt_ms",
+                value=(
+                    f"{self.last_time_error_sec * 1.0e3:.3f}"
+                    if math.isfinite(self.last_time_error_sec)
+                    else "nan"
+                ),
+            ),
+            KeyValue(
+                key="rejected_measurement_times",
+                value=str(self.gnss_time_reject_count),
+            ),
+            KeyValue(
+                key="utc_date_known",
+                value="true" if self.latest_utc_date is not None else "false",
+            ),
+        ]
+        message.status = [status]
+        self.diagnostics_publisher.publish(message)
 
     def horizontal_standard_deviation(self, quality: int, hdop: float) -> float:
         if quality == 4:

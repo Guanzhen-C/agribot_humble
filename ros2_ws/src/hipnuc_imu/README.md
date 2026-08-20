@@ -10,6 +10,12 @@ counterclockwise from FLU `+X`. Use `-90.0` for the vendor's normal mounting
 rotation is applied consistently to acceleration, angular velocity, magnetic
 field, and orientation.
 
+The driver uses the HI91 `system_time` sampling counter by default. A bounded
+affine clock mapper removes serial scheduling jitter and estimates device-clock
+drift against the RDK ROS clock. `/diagnostics` exposes mapping warm-up, scale
+error, delay jitter and reset count. Set `timestamp_source: receipt` only as a
+temporary fallback when diagnosing a device timestamp fault.
+
 Topics:
 
 - `/imu/data` (`sensor_msgs/Imu`), full orientation, angular velocity and acceleration

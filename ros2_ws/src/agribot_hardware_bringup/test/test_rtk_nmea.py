@@ -9,6 +9,13 @@ RTK = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RTK)
 
 
+def nmea_sentence(body):
+    checksum = 0
+    for character in body:
+        checksum ^= ord(character)
+    return f"${body}*{checksum:02X}"
+
+
 def test_nmea_checksum_and_coordinate_conversion():
     sentence = (
         "$GNGGA,081402.00,3958.66107245,N,11619.62194811,E,4,20,1.5,"
@@ -41,10 +48,7 @@ def test_gga_quality_metadata_is_preserved():
 
 def test_gga_metadata_preserves_missing_optional_fields():
     body = "GNGGA,081402.00,,,,,0,0,,,M,,M,,"
-    checksum = 0
-    for character in body:
-        checksum ^= ord(character)
-    metadata = RTK.parse_gga_metadata(f"${body}*{checksum:02X}")
+    metadata = RTK.parse_gga_metadata(nmea_sentence(body))
     assert metadata is not None
     assert metadata.quality == 0
     assert metadata.satellite_count == 0
@@ -80,6 +84,10 @@ def test_uniheading_crc_and_solution_parsing():
     assert math.isclose(solution.baseline_length_m, 1.4773)
     assert math.isclose(solution.heading_std_deg, 0.8259)
     assert math.isclose(
+        solution.measurement_time_unix_sec,
+        RTK.GPS_EPOCH_UNIX_SEC + 2428 * 604800.0 + 116060.0 - 18.0,
+    )
+    assert math.isclose(
         RTK.heading_standard_deviation_deg(solution, 1.0, 5.0), 1.0
     )
     assert not RTK.novatel_crc_valid(sentence[:-1] + "1")
@@ -97,4 +105,24 @@ def test_float_heading_uses_conservative_uncertainty_floor():
     )
     assert math.isclose(
         RTK.heading_standard_deviation_deg(solution, 1.0, 5.0), 5.0
+    )
+
+
+def test_rmc_and_zda_supply_absolute_utc_measurement_time():
+    rmc = nmea_sentence(
+        "GNRMC,081402.25,A,3958.66107245,N,11619.62194811,E,0.0,0.0,"
+        "200826,,,A"
+    )
+    zda = nmea_sentence("GNZDA,081402.25,20,08,2026,00,00")
+    expected = 1787213642.25
+    assert math.isclose(RTK.parse_rmc_datetime(rmc), expected)
+    assert math.isclose(RTK.parse_zda_datetime(zda), expected)
+
+
+def test_gga_time_combines_with_date_and_handles_midnight():
+    from datetime import date
+
+    assert math.isclose(
+        RTK.combine_utc_date_and_time(date(2026, 8, 20), "235959.75"),
+        1787270399.75,
     )

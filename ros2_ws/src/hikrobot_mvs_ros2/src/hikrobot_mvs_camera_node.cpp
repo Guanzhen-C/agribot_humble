@@ -3,17 +3,24 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iomanip>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <agribot_time_sync/affine_clock_mapper.hpp>
 #include <camera_info_manager/camera_info_manager.hpp>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
+#include <diagnostic_msgs/msg/key_value.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -33,6 +40,15 @@ std::string usb_string(const unsigned char * value)
 {
   const auto * text = reinterpret_cast<const char *>(value);
   return std::string(text, strnlen(text, INFO_MAX_BUFFER_SIZE));
+}
+
+diagnostic_msgs::msg::KeyValue diagnostic_value(
+  const std::string & key, const std::string & value)
+{
+  diagnostic_msgs::msg::KeyValue result;
+  result.key = key;
+  result.value = value;
+  return result;
 }
 }  // namespace
 
@@ -62,10 +78,36 @@ public:
     gamma_ = declare_parameter<double>("gamma", 0.7);
     pixel_format_ = declare_parameter<std::string>("pixel_format", "BayerGB12Packed");
     sdk_buffer_count_ = static_cast<int>(std::clamp<int64_t>(
-      declare_parameter<int>("sdk_buffer_count", 2), 1, 8));
+        declare_parameter<int>("sdk_buffer_count", 2), 1, 8));
     grab_timeout_ms_ = static_cast<int>(std::max<int64_t>(
-      declare_parameter<int>("grab_timeout_ms", 1000), 10));
+        declare_parameter<int>("grab_timeout_ms", 1000), 10));
+    timestamp_source_ = declare_parameter<std::string>("timestamp_source", "device");
+    if (timestamp_source_ != "device" && timestamp_source_ != "receipt") {
+      throw std::invalid_argument("timestamp_source must be device or receipt");
+    }
+    device_timestamp_frequency_hz_ =
+      declare_parameter<double>("device_timestamp_frequency_hz", 100000000.0);
+    if (!std::isfinite(device_timestamp_frequency_hz_) ||
+      device_timestamp_frequency_hz_ <= 0.0)
+    {
+      throw std::invalid_argument("device_timestamp_frequency_hz must be positive");
+    }
     timestamp_offset_sec_ = declare_parameter<double>("timestamp_offset_sec", 0.0);
+    agribot_time_sync::ClockMapperConfig clock_config;
+    clock_config.window_size = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_window_size", 600), 20));
+    clock_config.min_samples = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_min_samples", 30), 2));
+    clock_config.fit_interval_samples = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_fit_interval_samples", 5), 1));
+    clock_config.min_span_sec = declare_parameter<double>("time_sync_min_span_sec", 3.0);
+    clock_config.max_scale_error_ppm =
+      declare_parameter<double>("time_sync_max_scale_error_ppm", 1000.0);
+    clock_config.reset_threshold_sec =
+      declare_parameter<double>("time_sync_reset_threshold_sec", 0.5);
+    clock_config.max_device_gap_sec =
+      declare_parameter<double>("time_sync_max_device_gap_sec", 2.0);
+    clock_mapper_ = std::make_unique<agribot_time_sync::AffineClockMapper>(clock_config);
 
     const auto sensor_qos = rclcpp::SensorDataQoS().keep_last(2);
     image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic, sensor_qos);
@@ -74,6 +116,8 @@ public:
     const auto state_qos = rclcpp::QoS(1).reliable().transient_local();
     connected_pub_ = create_publisher<std_msgs::msg::Bool>("~/connected", state_qos);
     frame_rate_pub_ = create_publisher<std_msgs::msg::Float32>("~/frame_rate_hz", state_qos);
+    diagnostics_pub_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+      "/diagnostics", rclcpp::SystemDefaultsQoS());
     camera_info_manager_ = std::make_unique<camera_info_manager::CameraInfoManager>(
       this, camera_name, camera_info_url);
 
@@ -84,6 +128,8 @@ public:
       throw;
     }
     publish_connected(true);
+    diagnostics_timer_ = create_wall_timer(
+      std::chrono::seconds(1), std::bind(&HikrobotMvsCameraNode::publish_diagnostics, this));
     running_.store(true);
     grab_thread_ = std::thread(&HikrobotMvsCameraNode::grab_loop, this);
   }
@@ -147,9 +193,11 @@ private:
 
     require_ok(MV_CC_CreateHandle(&handle_, selected), "创建相机句柄");
     require_ok(MV_CC_OpenDevice(handle_), "打开相机");
-    require_ok(MV_CC_SetImageNodeNum(handle_, static_cast<unsigned int>(sdk_buffer_count_)),
+    require_ok(
+      MV_CC_SetImageNodeNum(handle_, static_cast<unsigned int>(sdk_buffer_count_)),
       "设置SDK缓存数量");
-    require_ok(MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly),
+    require_ok(
+      MV_CC_SetGrabStrategy(handle_, MV_GrabStrategy_LatestImagesOnly),
       "设置最新帧抓取策略");
 
     require_ok(
@@ -221,9 +269,38 @@ private:
     }
   }
 
+  rclcpp::Time frame_stamp(const MV_FRAME_OUT_INFO_EX & frame_info)
+  {
+    const rclcpp::Time ros_receipt = now();
+    double receipt_sec = ros_receipt.seconds();
+    if (frame_info.nHostTimeStamp > 0) {
+      const double sdk_receipt_sec = static_cast<double>(frame_info.nHostTimeStamp) * 1.0e-3;
+      if (std::abs(sdk_receipt_sec - receipt_sec) < 5.0) {
+        receipt_sec = sdk_receipt_sec;
+      }
+    }
+
+    double stamp_sec = receipt_sec;
+    const std::uint64_t device_ticks =
+      (static_cast<std::uint64_t>(frame_info.nDevTimeStampHigh) << 32U) |
+      static_cast<std::uint64_t>(frame_info.nDevTimeStampLow);
+    std::lock_guard<std::mutex> lock(clock_mutex_);
+    if (timestamp_source_ == "device" && device_ticks != 0U) {
+      last_clock_result_ = clock_mapper_->observe(
+        static_cast<double>(device_ticks) / device_timestamp_frequency_hz_, receipt_sec);
+      stamp_sec = last_clock_result_.stamp_sec;
+      device_timestamp_valid_ = true;
+    } else {
+      device_timestamp_valid_ = timestamp_source_ == "receipt";
+    }
+    stamp_sec += timestamp_offset_sec_;
+    return rclcpp::Time(
+      static_cast<std::int64_t>(stamp_sec * 1.0e9), ros_receipt.get_clock_type());
+  }
+
   void publish_frame(const MV_FRAME_OUT & frame)
   {
-    const auto stamp = now() + rclcpp::Duration::from_seconds(timestamp_offset_sec_);
+    const auto stamp = frame_stamp(frame.stFrameInfo);
     const uint32_t width = frame.stFrameInfo.nExtendWidth;
     const uint32_t height = frame.stFrameInfo.nExtendHeight;
     if (width == 0 || height == 0) {
@@ -269,6 +346,60 @@ private:
     ++published_frames_;
   }
 
+  void publish_diagnostics()
+  {
+    agribot_time_sync::ClockMapperResult clock_result;
+    bool device_timestamp_valid = false;
+    {
+      std::lock_guard<std::mutex> lock(clock_mutex_);
+      clock_result = last_clock_result_;
+      device_timestamp_valid = device_timestamp_valid_;
+    }
+
+    diagnostic_msgs::msg::DiagnosticArray array;
+    array.header.stamp = now();
+    diagnostic_msgs::msg::DiagnosticStatus status;
+    status.name = "hikrobot_mvs/time_sync";
+    status.hardware_id = serial_number_;
+    if (timestamp_source_ == "receipt") {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "using SDK receipt timestamps";
+    } else if (!device_timestamp_valid) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+      status.message = "camera device timestamp unavailable";
+    } else if (!clock_result.synchronized) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "device clock mapping warming up";
+    } else {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+      status.message = "device clock mapped to ROS time";
+    }
+    status.values.push_back(diagnostic_value("source", timestamp_source_));
+    status.values.push_back(
+      diagnostic_value(
+        "device_tick_hz", std::to_string(device_timestamp_frequency_hz_)));
+    status.values.push_back(
+      diagnostic_value(
+        "synchronized", clock_result.synchronized ? "true" : "false"));
+    status.values.push_back(
+      diagnostic_value(
+        "samples", std::to_string(clock_result.sample_count)));
+    status.values.push_back(
+      diagnostic_value(
+        "scale_error_ppm", std::to_string(clock_result.scale_error_ppm)));
+    status.values.push_back(
+      diagnostic_value(
+        "estimated_delay_ms", std::to_string(clock_result.estimated_delay_sec * 1.0e3)));
+    status.values.push_back(
+      diagnostic_value(
+        "delay_jitter_ms", std::to_string(clock_result.delay_jitter_sec * 1.0e3)));
+    status.values.push_back(
+      diagnostic_value(
+        "reset_count", std::to_string(clock_result.reset_count)));
+    array.status.push_back(std::move(status));
+    diagnostics_pub_->publish(std::move(array));
+  }
+
   void grab_loop()
   {
     auto last_report = std::chrono::steady_clock::now();
@@ -312,12 +443,14 @@ private:
   std::string exposure_auto_;
   std::string gain_auto_;
   std::string pixel_format_;
+  std::string timestamp_source_;
   bool trigger_enable_;
   bool gamma_enable_;
   double frame_rate_;
   double exposure_time_us_;
   double gain_;
   double gamma_;
+  double device_timestamp_frequency_hz_;
   double timestamp_offset_sec_;
   int sdk_buffer_count_;
   int grab_timeout_ms_;
@@ -330,12 +463,18 @@ private:
   std::atomic<uint64_t> published_frames_{0};
   std::atomic<uint64_t> grab_timeouts_{0};
   std::atomic<uint64_t> conversion_errors_{0};
+  std::mutex clock_mutex_;
+  std::unique_ptr<agribot_time_sync::AffineClockMapper> clock_mapper_;
+  agribot_time_sync::ClockMapperResult last_clock_result_;
+  bool device_timestamp_valid_{false};
 
+  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr connected_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr frame_rate_pub_;
   std::unique_ptr<camera_info_manager::CameraInfoManager> camera_info_manager_;
+  rclcpp::TimerBase::SharedPtr diagnostics_timer_;
 };
 
 int main(int argc, char ** argv)

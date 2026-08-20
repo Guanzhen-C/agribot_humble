@@ -116,6 +116,7 @@ def generate_launch_description():
                     "/Odometry",
                     "/fastlio/odometry",
                     "/cloud_registered",
+                    "/diagnostics",
                 ],
                 output="screen",
                 condition=IfCondition(LaunchConfiguration("record_bag")),

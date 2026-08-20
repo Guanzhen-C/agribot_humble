@@ -869,3 +869,21 @@ ros2 launch agribot_differential_fastlivo_mppi \
   differential_mppi_fastlivo_rtk_sim.launch.py \
   gui:=false rviz:=false auto_run:=true
 cat /tmp/differential_fastlivo_rtk_sim_report.json
+
+# 真机软同步检查：所有真机启动命令会随sensors.launch.py自动启动监视节点
+# 启动后先静置等待约10秒，再在另一个终端查看四类传感器时间戳和最近测量时刻差
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=0
+ros2 topic echo /diagnostics diagnostic_msgs/msg/DiagnosticArray \
+  --filter "any(s.name.startswith('sensor_time_sync/') for s in m.status)" \
+  --once
+
+# 持续查看IMU、海康相机和RTK各自的设备时间映射，按Ctrl+C退出
+# synchronized应为true；reset_count不应持续增加；RTK的source应为gnss_measurement
+ros2 topic echo /diagnostics diagnostic_msgs/msg/DiagnosticArray \
+  --filter "any(s.name in ['hipnuc_imu/time_sync', 'hikrobot_mvs/time_sync', 'rtk_nmea/time_sync'] for s in m.status)"
+
+# C16尚未接PPS时使用Linux内核UDP接收时间，并保留每个点的雷达相对时间
+# lidar_imu、lidar_camera和lidar_rtk检查只验证公共时间轴，不代替相机曝光延迟标定

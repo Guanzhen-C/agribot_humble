@@ -497,6 +497,7 @@ ros2 run agribot_hardware_bringup ackermann_chassis_can_node --ros-args \
 - Voxelized mapping output: `/pcd_map`
 - N300Pro: `/imu/data` at about 100 Hz
 - N300Pro auxiliary data: `/imu/magnetic_field` and `/imu/temperature`
+- Hikrobot right camera: `/camera/rgb/image_raw` at about 10 Hz
 - RTK position: `/rtk/fix` and `/rtk/fix_quality`
 - RTK heading: `/rtk/heading`, `/rtk/heading_deg`, `/rtk/heading_valid`, and
   `/rtk/heading_solution`
@@ -508,6 +509,16 @@ The RTK driver reads `$GNGGA`, `$GNTHS`, and `#UNIHEADINGA`, verifies their
 checksums, and converts clockwise-from-north heading to an ENU quaternion.
 The NavSat KF-GINS configuration waits for valid RTK heading before
 initialization. FAST-LIO publishes through `/fastlio/odometry`.
+
+The N300Pro and Hikrobot drivers map their device counters to the RDK ROS
+clock with the shared `agribot_time_sync` affine clock mapper. RTK position
+and heading use GNSS measurement time when it agrees with the RDK clock. Until
+PPS or PTP is wired, the C16 uses the Linux kernel UDP receive timestamp while
+retaining its per-point relative time. `sensors.launch.py` starts
+`sensor_time_sync_monitor.py`, which reports per-topic rates, timestamp age,
+monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
+`/diagnostics`. These checks validate a common software time axis; camera
+exposure latency still requires motion-based `img_time_offset` calibration.
 
 Configure the dedicated C16 Ethernet route once using NetworkManager, or run:
 
@@ -548,10 +559,10 @@ appropriate.
 
 ## Build and test
 
-On another ROS 2 Humble machine, this is the only project-owned package that
-must be copied into the workspace. Install its dependencies with `rosdep`;
-FAST-LIO and the physical sensor driver packages must still be available as
-third-party ROS packages.
+On another ROS 2 Humble machine, keep this package together with the
+project-owned `agribot_time_sync` package. Install their dependencies with
+`rosdep`; FAST-LIO and the physical sensor driver packages must still be
+available as third-party ROS packages.
 
 ```bash
 cd ~/agribot_ws/ros2_ws

@@ -23,9 +23,14 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include <agribot_time_sync/affine_clock_mapper.hpp>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
+#include <diagnostic_msgs/msg/key_value.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
@@ -155,6 +160,15 @@ void setDiagonal(std::array<double, 9> & covariance, double standard_deviation)
   covariance[8] = variance;
 }
 
+diagnostic_msgs::msg::KeyValue diagnosticValue(
+  const std::string & key, const std::string & value)
+{
+  diagnostic_msgs::msg::KeyValue result;
+  result.key = key;
+  result.value = value;
+  return result;
+}
+
 struct Hi91Sample
 {
   int8_t temperature = 0;
@@ -183,6 +197,28 @@ public:
       declare_parameter<std::string>("temperature_topic", "/imu/temperature");
     publish_magnetic_field_ = declare_parameter<bool>("publish_magnetic_field", true);
     publish_temperature_ = declare_parameter<bool>("publish_temperature", true);
+    timestamp_source_ = declare_parameter<std::string>("timestamp_source", "device");
+    timestamp_offset_sec_ = declare_parameter<double>("timestamp_offset_sec", 0.0);
+    if (timestamp_source_ != "device" && timestamp_source_ != "receipt") {
+      throw std::invalid_argument("timestamp_source must be device or receipt");
+    }
+    agribot_time_sync::ClockMapperConfig clock_config;
+    clock_config.window_size = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_window_size", 3000), 20));
+    clock_config.min_samples = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_min_samples", 100), 2));
+    clock_config.fit_interval_samples = static_cast<std::size_t>(std::max<int64_t>(
+        declare_parameter<int>("time_sync_fit_interval_samples", 20), 1));
+    clock_config.min_span_sec = declare_parameter<double>("time_sync_min_span_sec", 5.0);
+    clock_config.max_scale_error_ppm =
+      declare_parameter<double>("time_sync_max_scale_error_ppm", 1000.0);
+    clock_config.reset_threshold_sec =
+      declare_parameter<double>("time_sync_reset_threshold_sec", 0.5);
+    clock_config.max_device_gap_sec =
+      declare_parameter<double>("time_sync_max_device_gap_sec", 2.0);
+    clock_config.transport_delay_sec =
+      declare_parameter<double>("serial_transport_delay_sec", 0.0071);
+    clock_mapper_ = std::make_unique<agribot_time_sync::AffineClockMapper>(clock_config);
     gravity_m_s2_ = declare_parameter<double>("gravity_m_s2", 9.80665);
     const double device_yaw_in_flu_deg =
       declare_parameter<double>("device_yaw_in_flu_deg", -90.0);
@@ -209,6 +245,8 @@ public:
       device_yaw_in_flu_deg);
 
     imu_publisher_ = create_publisher<sensor_msgs::msg::Imu>(imu_topic_, 50);
+    diagnostics_publisher_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+      "/diagnostics", rclcpp::SystemDefaultsQoS());
     if (publish_magnetic_field_) {
       magnetic_publisher_ =
         create_publisher<sensor_msgs::msg::MagneticField>(magnetic_topic_, 20);
@@ -220,6 +258,8 @@ public:
 
     read_timer_ = create_wall_timer(
       std::chrono::milliseconds(2), std::bind(&HipnucImuNode::pollSerial, this));
+    diagnostics_timer_ = create_wall_timer(
+      std::chrono::seconds(1), std::bind(&HipnucImuNode::publishDiagnostics, this));
     openSerial();
   }
 
@@ -254,6 +294,8 @@ private:
       }
       tcflush(serial_fd_, TCIFLUSH);
       receive_buffer_.clear();
+      device_counter_.reset();
+      clock_mapper_->reset();
       RCLCPP_INFO(
         get_logger(), "N300Pro connected: port=%s baud=%d topic=%s frame=%s",
         serial_port_.c_str(), baud_rate_, imu_topic_.c_str(), frame_id_.c_str());
@@ -362,7 +404,22 @@ private:
 
   void publish(const Hi91Sample & sample)
   {
-    const rclcpp::Time stamp = now();
+    const rclcpp::Time receipt_stamp = now();
+    rclcpp::Time stamp = receipt_stamp;
+    if (timestamp_source_ == "device") {
+      bool device_reset = false;
+      const std::uint64_t unwrapped_ms = device_counter_.unwrap(
+        sample.timestamp_ms, device_reset);
+      if (device_reset) {
+        clock_mapper_->reset();
+      }
+      last_clock_result_ = clock_mapper_->observe(
+        static_cast<double>(unwrapped_ms) * 1.0e-3, receipt_stamp.seconds());
+      stamp = rclcpp::Time(
+        static_cast<std::int64_t>(last_clock_result_.stamp_sec * 1.0e9),
+        receipt_stamp.get_clock_type());
+    }
+    stamp = stamp + rclcpp::Duration::from_seconds(timestamp_offset_sec_);
     const auto acceleration_flu =
       rotateAboutZ(sample.acceleration_g, device_yaw_in_flu_rad_);
     const auto angular_velocity_flu =
@@ -412,6 +469,46 @@ private:
     }
   }
 
+  void publishDiagnostics()
+  {
+    diagnostic_msgs::msg::DiagnosticArray array;
+    array.header.stamp = now();
+    diagnostic_msgs::msg::DiagnosticStatus status;
+    status.name = "hipnuc_imu/time_sync";
+    status.hardware_id = serial_port_;
+    if (timestamp_source_ == "receipt") {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "using receipt timestamps";
+    } else if (!last_clock_result_.synchronized) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+      status.message = "device clock mapping warming up";
+    } else {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+      status.message = "device clock mapped to ROS time";
+    }
+    status.values.push_back(diagnosticValue("source", timestamp_source_));
+    status.values.push_back(
+      diagnosticValue(
+        "synchronized", last_clock_result_.synchronized ? "true" : "false"));
+    status.values.push_back(
+      diagnosticValue(
+        "samples", std::to_string(last_clock_result_.sample_count)));
+    status.values.push_back(
+      diagnosticValue(
+        "scale_error_ppm", std::to_string(last_clock_result_.scale_error_ppm)));
+    status.values.push_back(
+      diagnosticValue(
+        "estimated_delay_ms", std::to_string(last_clock_result_.estimated_delay_sec * 1.0e3)));
+    status.values.push_back(
+      diagnosticValue(
+        "delay_jitter_ms", std::to_string(last_clock_result_.delay_jitter_sec * 1.0e3)));
+    status.values.push_back(
+      diagnosticValue(
+        "reset_count", std::to_string(last_clock_result_.reset_count)));
+    array.status.push_back(std::move(status));
+    diagnostics_publisher_->publish(std::move(array));
+  }
+
   std::string serial_port_;
   int baud_rate_ = 115200;
   std::string frame_id_;
@@ -420,6 +517,8 @@ private:
   std::string temperature_topic_;
   bool publish_magnetic_field_ = true;
   bool publish_temperature_ = true;
+  std::string timestamp_source_ = "device";
+  double timestamp_offset_sec_ = 0.0;
   double gravity_m_s2_ = 9.80665;
   double device_yaw_in_flu_rad_ = -kPi / 2.0;
   Quaternion device_from_flu_{std::sqrt(0.5), 0.0, 0.0, std::sqrt(0.5)};
@@ -432,11 +531,16 @@ private:
   std::array<double, 9> angular_velocity_covariance_{};
   std::array<double, 9> linear_acceleration_covariance_{};
   std::array<double, 9> magnetic_field_covariance_{};
+  agribot_time_sync::WrappingCounter32 device_counter_;
+  std::unique_ptr<agribot_time_sync::AffineClockMapper> clock_mapper_;
+  agribot_time_sync::ClockMapperResult last_clock_result_;
 
+  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr magnetic_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::Temperature>::SharedPtr temperature_publisher_;
   rclcpp::TimerBase::SharedPtr read_timer_;
+  rclcpp::TimerBase::SharedPtr diagnostics_timer_;
 };
 
 int main(int argc, char ** argv)

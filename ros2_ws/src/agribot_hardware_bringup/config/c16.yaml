@@ -11,6 +11,7 @@ lslidar_driver_node:
     pcl_type: false
     frame_id: lidar_link
     pointcloud_topic: /lidar/points
+    # 未接PPS时使用Linux内核UDP接收时间；接入GPS/PTP后再改为true。
     use_time_service: false
     use_first_point_time: false
     use_absolute_time: false

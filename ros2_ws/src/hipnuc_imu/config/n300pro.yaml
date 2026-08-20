@@ -8,6 +8,18 @@ hipnuc_imu:
     temperature_topic: /imu/temperature
     publish_magnetic_field: true
     publish_temperature: true
+    # 使用HI91数据包的设备采样时间，并在线映射到RDK的ROS时间。
+    timestamp_source: device
+    timestamp_offset_sec: 0.0
+    time_sync_window_size: 3000
+    time_sync_min_samples: 100
+    time_sync_fit_interval_samples: 20
+    time_sync_min_span_sec: 5.0
+    time_sync_max_scale_error_ppm: 1000.0
+    time_sync_reset_threshold_sec: 0.5
+    time_sync_max_device_gap_sec: 2.0
+    # HI91约82字节，在115200波特率下完整串行发送约需7.1ms。
+    serial_transport_delay_sec: 0.0071
     gravity_m_s2: 9.80665
     # N300Pro case +X points forward, so its raw axes already match vehicle FLU.
     device_yaw_in_flu_deg: 0.0

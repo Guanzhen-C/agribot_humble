@@ -46,6 +46,7 @@ def generate_launch_description():
             DeclareLaunchArgument("start_lidar", default_value="true"),
             DeclareLaunchArgument("start_imu", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="false"),
+            DeclareLaunchArgument("start_time_sync_monitor", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument(
                 "lidar_config", default_value=os.path.join(share, "config", "c16.yaml")
@@ -102,6 +103,15 @@ def generate_launch_description():
                     },
                 ],
                 condition=IfCondition(LaunchConfiguration("start_rtk")),
+            ),
+            Node(
+                package="agribot_hardware_bringup",
+                executable="sensor_time_sync_monitor.py",
+                name="sensor_time_sync_monitor",
+                output="screen",
+                condition=IfCondition(
+                    LaunchConfiguration("start_time_sync_monitor")
+                ),
             ),
             Node(
                 package="rviz2",

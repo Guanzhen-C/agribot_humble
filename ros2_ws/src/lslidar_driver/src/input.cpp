@@ -55,7 +55,7 @@ namespace lslidar_driver {
    *  @param port UDP port number
 */
     InputSocket::InputSocket(rclcpp::Node::SharedPtr private_nh, uint16_t port, int packet_size) 
-        : Input(private_nh, port, packet_size) {
+        : Input(private_nh, port, packet_size), kernel_timestamp_enabled_(false) {
         sockfd_ = -1;
 
         if (!devip_str_.empty()) {
@@ -81,6 +81,16 @@ namespace lslidar_driver {
             perror("setsockopt SO_RCVBUF error!\n");
             // return;
         }
+
+#ifdef SO_TIMESTAMPNS
+        if (setsockopt(sockfd_, SOL_SOCKET, SO_TIMESTAMPNS, &opt, sizeof(opt)) == 0) {
+            kernel_timestamp_enabled_ = true;
+            LS_INFO << "Kernel UDP receive timestamps enabled on port " << port_ << LS_END;
+        } else {
+            LS_WARN << "Cannot enable kernel UDP receive timestamps on port " << port_
+                    << ": " << strerror(errno) << LS_END;
+        }
+#endif
 
         sockaddr_in my_addr;                   
         memset(&my_addr, 0, sizeof(my_addr));  
@@ -129,7 +139,33 @@ namespace lslidar_driver {
         int retval = poll(fds, 1, POLL_TIMEOUT);
 
         if (retval > 0 && (fds[0].revents & POLLIN)) {
-            ssize_t nbytes = recvfrom(sockfd_, &pkt->data[0], packet_size_, 0, (sockaddr *)&sender_address, &sender_address_len);
+            struct iovec io_vector{};
+            io_vector.iov_base = &pkt->data[0];
+            io_vector.iov_len = packet_size_;
+            char control[CMSG_SPACE(sizeof(struct timespec))]{};
+            struct msghdr message{};
+            message.msg_name = &sender_address;
+            message.msg_namelen = sender_address_len;
+            message.msg_iov = &io_vector;
+            message.msg_iovlen = 1;
+            message.msg_control = control;
+            message.msg_controllen = sizeof(control);
+            ssize_t nbytes = recvmsg(sockfd_, &message, 0);
+
+            pkt->stamp = private_nh_->get_clock()->now();
+#ifdef SO_TIMESTAMPNS
+            if (nbytes >= 0 && kernel_timestamp_enabled_) {
+                for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != nullptr;
+                     header = CMSG_NXTHDR(&message, header)) {
+                    if (header->cmsg_level == SOL_SOCKET && header->cmsg_type == SCM_TIMESTAMPNS) {
+                        struct timespec receive_time{};
+                        memcpy(&receive_time, CMSG_DATA(header), sizeof(receive_time));
+                        pkt->stamp = rclcpp::Time(receive_time.tv_sec, receive_time.tv_nsec);
+                        break;
+                    }
+                }
+            }
+#endif
 
             if (sender_address.sin_addr.s_addr == devip_.s_addr) {
                 return nbytes; 

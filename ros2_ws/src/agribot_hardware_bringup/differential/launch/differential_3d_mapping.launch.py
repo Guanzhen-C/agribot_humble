@@ -121,6 +121,7 @@ def generate_launch_description():
                     "/Odometry",
                     "/fastlio/odometry",
                     "/cloud_registered",
+                    "/diagnostics",
                     "/tf",
                     "/tf_static",
                 ],

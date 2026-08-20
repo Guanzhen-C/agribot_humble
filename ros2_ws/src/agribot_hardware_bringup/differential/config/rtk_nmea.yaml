@@ -29,6 +29,11 @@ rtk_nmea:
     float_horizontal_std_m: 0.30
     autonomous_horizontal_std_m: 2.0
     vertical_std_scale: 1.5
+    # 优先使用GGA/RMC/ZDA和UNIHEADINGA中的GNSS测量时刻。
+    use_gnss_measurement_time: true
+    gnss_time_offset_sec: 0.0
+    gnss_time_max_error_sec: 5.0
+    heading_pair_tolerance_sec: 0.25
     enable_ntrip: false
     ntrip_host: ""
     ntrip_port: 8002

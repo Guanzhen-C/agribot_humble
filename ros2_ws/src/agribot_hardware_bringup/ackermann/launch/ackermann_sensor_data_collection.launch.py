@@ -35,6 +35,7 @@ SENSOR_TOPICS = (
     "/rtk/heading_with_covariance",
     "/camera/rgb/image_raw",
     "/camera/rgb/camera_info",
+    "/diagnostics",
     "/tf",
     "/tf_static",
 )

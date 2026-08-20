@@ -10,11 +10,19 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(agribot_time_sync REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 add_executable(hipnuc_imu_node src/hipnuc_imu_node.cpp)
-ament_target_dependencies(hipnuc_imu_node rclcpp sensor_msgs)
+ament_target_dependencies(
+  hipnuc_imu_node
+  agribot_time_sync
+  diagnostic_msgs
+  rclcpp
+  sensor_msgs
+)
 
 install(TARGETS hipnuc_imu_node DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY config launch udev DESTINATION share/${PROJECT_NAME})

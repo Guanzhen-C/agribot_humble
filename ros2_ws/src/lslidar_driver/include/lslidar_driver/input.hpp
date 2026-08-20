@@ -91,6 +91,7 @@ namespace lslidar_driver {
     private:
         int sockfd_;
         in_addr devip_;
+        bool kernel_timestamp_enabled_;
     };
 
     /** @brief lslidar input from PCAP dump file.

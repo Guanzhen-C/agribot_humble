@@ -603,8 +603,12 @@ namespace lslidar_driver {
             current_packet_time = timeStamp.seconds();
             timeStamp_bak = timeStamp;
         } else {
-            packet->stamp = node_->get_clock()->now();
-            current_packet_time = node_->get_clock()->now().seconds();
+            rclcpp::Time receive_time(packet->stamp);
+            if (receive_time.nanoseconds() <= 0) {
+                receive_time = node_->get_clock()->now();
+                packet->stamp = receive_time;
+            }
+            current_packet_time = receive_time.seconds();
         }
 
         size_t start_fir_idx = 0;

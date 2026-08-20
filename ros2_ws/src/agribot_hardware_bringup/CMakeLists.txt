@@ -300,6 +300,7 @@ install(PROGRAMS
   scripts/publish_geodetic_pose.py
   scripts/visual_place_recognizer.py
   scripts/rtk_nmea_node.py
+  scripts/sensor_time_sync_monitor.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
   localization/fastlio/scripts/fastlio_odom_bridge.py
@@ -453,6 +454,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
+  ament_add_pytest_test(
+    test_sensor_time_sync_monitor
+    test/test_sensor_time_sync_monitor.py
+  )
   ament_add_pytest_test(
     test_publish_geodetic_pose
     test/test_publish_geodetic_pose.py

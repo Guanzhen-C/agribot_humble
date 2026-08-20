@@ -22,4 +22,14 @@
     # 驱动只保留SDK最新帧，避免算法处理慢时积压图像。
     sdk_buffer_count: 2
     grab_timeout_ms: 1000
+    # MV-CU013-A0UC实测设备时间戳频率为100MHz，映射到SDK主机接收时间。
+    timestamp_source: device
+    device_timestamp_frequency_hz: 100000000.0
     timestamp_offset_sec: 0.0
+    time_sync_window_size: 600
+    time_sync_min_samples: 30
+    time_sync_fit_interval_samples: 5
+    time_sync_min_span_sec: 3.0
+    time_sync_max_scale_error_ppm: 1000.0
+    time_sync_reset_threshold_sec: 0.5
+    time_sync_max_device_gap_sec: 2.0
