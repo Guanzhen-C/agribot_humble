@@ -1,0 +1,13 @@
+fastlio_odom_bridge:
+  ros__parameters:
+    input_odom_topic: /aft_mapped_to_init
+    output_odom_topic: /fastlivo/odometry
+    input_odom_frame: camera_init
+    input_body_frame: aft_mapped
+    output_odom_frame: odom
+    output_base_frame: base_link
+    publish_tf: true
+    stamp_with_current_time: false
+    is_simulation: true
+    base_to_body_xyz: [0.0, 0.0, 0.5777]
+    base_to_body_rpy: [0.0, 0.0, 0.0]

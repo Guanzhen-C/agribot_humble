@@ -39,6 +39,7 @@
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>fast_lio</exec_depend>
   <exec_depend>hipnuc_imu</exec_depend>
+  <exec_depend>hikrobot_mvs_ros2</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>lifecycle_msgs</exec_depend>

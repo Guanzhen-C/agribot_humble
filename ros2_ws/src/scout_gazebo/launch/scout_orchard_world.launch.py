@@ -128,6 +128,14 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_simulated_odom", default_value="false"),
             DeclareLaunchArgument("publish_ground_truth", default_value="false"),
             DeclareLaunchArgument("publish_joint_states", default_value="true"),
+            DeclareLaunchArgument(
+                "urdf_extras",
+                default_value=os.path.join(
+                    get_package_share_directory("scout_description"),
+                    "urdf",
+                    "empty.urdf",
+                ),
+            ),
             DeclareLaunchArgument("x", default_value="2.0"),
             DeclareLaunchArgument("y", default_value="36.0"),
             DeclareLaunchArgument("z", default_value="0.146336"),
@@ -232,6 +240,7 @@ def generate_launch_description():
                     "laser_3d_max_range": LaunchConfiguration("laser_3d_max_range"),
                     "publish_odom_tf": LaunchConfiguration("publish_odom_tf"),
                     "publish_joint_states": LaunchConfiguration("publish_joint_states"),
+                    "urdf_extras": LaunchConfiguration("urdf_extras"),
                 }.items(),
             ),
             Node(

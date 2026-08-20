@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <!--
+    Gazebo's ROS camera plugin only accepts a CameraSensor. The Scout model's
+    legacy depth-sensor block does not create an RGB publisher with the Humble
+    plugin, so this simulation-only camera supplies the image stream consumed
+    by FAST-LIVO2. Its optical center is collocated with the simulated VLP16.
+  -->
+  <link name="fastlivo_sim_camera_optical_frame"/>
+  <joint name="fastlivo_sim_camera_optical_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="fastlivo_sim_camera_optical_frame"/>
+    <origin xyz="0 0 0.5777" rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+  </joint>
+
+  <!-- Match the depth CameraSensor setup used by the previously validated
+       Ackermann FAST-LIVO2 simulation. FAST-LIVO2 consumes its RGB stream. -->
+  <gazebo reference="base_link">
+    <sensor name="fastlivo_sim_rgb" type="depth">
+      <pose>0 0 0.5777 0 0 0</pose>
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <visualize>false</visualize>
+      <camera>
+        <horizontal_fov>1.5184351666666667</horizontal_fov>
+        <vertical_fov>1.0122901111111111</vertical_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>RGB_INT8</format>
+        </image>
+        <depth_camera/>
+        <clip>
+          <near>0.05</near>
+          <far>50.0</far>
+        </clip>
+      </camera>
+      <plugin name="fastlivo_sim_camera_controller" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/</namespace>
+          <remapping>camera/image_raw:=camera/rgb/image_raw</remapping>
+          <remapping>camera/camera_info:=camera/rgb/camera_info</remapping>
+        </ros>
+        <camera_name>camera</camera_name>
+        <frame_name>fastlivo_sim_camera_optical_frame</frame_name>
+        <min_depth>0.105</min_depth>
+        <max_depth>50.0</max_depth>
+        <hack_baseline>0.0</hack_baseline>
+      </plugin>
+    </sensor>
+  </gazebo>
+</robot>

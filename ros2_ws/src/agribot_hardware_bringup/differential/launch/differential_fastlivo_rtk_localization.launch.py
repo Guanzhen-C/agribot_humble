@@ -23,6 +23,13 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
+            DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
+            DeclareLaunchArgument(
+                "hikrobot_camera_serial", default_value="DB0447659"
+            ),
+            DeclareLaunchArgument(
+                "hikrobot_trigger_enable", default_value="false"
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -48,6 +55,13 @@ def generate_launch_description():
                             "start_sensors": LaunchConfiguration("start_sensors"),
                             "start_rtk": LaunchConfiguration("start_rtk"),
                             "start_camera": LaunchConfiguration("start_camera"),
+                            "camera_driver": LaunchConfiguration("camera_driver"),
+                            "hikrobot_camera_serial": LaunchConfiguration(
+                                "hikrobot_camera_serial"
+                            ),
+                            "hikrobot_trigger_enable": LaunchConfiguration(
+                                "hikrobot_trigger_enable"
+                            ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
                             "start_initial_localizer": LaunchConfiguration(
                                 "start_initial_localizer"

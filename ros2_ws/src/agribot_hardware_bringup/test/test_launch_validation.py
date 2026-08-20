@@ -513,10 +513,10 @@ def test_mapping_entry_uses_mapped_config_without_owning_chassis_by_default():
 def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     source = SENSOR_COLLECTION_LAUNCH_PATH.read_text()
     assert '"launch", "sensors.launch.py"' in source
-    assert 'package="usb_cam"' in source
-    assert 'executable="usb_cam_node_exe"' in source
+    assert '"launch", "include", "right_camera.launch.py"' in source
+    assert 'DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs")' in source
+    assert '"hikrobot_camera_serial", default_value="DB0447659"' in source
     assert 'default_value="/dev/agribot_right_camera"' in source
-    assert '"right_camera.yaml"' in source
     assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in source
     assert 'DeclareLaunchArgument("start_camera", default_value="true")' in source
     assert 'DeclareLaunchArgument("record_bag", default_value="true")' in source
@@ -547,6 +547,7 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     assert "ackermann_chassis_can_node" not in source
     assert "/teleop/cmd_vel" not in source
     manifest = (PACKAGE_ROOT / "package.xml").read_text()
+    assert "<exec_depend>hikrobot_mvs_ros2</exec_depend>" in manifest
     assert "<exec_depend>usb_cam</exec_depend>" in manifest
     assert "<exec_depend>openni2_camera</exec_depend>" not in manifest
 

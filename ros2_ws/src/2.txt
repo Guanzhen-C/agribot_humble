@@ -242,12 +242,31 @@ rosdep install --from-paths src/LIO-SAM src/agribot_offline_mapping \
 colcon build --packages-select lio_sam agribot_offline_mapping \
   --symlink-install --parallel-workers "$(nproc)"
 
-# 第2步终端1（RDK）：只启动C16、IMU、RTK、双目相机右目并采集原始数据，不运行FAST-LIO2
+# 海康MV-CU013-A0UC无镜头验收：只验证USB3连接、驱动打开和10Hz取流
+# 无镜头画面没有标定和成像质量意义；检查结束后在第一个终端按Ctrl+C
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch hikrobot_mvs_ros2 mv_cu013_a0uc.launch.py \
+  serial_number:=DB0447659 \
+  trigger_enable:=false \
+  frame_rate:=10.0
+
+# 第二个终端检查连接状态、实际频率和图像格式
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 topic echo /agribot_right_camera/connected --once \
+  --qos-durability transient_local
+ros2 topic hz /camera/rgb/image_raw
+ros2 topic echo /camera/rgb/image_raw --once --field width
+ros2 topic echo /camera/rgb/image_raw --once --field height
+ros2 topic echo /camera/rgb/image_raw --once --field encoding
+
+# 第2步终端1（RDK）：只启动C16、IMU、RTK、海康工业相机并采集原始数据，不运行FAST-LIO2
 # 先关闭其他整车、传感器和录包程序；修改MAP_NAME即可更换地图名
 # 本入口不启动FAST-LIO2、Nav2、在线建图、RViz或底盘输出，使用原来的独立控制方式低速驾驶
-# 右目使用稳定设备名/dev/agribot_right_camera，发布640x480、30Hz的RGB原图
-# bag额外保留右目原图/CameraInfo、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
-# 新相机尚需单独标定内参及相机到雷达外参，禁止沿用旧Astra标定参数
+# 相机按序列号DB0447659打开，发布1280x1024、10Hz的BGR原图；不依赖/dev/video设备名
+# bag额外保留原图/CameraInfo、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
+# 镜头安装后必须重新标定内参、相机到雷达外参和时间偏移，禁止沿用旧相机标定参数
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0
@@ -264,6 +283,9 @@ echo "本次数据包：$BAG_PATH"
 ros2 launch agribot_hardware_bringup \
   ackermann_sensor_data_collection.launch.py \
   start_camera:=true \
+  camera_driver:=hikrobot_mvs \
+  hikrobot_camera_serial:=DB0447659 \
+  hikrobot_trigger_enable:=false \
   record_bag:=true \
   bag_output:=$BAG_PATH
 
@@ -291,10 +313,11 @@ ros2 topic echo /rtk/differential_age --field data
 # 确认接收机原始语句也在发布，离线分析可直接复核GGA和UNIHEADING字段
 ros2 topic echo /rtk/raw_sentence --field data
 
-# C16应约为10Hz，IMU应持续稳定发布，右目设备应解析到Stereo Vision 1采集端
+# C16应约为10Hz，IMU应持续稳定发布，海康相机应稳定为10Hz
 ros2 topic hz /lidar/points
 ros2 topic hz /imu/data
-readlink -f /dev/agribot_right_camera
+ros2 topic echo /agribot_right_camera/connected --once \
+  --qos-durability transient_local
 ros2 topic hz /camera/rgb/image_raw
 ros2 topic echo /camera/rgb/camera_info --once
 
@@ -826,3 +849,23 @@ python3 /data/agribot/semantic_service/upsert_semantic_landmarks_neo4j.py \
   --embedding-model text-embedding-v4 \
   --embedding-dimensions 1024 \
   --resolved-output /data/agribot/semantic_graphs/map_lio_sam_0811_manual_landmarks_resolved.json
+
+# 差速算法仿真验证：FAST-LIVO2+模拟固定解RTK、Smac State Lattice和MPPI DiffDrive
+# 交互验证会打开Gazebo和RViz，可在RViz中下发目标；本命令不会连接真机底盘
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
+ros2 launch agribot_differential_fastlivo_mppi \
+  differential_mppi_fastlivo_rtk_sim.launch.py
+
+# 差速算法无界面自动闭环验收：默认行驶约33米，结束后passed为true才算通过
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
+rm -f /tmp/differential_fastlivo_rtk_sim_report.json
+ros2 launch agribot_differential_fastlivo_mppi \
+  differential_mppi_fastlivo_rtk_sim.launch.py \
+  gui:=false rviz:=false auto_run:=true
+cat /tmp/differential_fastlivo_rtk_sim_report.json

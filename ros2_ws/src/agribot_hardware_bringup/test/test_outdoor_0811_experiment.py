@@ -92,6 +92,8 @@ def context_for(map_base, profile, camera):
         {
             "map_base": str(map_base),
             "map_profile": str(profile),
+            "camera_driver": "usb_cam",
+            "hikrobot_camera_serial": "DB0447659",
             "right_camera_device": str(camera),
             "enable_chassis_output": "false",
             "motion_authorization": "",

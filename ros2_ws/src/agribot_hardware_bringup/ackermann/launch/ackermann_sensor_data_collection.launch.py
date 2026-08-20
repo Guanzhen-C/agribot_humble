@@ -48,6 +48,13 @@ def generate_launch_description():
             DeclareLaunchArgument("start_imu", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
+            DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
+            DeclareLaunchArgument(
+                "hikrobot_camera_serial", default_value="DB0447659"
+            ),
+            DeclareLaunchArgument(
+                "hikrobot_trigger_enable", default_value="false"
+            ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("ntrip_port", default_value="8002"),
             DeclareLaunchArgument("record_bag", default_value="true"),
@@ -71,23 +78,24 @@ def generate_launch_description():
                     "ntrip_port": LaunchConfiguration("ntrip_port"),
                 }.items(),
             ),
-            Node(
-                package="usb_cam",
-                executable="usb_cam_node_exe",
-                name="agribot_right_camera",
-                output="screen",
-                parameters=[
-                    os.path.join(hardware_share, "config", "right_camera.yaml"),
-                    {
-                        "video_device": LaunchConfiguration(
-                            "right_camera_device"
-                        )
-                    },
-                ],
-                remappings=[
-                    ("image_raw", "/camera/rgb/image_raw"),
-                    ("camera_info", "/camera/rgb/camera_info"),
-                ],
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(
+                        hardware_share, "launch", "include", "right_camera.launch.py"
+                    )
+                ),
+                launch_arguments={
+                    "camera_driver": LaunchConfiguration("camera_driver"),
+                    "hikrobot_camera_serial": LaunchConfiguration(
+                        "hikrobot_camera_serial"
+                    ),
+                    "hikrobot_trigger_enable": LaunchConfiguration(
+                        "hikrobot_trigger_enable"
+                    ),
+                    "right_camera_device": LaunchConfiguration(
+                        "right_camera_device"
+                    ),
+                }.items(),
                 condition=IfCondition(LaunchConfiguration("start_camera")),
             ),
             ExecuteProcess(

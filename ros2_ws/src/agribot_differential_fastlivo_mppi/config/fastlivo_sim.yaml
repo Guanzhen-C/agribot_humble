@@ -1,0 +1,112 @@
+/**:
+  ros__parameters:
+    common:
+      img_topic: "/camera/rgb/image_raw"
+      lid_topic: "/lidar/points"
+      imu_topic: "/imu/data"
+      img_en: 1
+      lidar_en: 1
+      image_max_rate_hz: 10.0
+      lidar_subscription_queue_depth: 4
+      lidar_gap_warning_sec: 0.15
+      imu_subscription_queue_depth: 200
+      image_subscription_queue_depth: 2
+      max_lidar_input_buffer_size: 4
+      max_lidar_buffer_size: 2
+      max_imu_buffer_size: 300
+      max_image_buffer_size: 3
+      ros_driver_bug_fix: false
+      verbose_log: false
+
+    extrin_calib:
+      # The simulation launch collocates IMU, lidar and camera centers.
+      # p_imu = extrinsic_R * p_lidar + extrinsic_T.
+      extrinsic_T: [0.0, 0.0, 0.0]
+      extrinsic_R: [1.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+      # REP-103 lidar axes to camera optical axes: [-y, -z, x].
+      # p_camera_optical = Rcl * p_lidar + Pcl.
+      Rcl: [0.0, -1.0, 0.0,
+            0.0,  0.0, -1.0,
+            1.0,  0.0, 0.0]
+      Pcl: [0.0, 0.0, 0.0]
+
+    time_offset:
+      imu_time_offset: 0.0
+      dynamic_imu_sync_en: false
+      img_time_offset: 0.0
+      exposure_time_init: 0.0
+
+    preprocess:
+      point_filter_num: 2
+      filter_size_surf: 0.2
+      lidar_type: 2
+      scan_line: 16
+      scan_rate: 10
+      timestamp_unit: 0
+      blind: 0.3
+      feature_extract_enabled: false
+
+    vio:
+      max_iterations: 5
+      outlier_threshold: 100
+      img_point_cov: 800
+      grid_size: 5
+      grid_n_height: 17
+      patch_size: 8
+      patch_pyrimid_level: 4
+      max_points_per_voxel: 10
+      normal_en: true
+      raycast_en: false
+      inverse_composition_en: false
+      exposure_estimate_en: true
+      inv_expo_cov: 0.1
+
+    imu:
+      imu_en: true
+      imu_int_frame: 30
+      gravity_est_en: true
+      ba_bg_est_en: true
+      acc_cov: 0.05
+      gyr_cov: 0.02
+      b_acc_cov: 0.0001
+      b_gyr_cov: 0.0001
+
+    lio:
+      max_iterations: 5
+      dept_err: 0.02
+      beam_err: 0.05
+      min_eigen_value: 0.0025
+      voxel_size: 1.0
+      max_layer: 2
+      max_points_num: 50
+      layer_init_num: [5, 5, 5, 5, 5]
+
+    local_map:
+      map_sliding_en: true
+      half_map_size: 50
+      sliding_thresh: 5.0
+
+    uav:
+      imu_rate_odom: false
+      gravity_align_en: true
+
+    publish:
+      dense_map_en: false
+      pub_effect_point_en: false
+      pub_plane_en: false
+      pub_scan_num: 1
+      blind_rgb_points: 0.0
+      path_max_poses: 600
+
+    evo:
+      seq_name: "differential_orchard_sim"
+      pose_output_en: false
+
+    pcd_save:
+      pcd_save_en: false
+      colmap_output_en: false
+      filter_size_pcd: 0.15
+      interval: -1

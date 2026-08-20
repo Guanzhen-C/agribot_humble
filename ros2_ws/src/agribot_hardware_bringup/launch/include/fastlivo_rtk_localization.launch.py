@@ -123,6 +123,13 @@ def generate_launch_description():
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
             DeclareLaunchArgument("start_camera", default_value="true"),
+            DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
+            DeclareLaunchArgument(
+                "hikrobot_camera_serial", default_value="DB0447659"
+            ),
+            DeclareLaunchArgument(
+                "hikrobot_trigger_enable", default_value="false"
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -267,22 +274,26 @@ def generate_launch_description():
                     )
                 ],
             ),
-            Node(
-                package="usb_cam",
-                executable="usb_cam_node_exe",
-                name="agribot_right_camera",
-                output="screen",
-                parameters=[
-                    LaunchConfiguration("camera_config"),
-                    {
-                        "video_device": LaunchConfiguration("right_camera_device"),
-                        "use_sim_time": use_sim_time,
-                    },
-                ],
-                remappings=[
-                    ("image_raw", "/camera/rgb/image_raw"),
-                    ("camera_info", "/camera/rgb/camera_info"),
-                ],
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(
+                        hardware_share, "launch", "include", "right_camera.launch.py"
+                    )
+                ),
+                launch_arguments={
+                    "camera_driver": LaunchConfiguration("camera_driver"),
+                    "use_sim_time": use_sim_time,
+                    "hikrobot_camera_serial": LaunchConfiguration(
+                        "hikrobot_camera_serial"
+                    ),
+                    "hikrobot_trigger_enable": LaunchConfiguration(
+                        "hikrobot_trigger_enable"
+                    ),
+                    "usb_camera_config": LaunchConfiguration("camera_config"),
+                    "right_camera_device": LaunchConfiguration(
+                        "right_camera_device"
+                    ),
+                }.items(),
                 condition=IfCondition(LaunchConfiguration("start_camera")),
             ),
             Node(

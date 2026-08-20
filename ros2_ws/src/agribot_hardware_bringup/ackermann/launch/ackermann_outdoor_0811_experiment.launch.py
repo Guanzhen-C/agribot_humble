@@ -60,6 +60,25 @@ def _load_yaml(path, description):
     return document
 
 
+def _hikrobot_usb_present(serial_number):
+    for vendor_path in Path("/sys/bus/usb/devices").glob("*/idVendor"):
+        try:
+            if vendor_path.read_text(encoding="ascii").strip().lower() != "2bdf":
+                continue
+            product_path = vendor_path.with_name("idProduct")
+            if product_path.read_text(encoding="ascii").strip().lower() != "0001":
+                continue
+            serial_path = vendor_path.with_name("serial")
+            if not serial_number or (
+                serial_path.is_file()
+                and serial_path.read_text(encoding="ascii").strip() == serial_number
+            ):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _validate_experiment(context):
     locked_arguments = {
         "initialization_source": "auto",
@@ -155,11 +174,23 @@ def _validate_experiment(context):
     for sensor_name, device in REQUIRED_SENSOR_DEVICES:
         if not device.exists():
             raise RuntimeError(f"{sensor_name}串口设备不存在: {device}")
-    camera = Path(
-        LaunchConfiguration("right_camera_device").perform(context)
-    )
-    if not camera.exists():
-        raise RuntimeError(f"FAST-LIVO2右目相机设备不存在: {camera}")
+    camera_driver = LaunchConfiguration("camera_driver").perform(context)
+    if camera_driver == "usb_cam":
+        camera = Path(
+            LaunchConfiguration("right_camera_device").perform(context)
+        )
+        if not camera.exists():
+            raise RuntimeError(f"FAST-LIVO2右目相机设备不存在: {camera}")
+    elif camera_driver == "hikrobot_mvs":
+        camera_serial = LaunchConfiguration("hikrobot_camera_serial").perform(
+            context
+        )
+        if not _hikrobot_usb_present(camera_serial):
+            raise RuntimeError(
+                f"海康MVS相机未连接或序列号不匹配: {camera_serial}"
+            )
+    else:
+        raise RuntimeError("camera_driver必须是hikrobot_mvs或usb_cam")
 
     enable_chassis = _enabled(
         LaunchConfiguration("enable_chassis_output").perform(context)
@@ -238,6 +269,13 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
+            DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
+            DeclareLaunchArgument(
+                "hikrobot_camera_serial", default_value="DB0447659"
+            ),
+            DeclareLaunchArgument(
+                "hikrobot_trigger_enable", default_value="false"
+            ),
             DeclareLaunchArgument(
                 "enable_chassis_output",
                 default_value="false",
@@ -307,6 +345,13 @@ def generate_launch_description():
                             ),
                             "right_camera_device": LaunchConfiguration(
                                 "right_camera_device"
+                            ),
+                            "camera_driver": LaunchConfiguration("camera_driver"),
+                            "hikrobot_camera_serial": LaunchConfiguration(
+                                "hikrobot_camera_serial"
+                            ),
+                            "hikrobot_trigger_enable": LaunchConfiguration(
+                                "hikrobot_trigger_enable"
                             ),
                             "enable_chassis_output": LaunchConfiguration(
                                 "enable_chassis_output"

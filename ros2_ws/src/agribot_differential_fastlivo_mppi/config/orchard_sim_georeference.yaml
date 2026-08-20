@@ -1,0 +1,21 @@
+schema_version: 1
+map:
+  id: orchard_v2_differential_sim
+  pcd: orchard_v2_simulated.pcd
+  fingerprint_fnv1a64: simulated-map-no-pcd-check
+reference:
+  latitude_deg: 30.5000000000
+  longitude_deg: 114.0000000000
+  altitude_m: 20.0
+map_from_enu:
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [0.0, 0.0, 0.0]
+calibration:
+  horizontal_rmse_m: 0.01
+  yaw_rmse_deg: 0.0
+  yaw_validation_passed: true
+  sample_count: 100
+  source_bag: simulated_ground_truth
+  version: differential-sim-v1
+  hash: deterministic-orchard-enu
+created_at_utc: "2026-08-20T00:00:00Z"

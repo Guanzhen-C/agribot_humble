@@ -1,0 +1,17 @@
+/**:
+  ros__parameters:
+    camera:
+      model: Pinhole
+      width: 640
+      height: 480
+      scale: 1.0
+      # Values published by the Gazebo CameraInfo stream. They also match the
+      # camera model used by the validated Ackermann FAST-LIVO2 simulation.
+      fx: 337.2084410968044
+      fy: 337.2084410968044
+      cx: 320.5
+      cy: 240.5
+      d0: 0.0
+      d1: 0.0
+      d2: 0.0
+      d3: 0.0

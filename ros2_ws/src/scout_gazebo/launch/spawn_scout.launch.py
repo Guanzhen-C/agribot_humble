@@ -15,7 +15,7 @@ def _spawn_scout_actions(context):
     desc_share = get_package_share_directory("scout_description")
     xacro_exec = os.path.join(get_package_prefix("xacro"), "bin", "xacro")
     description_file = os.path.join(desc_share, "urdf", "scout.urdf.xacro")
-    empty_urdf = os.path.join(desc_share, "urdf", "empty.urdf")
+    urdf_extras = LaunchConfiguration("urdf_extras").perform(context)
 
     robot_namespace = LaunchConfiguration("robot_namespace").perform(context)
     x = LaunchConfiguration("x").perform(context)
@@ -41,7 +41,7 @@ def _spawn_scout_actions(context):
         xacro_exec,
         description_file,
         f"robot_namespace:={robot_namespace}",
-        f"urdf_extras:={empty_urdf}",
+        f"urdf_extras:={urdf_extras}",
         f"laser_enabled:={laser_enabled}",
         f"laser_3d_enabled:={laser_3d_enabled}",
         f"laser_3d_xyz:={laser_3d_xyz}",
@@ -87,11 +87,13 @@ def _spawn_scout_actions(context):
 def generate_launch_description():
     desc_share = get_package_share_directory("scout_description")
     default_model_file = os.path.join(desc_share, "urdf", "scout.sdf")
+    default_urdf_extras = os.path.join(desc_share, "urdf", "empty.urdf")
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument("model_file", default_value=default_model_file),
+            DeclareLaunchArgument("urdf_extras", default_value=default_urdf_extras),
             DeclareLaunchArgument("x", default_value="0.0"),
             DeclareLaunchArgument("y", default_value="0.0"),
             DeclareLaunchArgument("z", default_value="0.0"),

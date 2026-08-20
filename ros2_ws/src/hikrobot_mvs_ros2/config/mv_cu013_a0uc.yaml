@@ -1,0 +1,25 @@
+/**:
+  ros__parameters:
+    serial_number: "DB0447659"
+    frame_id: "right_camera_optical_frame"
+    image_topic: "/camera/rgb/image_raw"
+    camera_info_topic: "/camera/rgb/camera_info"
+    camera_name: "agribot_hikrobot_right_camera"
+    camera_info_url: ""
+
+    # 镜头安装和硬同步接线前使用自由运行；正式运行时再改为硬触发。
+    trigger_enable: false
+    trigger_source: "Line0"
+    acquisition_frame_rate: 10.0
+    exposure_auto: "Continuous"
+    exposure_time_us: 5000.0
+    gain_auto: "Continuous"
+    gain: 0.0
+    gamma_enable: true
+    gamma: 0.7
+    pixel_format: "BayerGB12Packed"
+
+    # 驱动只保留SDK最新帧，避免算法处理慢时积压图像。
+    sdk_buffer_count: 2
+    grab_timeout_ms: 1000
+    timestamp_offset_sec: 0.0
