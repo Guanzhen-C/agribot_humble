@@ -1,0 +1,16 @@
+/**:
+  ros__parameters:
+    camera:
+      model: Pinhole
+      width: 1280
+      height: 1024
+      scale: 0.5
+      # 镜头安装后由真实内参标定结果替换；零值配置受启动门禁保护。
+      fx: 0.0
+      fy: 0.0
+      cx: 0.0
+      cy: 0.0
+      d0: 0.0
+      d1: 0.0
+      d2: 0.0
+      d3: 0.0

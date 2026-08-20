@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
@@ -67,6 +68,7 @@ def _validate_paths(context):
         "rtk_map_initializer_config",
         "fastlivo_rtk_fusion_config",
         "visual_initialization_config",
+        "camera_calibration_status",
     )
     for argument in config_arguments:
         config_path = Path(
@@ -74,6 +76,37 @@ def _validate_paths(context):
         ).expanduser()
         if not config_path.is_file():
             raise RuntimeError(f"定位配置文件不存在({argument}): {config_path}")
+
+    start_fastlivo = LaunchConfiguration("start_fastlivo").perform(
+        context
+    ).lower() in ("true", "1", "yes", "on")
+    camera_driver = LaunchConfiguration("camera_driver").perform(context)
+    if start_fastlivo and camera_driver == "hikrobot_mvs":
+        status_path = Path(
+            LaunchConfiguration("camera_calibration_status").perform(context)
+        ).expanduser()
+        try:
+            status = yaml.safe_load(status_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as error:
+            raise RuntimeError(f"无法读取海康相机标定状态: {status_path}: {error}") from error
+        required_checks = (
+            "lens_installed",
+            "intrinsics_calibrated",
+            "lidar_camera_extrinsics_calibrated",
+            "image_time_offset_calibrated",
+        )
+        incomplete = [name for name in required_checks if not status.get(name, False)]
+        expected_serial = LaunchConfiguration("hikrobot_camera_serial").perform(
+            context
+        )
+        if status.get("serial_number") != expected_serial:
+            incomplete.append("serial_number")
+        if incomplete:
+            raise RuntimeError(
+                "海康相机尚未完成FAST-LIVO2标定，禁止启动视觉定位: "
+                + ", ".join(incomplete)
+                + "；可用start_fastlivo:=false只测试相机取流"
+            )
     return []
 
 
@@ -170,7 +203,16 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "fastlivo_camera_config",
                 default_value=os.path.join(
-                    fastlivo_share, "config", "agribot_astra_640.yaml"
+                    hardware_share, "config", "fastlivo_hikrobot_mv_cu013.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "camera_calibration_status",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "hikrobot_camera_calibration_status.yaml",
                 ),
             ),
             DeclareLaunchArgument(

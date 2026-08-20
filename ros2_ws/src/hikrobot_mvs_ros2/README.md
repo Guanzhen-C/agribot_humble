@@ -22,3 +22,20 @@ ros2 topic hz /camera/rgb/image_raw
 ```
 
 无镜头时只能验证连接和取流，不能标定或评价画面质量。安装并固定镜头后，必须重新标定相机内参、相机到雷达的外参和图像时间偏移，不能复用旧深度相机参数。
+
+## 镜头安装后的收尾顺序
+
+1. 固定镜头、锁紧光圈和焦距，在车辆主要工作距离内确认整幅画面清晰。
+2. 保持 `1280x1024` 原始分辨率完成单目标定。现有棋盘若仍为 `11x8` 个内角点、方格边长 `10 mm`，可执行：
+
+   ```bash
+   ros2 run camera_calibration cameracalibrator \
+     --size 11x8 --square 0.010 --no-service-check \
+     image:=/camera/rgb/image_raw camera:=/camera/rgb
+   ```
+
+3. 将真实 `fx/fy/cx/cy/d0..d3` 写入 `agribot_hardware_bringup/config/fastlivo_hikrobot_mv_cu013.yaml`。
+4. 采集包含平移和三轴转动的数据，用 FAST-Calib 求相机到 C16 的旋转、平移和图像时间偏移；分别更新阿克曼或差速车的 FAST-LIVO2 外参配置。
+5. 只有重投影、点云着色和时间对齐验收通过后，才把对应车型 `hikrobot_camera_calibration_status.yaml` 的四个状态改为 `true`。
+
+完整 FAST-LIVO2 启动入口会检查这些状态。未标定时会明确退出，但相机单独取流和原始数据采集仍可运行。

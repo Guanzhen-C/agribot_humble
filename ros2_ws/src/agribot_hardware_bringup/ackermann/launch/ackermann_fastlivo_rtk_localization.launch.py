@@ -29,6 +29,15 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "hikrobot_trigger_enable", default_value="false"
             ),
+            DeclareLaunchArgument(
+                "camera_calibration_status",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "hikrobot_camera_calibration_status.yaml",
+                ),
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -83,6 +92,9 @@ def generate_launch_description():
                             ),
                             "hikrobot_trigger_enable": LaunchConfiguration(
                                 "hikrobot_trigger_enable"
+                            ),
+                            "camera_calibration_status": LaunchConfiguration(
+                                "camera_calibration_status"
                             ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
                             "start_initial_localizer": LaunchConfiguration(
