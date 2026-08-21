@@ -320,6 +320,41 @@ the images for FAST-LIVO2. Run FAST-LIO, FAST-LIVO2 or LIO-SAM later on the
 Jetson from this bag. Control the vehicle through the existing independent
 manual controller while collecting data.
 
+### C16 gPTP time synchronization
+
+The RDK X5 serves its UTC system clock to the C16 over the dedicated `eth0`
+link. The system clock is disciplined by RTK RMC/ZDA plus GPIO PPS when those
+signals are available; otherwise it continues from the RTC and chrony
+holdover. Install and start the two host services once after building:
+
+```bash
+sudo apt install chrony ethtool linuxptp
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 run agribot_hardware_bringup install_c16_gptp.sh eth0
+```
+
+Configure the lidar itself once while `lslidar_driver_node` is running:
+
+```bash
+ros2 service call /time_mode lslidar_msgs/srv/TimeMode \
+  "{time_mode: 1, ntp_ip: ''}"
+```
+
+Restart the lidar driver after that call. The production C16 configuration
+uses its internal PTP timestamp. Check both host services and the live cloud:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 run agribot_hardware_bringup check_c16_gptp.sh eth0
+```
+
+Do not replace the PHC command's `-O 0` with `-w`. This C16 firmware writes
+received PTP seconds directly into packets, while ROS interprets them as UTC;
+using the normal TAI offset would make cloud timestamps 37 seconds fast in
+2026.
+
 This entry point accumulates FAST-LIO's registered 3D cloud into a filtered
 PCD map. The first rear-axle pose is the map origin. Chassis output and Nav2
 default to disabled during mapping so one external manual controller can own
@@ -512,9 +547,10 @@ initialization. FAST-LIO publishes through `/fastlio/odometry`.
 
 The N300Pro and Hikrobot drivers map their device counters to the RDK ROS
 clock with the shared `agribot_time_sync` affine clock mapper. RTK position
-and heading use GNSS measurement time when it agrees with the RDK clock. Until
-PPS or PTP is wired, the C16 uses the Linux kernel UDP receive timestamp while
-retaining its per-point relative time. `sensors.launch.py` starts
+and heading use GNSS measurement time when it agrees with the RDK clock. The
+C16 receives the RDK UTC clock over gPTP and publishes its hardware timestamp
+while retaining per-point relative time; it no longer needs an RMC serial
+input. `sensors.launch.py` starts
 `sensor_time_sync_monitor.py`, which reports per-topic rates, timestamp age,
 monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
 `/diagnostics`. These checks validate a common software time axis; camera

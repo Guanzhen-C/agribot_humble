@@ -1,0 +1,16 @@
+[Unit]
+Description=Serve the RDK UTC clock to the C16 over IEEE 802.1AS
+Documentation=man:ptp4l(8)
+Requires=agribot-c16-phc.service
+After=agribot-c16-phc.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/agribot-c16-gptp
+ExecStartPre=/usr/bin/sleep 1
+ExecStart=/usr/sbin/ptp4l -f /etc/agribot/c16_gptp.cfg -i ${PTP_INTERFACE}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

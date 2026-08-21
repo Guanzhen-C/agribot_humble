@@ -292,6 +292,8 @@ ament_target_dependencies(pcd_initial_localizer
 install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
+  scripts/check_c16_gptp.sh
+  scripts/install_c16_gptp.sh
   scripts/initialization_coordinator.py
   scripts/outdoor_stage_check.py
   scripts/pcd_to_nav2_map.py
@@ -308,7 +310,7 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch meshes models rviz udev urdf DESTINATION share/${PROJECT_NAME}
+install(DIRECTORY config launch meshes models rviz systemd udev urdf DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
 )
@@ -453,6 +455,7 @@ if(BUILD_TESTING)
   )
   ament_add_pytest_test(test_navigation_configs test/test_navigation_configs.py)
   ament_add_pytest_test(test_pcd_to_nav2_map test/test_pcd_to_nav2_map.py)
+  ament_add_pytest_test(test_c16_gptp test/test_c16_gptp.py)
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
   ament_add_pytest_test(
     test_sensor_time_sync_monitor
