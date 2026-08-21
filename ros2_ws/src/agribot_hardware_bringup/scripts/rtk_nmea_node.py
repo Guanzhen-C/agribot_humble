@@ -3,6 +3,7 @@
 import base64
 import math
 import socket
+import struct
 import threading
 import time
 from dataclasses import dataclass
@@ -51,6 +52,54 @@ class GgaMetadata:
 
 
 GPS_EPOCH_UNIX_SEC = 315964800.0
+CHRONY_SOCK_MAGIC = 0x534F434B
+CHRONY_SOCK_SAMPLE_FORMAT = "@lldiiii"
+
+
+def pack_chrony_sock_sample(
+    measurement_time_sec: float, receipt_time_sec: float
+) -> bytes:
+    """Pack one non-PPS sample for chrony's SOCK refclock protocol."""
+    if not math.isfinite(measurement_time_sec) or not math.isfinite(
+        receipt_time_sec
+    ):
+        raise ValueError("chrony sample timestamps must be finite")
+
+    receipt_seconds = math.floor(receipt_time_sec)
+    receipt_microseconds = int(
+        round((receipt_time_sec - receipt_seconds) * 1.0e6)
+    )
+    if receipt_microseconds >= 1_000_000:
+        receipt_seconds += 1
+        receipt_microseconds -= 1_000_000
+
+    return struct.pack(
+        CHRONY_SOCK_SAMPLE_FORMAT,
+        receipt_seconds,
+        receipt_microseconds,
+        measurement_time_sec - receipt_time_sec,
+        0,
+        0,
+        0,
+        CHRONY_SOCK_MAGIC,
+    )
+
+
+class ChronySockPublisher:
+    def __init__(self, socket_path: str) -> None:
+        self.socket_path = socket_path
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+
+    def publish(
+        self, measurement_time_sec: float, receipt_time_sec: float
+    ) -> None:
+        self.socket.sendto(
+            pack_chrony_sock_sample(measurement_time_sec, receipt_time_sec),
+            self.socket_path,
+        )
+
+    def close(self) -> None:
+        self.socket.close()
 
 
 def parse_utc_time_of_day(value: str) -> Optional[tuple[int, int, float]]:
@@ -363,6 +412,15 @@ class RtkNmeaNode(Node):
         self.heading_pair_tolerance_sec = float(
             self.declare_parameter("heading_pair_tolerance_sec", 0.25).value
         )
+        self.enable_chrony_time_feed = bool(
+            self.declare_parameter("enable_chrony_time_feed", True).value
+        )
+        self.chrony_socket_path = self.declare_parameter(
+            "chrony_socket_path", "/run/chrony/rtk.sock"
+        ).value
+        self.chrony_min_year = int(
+            self.declare_parameter("chrony_min_year", 2024).value
+        )
 
         self.enable_ntrip = bool(self.declare_parameter("enable_ntrip", False).value)
         self.ntrip_host = self.declare_parameter("ntrip_host", "").value
@@ -420,6 +478,17 @@ class RtkNmeaNode(Node):
         self.last_time_source = "receipt"
         self.last_time_error_sec = math.nan
         self.gnss_time_reject_count = 0
+        self.chrony_publisher = (
+            ChronySockPublisher(self.chrony_socket_path)
+            if self.enable_chrony_time_feed
+            else None
+        )
+        self.last_chrony_measurement_sec: Optional[float] = None
+        self.last_chrony_offset_sec = math.nan
+        self.last_chrony_warning_monotonic = -math.inf
+        self.chrony_samples_sent = 0
+        self.chrony_send_failures = 0
+        self.chrony_time_reject_count = 0
         self.create_timer(0.01, self.poll_serial)
         self.create_timer(1.0, self.publish_time_diagnostics)
 
@@ -444,6 +513,9 @@ class RtkNmeaNode(Node):
     def destroy_node(self):
         self.stop_event.set()
         self.close_serial()
+        if self.chrony_publisher is not None:
+            self.chrony_publisher.close()
+            self.chrony_publisher = None
         return super().destroy_node()
 
     def open_serial(self) -> None:
@@ -516,10 +588,14 @@ class RtkNmeaNode(Node):
         if not fields:
             return
         if fields[0].endswith("RMC"):
-            self.update_absolute_gnss_time(parse_rmc_datetime(sentence))
+            measurement_time = parse_rmc_datetime(sentence)
+            self.update_absolute_gnss_time(measurement_time)
+            self.publish_chrony_time(measurement_time, time.time())
             return
         if fields[0].endswith("ZDA"):
-            self.update_absolute_gnss_time(parse_zda_datetime(sentence))
+            measurement_time = parse_zda_datetime(sentence)
+            self.update_absolute_gnss_time(measurement_time)
+            self.publish_chrony_time(measurement_time, time.time())
             return
         if fields[0].endswith("THS"):
             self.handle_ths(sentence)
@@ -675,6 +751,47 @@ class RtkNmeaNode(Node):
             measurement_time, tz=timezone.utc
         ).date()
 
+    def publish_chrony_time(
+        self,
+        measurement_time: Optional[float],
+        receipt_time_sec: float,
+    ) -> None:
+        if self.chrony_publisher is None or measurement_time is None:
+            return
+        if not math.isfinite(measurement_time) or not math.isfinite(
+            receipt_time_sec
+        ):
+            self.chrony_time_reject_count += 1
+            return
+        measurement_year = datetime.fromtimestamp(
+            measurement_time, tz=timezone.utc
+        ).year
+        if measurement_year < self.chrony_min_year:
+            self.chrony_time_reject_count += 1
+            return
+        if (
+            self.last_chrony_measurement_sec is not None
+            and measurement_time <= self.last_chrony_measurement_sec
+        ):
+            return
+
+        try:
+            self.chrony_publisher.publish(measurement_time, receipt_time_sec)
+        except OSError as exception:
+            self.chrony_send_failures += 1
+            now = time.monotonic()
+            if now - self.last_chrony_warning_monotonic >= 10.0:
+                self.get_logger().warning(
+                    f"Cannot feed GNSS time to chrony at "
+                    f"{self.chrony_socket_path}: {exception}"
+                )
+                self.last_chrony_warning_monotonic = now
+            return
+
+        self.last_chrony_measurement_sec = measurement_time
+        self.last_chrony_offset_sec = measurement_time - receipt_time_sec
+        self.chrony_samples_sent += 1
+
     def gga_measurement_time(
         self, utc_time: str, receipt_time_sec: float
     ) -> Optional[float]:
@@ -746,6 +863,29 @@ class RtkNmeaNode(Node):
             KeyValue(
                 key="utc_date_known",
                 value="true" if self.latest_utc_date is not None else "false",
+            ),
+            KeyValue(
+                key="chrony_feed_enabled",
+                value="true" if self.chrony_publisher is not None else "false",
+            ),
+            KeyValue(key="chrony_socket", value=self.chrony_socket_path),
+            KeyValue(
+                key="chrony_last_offset_ms",
+                value=(
+                    f"{self.last_chrony_offset_sec * 1.0e3:.3f}"
+                    if math.isfinite(self.last_chrony_offset_sec)
+                    else "nan"
+                ),
+            ),
+            KeyValue(
+                key="chrony_samples_sent", value=str(self.chrony_samples_sent)
+            ),
+            KeyValue(
+                key="chrony_send_failures", value=str(self.chrony_send_failures)
+            ),
+            KeyValue(
+                key="chrony_time_rejections",
+                value=str(self.chrony_time_reject_count),
             ),
         ]
         message.status = [status]
