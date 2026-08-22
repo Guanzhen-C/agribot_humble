@@ -597,8 +597,9 @@ monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
 `/diagnostics`. These checks validate a common software time axis; camera
 timestamps include the measured PPS-locked trigger-to-device-clock correction.
 The obsolete `-38 ms` image offset from the old scan-end cloud convention is
-not used. Use a motion-based calibration only to refine any remaining
-exposure-center `img_time_offset` for FAST-LIVO2.
+not used. The PPS phase measurement leaves only `-3.3 ms` between the Line0
+trigger stamp and the C16 forward-axis point. Use a motion-based calibration
+only to refine any remaining exposure-center offset for FAST-LIVO2.
 
 Configure the dedicated C16 Ethernet route once using NetworkManager, or run:
 

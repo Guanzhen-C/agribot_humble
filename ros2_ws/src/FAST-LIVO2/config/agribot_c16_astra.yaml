@@ -39,11 +39,11 @@
     time_offset:
       imu_time_offset: 0.0
       dynamic_imu_sync_en: false
-      # C16 header.stamp now marks scan start and the PPS-locked camera driver
-      # stamps the Line0 trigger. Do not retain the old -38 ms compensation,
-      # which was calibrated while the C16 header incorrectly marked scan end.
+      # C16 header.stamp marks scan start and the PPS-locked camera driver
+      # stamps the Line0 trigger. A live 2026-08-22 phase test measured the
+      # camera stamp 3.263 ms before the C16 +X point (P95 3.375 ms).
       # FAST-LIVO2 computes corrected_time = image_stamp - img_time_offset.
-      img_time_offset: 0.0
+      img_time_offset: -0.0033
       exposure_time_init: 0.0
 
     preprocess:

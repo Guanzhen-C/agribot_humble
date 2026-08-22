@@ -33,7 +33,7 @@ def test_c16_runtime_queues_are_bounded_and_lidar_is_reliable():
     assert "minimum_interval - 1e-6" in mapper_source
 
 
-def test_real_fastlivo_uses_scan_start_cloud_and_no_legacy_image_offset():
+def test_real_fastlivo_uses_scan_start_cloud_and_measured_image_offset():
     lidar_parameters = yaml.safe_load(
         (WORKSPACE_SRC / "agribot_hardware_bringup/config/c16.yaml").read_text()
     )["lslidar_driver_node"]["ros__parameters"]
@@ -43,7 +43,7 @@ def test_real_fastlivo_uses_scan_start_cloud_and_no_legacy_image_offset():
     mapper_source = (FASTLIVO_ROOT / "src/LIVMapper.cpp").read_text()
 
     assert lidar_parameters["use_first_point_time"] is True
-    assert fastlivo_parameters["time_offset"]["img_time_offset"] == 0.0
+    assert fastlivo_parameters["time_offset"]["img_time_offset"] == -0.0033
     assert "meas.lidar_frame_beg_time = lid_header_time_buffer.front()" in mapper_source
     assert "meas.lidar_frame_beg_time +" in mapper_source
     assert "points.back().curvature" in mapper_source

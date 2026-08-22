@@ -332,7 +332,7 @@ def test_differential_localization_extrinsics_share_one_provisional_source():
     assert mounts["calibration"]["complete"] is False
     assert calibration["calibration_complete"] is False
     assert calibration["base_link_reference"] == "four_wheel_geometric_center"
-    assert fastlivo["time_offset"]["img_time_offset"] == 0.0
+    assert fastlivo["time_offset"]["img_time_offset"] == -0.0033
     assert fastlio["mapping"]["extrinsic_R"] == pytest.approx(
         flatten(imu_from_lidar), abs=1.0e-8
     )

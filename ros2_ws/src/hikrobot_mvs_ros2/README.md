@@ -28,8 +28,9 @@ ros2 topic hz /camera/rgb/image_raw
 中的 `hikrobot_mvs/time_sync` 会报告预热、时钟漂移、接收抖动和复位次数。
 当前 `timestamp_offset_sec=-0.0158` 来自三次PPS锁相冷启动测量，只用于
 消除设备计数器映射到Line0触发时刻的固定偏置。C16点云头已统一为扫描
-起点，FAST-LIVO2 `img_time_offset` 保持为零；以后如做运动标定，只在
-`img_time_offset` 中补偿曝光中心残差，避免两处重复补偿。
+起点；实测Line0触发比C16车头点早约3.3 ms，因此FAST-LIVO2只保留
+`img_time_offset=-0.0033`。以后如做运动标定，只在该参数中精修曝光中心
+残差，避免两处重复补偿。
 
 ## 镜头安装后的收尾顺序
 
