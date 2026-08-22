@@ -1,6 +1,8 @@
 # Hikrobot MVS ROS 2 driver
 
-用于海康机器人 `MV-CU013-A0UC` USB3 工业相机。驱动直接调用 MVS SDK，SDK缓存固定为少量最新帧，避免视觉算法处理不及时导致内存持续增长。
+用于海康机器人 `MV-CU013-A0UC` USB3 工业相机。驱动直接调用 MVS SDK，按原生 `1280x1024` 分辨率发布 `BGR8` 图像。SDK缓存固定为少量最新帧，ROS发布使用有界可靠队列，避免处理不及时导致内存无界增长。
+
+原始数据采集入口会为图像和 `CameraInfo` 强制使用 `RELIABLE + KEEP_LAST(16)`，并将 rosbag 缓存设为 `512 MiB`。这些设置不缩放、不裁剪、不压缩图像。
 
 ## 依赖
 

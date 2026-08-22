@@ -16,7 +16,7 @@ remains calibration-gated until its physical measurements are supplied:
 | Ackermann | MPPI | FAST-LIO + saved-map planning | `ackermann_mppi_fastlio_mapped.launch.py` |
 | Ackermann | MPPI | FAST-LIVO2 + fixed RTK + saved map | `ackermann_mppi_fastlivo_rtk_mapped.launch.py` |
 | Ackermann | MPPI | Outdoor 0811 verified map profile | `ackermann_outdoor_0811_experiment.launch.py` |
-| Ackermann | None | Raw C16 + IMU + RTK + RGB-D collection | `ackermann_sensor_data_collection.launch.py` |
+| Ackermann | None | Raw C16 + IMU + RTK + Hikrobot camera collection | `ackermann_sensor_data_collection.launch.py` |
 
 Vehicle-specific physical code is kept in separate source trees:
 
@@ -287,7 +287,7 @@ ros2 launch agribot_hardware_bringup \
 ```
 
 For offline mapping datasets, collect only the physical sensor streams on the
-RDK. This entry starts the C16, IMU, RTK, stereo camera right eye and rosbag
+RDK. This entry starts the C16, IMU, RTK, Hikrobot right camera and rosbag
 recorder. Install the stable right-camera device rule once after building:
 
 ```bash
@@ -313,8 +313,11 @@ ros2 launch agribot_hardware_bringup \
 
 The bag includes the full C16 point cloud, lidar timing/device information,
 IMU, magnetic field, temperature, every raw RTK serial sentence, parsed RTK
-quality fields, headings, the raw 640 x 480 right-eye image and camera-info
+quality fields, headings, the raw 1280 x 1024 BGR image and camera-info
 messages, and static sensor transforms. It does not record a depth stream.
+The image publisher and recorder use a bounded reliable queue, while rosbag
+uses a 512 MiB cache to absorb short storage stalls without changing image
+resolution or encoding.
 Calibrate this camera's intrinsics and camera-to-lidar extrinsics before using
 the images for FAST-LIVO2. Run FAST-LIO, FAST-LIVO2 or LIO-SAM later on the
 Jetson from this bag. Control the vehicle through the existing independent

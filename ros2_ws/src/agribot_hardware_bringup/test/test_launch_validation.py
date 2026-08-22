@@ -31,6 +31,12 @@ SENSOR_COLLECTION_LAUNCH_PATH = (
     / "launch"
     / "ackermann_sensor_data_collection.launch.py"
 )
+SENSOR_COLLECTION_QOS_PATH = (
+    PACKAGE_ROOT
+    / "ackermann"
+    / "config"
+    / "sensor_data_recording_qos.yaml"
+)
 GEOREFERENCE_VALIDATION_LAUNCH_PATH = (
     PACKAGE_ROOT
     / "ackermann"
@@ -520,6 +526,10 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     assert 'DeclareLaunchArgument("start_rtk", default_value="true")' in source
     assert 'DeclareLaunchArgument("start_camera", default_value="true")' in source
     assert 'DeclareLaunchArgument("record_bag", default_value="true")' in source
+    assert '"bag_max_cache_size", default_value="536870912"' in source
+    assert '"bag_qos_overrides", default_value=recording_qos' in source
+    assert '"--max-cache-size"' in source
+    assert '"--qos-profile-overrides-path"' in source
     for topic in (
         "/lidar/points",
         "/lslidar_device_info",
@@ -546,6 +556,11 @@ def test_sensor_collection_records_raw_sensor_and_camera_data_only():
     assert "pcd_map_builder" not in source
     assert "ackermann_chassis_can_node" not in source
     assert "/teleop/cmd_vel" not in source
+    qos = SENSOR_COLLECTION_QOS_PATH.read_text()
+    for topic in ("/camera/rgb/image_raw", "/camera/rgb/camera_info"):
+        assert f"{topic}:" in qos
+    assert qos.count("reliability: reliable") == 2
+    assert qos.count("depth: 16") == 2
     manifest = (PACKAGE_ROOT / "package.xml").read_text()
     assert "<exec_depend>hikrobot_mvs_ros2</exec_depend>" in manifest
     assert "<exec_depend>usb_cam</exec_depend>" in manifest

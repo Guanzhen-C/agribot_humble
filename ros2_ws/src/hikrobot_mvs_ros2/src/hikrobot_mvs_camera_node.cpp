@@ -111,10 +111,24 @@ public:
       declare_parameter<double>("time_sync_max_device_gap_sec", 2.0);
     clock_mapper_ = std::make_unique<agribot_time_sync::AffineClockMapper>(clock_config);
 
-    const auto sensor_qos = rclcpp::SensorDataQoS().keep_last(2);
-    image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic, sensor_qos);
+    publisher_reliability_ =
+      declare_parameter<std::string>("publisher_reliability", "reliable");
+    publisher_depth_ = static_cast<int>(std::clamp<int64_t>(
+        declare_parameter<int>("publisher_depth", 16), 1, 32));
+    auto publisher_qos = rclcpp::QoS(
+      rclcpp::KeepLast(static_cast<std::size_t>(publisher_depth_)));
+    publisher_qos.durability_volatile();
+    if (publisher_reliability_ == "reliable") {
+      publisher_qos.reliable();
+    } else if (publisher_reliability_ == "best_effort") {
+      publisher_qos.best_effort();
+    } else {
+      throw std::invalid_argument(
+              "publisher_reliability must be reliable or best_effort");
+    }
+    image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic, publisher_qos);
     camera_info_pub_ =
-      create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic, sensor_qos);
+      create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic, publisher_qos);
     const auto state_qos = rclcpp::QoS(1).reliable().transient_local();
     connected_pub_ = create_publisher<std_msgs::msg::Bool>("~/connected", state_qos);
     frame_rate_pub_ = create_publisher<std_msgs::msg::Float32>("~/frame_rate_hz", state_qos);
@@ -279,9 +293,10 @@ private:
 
     require_ok(MV_CC_StartGrabbing(handle_), "开始取流");
     RCLCPP_INFO(
-      get_logger(), "相机已启动: model=%s serial=%s mode=%s target=%.1fHz buffers=%d",
+      get_logger(),
+      "相机已启动: model=%s serial=%s mode=%s target=%.1fHz qos=%s/%d buffers=%d",
       selected_model.c_str(), selected_serial.c_str(), trigger_enable_ ? "trigger" : "free-run",
-      frame_rate_, sdk_buffer_count_);
+      frame_rate_, publisher_reliability_.c_str(), publisher_depth_, sdk_buffer_count_);
   }
 
   void close_camera() noexcept
@@ -417,6 +432,10 @@ private:
     status.values.push_back(
       diagnostic_value("capture_mode", trigger_enable_ ? "hardware_trigger" : "free_run"));
     status.values.push_back(
+      diagnostic_value("publisher_reliability", publisher_reliability_));
+    status.values.push_back(
+      diagnostic_value("publisher_depth", std::to_string(publisher_depth_)));
+    status.values.push_back(
       diagnostic_value("trigger_selector", effective_trigger_selector_));
     status.values.push_back(diagnostic_value("trigger_source", trigger_source_));
     status.values.push_back(
@@ -494,6 +513,7 @@ private:
   std::string gain_auto_;
   std::string pixel_format_;
   std::string timestamp_source_;
+  std::string publisher_reliability_;
   bool trigger_enable_;
   bool gamma_enable_;
   double frame_rate_;
@@ -504,6 +524,7 @@ private:
   double timestamp_offset_sec_;
   int sdk_buffer_count_;
   int grab_timeout_ms_;
+  int publisher_depth_;
 
   bool sdk_initialized_;
   void * handle_;

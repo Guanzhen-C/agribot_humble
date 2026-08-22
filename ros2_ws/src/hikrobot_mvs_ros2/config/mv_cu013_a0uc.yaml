@@ -21,7 +21,10 @@
     gamma: 0.7
     pixel_format: "BayerGB12Packed"
 
-    # 驱动只保留SDK最新帧，避免算法处理慢时积压图像。
+    # 保持1280x1024原始尺寸发布；录包链路使用有界可靠队列避免丢帧。
+    publisher_reliability: reliable
+    publisher_depth: 16
+    # 驱动只保留SDK最新帧，避免算法处理慢时无界积压图像。
     sdk_buffer_count: 2
     grab_timeout_ms: 1000
     # MV-CU013-A0UC实测设备时间戳频率为100MHz，映射到SDK主机接收时间。

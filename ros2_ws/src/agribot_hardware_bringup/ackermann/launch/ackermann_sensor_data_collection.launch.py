@@ -43,6 +43,12 @@ SENSOR_TOPICS = (
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    recording_qos = os.path.join(
+        hardware_share,
+        "ackermann",
+        "config",
+        "sensor_data_recording_qos.yaml",
+    )
     return LaunchDescription(
         [
             DeclareLaunchArgument("start_lidar", default_value="true"),
@@ -61,6 +67,12 @@ def generate_launch_description():
             DeclareLaunchArgument("record_bag", default_value="true"),
             DeclareLaunchArgument(
                 "bag_output", default_value="/tmp/agribot_sensor_data"
+            ),
+            DeclareLaunchArgument(
+                "bag_max_cache_size", default_value="536870912"
+            ),
+            DeclareLaunchArgument(
+                "bag_qos_overrides", default_value=recording_qos
             ),
             DeclareLaunchArgument(
                 "right_camera_device",
@@ -104,6 +116,10 @@ def generate_launch_description():
                     "ros2",
                     "bag",
                     "record",
+                    "--max-cache-size",
+                    LaunchConfiguration("bag_max_cache_size"),
+                    "--qos-profile-overrides-path",
+                    LaunchConfiguration("bag_qos_overrides"),
                     "-o",
                     LaunchConfiguration("bag_output"),
                     *SENSOR_TOPICS,

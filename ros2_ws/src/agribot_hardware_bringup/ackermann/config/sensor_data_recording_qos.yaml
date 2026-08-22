@@ -1,0 +1,11 @@
+/camera/rgb/image_raw:
+  history: keep_last
+  depth: 16
+  reliability: reliable
+  durability: volatile
+
+/camera/rgb/camera_info:
+  history: keep_last
+  depth: 16
+  reliability: reliable
+  durability: volatile
