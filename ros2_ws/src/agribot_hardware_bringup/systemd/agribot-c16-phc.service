@@ -9,7 +9,7 @@ Type=simple
 EnvironmentFile=/etc/default/agribot-c16-gptp
 ExecStartPre=/usr/sbin/ip link set dev ${PTP_INTERFACE} up
 ExecStartPre=/usr/sbin/phc_ctl ${PTP_INTERFACE} set
-ExecStart=/usr/sbin/phc2sys -c ${PTP_INTERFACE} -s CLOCK_REALTIME -O 0 -R 4 -N 8 -l 5
+ExecStart=/usr/sbin/phc2sys -c ${PTP_INTERFACE} -s CLOCK_REALTIME -O 0 -R 4 -N 8 -S 0.5 -l 5
 Restart=always
 RestartSec=2
 

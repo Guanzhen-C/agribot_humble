@@ -28,6 +28,7 @@ def test_gptp_profile_is_c16_compatible_and_uses_utc_phc():
     assert values["delay_mechanism"] == "P2P"
     assert values["transportSpecific"] == "0x1"
     assert values["time_stamping"] == "hardware"
+    assert values["tx_timestamp_timeout"] == "100"
     assert values["masterOnly"] == "1"
     assert values["asCapable"] == "true"
     assert values["inhibit_delay_req"] == "1"
@@ -38,7 +39,15 @@ def test_phc_service_does_not_apply_tai_offset():
     service = (PACKAGE / "systemd/agribot-c16-phc.service").read_text()
     assert "phc2sys" in service
     assert "-O 0" in service
+    assert "-S 0.5" in service
     assert " -w" not in service
+
+
+def test_gptp_check_rejects_invalid_system_phc_and_cloud_time():
+    script = (PACKAGE / "scripts/check_c16_gptp.sh").read_text()
+    assert "minimum_valid_epoch=1704067200" in script
+    assert "maximum_phc_offset_sec=0.1" in script
+    assert "maximum_cloud_offset_sec=2.0" in script
 
 
 def test_gptp_service_uses_the_project_profile():
