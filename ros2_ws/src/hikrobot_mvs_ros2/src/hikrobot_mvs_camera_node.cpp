@@ -68,7 +68,7 @@ public:
       declare_parameter<std::string>("camera_name", "agribot_hikrobot_right_camera");
     const auto camera_info_url = declare_parameter<std::string>("camera_info_url", "");
     trigger_enable_ = declare_parameter<bool>("trigger_enable", false);
-    trigger_selector_ = declare_parameter<std::string>("trigger_selector", "FrameStart");
+    trigger_selector_ = declare_parameter<std::string>("trigger_selector", "FrameBurstStart");
     trigger_source_ = declare_parameter<std::string>("trigger_source", "Line0");
     trigger_activation_ = declare_parameter<std::string>("trigger_activation", "RisingEdge");
     frame_rate_ = declare_parameter<double>("acquisition_frame_rate", 10.0);
