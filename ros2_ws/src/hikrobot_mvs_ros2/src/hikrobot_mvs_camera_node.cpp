@@ -68,7 +68,9 @@ public:
       declare_parameter<std::string>("camera_name", "agribot_hikrobot_right_camera");
     const auto camera_info_url = declare_parameter<std::string>("camera_info_url", "");
     trigger_enable_ = declare_parameter<bool>("trigger_enable", false);
+    trigger_selector_ = declare_parameter<std::string>("trigger_selector", "FrameStart");
     trigger_source_ = declare_parameter<std::string>("trigger_source", "Line0");
+    trigger_activation_ = declare_parameter<std::string>("trigger_activation", "RisingEdge");
     frame_rate_ = declare_parameter<double>("acquisition_frame_rate", 10.0);
     exposure_auto_ = declare_parameter<std::string>("exposure_auto", "Continuous");
     exposure_time_us_ = declare_parameter<double>("exposure_time_us", 5000.0);
@@ -225,10 +227,16 @@ private:
     }
 
     if (trigger_enable_) {
+      require_ok(
+        MV_CC_SetEnumValueByString(handle_, "TriggerSelector", trigger_selector_.c_str()),
+        "设置触发选择器");
       require_ok(MV_CC_SetEnumValueByString(handle_, "TriggerMode", "On"), "开启硬触发");
       require_ok(
         MV_CC_SetEnumValueByString(handle_, "TriggerSource", trigger_source_.c_str()),
         "设置触发源");
+      require_ok(
+        MV_CC_SetEnumValueByString(handle_, "TriggerActivation", trigger_activation_.c_str()),
+        "设置触发沿");
     } else {
       require_ok(MV_CC_SetEnumValueByString(handle_, "TriggerMode", "Off"), "关闭触发模式");
       warn_optional(
@@ -376,6 +384,11 @@ private:
     }
     status.values.push_back(diagnostic_value("source", timestamp_source_));
     status.values.push_back(
+      diagnostic_value("capture_mode", trigger_enable_ ? "hardware_trigger" : "free_run"));
+    status.values.push_back(diagnostic_value("trigger_selector", trigger_selector_));
+    status.values.push_back(diagnostic_value("trigger_source", trigger_source_));
+    status.values.push_back(diagnostic_value("trigger_activation", trigger_activation_));
+    status.values.push_back(
       diagnostic_value(
         "device_tick_hz", std::to_string(device_timestamp_frequency_hz_)));
     status.values.push_back(
@@ -439,7 +452,9 @@ private:
 
   std::string serial_number_;
   std::string frame_id_;
+  std::string trigger_selector_;
   std::string trigger_source_;
+  std::string trigger_activation_;
   std::string exposure_auto_;
   std::string gain_auto_;
   std::string pixel_format_;

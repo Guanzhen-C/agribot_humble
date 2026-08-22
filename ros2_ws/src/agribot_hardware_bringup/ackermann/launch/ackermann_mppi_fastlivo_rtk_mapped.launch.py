@@ -154,7 +154,7 @@ def generate_launch_description():
                 "hikrobot_camera_serial", default_value="DB0447659"
             ),
             DeclareLaunchArgument(
-                "hikrobot_trigger_enable", default_value="false"
+                "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_navigation", default_value="true"),

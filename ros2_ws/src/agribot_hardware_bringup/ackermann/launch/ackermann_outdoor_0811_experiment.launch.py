@@ -274,7 +274,7 @@ def generate_launch_description():
                 "hikrobot_camera_serial", default_value="DB0447659"
             ),
             DeclareLaunchArgument(
-                "hikrobot_trigger_enable", default_value="false"
+                "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument(
                 "enable_chassis_output",

@@ -9,7 +9,9 @@
 
     # 镜头安装和硬同步接线前使用自由运行；正式运行时再改为硬触发。
     trigger_enable: false
+    trigger_selector: "FrameStart"
     trigger_source: "Line0"
+    trigger_activation: "RisingEdge"
     acquisition_frame_rate: 10.0
     exposure_auto: "Continuous"
     exposure_time_us: 5000.0
