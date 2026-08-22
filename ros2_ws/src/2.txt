@@ -892,6 +892,21 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 run agribot_hardware_bringup install_c16_gptp.sh eth0
 ros2 run agribot_hardware_bringup install_camera_trigger_pwm.sh
 
+# 相机触发服务必须在下一次RTK PPS边沿到来后才使能10Hz PWM
+# 日志中必须出现PPS序号和PWM使能延迟；没有PPS时服务会保持失败并自动重试，不会自由运行
+sudo journalctl -b -u agribot-camera-trigger.service --no-pager
+
+# C16扫描相位只需配置一次：先关闭所有C16驱动，保证UDP 2369端口未被占用
+# 第1条只读当前状态，第2条只预览不写入，第3条才会备份原设备包并写入车头+X对应的90度
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py --samples 5
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
+  --target-angle-deg 90
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
+  --target-angle-deg 90 --apply --samples 10
+
+# C16重启后再次只读检查：目标角应保持90度，PPS输入应有效，角度误差应收敛到接近0度
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py --samples 10
+
 # 每次实验前检查C16 gPTP、相机PWM参数、硬触发模式和实际图像频率
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash

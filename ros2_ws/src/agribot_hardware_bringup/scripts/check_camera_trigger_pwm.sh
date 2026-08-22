@@ -7,8 +7,25 @@ if [[ -r "${config_file}" ]]; then
   source "${config_file}"
 fi
 
+phase_lock_to_pps="${PWM_PHASE_LOCK_TO_PPS:-false}"
+pps_device="${PWM_PPS_DEVICE:-/dev/pps-rtk}"
+pps_lock_helper="${PWM_PPS_LOCK_HELPER:-/usr/local/sbin/agribot-camera-trigger-pps-lock}"
+[[ "${phase_lock_to_pps}" == "true" ]] || {
+  echo "错误：相机PWM未配置为RTK PPS锁相" >&2
+  exit 1
+}
+[[ -c "${pps_device}" ]] || {
+  echo "错误：RTK PPS字符设备不存在：${pps_device}" >&2
+  exit 1
+}
+[[ -x "${pps_lock_helper}" ]] || {
+  echo "错误：PPS锁相程序不可执行：${pps_lock_helper}" >&2
+  exit 1
+}
+
 systemctl is-active --quiet agribot-camera-trigger.service
 /usr/local/sbin/agribot-camera-trigger-pwm status
+echo "相机触发PPS锁相：${pps_device}"
 
 get_camera_parameter() {
   local name="$1"

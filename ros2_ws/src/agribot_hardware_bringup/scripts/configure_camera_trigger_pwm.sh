@@ -9,6 +9,11 @@ expected_alias="${PWM_EXPECTED_ALIAS:-pwm3}"
 period_ns="${PWM_PERIOD_NS:-100000000}"
 duty_cycle_ns="${PWM_DUTY_CYCLE_NS:-1000000}"
 polarity="${PWM_POLARITY:-normal}"
+phase_lock_to_pps="${PWM_PHASE_LOCK_TO_PPS:-false}"
+pps_device="${PWM_PPS_DEVICE:-/dev/pps-rtk}"
+pps_timeout_sec="${PWM_PPS_TIMEOUT_SEC:-5.0}"
+pps_maximum_latency_ms="${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}"
+pps_lock_helper="${PWM_PPS_LOCK_HELPER:-/usr/local/sbin/agribot-camera-trigger-pps-lock}"
 chip_path="${sysfs_root}/${chip}"
 pwm_path="${chip_path}/pwm${channel}"
 
@@ -31,6 +36,8 @@ require_unsigned_integer PWM_DUTY_CYCLE_NS "${duty_cycle_ns}"
   die "PWM_DUTY_CYCLE_NS必须大于0且小于PWM_PERIOD_NS"
 [[ "${polarity}" == "normal" || "${polarity}" == "inversed" ]] || \
   die "PWM_POLARITY必须是normal或inversed"
+[[ "${phase_lock_to_pps}" == "true" || "${phase_lock_to_pps}" == "false" ]] || \
+  die "PWM_PHASE_LOCK_TO_PPS必须是true或false"
 [[ -d "${chip_path}" ]] || die "PWM控制器不存在：${chip_path}"
 
 if [[ -n "${expected_alias}" && -r "${chip_path}/device/uevent" ]]; then
@@ -77,7 +84,7 @@ show_status() {
   [[ "${actual_enable}" == "1" ]] || die "PWM尚未使能"
 }
 
-start_pwm() {
+prepare_pwm() {
   if [[ ${EUID} -ne 0 && "${sysfs_root}" == "/sys/class/pwm" ]]; then
     die "启动PWM需要root权限"
   fi
@@ -95,7 +102,21 @@ start_pwm() {
   printf '%s\n' "${period_ns}" > "${pwm_path}/period"
   printf '%s\n' "${duty_cycle_ns}" > "${pwm_path}/duty_cycle"
   printf '%s\n' "${polarity}" > "${pwm_path}/polarity"
-  printf '1\n' > "${pwm_path}/enable"
+}
+
+start_pwm() {
+  prepare_pwm
+  if [[ "${phase_lock_to_pps}" == "true" ]]; then
+    [[ -e "${pps_device}" ]] || die "PPS设备不存在：${pps_device}"
+    [[ -x "${pps_lock_helper}" ]] || die "PPS锁相程序不可执行：${pps_lock_helper}"
+    "${pps_lock_helper}" \
+      --pps-device "${pps_device}" \
+      --pwm-enable-path "${pwm_path}/enable" \
+      --timeout-sec "${pps_timeout_sec}" \
+      --maximum-latency-ms "${pps_maximum_latency_ms}"
+  else
+    printf '1\n' > "${pwm_path}/enable"
+  fi
   show_status
 }
 

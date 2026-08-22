@@ -50,6 +50,30 @@ def run_pwm_script(tmp_path, action):
     )
 
 
+def run_pps_locked_pwm_script(tmp_path):
+    helper = tmp_path / "fake_pps_lock.sh"
+    helper.write_text('#!/usr/bin/env bash\nprintf "1\\n" > "$4"\n')
+    helper.chmod(0o755)
+    pps_device = tmp_path / "pps-rtk"
+    pps_device.write_text("")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AGRIBOT_PWM_SYSFS_ROOT": str(tmp_path),
+            "PWM_PHASE_LOCK_TO_PPS": "true",
+            "PWM_PPS_DEVICE": str(pps_device),
+            "PWM_PPS_LOCK_HELPER": str(helper),
+        }
+    )
+    return subprocess.run(
+        ["bash", str(PWM_SCRIPT), "start"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+    )
+
+
 def test_pwm_script_configures_and_stops_expected_channel(tmp_path):
     pwm = make_pwm_tree(tmp_path)
     started = run_pwm_script(tmp_path, "start")
@@ -66,6 +90,13 @@ def test_pwm_script_configures_and_stops_expected_channel(tmp_path):
     stopped = run_pwm_script(tmp_path, "stop")
     assert stopped.returncode == 0, stopped.stderr
     assert (pwm / "enable").read_text().strip() == "0"
+
+
+def test_pwm_script_can_wait_for_pps_before_enabling(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    result = run_pps_locked_pwm_script(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert (pwm / "enable").read_text().strip() == "1"
 
 
 def trigger_context(pwm_path, **overrides):
@@ -117,8 +148,23 @@ def test_camera_trigger_service_has_symmetric_cleanup():
     assert "ExecStart=/usr/local/sbin/agribot-camera-trigger-pwm start" in service
     assert "ExecStop=/usr/local/sbin/agribot-camera-trigger-pwm stop" in service
     assert "RemainAfterExit=yes" in service
+    assert "Restart=on-failure" in service
 
     installer = (
         PACKAGE_ROOT / "scripts" / "install_camera_trigger_pwm.sh"
     ).read_text()
     assert "systemctl restart agribot-camera-trigger.service" in installer
+    assert "agribot-camera-trigger-pps-lock" in installer
+
+    checker = (
+        PACKAGE_ROOT / "scripts" / "check_camera_trigger_pwm.sh"
+    ).read_text()
+    assert '[[ "${phase_lock_to_pps}" == "true" ]]' in checker
+    assert '[[ -c "${pps_device}" ]]' in checker
+    assert '[[ -x "${pps_lock_helper}" ]]' in checker
+
+    environment = (
+        PACKAGE_ROOT / "config" / "time_sync" / "camera_trigger_pwm.env"
+    ).read_text()
+    assert "PWM_PHASE_LOCK_TO_PPS=true" in environment
+    assert "PWM_PPS_DEVICE=/dev/pps-rtk" in environment

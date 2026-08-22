@@ -355,6 +355,46 @@ received PTP seconds directly into packets, while ROS interprets them as UTC;
 using the normal TAI offset would make cloud timestamps 37 seconds fast in
 2026.
 
+### Camera-to-C16 hardware phase alignment
+
+The Hikrobot camera trigger service prepares the 10 Hz PWM while disabled,
+waits for the next RTK GPIO PPS event on `/dev/pps-rtk`, and then enables the
+PWM. This keeps every camera exposure trigger at a fixed PPS phase instead of
+an arbitrary phase selected at service startup. Install or refresh the service
+after building:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 run agribot_hardware_bringup install_camera_trigger_pwm.sh
+sudo journalctl -b -u agribot-camera-trigger.service --no-pager
+```
+
+The journal must contain a successful PPS sequence and the measured PWM-enable
+latency. The service fails closed and retries when RTK PPS is absent; it does
+not fall back to a free-running trigger.
+
+Configure the C16 rotation phase once, with the lidar driver stopped so UDP
+port 2369 is free. Read the status before writing, preview the requested value,
+then apply the `90 degree` target that corresponds to vehicle-forward `+X` in
+the current C16 mounting and driver coordinate convention:
+
+```bash
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py --samples 5
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
+  --target-angle-deg 90
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
+  --target-angle-deg 90 --apply --samples 10
+```
+
+The write tool backs up both the received device packet and the transmitted
+configuration packet under `~/.local/state/agribot/c16`. After applying it,
+restart the C16 and verify that the target remains `90.00 deg`, PPS is valid,
+and the angle error converges near zero. A full-cloud ROS header marks a scan
+boundary; its difference from an image timestamp is not the exposure-to-front
+point error. Validate synchronization from the locked PPS phases and per-point
+lidar timing.
+
 This entry point accumulates FAST-LIO's registered 3D cloud into a filtered
 PCD map. The first rear-axle pose is the map origin. Chassis output and Nav2
 default to disabled during mapping so one external manual controller can own

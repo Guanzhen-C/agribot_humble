@@ -1,6 +1,7 @@
 [Unit]
 Description=Generate the Hikrobot Line0 trigger on RDK X5 pin 32
 After=local-fs.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
@@ -8,6 +9,8 @@ EnvironmentFile=/etc/default/agribot-camera-trigger
 ExecStart=/usr/local/sbin/agribot-camera-trigger-pwm start
 ExecStop=/usr/local/sbin/agribot-camera-trigger-pwm stop
 RemainAfterExit=yes
+Restart=on-failure
+RestartSec=1
 
 [Install]
 WantedBy=multi-user.target

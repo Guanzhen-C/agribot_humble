@@ -21,6 +21,9 @@ install -m 0644 \
 install -m 0755 \
   "${script_dir}/configure_camera_trigger_pwm.sh" \
   /usr/local/sbin/agribot-camera-trigger-pwm
+install -m 0755 \
+  "${script_dir}/camera_trigger_pps_lock" \
+  /usr/local/sbin/agribot-camera-trigger-pps-lock
 install -m 0644 \
   "${share_dir}/systemd/agribot-camera-trigger.service" \
   /etc/systemd/system/agribot-camera-trigger.service
