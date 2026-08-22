@@ -206,7 +206,9 @@ def test_lio_sam_adapter_uses_measured_mount_and_mapping_rear_mask():
     assert adapter["base_to_lidar_rpy"] == pytest.approx(
         mounts["lidar"]["rpy"]
     )
-    assert c16["use_first_point_time"] is False
+    assert c16["use_first_point_time"] is True
+    # This profile remains for bags captured before the live C16 driver
+    # switched from scan-end to scan-start headers.
     assert adapter["input_stamp_is_scan_end"] is True
     assert adapter["rear_exclusion_enabled"] is True
     for suffix in ("min_x", "max_x", "half_width"):

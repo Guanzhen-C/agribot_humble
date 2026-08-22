@@ -11,9 +11,10 @@ lslidar_driver_node:
     pcl_type: false
     frame_id: lidar_link
     pointcloud_topic: /lidar/points
-    # C16使用RDK经gPTP发布的UTC硬件时间。
+    # C16使用RDK经gPTP发布的UTC硬件时间。FAST-LIO2/FAST-LIVO2把
+    # header.stamp作为扫描起点，再叠加每点time字段，因此必须发布首点时间。
     use_time_service: true
-    use_first_point_time: false
+    use_first_point_time: true
     use_absolute_time: false
     min_range: 0.3
     max_range: 100.0

@@ -589,14 +589,16 @@ The N300Pro and Hikrobot drivers map their device counters to the RDK ROS
 clock with the shared `agribot_time_sync` affine clock mapper. RTK position
 and heading use GNSS measurement time when it agrees with the RDK clock. The
 C16 receives the RDK UTC clock over gPTP and publishes its hardware timestamp
-while retaining per-point relative time; it no longer needs an RMC serial
-input. `sensors.launch.py` starts
+as the scan-start `header.stamp` while retaining each point's positive relative
+time; this is the timing contract required by FAST-LIO2 and FAST-LIVO2. It no
+longer needs an RMC serial input. `sensors.launch.py` starts
 `sensor_time_sync_monitor.py`, which reports per-topic rates, timestamp age,
 monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
 `/diagnostics`. These checks validate a common software time axis; camera
 timestamps include the measured PPS-locked trigger-to-device-clock correction.
-Use a motion-based calibration only to refine the remaining exposure-center
-`img_time_offset` for FAST-LIVO2.
+The obsolete `-38 ms` image offset from the old scan-end cloud convention is
+not used. Use a motion-based calibration only to refine any remaining
+exposure-center `img_time_offset` for FAST-LIVO2.
 
 Configure the dedicated C16 Ethernet route once using NetworkManager, or run:
 

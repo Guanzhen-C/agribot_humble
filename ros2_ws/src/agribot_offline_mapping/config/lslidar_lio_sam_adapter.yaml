@@ -3,8 +3,9 @@ lslidar_lio_sam_adapter:
     input_topic: /lidar/points
     output_topic: /lio_sam/points
     output_frame: lidar_link
-    # The CX driver publishes 0..scan_duration point times while the cloud
-    # stamp marks the sweep end because use_first_point_time is false.
+    # Legacy bag compatibility: recordings made before 2026-08-22 contain
+    # 0..scan_duration point times while the cloud stamp marks the sweep end.
+    # Live/future scan-start clouds do not need this adapter normalization.
     input_stamp_is_scan_end: true
     maximum_scan_duration: 0.20
     maximum_ring: 15

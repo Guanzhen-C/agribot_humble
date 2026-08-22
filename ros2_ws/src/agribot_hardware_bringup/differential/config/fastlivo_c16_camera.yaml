@@ -40,9 +40,10 @@
     time_offset:
       imu_time_offset: 0.0
       dynamic_imu_sync_en: false
-      # Provisional only. FAST-LIVO2 computes corrected_time = image_stamp -
-      # img_time_offset.
-      img_time_offset: -0.038
+      # Provisional extrinsics remain vehicle-specific, but both real vehicles
+      # use the scan-start C16 stamp and PPS-locked camera trigger. FAST-LIVO2
+      # computes corrected_time = image_stamp - img_time_offset.
+      img_time_offset: 0.0
       exposure_time_init: 0.0
 
     preprocess:

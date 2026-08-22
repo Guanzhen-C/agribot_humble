@@ -19,7 +19,11 @@ def _assignments(path: Path) -> dict[str, str]:
 
 def test_c16_uses_lidar_hardware_timestamp():
     config = yaml.safe_load((PACKAGE / "config/c16.yaml").read_text())
-    assert config["lslidar_driver_node"]["ros__parameters"]["use_time_service"]
+    parameters = config["lslidar_driver_node"]["ros__parameters"]
+    assert parameters["use_time_service"]
+    # FAST-LIO2/FAST-LIVO2 add every point's positive relative time to the
+    # cloud header, so the header must be the scan start rather than its end.
+    assert parameters["use_first_point_time"] is True
 
 
 def test_gptp_profile_is_c16_compatible_and_uses_utc_phc():

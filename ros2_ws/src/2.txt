@@ -908,7 +908,8 @@ ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
 ros2 run agribot_hardware_bringup c16_pps_phase_tool.py --samples 10
 
 # 当前海康相机配置已根据三次PPS锁相冷启动结果补偿-15.8ms设备时间映射固定偏置
-# 该值把图像ROS时间戳对齐到Line0触发时刻；FAST-LIVO2的曝光中心残差以后再用运动数据精修
+# 该值把图像ROS时间戳对齐到Line0触发时刻；C16的header.stamp是扫描起点，每点time是正偏移
+# FAST-LIVO2中已经删除旧扫描结束头时间对应的-38ms补偿，曝光中心残差以后再用运动数据精修
 
 # 每次实验前检查C16 gPTP、相机PWM参数、硬触发模式和实际图像频率
 source /opt/ros/humble/setup.bash

@@ -26,8 +26,10 @@ ros2 topic hz /camera/rgb/image_raw
 驱动默认使用相机的64位设备计数器。当前 `MV-CU013-A0UC` 已实测为
 `100 MHz`，驱动将其在线映射到MVS SDK记录的RDK接收时间；`/diagnostics`
 中的 `hikrobot_mvs/time_sync` 会报告预热、时钟漂移、接收抖动和复位次数。
-`timestamp_offset_sec` 保持为零，曝光相对雷达的固定偏移统一由后续
-FAST-LIVO2 `img_time_offset` 标定，避免两处重复补偿。
+当前 `timestamp_offset_sec=-0.0158` 来自三次PPS锁相冷启动测量，只用于
+消除设备计数器映射到Line0触发时刻的固定偏置。C16点云头已统一为扫描
+起点，FAST-LIVO2 `img_time_offset` 保持为零；以后如做运动标定，只在
+`img_time_offset` 中补偿曝光中心残差，避免两处重复补偿。
 
 ## 镜头安装后的收尾顺序
 
