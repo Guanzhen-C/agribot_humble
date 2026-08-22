@@ -160,6 +160,39 @@ private:
     }
   }
 
+  std::string configure_optional_enum(
+    const char * key, const std::string & requested, const std::string & operation)
+  {
+    const int set_result = MV_CC_SetEnumValueByString(handle_, key, requested.c_str());
+
+    MVCC_ENUMVALUE enum_value{};
+    const int get_result = MV_CC_GetEnumValue(handle_, key, &enum_value);
+    if (get_result == MV_OK) {
+      MVCC_ENUMENTRY enum_entry{};
+      enum_entry.nValue = enum_value.nCurValue;
+      if (MV_CC_GetEnumEntrySymbolic(handle_, key, &enum_entry) == MV_OK) {
+        const std::string actual(enum_entry.chSymbolic);
+        if (actual == requested) {
+          RCLCPP_INFO(get_logger(), "%s=%s", operation.c_str(), actual.c_str());
+        } else {
+          RCLCPP_WARN(
+            get_logger(), "%s请求%s，设备实际为%s", operation.c_str(), requested.c_str(),
+            actual.c_str());
+        }
+        return actual;
+      }
+    }
+
+    if (set_result != MV_OK) {
+      RCLCPP_WARN(
+        get_logger(), "%s不可写且无法读取，沿用设备固定值: %s", operation.c_str(),
+        error_code(set_result).c_str());
+      return "device_default";
+    }
+    RCLCPP_INFO(get_logger(), "%s已请求为%s", operation.c_str(), requested.c_str());
+    return requested;
+  }
+
   void open_camera()
   {
     require_ok(MV_CC_Initialize(), "初始化MVS SDK");
@@ -227,16 +260,14 @@ private:
     }
 
     if (trigger_enable_) {
-      require_ok(
-        MV_CC_SetEnumValueByString(handle_, "TriggerSelector", trigger_selector_.c_str()),
-        "设置触发选择器");
+      effective_trigger_selector_ = configure_optional_enum(
+        "TriggerSelector", trigger_selector_, "触发选择器");
       require_ok(MV_CC_SetEnumValueByString(handle_, "TriggerMode", "On"), "开启硬触发");
       require_ok(
         MV_CC_SetEnumValueByString(handle_, "TriggerSource", trigger_source_.c_str()),
         "设置触发源");
-      require_ok(
-        MV_CC_SetEnumValueByString(handle_, "TriggerActivation", trigger_activation_.c_str()),
-        "设置触发沿");
+      effective_trigger_activation_ = configure_optional_enum(
+        "TriggerActivation", trigger_activation_, "触发沿");
     } else {
       require_ok(MV_CC_SetEnumValueByString(handle_, "TriggerMode", "Off"), "关闭触发模式");
       warn_optional(
@@ -385,9 +416,11 @@ private:
     status.values.push_back(diagnostic_value("source", timestamp_source_));
     status.values.push_back(
       diagnostic_value("capture_mode", trigger_enable_ ? "hardware_trigger" : "free_run"));
-    status.values.push_back(diagnostic_value("trigger_selector", trigger_selector_));
+    status.values.push_back(
+      diagnostic_value("trigger_selector", effective_trigger_selector_));
     status.values.push_back(diagnostic_value("trigger_source", trigger_source_));
-    status.values.push_back(diagnostic_value("trigger_activation", trigger_activation_));
+    status.values.push_back(
+      diagnostic_value("trigger_activation", effective_trigger_activation_));
     status.values.push_back(
       diagnostic_value(
         "device_tick_hz", std::to_string(device_timestamp_frequency_hz_)));
@@ -453,8 +486,10 @@ private:
   std::string serial_number_;
   std::string frame_id_;
   std::string trigger_selector_;
+  std::string effective_trigger_selector_{"not_applicable"};
   std::string trigger_source_;
   std::string trigger_activation_;
+  std::string effective_trigger_activation_{"not_applicable"};
   std::string exposure_auto_;
   std::string gain_auto_;
   std::string pixel_format_;
