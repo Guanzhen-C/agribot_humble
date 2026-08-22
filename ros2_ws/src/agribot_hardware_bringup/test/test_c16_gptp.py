@@ -48,6 +48,7 @@ def test_gptp_check_rejects_invalid_system_phc_and_cloud_time():
     assert "minimum_valid_epoch=1704067200" in script
     assert "maximum_phc_offset_sec=0.1" in script
     assert "maximum_cloud_offset_sec=2.0" in script
+    assert "-v system=" not in script
 
 
 def test_gptp_service_uses_the_project_profile():

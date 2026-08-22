@@ -24,8 +24,8 @@ echo "${phc_output}"
 phc_epoch="$(sed -n 's/.*clock time is \([0-9.]*\).*/\1/p' <<<"${phc_output}")"
 [[ -n "${phc_epoch}" ]] || die "无法解析${interface}的PHC时间"
 system_now="$(date +%s.%N)"
-phc_offset="$(awk -v system="${system_now}" -v phc="${phc_epoch}" \
-  'BEGIN { d = system - phc; if (d < 0) d = -d; printf "%.9f", d }')"
+phc_offset="$(awk -v sys="${system_now}" -v phc="${phc_epoch}" \
+  'BEGIN { d = sys - phc; if (d < 0) d = -d; printf "%.9f", d }')"
 echo "System-PHC absolute offset: ${phc_offset} s"
 awk -v value="${phc_offset}" -v limit="${maximum_phc_offset_sec}" \
   'BEGIN { exit !(value <= limit) }' || \
@@ -42,8 +42,8 @@ echo "${cloud_header}"
 cloud_epoch="$(awk '/sec:/ { print $2; exit }' <<<"${cloud_header}")"
 [[ "${cloud_epoch}" =~ ^[0-9]+$ ]] || die "无法解析C16点云时间戳"
 cloud_now="$(date +%s.%N)"
-cloud_offset="$(awk -v system="${cloud_now}" -v cloud="${cloud_epoch}" \
-  'BEGIN { d = system - cloud; if (d < 0) d = -d; printf "%.6f", d }')"
+cloud_offset="$(awk -v sys="${cloud_now}" -v cloud="${cloud_epoch}" \
+  'BEGIN { d = sys - cloud; if (d < 0) d = -d; printf "%.6f", d }')"
 echo "System-cloud absolute offset: ${cloud_offset} s"
 awk -v value="${cloud_offset}" -v limit="${maximum_cloud_offset_sec}" \
   'BEGIN { exit !(value <= limit) }' || \
