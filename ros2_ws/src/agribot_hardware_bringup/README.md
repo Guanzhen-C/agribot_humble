@@ -594,7 +594,9 @@ input. `sensors.launch.py` starts
 `sensor_time_sync_monitor.py`, which reports per-topic rates, timestamp age,
 monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
 `/diagnostics`. These checks validate a common software time axis; camera
-exposure latency still requires motion-based `img_time_offset` calibration.
+timestamps include the measured PPS-locked trigger-to-device-clock correction.
+Use a motion-based calibration only to refine the remaining exposure-center
+`img_time_offset` for FAST-LIVO2.
 
 Configure the dedicated C16 Ethernet route once using NetworkManager, or run:
 
