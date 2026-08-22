@@ -54,3 +54,9 @@ def test_gptp_service_uses_the_project_profile():
     service = (PACKAGE / "systemd/agribot-c16-gptp.service").read_text()
     assert "ptp4l" in service
     assert "/etc/agribot/c16_gptp.cfg" in service
+
+
+def test_gptp_installer_restarts_existing_services():
+    script = (PACKAGE / "scripts/install_c16_gptp.sh").read_text()
+    assert "systemctl restart agribot-c16-phc.service" in script
+    assert "systemctl restart agribot-c16-gptp.service" in script

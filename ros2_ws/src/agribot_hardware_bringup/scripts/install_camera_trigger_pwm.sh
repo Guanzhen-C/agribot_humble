@@ -26,5 +26,6 @@ install -m 0644 \
   /etc/systemd/system/agribot-camera-trigger.service
 
 systemctl daemon-reload
-systemctl enable --now agribot-camera-trigger.service
+systemctl enable agribot-camera-trigger.service
+systemctl restart agribot-camera-trigger.service
 systemctl --no-pager --full status agribot-camera-trigger.service

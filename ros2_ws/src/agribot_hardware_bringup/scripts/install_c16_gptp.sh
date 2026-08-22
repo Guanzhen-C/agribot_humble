@@ -51,8 +51,9 @@ printf 'PTP_INTERFACE=%s\n' "${interface}" \
   > /etc/default/agribot-c16-gptp
 
 systemctl daemon-reload
-systemctl enable --now agribot-c16-phc.service
-systemctl enable --now agribot-c16-gptp.service
+systemctl enable agribot-c16-phc.service agribot-c16-gptp.service
+systemctl restart agribot-c16-phc.service
+systemctl restart agribot-c16-gptp.service
 
 systemctl --no-pager --full status \
   agribot-c16-phc.service agribot-c16-gptp.service

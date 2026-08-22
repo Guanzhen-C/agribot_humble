@@ -117,3 +117,8 @@ def test_camera_trigger_service_has_symmetric_cleanup():
     assert "ExecStart=/usr/local/sbin/agribot-camera-trigger-pwm start" in service
     assert "ExecStop=/usr/local/sbin/agribot-camera-trigger-pwm stop" in service
     assert "RemainAfterExit=yes" in service
+
+    installer = (
+        PACKAGE_ROOT / "scripts" / "install_camera_trigger_pwm.sh"
+    ).read_text()
+    assert "systemctl restart agribot-camera-trigger.service" in installer
