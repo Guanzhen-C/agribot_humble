@@ -40,19 +40,28 @@ cloud_header="$(timeout 8 ros2 topic echo /lidar/points --once --field header)" 
   die "8秒内没有收到C16点云"
 echo "${cloud_header}"
 cloud_epoch="$(awk '/sec:/ { print $2; exit }' <<<"${cloud_header}")"
+cloud_nanosec="$(awk '/nanosec:/ { print $2; exit }' <<<"${cloud_header}")"
 [[ "${cloud_epoch}" =~ ^[0-9]+$ ]] || die "无法解析C16点云时间戳"
+[[ "${cloud_nanosec}" =~ ^[0-9]+$ ]] || die "无法解析C16点云纳秒时间戳"
 cloud_now="$(date +%s.%N)"
-cloud_offset="$(awk -v sys="${cloud_now}" -v cloud="${cloud_epoch}" \
-  'BEGIN { d = sys - cloud; if (d < 0) d = -d; printf "%.6f", d }')"
+cloud_offset="$(awk \
+  -v sys="${cloud_now}" -v sec="${cloud_epoch}" -v nsec="${cloud_nanosec}" \
+  'BEGIN { cloud = sec + nsec / 1e9; d = sys - cloud; if (d < 0) d = -d; printf "%.6f", d }')"
 echo "System-cloud absolute offset: ${cloud_offset} s"
 awk -v value="${cloud_offset}" -v limit="${maximum_cloud_offset_sec}" \
   'BEGIN { exit !(value <= limit) }' || \
   die "C16点云时间戳与RDK系统时间偏差超过${maximum_cloud_offset_sec}秒"
 
-echo "C16 cloud delay (5 second sample):"
-delay_output="$(timeout 5 ros2 topic delay /lidar/points --window 30 2>&1)" || {
-  result=$?
-  [[ ${result} -eq 124 ]] || exit "${result}"
-}
+echo "C16 cloud delay (up to 12 second sample):"
+delay_output=""
+for attempt in 1 2; do
+  current_output="$(timeout 12 ros2 topic delay /lidar/points --window 30 2>&1)" || {
+    result=$?
+    [[ ${result} -eq 124 ]] || exit "${result}"
+  }
+  delay_output+="${current_output}"$'\n'
+  grep -q "average delay:" <<<"${current_output}" && break
+  sleep 1
+done
 echo "${delay_output}"
 grep -q "average delay:" <<<"${delay_output}" || die "没有得到C16点云延迟统计"
