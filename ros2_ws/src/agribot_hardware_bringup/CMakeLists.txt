@@ -301,8 +301,10 @@ install(PROGRAMS
   scripts/c16_pps_phase_tool.py
   scripts/check_camera_trigger_pwm.sh
   scripts/check_c16_gptp.sh
+  scripts/check_rtk_time_sync.sh
   scripts/install_camera_trigger_pwm.sh
   scripts/install_c16_gptp.sh
+  scripts/install_rtk_time_sync.sh
   scripts/initialization_coordinator.py
   scripts/outdoor_stage_check.py
   scripts/pcd_to_nav2_map.py
@@ -311,6 +313,7 @@ install(PROGRAMS
   scripts/publish_geodetic_pose.py
   scripts/visual_place_recognizer.py
   scripts/rtk_nmea_node.py
+  scripts/rtk_time_feeder.py
   scripts/sensor_time_sync_monitor.py
   scripts/start_wheeltec_car_gui.sh
   scripts/wheeltec_car_gui.py
@@ -472,6 +475,7 @@ if(BUILD_TESTING)
     test/test_camera_trigger_pwm.py
   )
   ament_add_pytest_test(test_rtk_nmea test/test_rtk_nmea.py)
+  ament_add_pytest_test(test_rtk_time_feeder test/test_rtk_time_feeder.py)
   ament_add_pytest_test(
     test_sensor_time_sync_monitor
     test/test_sensor_time_sync_monitor.py

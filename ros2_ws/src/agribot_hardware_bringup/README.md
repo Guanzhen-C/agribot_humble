@@ -328,7 +328,22 @@ manual controller while collecting data.
 The RDK X5 serves its UTC system clock to the C16 over the dedicated `eth0`
 link. The system clock is disciplined by RTK RMC/ZDA plus GPIO PPS when those
 signals are available; otherwise it continues from the RTC and chrony
-holdover. Install and start the two host services once after building:
+holdover. RTK evaluation-board 6-pin connector pin 3 TX is connected to RDK
+X5 physical pin 10 UART1 RX, while pin 4 PPS remains connected to physical pin
+36. The dedicated service reads `/dev/ttyS1`; the ROS RTK USB port remains
+independent and is used only for positioning.
+
+Install the RTK UART/PPS clock source once after building:
+
+```bash
+sudo apt install chrony python3-serial
+source /opt/ros/humble/setup.bash
+source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+ros2 run agribot_hardware_bringup install_rtk_time_sync.sh
+ros2 run agribot_hardware_bringup check_rtk_time_sync.sh
+```
+
+Then install and start the two C16 host services:
 
 ```bash
 sudo apt install chrony ethtool linuxptp

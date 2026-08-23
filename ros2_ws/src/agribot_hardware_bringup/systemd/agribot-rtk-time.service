@@ -1,0 +1,20 @@
+[Unit]
+Description=Feed RTK RMC/ZDA absolute time to chrony over the dedicated TTL UART
+Documentation=man:chrony.conf(5)
+Wants=chrony.service dev-ttyS1.device
+After=chrony.service dev-ttyS1.device
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/agribot-rtk-time
+ExecStart=/usr/local/sbin/agribot-rtk-time-feeder --device ${RTK_TIME_SERIAL_DEVICE} --baud ${RTK_TIME_BAUD_RATE} --chrony-socket ${RTK_TIME_CHRONY_SOCKET} --minimum-year ${RTK_TIME_MINIMUM_YEAR} --reconnect-interval ${RTK_TIME_RECONNECT_INTERVAL_SEC}
+Restart=always
+RestartSec=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

@@ -34,6 +34,10 @@ rtk_nmea:
     gnss_time_offset_sec: 0.0
     gnss_time_max_error_sec: 5.0
     heading_pair_tolerance_sec: 0.25
+    # Absolute time is provided independently by the 6-pin TTL system service.
+    enable_chrony_time_feed: false
+    chrony_socket_path: /run/chrony/rtk.sock
+    chrony_min_year: 2024
     enable_ntrip: false
     ntrip_host: ""
     ntrip_port: 8002
