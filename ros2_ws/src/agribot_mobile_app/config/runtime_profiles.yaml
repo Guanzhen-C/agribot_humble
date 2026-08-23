@@ -1,6 +1,42 @@
+vehicles:
+  ackermann:
+    label: 阿克曼车
+    description: Smac Hybrid-A*、MPPI Ackermann和阿克曼CAN底盘
+    footprint:
+      - [0.754818, 0.485974]
+      - [0.754818, -0.485974]
+      - [-0.227500, -0.485974]
+      - [-0.227500, 0.485974]
+    collection:
+      launch_package: agribot_hardware_bringup
+      launch_file: ackermann_sensor_data_collection.launch.py
+      output_argument: bag_output
+      fixed_args:
+        start_camera: true
+        enable_ntrip: false
+        record_bag: true
+
+  differential:
+    label: 四轮差速车
+    description: Smac State Lattice、MPPI DiffDrive和伽马CAN底盘
+    footprint:
+      - [0.49152525, 0.485974]
+      - [0.49152525, -0.485974]
+      - [-0.49079275, -0.485974]
+      - [-0.49079275, 0.485974]
+    collection:
+      launch_package: agribot_hardware_bringup
+      launch_file: differential_sensor_data_collection.launch.py
+      output_argument: bag_output
+      fixed_args:
+        start_camera: true
+        enable_ntrip: false
+        record_bag: true
+
 profiles:
   ackermann_indoor:
-    label: 阿克曼室内地图
+    label: 室内地图
+    vehicle_type: ackermann
     description: 视觉粗定位失败后转手动、NDT/GICP、FAST-LIVO2与Nav2
     launch_package: agribot_hardware_bringup
     launch_file: ackermann_mppi_fastlivo_rtk_mapped.launch.py
@@ -19,7 +55,8 @@ profiles:
       zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 
   ackermann_outdoor_0811:
-    label: 阿克曼室外0811
+    label: 室外0811
+    vehicle_type: ackermann
     description: RTK、视觉、手动三级初始化及FAST-LIVO2固定解融合
     launch_package: agribot_hardware_bringup
     launch_file: ackermann_outdoor_0811_experiment.launch.py
@@ -35,3 +72,43 @@ profiles:
       rviz: false
     motion_args:
       motion_authorization: ENABLE_OUTDOOR_MOTION
+
+  differential_indoor:
+    label: 室内地图
+    vehicle_type: differential
+    description: 视觉粗定位失败后转手动、NDT/GICP、FAST-LIVO2与差速Nav2
+    launch_package: agribot_hardware_bringup
+    launch_file: differential_mppi_fastlivo_rtk_mapped.launch.py
+    map_argument: map_base
+    required_suffixes: [.yaml, .pcd, _visual_index.npz]
+    requires_georeference: false
+    fixed_args:
+      initialization_source: auto
+      enable_fpfh: false
+      allow_missing_georeference: true
+      start_rtk: true
+      rviz: false
+      chassis_driver: differential_can
+      can_transport: zqwl_cdc
+      zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+    motion_args:
+      motion_authorization: ENABLE_DIFFERENTIAL_MOTION
+
+  differential_outdoor:
+    label: 室外地图
+    vehicle_type: differential
+    description: RTK粗定位、NDT/GICP、FAST-LIVO2固定解融合与差速Nav2
+    launch_package: agribot_hardware_bringup
+    launch_file: differential_outdoor_experiment.launch.py
+    map_argument: map_base
+    required_suffixes: [.yaml, .pgm, .pcd, _visual_index.npz]
+    requires_georeference: true
+    fixed_args:
+      initialization_source: rtk
+      enable_fpfh: false
+      allow_missing_georeference: false
+      rviz: false
+      can_transport: zqwl_cdc
+      zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+    motion_args:
+      motion_authorization: ENABLE_DIFFERENTIAL_MOTION

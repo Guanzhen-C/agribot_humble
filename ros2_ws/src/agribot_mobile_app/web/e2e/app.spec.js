@@ -38,6 +38,8 @@ const mockState = {
   },
   footprint: null,
   vehicle: {
+    id: "ackermann",
+    label: "阿克曼车",
     footprint: [[0.754818, 0.485974], [0.754818, -0.485974], [-0.2275, -0.485974], [-0.2275, 0.485974]],
   },
   localization: {
@@ -72,7 +74,7 @@ const mockState = {
     graph_sha256: "e".repeat(64),
     error: "",
   },
-  active_runtime: { profile_id: "ackermann_outdoor_0811", map_id: "map_lio_sam_0811", motion: true },
+  active_runtime: { profile_id: "ackermann_outdoor_0811", vehicle_type: "ackermann", map_id: "map_lio_sam_0811", motion: true },
   active_collection: null,
   active_processing: null,
   topics: {
@@ -82,6 +84,25 @@ const mockState = {
     "/rtk/fix": { available: true },
     "/fastlivo_rtk/odometry": { available: true },
     "/scout_status": { available: true },
+  },
+  time_sync: {
+    summary: { level: 0, message: "已接收传感器的软同步检查通过", values: {} },
+    sensors: {
+      lidar: { level: 0, message: "时间戳正常", values: { p95_abs_receipt_minus_stamp_ms: "7.760" } },
+      imu: { level: 0, message: "时间戳正常", values: {} },
+      camera: { level: 0, message: "时间戳正常", values: {} },
+      rtk: { level: 0, message: "时间戳正常", values: {} },
+    },
+    clocks: {
+      imu: { level: 0, message: "device clock mapped", values: { source: "device_affine", estimated_delay_ms: "9.0" } },
+      camera: { level: 0, message: "device clock mapped", values: { capture_mode: "hardware_trigger", source: "device" } },
+      rtk: { level: 0, message: "GNSS measurement time", values: { source: "gnss_measurement" } },
+    },
+    pairs: {
+      lidar_imu: { level: 0, message: "正常", values: { p95_nearest_delta_ms: "2.100" } },
+      lidar_camera: { level: 0, message: "正常", values: { p95_nearest_delta_ms: "4.400" } },
+      lidar_rtk: { level: 0, message: "正常", values: { p95_nearest_delta_ms: "8.800" } },
+    },
   },
   grids: { map: { revision: 3, width: 150, height: 90, resolution: 0.1 } },
   processes: {
@@ -139,7 +160,19 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
       return;
     }
     if (url.pathname === "/api/v1/profiles") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ profiles: [{ id: "ackermann_indoor", label: "阿克曼室内地图" }, { id: "ackermann_outdoor_0811", label: "阿克曼室外0811" }], processing_enabled: true }) });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({
+        vehicles: [
+          { id: "ackermann", label: "阿克曼车", footprint: mockState.vehicle.footprint },
+          { id: "differential", label: "四轮差速车", footprint: [[0.49, 0.48], [0.49, -0.48], [-0.49, -0.48], [-0.49, 0.48]] },
+        ],
+        profiles: [
+          { id: "ackermann_indoor", label: "室内地图", vehicle_type: "ackermann" },
+          { id: "ackermann_outdoor_0811", label: "室外0811", vehicle_type: "ackermann" },
+          { id: "differential_indoor", label: "室内地图", vehicle_type: "differential" },
+          { id: "differential_outdoor", label: "室外地图", vehicle_type: "differential" },
+        ],
+        processing_enabled: true,
+      }) });
       return;
     }
     if (url.pathname === "/api/v1/grid" || url.pathname.endsWith("/grid")) {
@@ -204,6 +237,9 @@ test("mobile layout keeps map and controls usable", async ({ page }) => {
   await expect(page.locator("canvas")).toBeVisible();
   await page.getByRole("button", { name: "状态" }).click();
   await expect(page.getByRole("heading", { name: "数据通道" })).toBeVisible();
+  await expect(page.getByText("单目相机", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "传感器授时与同步" })).toBeVisible();
+  await expect(page.getByText("硬件触发", { exact: true })).toBeVisible();
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
   expect(bodyWidth).toBeLessThanOrEqual(390);
   await page.screenshot({ path: "/tmp/agribot-mobile-phone.png", fullPage: true });
@@ -221,11 +257,12 @@ test("collection always records the camera and exposes an explicit save action",
   await expect(page.getByText("控制口令")).toHaveCount(0);
   await expect(page.getByRole("checkbox", { name: "NTRIP" })).toHaveCount(0);
   await expect(page.getByRole("checkbox", { name: "右目相机" })).toHaveCount(0);
+  await expect(page.getByText("单目相机", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "开始采集" }).click();
   await expect.poll(() => posts.length).toBe(1);
   expect(posts[0]).toEqual({
     path: "/api/v1/collection/start",
-    body: { map_name: "map_lio_sam_" },
+    body: { map_name: "map_lio_sam_", vehicle_type: "ackermann" },
   });
 
   const recordingState = {
@@ -234,6 +271,7 @@ test("collection always records the camera and exposes an explicit save action",
       bag_id: "map_lio_sam_test_20260816_120000",
       bag_path: "/mnt/agribot_data/bags/map_lio_sam_test_20260816_120000",
       map_name: "map_lio_sam_test",
+      vehicle_type: "ackermann",
     },
     processes: {
       ...mockState.processes,
@@ -250,6 +288,34 @@ test("collection always records the camera and exposes an explicit save action",
   await recordingPage.goto("/");
   await recordingPage.getByRole("button", { name: "采集" }).click();
   await expect(recordingPage.getByRole("button", { name: "停止采集并保存" })).toBeVisible();
+});
+
+test("vehicle selector dispatches the same controls to the differential profile", async ({ page }) => {
+  const posts = [];
+  const idleState = {
+    ...mockState,
+    active_runtime: null,
+    processes: {
+      ...mockState.processes,
+      runtime: { state: "idle", running: false, tail: [] },
+    },
+  };
+  await mockApi(page, { state: idleState, onPost: (request) => posts.push(request) });
+  await page.goto("/");
+  await page.getByRole("button", { name: "四轮差速车" }).click();
+  await page.locator(".tabbar").getByRole("button", { name: "地图" }).click();
+  await expect(page.getByLabel("车辆流程")).toHaveValue("differential_indoor");
+  await page.getByRole("button", { name: "启动观察阶段" }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toEqual({
+    path: "/api/v1/runtime/start",
+    body: {
+      profile_id: "differential_indoor",
+      vehicle_type: "differential",
+      map_id: "map_lio_sam_0811",
+      motion: false,
+    },
+  });
 });
 
 
@@ -356,5 +422,6 @@ test("installed web interface opens after the network is disconnected", async ({
   await context.setOffline(true);
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "四轮差速车" })).toBeVisible();
   await context.setOffline(false);
 });

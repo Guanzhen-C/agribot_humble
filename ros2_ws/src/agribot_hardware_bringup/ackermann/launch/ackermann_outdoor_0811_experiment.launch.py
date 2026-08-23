@@ -180,7 +180,7 @@ def _validate_experiment(context):
             LaunchConfiguration("right_camera_device").perform(context)
         )
         if not camera.exists():
-            raise RuntimeError(f"FAST-LIVO2右目相机设备不存在: {camera}")
+            raise RuntimeError(f"FAST-LIVO2单目相机设备不存在: {camera}")
     elif camera_driver == "hikrobot_mvs":
         camera_serial = LaunchConfiguration("hikrobot_camera_serial").perform(
             context

@@ -42,6 +42,9 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     gateway = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
         encoding="utf-8"
     )
+    profiles = (PACKAGE / "config" / "runtime_profiles.yaml").read_text(
+        encoding="utf-8"
+    )
     assert "/api/v1/navigation/route" in source
     assert "/api/v1/semantic/plan" in api
     assert "/api/v1/semantic/route" in source
@@ -56,8 +59,10 @@ def test_frontend_uses_guarded_api_not_raw_velocity():
     assert "数据盘可用" not in source
     assert "start_camera" not in source
     assert "enable_ntrip" not in source
-    assert '"start_camera:=true"' in gateway
-    assert '"enable_ntrip:=false"' in gateway
+    assert "ackermann_sensor_data_collection.launch.py" in profiles
+    assert "differential_sensor_data_collection.launch.py" in profiles
+    assert "vehicle_type" in source
+    assert "单目相机" in source
     assert "manual_required" in source
     assert "/localization/initialization_stage" in gateway
     assert "RTK和视觉均失败后" in gateway
@@ -80,7 +85,7 @@ def test_map_view_uses_live_vehicle_and_navigation_outputs():
     assert "footprint_topic: /local_costmap/published_footprint" in config
 
 
-def test_gateway_checks_sensor_publishers_without_subscribing_to_frames():
+def test_gateway_checks_publishers_and_only_subscribes_to_compact_diagnostics():
     source = (PACKAGE / "agribot_mobile_app" / "gateway_node.py").read_text(
         encoding="utf-8"
     )
@@ -90,7 +95,8 @@ def test_gateway_checks_sensor_publishers_without_subscribing_to_frames():
     assert "get_publishers_info_by_topic" in source
     assert '"topics"' in source
     assert '"/agribot/mobile_sensor_rates"' not in source
-    assert "DiagnosticArray" not in source
+    assert "DiagnosticArray" in source
+    assert '"time_sync"' in source
     assert "PointCloud2" not in source
     assert "sensor_rate_monitor" not in launch
 

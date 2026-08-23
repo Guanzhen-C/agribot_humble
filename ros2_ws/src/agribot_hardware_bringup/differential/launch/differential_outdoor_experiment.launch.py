@@ -52,7 +52,7 @@ def _validate_outdoor_arguments(context):
     if camera_driver == "usb_cam":
         camera = Path(LaunchConfiguration("right_camera_device").perform(context))
         if not camera.exists():
-            raise RuntimeError(f"FAST-LIVO2右目相机设备不存在: {camera}")
+            raise RuntimeError(f"FAST-LIVO2单目相机设备不存在: {camera}")
     elif camera_driver == "hikrobot_mvs":
         serial_number = LaunchConfiguration("hikrobot_camera_serial").perform(
             context

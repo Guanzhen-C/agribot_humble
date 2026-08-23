@@ -5,6 +5,7 @@ import {
   Check,
   BrainCircuit,
   CircleStop,
+  Clock3,
   Crosshair,
   Database,
   LocateFixed,
@@ -18,7 +19,9 @@ import {
   Satellite,
   Send,
   Square,
+  Tractor,
   Trash2,
+  Truck,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -54,11 +57,35 @@ const NAVIGATION_KINDS = [
 const SENSOR_ROWS = [
   ["/lidar/points", "C16"],
   ["/imu/data", "IMU"],
-  ["/camera/rgb/image_raw", "右目相机"],
+  ["/camera/rgb/image_raw", "单目相机"],
   ["/rtk/fix", "RTK"],
   ["/fastlivo_rtk/odometry", "融合定位"],
   ["/scout_status", "底盘反馈"],
 ];
+
+const VEHICLE_ICONS = { ackermann: Tractor, differential: Truck };
+const DEFAULT_VEHICLES = [
+  { id: "ackermann", label: "阿克曼车" },
+  { id: "differential", label: "四轮差速车" },
+];
+const TIME_SYNC_ROWS = [
+  { group: "sensors", key: "lidar", label: "C16时间戳", values: ["p95_abs_receipt_minus_stamp_ms"] },
+  { group: "clocks", key: "imu", label: "IMU设备时钟", values: ["source", "estimated_delay_ms"] },
+  { group: "clocks", key: "camera", label: "单目相机触发", values: ["capture_mode", "source"] },
+  { group: "clocks", key: "rtk", label: "RTK测量时间", values: ["source", "measurement_to_receipt_ms"] },
+  { group: "pairs", key: "lidar_imu", label: "雷达-IMU", values: ["p95_nearest_delta_ms"] },
+  { group: "pairs", key: "lidar_camera", label: "雷达-相机", values: ["p95_nearest_delta_ms"] },
+  { group: "pairs", key: "lidar_rtk", label: "雷达-RTK", values: ["p95_nearest_delta_ms"] },
+];
+
+const TIME_VALUE_LABELS = {
+  device: "设备采样时间",
+  device_affine: "设备时钟映射",
+  gnss_measurement: "GNSS测量时间",
+  receipt: "接收时间",
+  hardware_trigger: "硬件触发",
+  free_run: "自由运行",
+};
 
 
 function classNames(...values) {
@@ -84,6 +111,44 @@ function CommandButton({ icon: Icon, children, tone = "primary", ...props }) {
 
 function Empty({ children }) {
   return <div className="empty-row">{children}</div>;
+}
+
+function VehicleSelector({ vehicles, vehicleType, setVehicleType, disabled }) {
+  return (
+    <div
+      className="segmented vehicle-selector"
+      style={{ gridTemplateColumns: `repeat(${Math.max(vehicles.length, 1)}, 1fr)` }}
+      aria-label="底盘类型"
+    >
+      {vehicles.map((vehicle) => {
+        const Icon = VEHICLE_ICONS[vehicle.id] || Tractor;
+        return (
+          <button
+            type="button"
+            key={vehicle.id}
+            className={vehicleType === vehicle.id ? "selected" : ""}
+            disabled={disabled}
+            onClick={() => setVehicleType(vehicle.id)}
+          >
+            <Icon size={16} />
+            <span>{vehicle.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function timingDetail(entry, keys) {
+  for (const key of keys) {
+    const raw = entry?.values?.[key];
+    if (raw == null || raw === "") continue;
+    if (key.endsWith("_ms") && Number.isFinite(Number(raw))) {
+      return `${Number(raw).toFixed(1)} ms`;
+    }
+    return TIME_VALUE_LABELS[raw] || raw;
+  }
+  return entry?.message || "未收到";
 }
 
 function ProcessTail({ process }) {
@@ -305,7 +370,7 @@ function NavigationPanel({
   );
 }
 
-function CollectionPanel({ state, refreshCatalogs, execute }) {
+function CollectionPanel({ state, refreshCatalogs, execute, vehicleType }) {
   const [mapName, setMapName] = useState("map_lio_sam_");
   const collection = state?.processes?.collection;
   const activeCollection = state?.active_collection;
@@ -337,7 +402,7 @@ function CollectionPanel({ state, refreshCatalogs, execute }) {
           </div>
         )}
         {!collection?.running ? (
-          <CommandButton icon={Play} onClick={() => execute("/api/v1/collection/start", { map_name: mapName })}>
+          <CommandButton icon={Play} onClick={() => execute("/api/v1/collection/start", { map_name: mapName, vehicle_type: vehicleType })}>
             开始采集
           </CommandButton>
         ) : (
@@ -351,10 +416,12 @@ function CollectionPanel({ state, refreshCatalogs, execute }) {
   );
 }
 
-function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute, onMotionRequest }) {
+function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute, onMotionRequest, vehicleType, vehicleLabel }) {
   const [profileId, setProfileId] = useState("");
   useEffect(() => {
-    if (!profileId && profiles.length) setProfileId(profiles[0].id);
+    if (!profiles.some((profile) => profile.id === profileId)) {
+      setProfileId(profiles[0]?.id || "");
+    }
   }, [profileId, profiles]);
   const runtime = state?.processes?.runtime;
 
@@ -395,10 +462,10 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
         </label>
         {!runtime?.running ? (
           <div className="button-stack">
-            <CommandButton icon={Play} disabled={!selectedMap || !profileId} onClick={() => execute("/api/v1/runtime/start", { profile_id: profileId, map_id: selectedMap, motion: false })}>
+            <CommandButton icon={Play} disabled={!selectedMap || !profileId} onClick={() => execute("/api/v1/runtime/start", { profile_id: profileId, map_id: selectedMap, vehicle_type: vehicleType, motion: false })}>
               启动观察阶段
             </CommandButton>
-            <CommandButton icon={Navigation} tone="warning" disabled={!selectedMap || !profileId} onClick={() => onMotionRequest({ profileId, mapId: selectedMap })}>
+            <CommandButton icon={Navigation} tone="warning" disabled={!selectedMap || !profileId} onClick={() => onMotionRequest({ profileId, mapId: selectedMap, vehicleType, vehicleLabel })}>
               启动真车阶段
             </CommandButton>
           </div>
@@ -420,6 +487,8 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
 
 function StatusPanel({ state }) {
   const localization = state?.localization || {};
+  const timeSync = state?.time_sync || {};
+  const timeSummary = timeSync.summary || {};
   const stageLabels = {
     wait_rtk: "等待RTK",
     rtk_refining: "RTK精配准",
@@ -453,6 +522,28 @@ function StatusPanel({ state }) {
         </div>
       </section>
       <section className="section-band">
+        <div className="section-heading">
+          <h2>传感器授时与同步</h2>
+          <Pill tone={timeSummary.level === 0 ? "green" : timeSummary.level === 3 ? "neutral" : "amber"}>
+            <Clock3 size={14} />
+            {timeSummary.level === 0 ? "正常" : timeSummary.level === 3 ? "无诊断" : "需检查"}
+          </Pill>
+        </div>
+        <div className="status-table">
+          {TIME_SYNC_ROWS.map((row) => {
+            const entry = timeSync?.[row.group]?.[row.key] || {};
+            return (
+              <div className="status-row" key={`${row.group}-${row.key}`}>
+                <StatusDot ok={entry.level === 0} warning={entry.level === 1 || entry.level === 2} />
+                <span>{row.label}</span>
+                <strong>{timingDetail(entry, row.values)}</strong>
+              </div>
+            );
+          })}
+        </div>
+        <div className="status-message">{timeSummary.message || "未收到授时诊断"}</div>
+      </section>
+      <section className="section-band">
         <div className="section-heading"><h2>定位与底盘</h2></div>
         <div className="status-table">
           <div className="status-row"><StatusDot ok={localization.initialization_stage === "ready"} warning={localization.initialization_stage != null} /><span>初始化阶段</span><strong>{stageLabels[localization.initialization_stage] || "未收到"}</strong></div>
@@ -475,6 +566,7 @@ function MotionDialog({ request, onClose, execute }) {
   const start = async () => {
     const result = await execute("/api/v1/runtime/start", {
       profile_id: request.profileId,
+      vehicle_type: request.vehicleType,
       map_id: request.mapId,
       motion: true,
       motion_confirmed: true,
@@ -486,7 +578,7 @@ function MotionDialog({ request, onClose, execute }) {
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="motion-title">
         <AlertTriangle size={26} />
         <h2 id="motion-title">启用真车运动</h2>
-        <div className="confirmation-values"><strong>{request.mapId}</strong><span>{request.profileId}</span></div>
+        <div className="confirmation-values"><strong>{request.vehicleLabel} · {request.mapId}</strong><span>{request.profileId}</span></div>
         <div className="modal-actions">
           <CommandButton icon={Navigation} tone="danger" onClick={start}>确认启动</CommandButton>
           <CommandButton icon={Square} tone="secondary" onClick={onClose}>取消</CommandButton>
@@ -504,6 +596,8 @@ export default function App() {
   const [navigationKind, setNavigationKind] = useState("manual");
   const [maps, setMaps] = useState([]);
   const [profiles, setProfiles] = useState([]);
+  const [vehicles, setVehicles] = useState(DEFAULT_VEHICLES);
+  const [vehicleType, setVehicleType] = useState(() => window.localStorage.getItem("agribot_vehicle_type") || "ackermann");
   const [selectedMap, setSelectedMap] = useState("");
   const [target, setTarget] = useState(null);
   const [route, setRoute] = useState([]);
@@ -519,6 +613,11 @@ export default function App() {
     ]);
     setMaps(mapDocument.maps || []);
     setProfiles(profileDocument.profiles || []);
+    const availableVehicles = profileDocument.vehicles?.length ? profileDocument.vehicles : DEFAULT_VEHICLES;
+    setVehicles(availableVehicles);
+    setVehicleType((current) => availableVehicles.some((vehicle) => vehicle.id === current)
+      ? current
+      : availableVehicles[0]?.id || "");
     setSelectedMap((current) => {
       const available = mapDocument.maps || [];
       return available.some((map) => map.id === current)
@@ -537,6 +636,15 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (vehicleType) window.localStorage.setItem("agribot_vehicle_type", vehicleType);
+  }, [vehicleType]);
+
+  useEffect(() => {
+    const activeVehicle = state?.active_runtime?.vehicle_type || state?.active_collection?.vehicle_type;
+    if (activeVehicle) setVehicleType(activeVehicle);
+  }, [state?.active_runtime?.vehicle_type, state?.active_collection?.vehicle_type]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -604,6 +712,13 @@ export default function App() {
     }
   };
 
+  const vehicleProfiles = useMemo(
+    () => profiles.filter((profile) => profile.vehicle_type === vehicleType),
+    [profiles, vehicleType],
+  );
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleType);
+  const vehicleLocked = state?.processes?.runtime?.running || state?.processes?.collection?.running;
+
   const tabPanel = useMemo(() => {
     if (activeTab === "navigate") {
       return (
@@ -625,13 +740,13 @@ export default function App() {
       );
     }
     if (activeTab === "collect") {
-      return <CollectionPanel state={state} refreshCatalogs={refreshCatalogs} execute={execute} />;
+      return <CollectionPanel state={state} refreshCatalogs={refreshCatalogs} execute={execute} vehicleType={vehicleType} />;
     }
     if (activeTab === "maps") {
-      return <MapsPanel maps={maps} profiles={profiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} />;
+      return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} />;
     }
     return <StatusPanel state={state} />;
-  }, [activeTab, interactionMode, maps, navigationKind, profiles, route, selectedMap, semanticInstruction, semanticPlanning, state, target]);
+  }, [activeTab, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
 
   const localizationReady = state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
@@ -675,6 +790,7 @@ export default function App() {
               </button>
             ))}
           </nav>
+          <VehicleSelector vehicles={vehicles} vehicleType={vehicleType} setVehicleType={setVehicleType} disabled={vehicleLocked} />
           {tabPanel}
         </aside>
       </main>

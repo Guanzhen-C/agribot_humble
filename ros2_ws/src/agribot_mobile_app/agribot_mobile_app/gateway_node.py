@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import numpy as np
 
+from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import (
     PolygonStamped,
     PoseStamped,
@@ -76,6 +77,36 @@ MONITORED_TOPICS = (
     "/fastlivo_rtk/odometry",
     "/scout_status",
 )
+TIME_SYNC_SENSORS = ("lidar", "imu", "camera", "rtk")
+TIME_SYNC_PAIRS = ("lidar_imu", "lidar_camera", "lidar_rtk")
+TIME_SYNC_CLOCKS = {
+    "hikrobot_mvs/time_sync": "camera",
+    "hipnuc_imu/time_sync": "imu",
+    "rtk_nmea/time_sync": "rtk",
+}
+
+
+def empty_diagnostic(message: str = "未收到授时诊断") -> dict:
+    return {
+        "level": 3,
+        "message": message,
+        "hardware_id": "",
+        "values": {},
+        "updated_at": None,
+    }
+
+
+def empty_time_sync_state(message: str = "未收到授时诊断") -> dict:
+    return {
+        "summary": empty_diagnostic(message),
+        "sensors": {
+            name: empty_diagnostic(message) for name in TIME_SYNC_SENSORS
+        },
+        "pairs": {name: empty_diagnostic(message) for name in TIME_SYNC_PAIRS},
+        "clocks": {
+            name: empty_diagnostic(message) for name in TIME_SYNC_CLOCKS.values()
+        },
+    }
 
 
 class ApiError(RuntimeError):
@@ -215,6 +246,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._json(
                     HTTPStatus.OK,
                     {
+                        "vehicles": self.gateway.runtime_profiles.public_vehicles(),
                         "profiles": self.gateway.runtime_profiles.public(),
                         "processing_enabled": self.gateway.processing_enabled,
                     },
@@ -398,27 +430,6 @@ class MobileGateway(Node):
                 "footprint_topic", "/local_costmap/published_footprint"
             ).value
         )
-        flat_footprint = list(
-            self.declare_parameter(
-                "vehicle_footprint",
-                [
-                    0.754818,
-                    0.485974,
-                    0.754818,
-                    -0.485974,
-                    -0.227500,
-                    -0.485974,
-                    -0.227500,
-                    0.485974,
-                ],
-            ).value
-        )
-        if len(flat_footprint) < 6 or len(flat_footprint) % 2:
-            raise ValueError("vehicle_footprint必须包含至少三个二维顶点")
-        self.vehicle_footprint = [
-            [float(flat_footprint[index]), float(flat_footprint[index + 1])]
-            for index in range(0, len(flat_footprint), 2)
-        ]
         self.grid_topics = {
             "map": str(self.declare_parameter("map_topic", "/map").value),
             "global_costmap": str(
@@ -441,6 +452,7 @@ class MobileGateway(Node):
         self.map_catalog = MapCatalog(self.map_root)
         self.bag_catalog = BagCatalog(self.bag_root)
         self.runtime_profiles = RuntimeProfiles(profile_path)
+        default_vehicle = self.runtime_profiles.public_vehicles()[0]
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
         self._task_transition_lock = threading.RLock()
@@ -460,7 +472,7 @@ class MobileGateway(Node):
             "pose": None,
             "paths": {"history": [], "global": [], "local": []},
             "footprint": None,
-            "vehicle": {"footprint": self.vehicle_footprint},
+            "vehicle": default_vehicle,
             "localization": {
                 "ready": None,
                 "lidar_ready": None,
@@ -483,6 +495,7 @@ class MobileGateway(Node):
             "topics": {
                 topic: {"available": False} for topic in MONITORED_TOPICS
             },
+            "time_sync": empty_time_sync_state(),
             "navigation": {
                 "kind": None,
                 "status": "idle",
@@ -573,6 +586,9 @@ class MobileGateway(Node):
         self.create_subscription(UInt8, "/rtk/fix_quality", self._value_callback("fix_quality"), normal)
         self.create_subscription(String, "/rtk/heading_solution", self._value_callback("heading_solution"), normal)
         self.create_subscription(ScoutStatus, "/scout_status", self._chassis_callback, normal)
+        self.create_subscription(
+            DiagnosticArray, "/diagnostics", self._diagnostics_callback, normal
+        )
         self.create_subscription(Twist, "/nav2/cmd_vel", self._command_callback, normal)
         self.create_subscription(
             GoalStatusArray,
@@ -625,11 +641,72 @@ class MobileGateway(Node):
             topic: {"available": bool(self.get_publishers_info_by_topic(topic))}
             for topic in MONITORED_TOPICS
         }
+        changed = False
         with self._lock:
-            if topics == self._state["topics"]:
-                return
-            self._state["topics"] = topics
-        self._touch()
+            if topics != self._state["topics"]:
+                self._state["topics"] = topics
+                changed = True
+            now = time.time()
+            time_sync = self._state["time_sync"]
+            sections = [(time_sync, "summary")]
+            sections.extend(
+                (time_sync[group], name)
+                for group in ("sensors", "pairs", "clocks")
+                for name in time_sync[group]
+            )
+            for section, name in sections:
+                entry = section[name]
+                updated_at = entry.get("updated_at")
+                if (
+                    updated_at is not None
+                    and now - updated_at > 3.0
+                    and entry.get("level") != 3
+                ):
+                    section[name] = empty_diagnostic("授时诊断已停止")
+                    changed = True
+        if changed:
+            self._touch()
+
+    @staticmethod
+    def _diagnostic_document(status) -> dict:
+        raw_level = status.level
+        level = (
+            raw_level[0]
+            if isinstance(raw_level, (bytes, bytearray)) and raw_level
+            else int(raw_level)
+        )
+        return {
+            "level": level,
+            "message": status.message,
+            "hardware_id": status.hardware_id,
+            "values": {value.key: value.value for value in status.values},
+            "updated_at": time.time(),
+        }
+
+    def _diagnostics_callback(self, message: DiagnosticArray) -> None:
+        changed = False
+        with self._lock:
+            state = self._state["time_sync"]
+            for status in message.status:
+                if status.name == "sensor_time_sync/summary":
+                    state["summary"] = self._diagnostic_document(status)
+                    changed = True
+                    continue
+                if status.name.startswith("sensor_time_sync/"):
+                    name = status.name.removeprefix("sensor_time_sync/")
+                    if name in TIME_SYNC_SENSORS:
+                        state["sensors"][name] = self._diagnostic_document(status)
+                        changed = True
+                    elif name in TIME_SYNC_PAIRS:
+                        state["pairs"][name] = self._diagnostic_document(status)
+                        changed = True
+                    continue
+                clock_name = TIME_SYNC_CLOCKS.get(status.name)
+                if clock_name is not None:
+                    state["clocks"][clock_name] = self._diagnostic_document(status)
+                    changed = True
+        if changed:
+            self._touch()
 
     def _value_callback(self, name):
         def callback(message):
@@ -1499,6 +1576,9 @@ class MobileGateway(Node):
 
     def start_collection(self, body: dict) -> dict:
         map_name = validated_identifier(str(body.get("map_name", "")), "地图名称")
+        vehicle_type = validated_identifier(
+            str(body.get("vehicle_type", "")), "车型名称"
+        )
         if self.required_collection_mount:
             mount = Path(self.required_collection_mount)
             if not mount.is_mount():
@@ -1509,16 +1589,8 @@ class MobileGateway(Node):
         self.bag_root.mkdir(parents=True, exist_ok=True)
         bag_id = f"{map_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         bag_path = self.bag_root / bag_id
-        command = [
-            "ros2",
-            "launch",
-            "agribot_hardware_bringup",
-            "ackermann_sensor_data_collection.launch.py",
-            "start_camera:=true",
-            "enable_ntrip:=false",
-            "record_bag:=true",
-            f"bag_output:={bag_path}",
-        ]
+        command = self.runtime_profiles.collection_command(vehicle_type, bag_path)
+        vehicle = self.runtime_profiles.vehicle(vehicle_type)
         with self._task_transition_lock:
             stopped = self._stop_active_tasks()
             self.processes.collection.start(
@@ -1529,6 +1601,12 @@ class MobileGateway(Node):
                     "bag_id": bag_id,
                     "bag_path": str(bag_path),
                     "map_name": map_name,
+                    "vehicle_type": vehicle_type,
+                }
+                self._state["vehicle"] = {
+                    key: value
+                    for key, value in vehicle.items()
+                    if key != "collection"
                 }
         self._touch()
         return {"bag_id": bag_id, "bag_path": str(bag_path), "stopped": stopped}
@@ -1593,12 +1671,18 @@ class MobileGateway(Node):
 
     def start_runtime(self, body: dict) -> dict:
         profile_id = str(body.get("profile_id", ""))
+        vehicle_type = validated_identifier(
+            str(body.get("vehicle_type", "")), "车型名称"
+        )
         map_id = str(body.get("map_id", ""))
         motion = bool(body.get("motion", False))
         if motion and body.get("motion_confirmed") is not True:
             raise ApiError(HTTPStatus.BAD_REQUEST, "真车运动必须再次明确确认")
         map_base = self.map_catalog.map_base(map_id)
-        command = self.runtime_profiles.command(profile_id, map_base, motion)
+        command = self.runtime_profiles.command(
+            profile_id, map_base, motion, vehicle_type
+        )
+        vehicle = self.runtime_profiles.vehicle(vehicle_type)
         with self._task_transition_lock:
             stopped = self._stop_active_tasks()
             self.processes.runtime.start(
@@ -1613,14 +1697,21 @@ class MobileGateway(Node):
                 self._grids.clear()
                 self._state["active_runtime"] = {
                     "profile_id": profile_id,
+                    "vehicle_type": vehicle_type,
                     "map_id": map_id,
                     "motion": motion,
+                }
+                self._state["vehicle"] = {
+                    key: value
+                    for key, value in vehicle.items()
+                    if key != "collection"
                 }
                 self._state["semantic"] = self._empty_semantic_state(map_id)
                 self._semantic_costmap_source = None
         self._touch()
         return {
             "profile_id": profile_id,
+            "vehicle_type": vehicle_type,
             "map_id": map_id,
             "motion": motion,
             "stopped": stopped,
