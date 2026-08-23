@@ -70,6 +70,8 @@ install -m 0644 \
   "${share_dir}/systemd/agribot-time.tmpfiles.conf" \
   /etc/tmpfiles.d/agribot-time.conf
 
+# Load the newly installed unit and drop-in before operating either service.
+systemctl daemon-reload
 systemctl stop agribot-rtk-time.service 2>/dev/null || true
 systemctl stop chrony.service
 systemd-tmpfiles --create /etc/tmpfiles.d/agribot-time.conf
@@ -80,7 +82,6 @@ if [[ -d /run/chrony ]]; then
   chown _chrony:_chrony /run/chrony
   chmod 0750 /run/chrony
 fi
-systemctl daemon-reload
 systemctl enable agribot-rtk-time.service
 systemctl start chrony.service
 if [[ ! -S /run/agribot-time/rtk.sock ]]; then

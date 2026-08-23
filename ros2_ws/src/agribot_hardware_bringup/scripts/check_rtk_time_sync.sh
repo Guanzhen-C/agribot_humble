@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ ${EUID} -ne 0 ]]; then
+  exec sudo -- "$0" "$@"
+fi
+
 environment_file=/etc/default/agribot-rtk-time
 if [[ ! -r "${environment_file}" ]]; then
   echo "授时配置不存在：${environment_file}" >&2
