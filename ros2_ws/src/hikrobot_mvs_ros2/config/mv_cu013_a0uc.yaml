@@ -5,7 +5,7 @@
     image_topic: "/camera/rgb/image_raw"
     camera_info_topic: "/camera/rgb/camera_info"
     camera_name: "agribot_hikrobot_right_camera"
-    camera_info_url: ""
+    camera_info_url: "package://hikrobot_mvs_ros2/config/agribot_hikrobot_right_camera.yaml"
 
     # 镜头安装和硬同步接线前使用自由运行；正式运行时再改为硬触发。
     trigger_enable: false

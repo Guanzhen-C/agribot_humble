@@ -1,7 +1,7 @@
 schema_version: 1
 camera_model: MV-CU013-A0UC
 serial_number: DB0447659
-lens_installed: false
-intrinsics_calibrated: false
+lens_installed: true
+intrinsics_calibrated: true
 lidar_camera_extrinsics_calibrated: false
 image_time_offset_calibrated: false

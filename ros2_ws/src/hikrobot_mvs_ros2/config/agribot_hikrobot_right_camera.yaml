@@ -1,0 +1,29 @@
+# MV-CU013-A0UC DB0447659, 11x8 inner corners, 10 mm squares.
+# Calibrated at 1280x1024 on 2026-08-23 from 46 inlier views.
+# Reprojection RMS: 0.418 px; per-view P95: 0.703 px.
+image_width: 1280
+image_height: 1024
+camera_name: agribot_hikrobot_right_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1265.81341966, 0.0, 652.72029100,
+         0.0, 1264.55108305, 503.08616382,
+         0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.06420938, 0.07455611, -0.00096336, 0.00001838, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1250.00732422, 0.0, 652.40042706, 0.0,
+         0.0, 1252.33850098, 501.85835833, 0.0,
+         0.0, 0.0, 1.0, 0.0]
