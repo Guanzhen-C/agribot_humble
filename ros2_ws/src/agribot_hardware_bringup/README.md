@@ -333,6 +333,8 @@ X5 physical pin 10 UART1 RX, while pin 4 PPS remains connected to physical pin
 36. The dedicated service reads `/dev/ttyS1`; the ROS RTK USB port remains
 independent and continues to provide positioning plus a runtime time-feed
 fallback. Receiver COM1 is configured for RMC and ZDA at 1 Hz and 9600 baud.
+The shared refclock socket is `/run/agribot-time/rtk.sock`; it is kept outside
+chrony's private command directory and is writable only by the `dialout` group.
 
 Install the RTK UART/PPS clock source once after building:
 

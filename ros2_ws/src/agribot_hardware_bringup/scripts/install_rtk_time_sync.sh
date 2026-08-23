@@ -14,7 +14,7 @@ if [[ ${EUID} -ne 0 ]]; then
   exec sudo -- "$0" "$@"
 fi
 
-for command in chronyc python3 systemctl; do
+for command in chronyc getent python3 systemctl systemd-tmpfiles; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "缺少命令：${command}" >&2
     exit 1
@@ -22,6 +22,10 @@ for command in chronyc python3 systemctl; do
 done
 if ! python3 -c 'import serial' >/dev/null 2>&1; then
   echo "缺少 python3-serial，请先执行：sudo apt install python3-serial" >&2
+  exit 1
+fi
+if ! getent passwd _chrony >/dev/null || ! getent group dialout >/dev/null; then
+  echo "缺少_chrony用户或dialout组，请检查chrony安装。" >&2
   exit 1
 fi
 
@@ -41,7 +45,12 @@ if systemctl is-active --quiet "${serial_unit}"; then
 fi
 
 install -d -m 0755 \
-  /etc/chrony/conf.d /etc/default /etc/systemd/system /usr/local/sbin
+  /etc/chrony/conf.d \
+  /etc/default \
+  /etc/systemd/system \
+  /etc/systemd/system/chrony.service.d \
+  /etc/tmpfiles.d \
+  /usr/local/sbin
 install -m 0644 \
   "${share_dir}/config/time_sync/rtk_time_sync.env" \
   /etc/default/agribot-rtk-time
@@ -54,11 +63,30 @@ install -m 0755 \
 install -m 0644 \
   "${share_dir}/systemd/agribot-rtk-time.service" \
   /etc/systemd/system/agribot-rtk-time.service
+install -m 0644 \
+  "${share_dir}/systemd/chrony-rtk-sock.conf" \
+  /etc/systemd/system/chrony.service.d/rtk-sock.conf
+install -m 0644 \
+  "${share_dir}/systemd/agribot-time.tmpfiles.conf" \
+  /etc/tmpfiles.d/agribot-time.conf
 
 systemctl stop agribot-rtk-time.service 2>/dev/null || true
+systemctl stop chrony.service
+systemd-tmpfiles --create /etc/tmpfiles.d/agribot-time.conf
+# An older setup widened /run/chrony to 0751 so a ROS user could reach the
+# refclock socket. Restore chrony's private command directory now that the RTK
+# socket has its own group-scoped runtime directory.
+if [[ -d /run/chrony ]]; then
+  chown _chrony:_chrony /run/chrony
+  chmod 0750 /run/chrony
+fi
 systemctl daemon-reload
 systemctl enable agribot-rtk-time.service
-systemctl restart chrony.service
+systemctl start chrony.service
+if [[ ! -S /run/agribot-time/rtk.sock ]]; then
+  echo "chrony未创建RTK SOCK时间源。" >&2
+  exit 1
+fi
 systemctl restart agribot-rtk-time.service
 
 systemctl --no-pager --full status agribot-rtk-time.service

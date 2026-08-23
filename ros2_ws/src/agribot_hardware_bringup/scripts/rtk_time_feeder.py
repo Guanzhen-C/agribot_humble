@@ -262,7 +262,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--device", default="/dev/ttyS1")
     parser.add_argument("--baud", type=int, default=9600)
-    parser.add_argument("--chrony-socket", default="/run/chrony/rtk.sock")
+    parser.add_argument("--chrony-socket", default="/run/agribot-time/rtk.sock")
     parser.add_argument("--minimum-year", type=int, default=2024)
     parser.add_argument("--reconnect-interval", type=float, default=1.0)
     parser.add_argument("--once", action="store_true")

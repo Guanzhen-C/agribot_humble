@@ -416,7 +416,7 @@ class RtkNmeaNode(Node):
             self.declare_parameter("enable_chrony_time_feed", True).value
         )
         self.chrony_socket_path = self.declare_parameter(
-            "chrony_socket_path", "/run/chrony/rtk.sock"
+            "chrony_socket_path", "/run/agribot-time/rtk.sock"
         ).value
         self.chrony_min_year = int(
             self.declare_parameter("chrony_min_year", 2024).value

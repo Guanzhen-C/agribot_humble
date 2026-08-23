@@ -52,15 +52,22 @@ def test_system_service_and_ros_fallback_feed_the_same_chrony_source():
     assert "After=chrony.service dev-ttyS1.device" in service
     assert "RTK_TIME_SERIAL_DEVICE=/dev/ttyS1" in environment
     assert "RTK_TIME_BAUD_RATE=9600" in environment
-    assert "SOCK /run/chrony/rtk.sock refid RTK" in chrony
+    assert "SOCK /run/agribot-time/rtk.sock refid RTK" in chrony
     assert "PPS /dev/pps-rtk lock RTK" in chrony
     assert "/etc/chrony/conf.d/rtk-pps.conf" in installer
+    assert "/etc/tmpfiles.d/agribot-time.conf" in installer
+    assert "/etc/systemd/system/chrony.service.d/rtk-sock.conf" in installer
+    assert "chmod 0750 /run/chrony" in installer
+    assert "chmod 0751 /run/chrony" not in installer
 
     ackermann = yaml.safe_load((PACKAGE / "config/rtk_nmea.yaml").read_text())
     differential = yaml.safe_load(
         (PACKAGE / "differential/config/rtk_nmea.yaml").read_text()
     )
     assert ackermann["rtk_nmea"]["ros__parameters"]["enable_chrony_time_feed"]
-    assert "enable_chrony_time_feed" not in differential["rtk_nmea"][
-        "ros__parameters"
-    ]
+    differential_parameters = differential["rtk_nmea"]["ros__parameters"]
+    assert differential_parameters["enable_chrony_time_feed"]
+    assert (
+        differential_parameters["chrony_socket_path"]
+        == "/run/agribot-time/rtk.sock"
+    )
