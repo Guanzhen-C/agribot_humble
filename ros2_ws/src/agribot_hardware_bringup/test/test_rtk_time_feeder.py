@@ -42,7 +42,7 @@ def test_chrony_sock_packet_uses_native_protocol_layout():
     assert unpacked[-1] == RTK_TIME.CHRONY_SOCK_MAGIC
 
 
-def test_system_service_owns_chrony_feed_and_ros_nodes_do_not_duplicate_it():
+def test_system_service_and_ros_fallback_feed_the_same_chrony_source():
     service = (PACKAGE / "systemd/agribot-rtk-time.service").read_text()
     chrony = (PACKAGE / "config/time_sync/rtk-pps.conf").read_text()
     environment = (PACKAGE / "config/time_sync/rtk_time_sync.env").read_text()
@@ -51,6 +51,7 @@ def test_system_service_owns_chrony_feed_and_ros_nodes_do_not_duplicate_it():
     assert "/usr/local/sbin/agribot-rtk-time-feeder" in service
     assert "After=chrony.service dev-ttyS1.device" in service
     assert "RTK_TIME_SERIAL_DEVICE=/dev/ttyS1" in environment
+    assert "RTK_TIME_BAUD_RATE=9600" in environment
     assert "SOCK /run/chrony/rtk.sock refid RTK" in chrony
     assert "PPS /dev/pps-rtk lock RTK" in chrony
     assert "/etc/chrony/conf.d/rtk-pps.conf" in installer
@@ -59,5 +60,7 @@ def test_system_service_owns_chrony_feed_and_ros_nodes_do_not_duplicate_it():
     differential = yaml.safe_load(
         (PACKAGE / "differential/config/rtk_nmea.yaml").read_text()
     )
-    assert not ackermann["rtk_nmea"]["ros__parameters"]["enable_chrony_time_feed"]
-    assert not differential["rtk_nmea"]["ros__parameters"]["enable_chrony_time_feed"]
+    assert ackermann["rtk_nmea"]["ros__parameters"]["enable_chrony_time_feed"]
+    assert "enable_chrony_time_feed" not in differential["rtk_nmea"][
+        "ros__parameters"
+    ]

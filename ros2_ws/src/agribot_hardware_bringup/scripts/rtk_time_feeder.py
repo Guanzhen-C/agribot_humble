@@ -196,15 +196,27 @@ class RtkTimeFeeder:
                 self.device,
                 self.baud_rate,
             )
+            last_valid_sentence_monotonic = time.monotonic()
             while not self.stop_event.is_set():
                 raw_line = serial_port.read_until(b"\n", 1024)
                 receipt_time = time.time()
                 if not raw_line:
+                    if time.monotonic() - last_valid_sentence_monotonic >= 10.0:
+                        self.log_warning_limited(
+                            "No valid RMC/ZDA sentence received from the RTK TTL UART "
+                            "for at least 10 seconds"
+                        )
                     continue
                 sentence = raw_line.decode("ascii", errors="ignore").strip()
                 measurement_time = parse_nmea_datetime(sentence)
                 if measurement_time is None:
+                    if time.monotonic() - last_valid_sentence_monotonic >= 10.0:
+                        self.log_warning_limited(
+                            "No valid RMC/ZDA sentence received from the RTK TTL UART "
+                            "for at least 10 seconds"
+                        )
                     continue
+                last_valid_sentence_monotonic = time.monotonic()
                 measurement_year = datetime.fromtimestamp(
                     measurement_time, tz=timezone.utc
                 ).year
@@ -249,7 +261,7 @@ def parse_arguments() -> argparse.Namespace:
         description="Feed RTK RMC/ZDA absolute time from a TTL UART to chrony"
     )
     parser.add_argument("--device", default="/dev/ttyS1")
-    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--baud", type=int, default=9600)
     parser.add_argument("--chrony-socket", default="/run/chrony/rtk.sock")
     parser.add_argument("--minimum-year", type=int, default=2024)
     parser.add_argument("--reconnect-interval", type=float, default=1.0)

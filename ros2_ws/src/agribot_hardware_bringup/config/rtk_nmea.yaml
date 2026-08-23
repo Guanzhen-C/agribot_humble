@@ -33,9 +33,9 @@ rtk_nmea:
     gnss_time_offset_sec: 0.0
     gnss_time_max_error_sec: 5.0
     heading_pair_tolerance_sec: 0.25
-    # The dedicated 6-pin TTL service owns the chrony feed. This USB node only
-    # publishes RTK navigation data, avoiding duplicate samples on the socket.
-    enable_chrony_time_feed: false
+    # Keep the USB feed as a runtime fallback for the independent 6-pin TTL
+    # service. Both carry the same receiver time into the same chrony source.
+    enable_chrony_time_feed: true
     chrony_socket_path: /run/chrony/rtk.sock
     chrony_min_year: 2024
     enable_ntrip: false
