@@ -42,7 +42,7 @@ def test_chrony_sock_packet_uses_native_protocol_layout():
     assert unpacked[-1] == RTK_TIME.CHRONY_SOCK_MAGIC
 
 
-def test_system_service_and_ros_fallback_feed_the_same_chrony_source():
+def test_only_dedicated_ttl_service_feeds_chrony():
     service = (PACKAGE / "systemd/agribot-rtk-time.service").read_text()
     chrony = (PACKAGE / "config/time_sync/rtk-pps.conf").read_text()
     environment = (PACKAGE / "config/time_sync/rtk_time_sync.env").read_text()
@@ -64,10 +64,16 @@ def test_system_service_and_ros_fallback_feed_the_same_chrony_source():
     differential = yaml.safe_load(
         (PACKAGE / "differential/config/rtk_nmea.yaml").read_text()
     )
-    assert ackermann["rtk_nmea"]["ros__parameters"]["enable_chrony_time_feed"]
+    ackermann_parameters = ackermann["rtk_nmea"]["ros__parameters"]
     differential_parameters = differential["rtk_nmea"]["ros__parameters"]
-    assert differential_parameters["enable_chrony_time_feed"]
-    assert (
-        differential_parameters["chrony_socket_path"]
-        == "/run/agribot-time/rtk.sock"
-    )
+    forbidden_parameters = {
+        "enable_chrony_time_feed",
+        "chrony_socket_path",
+        "chrony_min_year",
+    }
+    assert forbidden_parameters.isdisjoint(ackermann_parameters)
+    assert forbidden_parameters.isdisjoint(differential_parameters)
+
+    usb_reader = (PACKAGE / "scripts/rtk_nmea_node.py").read_text()
+    assert "ChronySockPublisher" not in usb_reader
+    assert "pack_chrony_sock_sample" not in usb_reader

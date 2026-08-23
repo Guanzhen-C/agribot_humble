@@ -1,7 +1,5 @@
 import importlib.util
 import math
-import socket
-import struct
 from pathlib import Path
 
 
@@ -119,34 +117,6 @@ def test_rmc_and_zda_supply_absolute_utc_measurement_time():
     expected = 1787213642.25
     assert math.isclose(RTK.parse_rmc_datetime(rmc), expected)
     assert math.isclose(RTK.parse_zda_datetime(zda), expected)
-
-
-def test_chrony_sock_sample_uses_native_chrony_protocol_layout():
-    packet = RTK.pack_chrony_sock_sample(1787213642.25, 1787213642.30)
-    assert len(packet) == struct.calcsize(RTK.CHRONY_SOCK_SAMPLE_FORMAT) == 40
-    unpacked = struct.unpack(RTK.CHRONY_SOCK_SAMPLE_FORMAT, packet)
-    assert unpacked[0] == 1787213642
-    assert unpacked[1] == 300000
-    assert math.isclose(unpacked[2], -0.05, abs_tol=1.0e-7)
-    assert unpacked[3:6] == (0, 0, 0)
-    assert unpacked[6] == RTK.CHRONY_SOCK_MAGIC
-
-
-def test_chrony_sock_publisher_sends_datagram(tmp_path):
-    socket_path = str(tmp_path / "rtk.sock")
-    receiver = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    receiver.bind(socket_path)
-    publisher = RTK.ChronySockPublisher(socket_path)
-    try:
-        publisher.publish(1787213642.25, 1787213642.30)
-        packet = receiver.recv(128)
-    finally:
-        publisher.close()
-        receiver.close()
-    assert len(packet) == 40
-    assert struct.unpack(RTK.CHRONY_SOCK_SAMPLE_FORMAT, packet)[6] == (
-        RTK.CHRONY_SOCK_MAGIC
-    )
 
 
 def test_gga_time_combines_with_date_and_handles_midnight():
