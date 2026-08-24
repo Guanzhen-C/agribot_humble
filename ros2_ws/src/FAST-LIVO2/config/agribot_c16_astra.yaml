@@ -59,9 +59,9 @@
     vio:
       max_iterations: 5
       outlier_threshold: 100
-      # Outdoor full-route validation: 800/10 reduced horizontal RMSE versus
-      # FAST-LIO2 while remaining stable through both turns.
-      img_point_cov: 800
+      # Indoor localization profile: retain the validated sparse visual map,
+      # but strengthen image measurements from the original covariance 1000.
+      img_point_cov: 200
       grid_size: 5
       grid_n_height: 17
       patch_size: 8
@@ -88,9 +88,8 @@
       dept_err: 0.02
       beam_err: 0.05
       min_eigen_value: 0.0025
-      # A 1 m root voxel keeps enough C16 returns on outdoor planes to avoid
-      # false yaw updates; smaller 0.3-0.5 m voxels degenerate on sparse scenes.
-      voxel_size: 1.0
+      # Preserve door frames and wall corners in indoor corridors.
+      voxel_size: 0.3
       max_layer: 2
       max_points_num: 50
       layer_init_num: [5, 5, 5, 5, 5]

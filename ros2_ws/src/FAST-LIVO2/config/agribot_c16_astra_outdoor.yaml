@@ -1,0 +1,13 @@
+# Outdoor localization overrides for agribot_c16_astra.yaml.
+# Load this file after the base LiDAR configuration. Sensor calibration,
+# synchronization, preprocessing, and bounded-map settings remain shared.
+/**:
+  ros__parameters:
+    vio:
+      # Validated on the outdoor full-route dataset.
+      img_point_cov: 800
+      max_points_per_voxel: 10
+
+    lio:
+      # The larger root voxel was stable in sparse outdoor scenes.
+      voxel_size: 1.0
