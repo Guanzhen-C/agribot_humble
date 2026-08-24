@@ -403,9 +403,10 @@ ros2 launch agribot_hardware_bringup \
   show_3d_map:=true \
   rviz:=true
 
-# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、FAST-LIVO2、KF-GINS和robot_localization轨迹
+# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、FAST-LIVO2和KF-GINS轨迹
 # 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
 # FAST-LIVO2会使用/lidar/points、/imu/data和/camera/rgb/image_raw重新计算
+# 默认使用已验证的室内参数；只有专项对照时才显式追加--fastlivo-profile outdoor
 ros2 run agribot_offline_mapping run_localization_comparison.py \
   "$BAG_PATH" \
   "${MAP_BASE}_comparison" \

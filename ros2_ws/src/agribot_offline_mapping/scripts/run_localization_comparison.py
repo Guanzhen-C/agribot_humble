@@ -103,6 +103,15 @@ def parse_arguments(argv=None):
     parser.add_argument("--playback-rate", type=float, default=0.5)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
     parser.add_argument(
+        "--fastlivo-profile",
+        choices=("indoor", "outdoor"),
+        default="indoor",
+        help=(
+            "FAST-LIVO2 environment profile; outdoor loads the validated "
+            "sparse-scene overrides after the shared sensor calibration"
+        ),
+    )
+    parser.add_argument(
         "--georeference",
         type=Path,
         help=(
@@ -199,14 +208,19 @@ def main(argv=None):
             fastlivo_share / "config" / "agribot_c16_astra.yaml"
         )
         fastlivo_camera_config = (
-            fastlivo_share / "config" / "agribot_astra_640.yaml"
+            hardware_share / "config" / "fastlivo_hikrobot_mv_cu013.yaml"
         )
+        fastlivo_parameter_files = [fastlivo_config]
+        if arguments.fastlivo_profile == "outdoor":
+            fastlivo_parameter_files.append(
+                fastlivo_share / "config" / "agribot_c16_astra_outdoor.yaml"
+            )
+        fastlivo_parameter_files.append(fastlivo_camera_config)
         for path in (
             fastlio_config,
             bridge_config,
             kf_gins_config,
-            fastlivo_config,
-            fastlivo_camera_config,
+            *fastlivo_parameter_files,
         ):
             if not path.is_file():
                 raise ComparisonError(f"configuration file not found: {path}")
@@ -239,8 +253,11 @@ def main(argv=None):
             [
                 "ros2", "run", "fast_livo", "fastlivo_mapping", "--ros-args",
                 "-r", "__node:=fastlivo_comparison",
-                "--params-file", fastlivo_config,
-                "--params-file", fastlivo_camera_config,
+                *[
+                    item
+                    for path in fastlivo_parameter_files
+                    for item in ("--params-file", path)
+                ],
                 "-p", "use_sim_time:=true",
                 "-r", f"/aft_mapped_to_init:={FASTLIVO_TOPIC}",
                 "-r", "/path:=/comparison/fastlivo/path",

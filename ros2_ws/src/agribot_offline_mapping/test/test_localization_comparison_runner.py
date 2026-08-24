@@ -69,11 +69,33 @@ def test_default_playback_rate_prioritizes_complete_estimator_output(tmp_path):
     )
 
     assert arguments.playback_rate == pytest.approx(0.5)
+    assert arguments.fastlivo_profile == "indoor"
+
+
+def test_outdoor_fastlivo_profile_is_selectable(tmp_path):
+    arguments = MODULE.parse_arguments(
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "standalone_result"),
+            "--fastlivo-profile",
+            "outdoor",
+        ]
+    )
+
+    assert arguments.fastlivo_profile == "outdoor"
 
 
 def test_fastlivo_inputs_and_output_are_part_of_the_comparison():
     assert "/camera/rgb/image_raw" in MODULE.RAW_TOPICS
     assert MODULE.FASTLIVO_TOPIC == "/comparison/fastlivo/odometry"
+
+
+def test_current_hikrobot_camera_and_outdoor_override_are_used():
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "fastlivo_hikrobot_mv_cu013.yaml" in source
+    assert "agribot_c16_astra_outdoor.yaml" in source
+    assert "agribot_astra_640.yaml" not in source
 
 
 def test_comparison_does_not_run_robot_localization():
