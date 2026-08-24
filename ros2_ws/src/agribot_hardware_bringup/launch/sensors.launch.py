@@ -109,6 +109,17 @@ def generate_launch_description():
                 executable="sensor_time_sync_monitor.py",
                 name="sensor_time_sync_monitor",
                 output="screen",
+                parameters=[
+                    {
+                        # C16 frame header is scan start; the +X forward sector
+                        # is measured one quarter-turn later.
+                        "lidar_forward_point_offset_sec": 0.02504,
+                        "pair_maximum_match_sec": 0.040,
+                        "pair_minimum_match_ratio": 0.80,
+                        "lidar_camera_tolerance_sec": 0.010,
+                        "lidar_rtk_tolerance_sec": 0.010,
+                    }
+                ],
                 condition=IfCondition(
                     LaunchConfiguration("start_time_sync_monitor")
                 ),

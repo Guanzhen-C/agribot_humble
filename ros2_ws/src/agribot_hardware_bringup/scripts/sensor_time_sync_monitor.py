@@ -24,12 +24,13 @@ def percentile(values, fraction):
     return ordered[index]
 
 
-def nearest_residuals(reference_stamps, target_stamps):
+def nearest_residuals(reference_stamps, target_stamps, reference_offset=0.0):
     targets = sorted(target_stamps)
     if not reference_stamps or not targets:
         return []
     residuals = []
-    for stamp in reference_stamps:
+    for raw_stamp in reference_stamps:
+        stamp = raw_stamp + reference_offset
         index = bisect.bisect_left(targets, stamp)
         candidates = []
         if index < len(targets):
@@ -126,6 +127,17 @@ class SensorTimeSyncMonitor(Node):
                 self.declare_parameter("lidar_rtk_tolerance_sec", 0.150).value
             ),
         }
+        self.lidar_forward_point_offset_sec = float(
+            self.declare_parameter(
+                "lidar_forward_point_offset_sec", 0.02504
+            ).value
+        )
+        self.pair_maximum_match_sec = float(
+            self.declare_parameter("pair_maximum_match_sec", 0.040).value
+        )
+        self.pair_minimum_match_ratio = float(
+            self.declare_parameter("pair_minimum_match_ratio", 0.80).value
+        )
 
         self.publisher = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
         self.create_subscription(
@@ -198,37 +210,88 @@ class SensorTimeSyncMonitor(Node):
         ]
         return status
 
-    def pair_status(self, pair_name, left_name, right_name):
+    def pair_status(
+        self,
+        pair_name,
+        left_name,
+        right_name,
+        reference_offset_sec=0.0,
+        maximum_match_sec=None,
+    ):
         status = DiagnosticStatus()
         status.name = f"sensor_time_sync/{pair_name}"
         status.hardware_id = "software_sync"
-        residuals = nearest_residuals(
-            self.timings[left_name].stamps(), self.timings[right_name].stamps()
+        raw_residuals = nearest_residuals(
+            self.timings[left_name].stamps(),
+            self.timings[right_name].stamps(),
+            reference_offset_sec,
         )
-        if not residuals:
+        if not raw_residuals:
             status.level = DiagnosticStatus.STALE
             status.message = "没有可配对的数据"
+            return status
+
+        maximum_match = (
+            math.inf if maximum_match_sec is None else maximum_match_sec
+        )
+        residuals = [
+            residual for residual in raw_residuals if residual <= maximum_match
+        ]
+        unmatched = len(raw_residuals) - len(residuals)
+        match_ratio = len(residuals) / len(raw_residuals)
+        if not residuals:
+            status.level = DiagnosticStatus.WARN
+            status.message = "没有同周期可配对的数据"
+            status.values = [
+                self.value("reference", left_name),
+                self.value("target", right_name),
+                self.value(
+                    "reference_offset_ms",
+                    f"{reference_offset_sec * 1000.0:.3f}",
+                ),
+                self.value("pairs", 0),
+                self.value("unmatched_reference_samples", unmatched),
+                self.value("match_ratio", f"{match_ratio:.3f}"),
+            ]
             return status
 
         median_residual = statistics.median(residuals)
         p95_residual = percentile(residuals, 0.95)
         tolerance = self.pair_tolerances[pair_name]
+        problems = []
+        if p95_residual > tolerance:
+            problems.append("同周期测量时刻偏差超限")
+        if match_ratio < self.pair_minimum_match_ratio:
+            problems.append("同周期配对率偏低")
         status.level = (
-            DiagnosticStatus.OK
-            if p95_residual <= tolerance
-            else DiagnosticStatus.WARN
+            DiagnosticStatus.WARN if problems else DiagnosticStatus.OK
         )
-        status.message = (
-            "相邻测量时刻正常"
-            if status.level == DiagnosticStatus.OK
-            else "相邻测量时刻偏差超限"
-        )
+        if problems:
+            status.message = "；".join(problems)
+        elif reference_offset_sec:
+            status.message = "前向雷达点与测量时刻正常"
+        else:
+            status.message = "相邻测量时刻正常"
         status.values = [
-            self.value("reference", left_name),
+            self.value(
+                "reference",
+                "lidar_forward_point" if reference_offset_sec else left_name,
+            ),
             self.value("target", right_name),
+            self.value(
+                "reference_offset_ms", f"{reference_offset_sec * 1000.0:.3f}"
+            ),
             self.value("pairs", len(residuals)),
-            self.value("median_nearest_delta_ms", f"{median_residual * 1000.0:.3f}"),
-            self.value("p95_nearest_delta_ms", f"{p95_residual * 1000.0:.3f}"),
+            self.value("unmatched_reference_samples", unmatched),
+            self.value("match_ratio", f"{match_ratio:.3f}"),
+            self.value(
+                "median_nearest_delta_ms",
+                f"{median_residual * 1000.0:.3f}",
+            ),
+            self.value(
+                "p95_nearest_delta_ms",
+                f"{p95_residual * 1000.0:.3f}",
+            ),
             self.value("tolerance_ms", f"{tolerance * 1000.0:.3f}"),
         ]
         return status
@@ -244,8 +307,20 @@ class SensorTimeSyncMonitor(Node):
         statuses.extend(
             [
                 self.pair_status("lidar_imu", "lidar", "imu"),
-                self.pair_status("lidar_camera", "lidar", "camera"),
-                self.pair_status("lidar_rtk", "lidar", "rtk"),
+                self.pair_status(
+                    "lidar_camera",
+                    "lidar",
+                    "camera",
+                    self.lidar_forward_point_offset_sec,
+                    self.pair_maximum_match_sec,
+                ),
+                self.pair_status(
+                    "lidar_rtk",
+                    "lidar",
+                    "rtk",
+                    self.lidar_forward_point_offset_sec,
+                    self.pair_maximum_match_sec,
+                ),
             ]
         )
         summary = DiagnosticStatus()

@@ -16,6 +16,26 @@ def test_nearest_residuals_selects_closest_measurement():
     ]
 
 
+def test_nearest_residuals_can_use_lidar_forward_point_time():
+    residuals = MODULE.nearest_residuals(
+        [1.000, 1.100, 1.200],
+        [1.025, 1.125, 1.225],
+        reference_offset=0.025,
+    )
+    assert max(residuals) < 1.0e-9
+
+
+def test_nearest_residuals_exposes_cross_cycle_camera_match():
+    residuals = MODULE.nearest_residuals(
+        [1.000, 1.100, 1.200],
+        [1.025, 1.225],
+        reference_offset=0.025,
+    )
+    assert residuals[0] < 1.0e-9
+    assert abs(residuals[1] - 0.1) < 1.0e-9
+    assert residuals[2] < 1.0e-9
+
+
 def test_topic_timing_reports_rate_and_regressions():
     timing = MODULE.TopicTiming("imu", "/imu/data", 80.0, 0.2, 20)
     timing.add(10.00, 10.01)
