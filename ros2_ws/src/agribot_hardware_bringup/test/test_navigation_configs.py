@@ -8,6 +8,7 @@ import yaml
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
+FASTLIVO_ROOT = PACKAGE_ROOT.parent / "FAST-LIVO2"
 URDF_ROOT = element_tree.parse(
     PACKAGE_ROOT / "urdf" / "ackermann_vehicle.urdf"
 ).getroot()
@@ -103,6 +104,37 @@ def test_lidar_imu_extrinsics_are_consistent_across_physical_runtime_configs():
     assert bridge["base_to_body_xyz"] == pytest.approx(mounts["imu"]["xyz"])
     assert bridge["base_to_body_rpy"] == pytest.approx(mounts["imu"]["rpy"])
     assert eskf["base_to_imu_rpy_rad"] == pytest.approx(mounts["imu"]["rpy"])
+
+
+def test_fastlivo_camera_extrinsics_match_physical_mounts():
+    mounts = load_config("sensor_mounts.yaml")
+    fastlivo = yaml.safe_load(
+        (FASTLIVO_ROOT / "config" / "agribot_c16_astra.yaml").read_text()
+    )["/**"]["ros__parameters"]["extrin_calib"]
+
+    base_from_lidar = rpy_matrix(mounts["lidar"]["rpy"])
+    base_from_camera = rpy_matrix(mounts["camera"]["rpy"])
+    camera_from_lidar = matmul(transpose(base_from_camera), base_from_lidar)
+    lidar_minus_camera = [
+        lidar - camera
+        for lidar, camera in zip(
+            mounts["lidar"]["xyz"], mounts["camera"]["xyz"]
+        )
+    ]
+
+    assert mounts["camera"]["xyz"][0] - mounts["lidar"]["xyz"][0] == (
+        pytest.approx(0.0955)
+    )
+    assert mounts["camera"]["xyz"][1] == pytest.approx(0.0)
+    assert mounts["camera"]["xyz"][2] - mounts["imu"]["xyz"][2] == (
+        pytest.approx(0.011)
+    )
+    assert fastlivo["Rcl"] == pytest.approx(
+        flatten(camera_from_lidar), abs=1.0e-8
+    )
+    assert fastlivo["Pcl"] == pytest.approx(
+        matvec(transpose(base_from_camera), lidar_minus_camera), abs=1.0e-8
+    )
 
 
 def test_rtk_mount_and_eskf_lever_arm_use_the_same_calibration():

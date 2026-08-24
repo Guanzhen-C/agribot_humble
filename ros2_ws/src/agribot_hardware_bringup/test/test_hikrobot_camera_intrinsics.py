@@ -56,5 +56,11 @@ def test_ackermann_status_enables_only_completed_camera_calibrations():
     assert status["serial_number"] == "DB0447659"
     assert status["lens_installed"] is True
     assert status["intrinsics_calibrated"] is True
-    assert status["lidar_camera_extrinsics_calibrated"] is False
-    assert status["image_time_offset_calibrated"] is False
+    assert status["lidar_camera_extrinsics_calibrated"] is True
+    assert status["lidar_camera_extrinsics_source"] == (
+        "manual_measurement_2026_08_24"
+    )
+    assert status["image_time_offset_calibrated"] is True
+    assert status["image_time_offset_source"] == (
+        "pps_phase_measurement_2026_08_22"
+    )

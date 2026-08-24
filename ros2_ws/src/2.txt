@@ -267,7 +267,7 @@ ros2 topic echo /camera/rgb/image_raw --once --field encoding
 # 相机按序列号DB0447659打开，发布1280x1024、10Hz的BGR原图；不依赖/dev/video设备名
 # 相机原图不缩放、不裁剪、不压缩；录包使用可靠QoS和512MiB有界缓存防止短时写盘抖动丢帧
 # bag额外保留原图/CameraInfo、雷达设备时间、IMU磁场/温度、RTK原始串口语句和质量字段
-# 镜头安装后必须重新标定内参、相机到雷达外参和时间偏移，禁止沿用旧相机标定参数
+# 当前海康相机已使用新镜头内参、2026-08-24手量外参和PPS锁相时间偏移；移动镜头后必须重新标定
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 export ROS_DOMAIN_ID=0

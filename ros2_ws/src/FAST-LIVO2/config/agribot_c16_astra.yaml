@@ -28,13 +28,12 @@
                     -0.007303826, -0.008220527, 0.999939537]
 
       # p_camera_optical = Rcl * p_lidar + Pcl.
-      # Mechanical initial estimate for the upright, forward-facing right eye.
-      # Optical center in base_link: [0.580, -0.030, 0.142] m.
-      # Refine this initial estimate with a LiDAR-camera target calibration.
+      # Manually measured upright, forward-facing camera installation.
+      # Optical center in base_link: [0.5755, 0.0, 0.1540] m.
       Rcl: [-0.000007020, -0.999970751, -0.007648400,
             -0.001835660,  0.007648400, -0.999969066,
              0.999998315,  0.000007020, -0.001835660]
-      Pcl: [-0.030, -0.091, -0.100]
+      Pcl: [0.0, -0.079, -0.0955]
 
     time_offset:
       imu_time_offset: 0.0
