@@ -4,6 +4,7 @@
     frame_id: "right_camera_optical_frame"
     image_topic: "/camera/rgb/image_raw"
     camera_info_topic: "/camera/rgb/camera_info"
+    frame_stamp_topic: "/camera/rgb/frame_stamp"
     camera_name: "agribot_hikrobot_right_camera"
     camera_info_url: "package://hikrobot_mvs_ros2/config/agribot_hikrobot_right_camera.yaml"
 

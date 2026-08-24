@@ -26,6 +26,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float32.hpp>
+#include <std_msgs/msg/header.hpp>
 
 namespace
 {
@@ -64,6 +65,8 @@ public:
       declare_parameter<std::string>("image_topic", "/camera/rgb/image_raw");
     const auto camera_info_topic =
       declare_parameter<std::string>("camera_info_topic", "/camera/rgb/camera_info");
+    const auto frame_stamp_topic =
+      declare_parameter<std::string>("frame_stamp_topic", "/camera/rgb/frame_stamp");
     const auto camera_name =
       declare_parameter<std::string>("camera_name", "agribot_hikrobot_right_camera");
     const auto camera_info_url = declare_parameter<std::string>("camera_info_url", "");
@@ -129,6 +132,8 @@ public:
     image_pub_ = create_publisher<sensor_msgs::msg::Image>(image_topic, publisher_qos);
     camera_info_pub_ =
       create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic, publisher_qos);
+    frame_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
+      frame_stamp_topic, rclcpp::SensorDataQoS());
     const auto state_qos = rclcpp::QoS(1).reliable().transient_local();
     connected_pub_ = create_publisher<std_msgs::msg::Bool>("~/connected", state_qos);
     frame_rate_pub_ = create_publisher<std_msgs::msg::Float32>("~/frame_rate_hz", state_qos);
@@ -380,20 +385,23 @@ private:
       return;
     }
 
+    std_msgs::msg::Header frame_header;
+    frame_header.stamp = stamp;
+    frame_header.frame_id = frame_id_;
+
     sensor_msgs::msg::Image image;
-    image.header.stamp = stamp;
-    image.header.frame_id = frame_id_;
+    image.header = frame_header;
     image.height = height;
     image.width = width;
     image.encoding = "bgr8";
     image.is_bigendian = false;
     image.step = width * 3U;
     image.data.assign(converted_buffer_.begin(), converted_buffer_.begin() + conversion.nDstLen);
+    frame_stamp_pub_->publish(frame_header);
     image_pub_->publish(std::move(image));
 
     auto camera_info = camera_info_manager_->getCameraInfo();
-    camera_info.header.stamp = stamp;
-    camera_info.header.frame_id = frame_id_;
+    camera_info.header = frame_header;
     camera_info.width = width;
     camera_info.height = height;
     camera_info_pub_->publish(std::move(camera_info));
@@ -542,6 +550,7 @@ private:
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
+  rclcpp::Publisher<std_msgs::msg::Header>::SharedPtr frame_stamp_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr connected_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr frame_rate_pub_;
   std::unique_ptr<camera_info_manager::CameraInfoManager> camera_info_manager_;

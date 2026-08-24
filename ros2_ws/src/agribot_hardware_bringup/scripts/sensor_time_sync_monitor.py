@@ -10,6 +10,7 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, Imu, NavSatFix, PointCloud2
+from std_msgs.msg import Float64, Header
 
 
 def stamp_to_sec(stamp):
@@ -85,11 +86,27 @@ class SensorTimeSyncMonitor(Node):
         self.stale_timeout_sec = float(
             self.declare_parameter("stale_timeout_sec", 3.0).value
         )
+        self.stamp_fallback_timeout_sec = float(
+            self.declare_parameter("stamp_fallback_timeout_sec", 5.0).value
+        )
         capacity = int(self.declare_parameter("sample_capacity", 4000).value)
+
+        self.lidar_topic = self.declare_parameter(
+            "lidar_topic", "/lidar/points"
+        ).value
+        self.lidar_stamp_topic = self.declare_parameter(
+            "lidar_stamp_topic", "/time_topic"
+        ).value
+        self.camera_topic = self.declare_parameter(
+            "camera_topic", "/camera/rgb/image_raw"
+        ).value
+        self.camera_stamp_topic = self.declare_parameter(
+            "camera_stamp_topic", "/camera/rgb/frame_stamp"
+        ).value
 
         definitions = {
             "lidar": (
-                self.declare_parameter("lidar_topic", "/lidar/points").value,
+                self.lidar_topic,
                 float(self.declare_parameter("lidar_minimum_rate_hz", 8.0).value),
                 float(self.declare_parameter("lidar_maximum_age_sec", 0.30).value),
             ),
@@ -99,9 +116,7 @@ class SensorTimeSyncMonitor(Node):
                 float(self.declare_parameter("imu_maximum_age_sec", 0.20).value),
             ),
             "camera": (
-                self.declare_parameter(
-                    "camera_topic", "/camera/rgb/image_raw"
-                ).value,
+                self.camera_topic,
                 float(self.declare_parameter("camera_minimum_rate_hz", 8.0).value),
                 float(self.declare_parameter("camera_maximum_age_sec", 0.30).value),
             ),
@@ -140,22 +155,29 @@ class SensorTimeSyncMonitor(Node):
         )
 
         self.publisher = self.create_publisher(DiagnosticArray, "/diagnostics", 10)
+        self.lightweight_stamp_seen = {"lidar": False, "camera": False}
+        self.fallback_subscriptions = {}
+        self.monitor_started_at = self.get_clock().now().nanoseconds * 1.0e-9
         self.create_subscription(
-            PointCloud2,
-            definitions["lidar"][0],
-            lambda message: self.record("lidar", message),
+            Float64,
+            self.lidar_stamp_topic,
+            lambda message: self.record_lightweight_stamp(
+                "lidar", float(message.data)
+            ),
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
+            Header,
+            self.camera_stamp_topic,
+            lambda message: self.record_lightweight_stamp(
+                "camera", stamp_to_sec(message.stamp)
+            ),
             qos_profile_sensor_data,
         )
         self.create_subscription(
             Imu,
             definitions["imu"][0],
             lambda message: self.record("imu", message),
-            qos_profile_sensor_data,
-        )
-        self.create_subscription(
-            Image,
-            definitions["camera"][0],
-            lambda message: self.record("camera", message),
             qos_profile_sensor_data,
         )
         self.create_subscription(
@@ -169,6 +191,44 @@ class SensorTimeSyncMonitor(Node):
     def record(self, name, message):
         receipt = self.get_clock().now().nanoseconds * 1.0e-9
         self.timings[name].add(stamp_to_sec(message.header.stamp), receipt)
+
+    def record_lightweight_stamp(self, name, stamp):
+        receipt = self.get_clock().now().nanoseconds * 1.0e-9
+        self.timings[name].add(stamp, receipt)
+        self.lightweight_stamp_seen[name] = True
+        subscription = self.fallback_subscriptions.pop(name, None)
+        if subscription is not None:
+            self.destroy_subscription(subscription)
+
+    def ensure_stamp_fallbacks(self, now):
+        if now - self.monitor_started_at < self.stamp_fallback_timeout_sec:
+            return
+        if (
+            not self.lightweight_stamp_seen["lidar"]
+            and "lidar" not in self.fallback_subscriptions
+        ):
+            self.fallback_subscriptions["lidar"] = self.create_subscription(
+                PointCloud2,
+                self.lidar_topic,
+                lambda message: self.record("lidar", message),
+                qos_profile_sensor_data,
+            )
+            self.get_logger().warning(
+                "%s无数据，回退订阅完整点云", self.lidar_stamp_topic
+            )
+        if (
+            not self.lightweight_stamp_seen["camera"]
+            and "camera" not in self.fallback_subscriptions
+        ):
+            self.fallback_subscriptions["camera"] = self.create_subscription(
+                Image,
+                self.camera_topic,
+                lambda message: self.record("camera", message),
+                qos_profile_sensor_data,
+            )
+            self.get_logger().warning(
+                "%s无数据，回退订阅完整图像", self.camera_stamp_topic
+            )
 
     @staticmethod
     def value(key, value):
@@ -298,6 +358,7 @@ class SensorTimeSyncMonitor(Node):
 
     def publish_diagnostics(self):
         now = self.get_clock().now().nanoseconds * 1.0e-9
+        self.ensure_stamp_fallbacks(now)
         for timing in self.timings.values():
             timing.trim(now, self.window_sec)
 
