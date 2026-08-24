@@ -20,6 +20,11 @@ def _validate_arguments(context):
     enable_chassis_output = LaunchConfiguration(
         "enable_chassis_output"
     ).perform(context).lower() in ("true", "1", "yes", "on")
+    allow_uncalibrated_camera = LaunchConfiguration(
+        "allow_uncalibrated_camera"
+    ).perform(context).lower() in ("true", "1", "yes", "on")
+    if enable_chassis_output and allow_uncalibrated_camera:
+        raise RuntimeError("真车运动禁止绕过海康相机FAST-LIVO2标定检查")
     if chassis_driver not in ("ackermann_can", "ackermann_serial"):
         raise RuntimeError(
             "chassis_driver必须是ackermann_can或ackermann_serial"
@@ -156,6 +161,9 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "hikrobot_trigger_enable", default_value="true"
             ),
+            DeclareLaunchArgument(
+                "allow_uncalibrated_camera", default_value="false"
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
@@ -256,6 +264,9 @@ def generate_launch_description():
                             ),
                             "hikrobot_trigger_enable": LaunchConfiguration(
                                 "hikrobot_trigger_enable"
+                            ),
+                            "allow_uncalibrated_camera": LaunchConfiguration(
+                                "allow_uncalibrated_camera"
                             ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
                             "start_initial_localizer": "true",

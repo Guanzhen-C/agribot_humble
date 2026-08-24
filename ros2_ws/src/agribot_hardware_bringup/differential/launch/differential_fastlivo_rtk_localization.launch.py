@@ -37,6 +37,9 @@ def generate_launch_description():
                     "hikrobot_camera_calibration_status.yaml",
                 ),
             ),
+            DeclareLaunchArgument(
+                "allow_uncalibrated_camera", default_value="false"
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -71,6 +74,9 @@ def generate_launch_description():
                             ),
                             "camera_calibration_status": LaunchConfiguration(
                                 "camera_calibration_status"
+                            ),
+                            "allow_uncalibrated_camera": LaunchConfiguration(
+                                "allow_uncalibrated_camera"
                             ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
                             "start_initial_localizer": LaunchConfiguration(

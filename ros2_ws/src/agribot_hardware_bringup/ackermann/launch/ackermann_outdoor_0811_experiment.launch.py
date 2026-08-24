@@ -277,6 +277,9 @@ def generate_launch_description():
                 "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument(
+                "allow_uncalibrated_camera", default_value="false"
+            ),
+            DeclareLaunchArgument(
                 "enable_chassis_output",
                 default_value="false",
                 description="阶段A保持false；全部检查通过后阶段B显式改为true",
@@ -352,6 +355,9 @@ def generate_launch_description():
                             ),
                             "hikrobot_trigger_enable": LaunchConfiguration(
                                 "hikrobot_trigger_enable"
+                            ),
+                            "allow_uncalibrated_camera": LaunchConfiguration(
+                                "allow_uncalibrated_camera"
                             ),
                             "enable_chassis_output": LaunchConfiguration(
                                 "enable_chassis_output"

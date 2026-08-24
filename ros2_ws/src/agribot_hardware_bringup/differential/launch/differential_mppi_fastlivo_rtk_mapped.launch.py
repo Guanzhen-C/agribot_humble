@@ -34,6 +34,11 @@ def _validate_arguments(context):
     enable_chassis = _enabled(
         LaunchConfiguration("enable_chassis_output").perform(context)
     )
+    allow_uncalibrated_camera = _enabled(
+        LaunchConfiguration("allow_uncalibrated_camera").perform(context)
+    )
+    if enable_chassis and allow_uncalibrated_camera:
+        raise RuntimeError("真车运动禁止绕过海康相机FAST-LIVO2标定检查")
     if not enable_chassis:
         return []
 
@@ -150,6 +155,9 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "hikrobot_trigger_enable", default_value="false"
             ),
+            DeclareLaunchArgument(
+                "allow_uncalibrated_camera", default_value="false"
+            ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_navigation", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -227,6 +235,9 @@ def generate_launch_description():
                             ),
                             "hikrobot_trigger_enable": LaunchConfiguration(
                                 "hikrobot_trigger_enable"
+                            ),
+                            "allow_uncalibrated_camera": LaunchConfiguration(
+                                "allow_uncalibrated_camera"
                             ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
                             "start_initial_localizer": "true",

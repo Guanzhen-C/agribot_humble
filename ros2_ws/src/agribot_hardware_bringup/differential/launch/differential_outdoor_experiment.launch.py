@@ -128,6 +128,9 @@ def generate_launch_description():
                 "hikrobot_trigger_enable", default_value="false"
             ),
             DeclareLaunchArgument(
+                "allow_uncalibrated_camera", default_value="false"
+            ),
+            DeclareLaunchArgument(
                 "enable_chassis_output", default_value="false"
             ),
             DeclareLaunchArgument("motion_authorization", default_value=""),
@@ -183,6 +186,9 @@ def generate_launch_description():
                             ),
                             "hikrobot_trigger_enable": LaunchConfiguration(
                                 "hikrobot_trigger_enable"
+                            ),
+                            "allow_uncalibrated_camera": LaunchConfiguration(
+                                "allow_uncalibrated_camera"
                             ),
                             "enable_chassis_output": LaunchConfiguration(
                                 "enable_chassis_output"

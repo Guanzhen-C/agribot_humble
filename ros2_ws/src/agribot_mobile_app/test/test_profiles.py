@@ -133,11 +133,21 @@ def test_production_profiles_dispatch_to_each_chassis_stack(tmp_path):
     ackermann = profiles.command(
         "ackermann_indoor", map_base, True, "ackermann"
     )
+    ackermann_observe = profiles.command(
+        "ackermann_indoor", map_base, False, "ackermann"
+    )
     differential = profiles.command(
         "differential_indoor", map_base, True, "differential"
     )
+    differential_observe = profiles.command(
+        "differential_indoor", map_base, False, "differential"
+    )
 
     assert "ackermann_mppi_fastlivo_rtk_mapped.launch.py" in ackermann
+    assert "allow_uncalibrated_camera:=true" in ackermann_observe
+    assert "allow_uncalibrated_camera:=false" in ackermann
     assert "motion_authorization:=ENABLE_DIFFERENTIAL_MOTION" not in ackermann
     assert "differential_mppi_fastlivo_rtk_mapped.launch.py" in differential
+    assert "allow_uncalibrated_camera:=true" in differential_observe
+    assert "allow_uncalibrated_camera:=false" in differential
     assert "motion_authorization:=ENABLE_DIFFERENTIAL_MOTION" in differential

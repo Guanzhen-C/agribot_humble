@@ -49,6 +49,12 @@ DIFFERENTIAL_FULL_LAUNCH_PATH = (
     / "launch"
     / "differential_mppi_fastlivo_rtk_mapped.launch.py"
 )
+ACKERMANN_FASTLIVO_FULL_LAUNCH_PATH = (
+    PACKAGE_ROOT
+    / "ackermann"
+    / "launch"
+    / "ackermann_mppi_fastlivo_rtk_mapped.launch.py"
+)
 
 
 def load_vehicle_launch():
@@ -74,6 +80,10 @@ NAVSAT_LAUNCH = load_launch(NAVSAT_LAUNCH_PATH, "ackermann_mppi_navsat_launch")
 DIFFERENTIAL_FULL_LAUNCH = load_launch(
     DIFFERENTIAL_FULL_LAUNCH_PATH,
     "differential_mppi_fastlivo_rtk_mapped_launch",
+)
+ACKERMANN_FASTLIVO_FULL_LAUNCH = load_launch(
+    ACKERMANN_FASTLIVO_FULL_LAUNCH_PATH,
+    "ackermann_mppi_fastlivo_rtk_mapped_launch",
 )
 
 
@@ -105,12 +115,26 @@ def differential_full_context(**overrides):
         "chassis_driver": "differential_can",
         "can_transport": "socketcan",
         "enable_chassis_output": "false",
+        "allow_uncalibrated_camera": "false",
         "use_sim_time": "false",
         "motion_authorization": "",
         "vehicle_calibration": str(
             PACKAGE_ROOT / "differential" / "config" / "vehicle_calibration.yaml"
         ),
         "zqwl_port": "/dev/does-not-exist",
+    }
+    values.update(overrides)
+    context = LaunchContext()
+    context.launch_configurations.update(values)
+    return context
+
+
+def ackermann_fastlivo_full_context(**overrides):
+    values = {
+        "chassis_driver": "ackermann_can",
+        "can_transport": "socketcan",
+        "enable_chassis_output": "false",
+        "allow_uncalibrated_camera": "false",
     }
     values.update(overrides)
     context = LaunchContext()
@@ -131,6 +155,26 @@ def test_differential_full_stack_is_read_only_by_default():
     assert DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
         differential_full_context()
     ) == []
+
+
+def test_uncalibrated_camera_is_allowed_only_without_chassis_output():
+    assert ACKERMANN_FASTLIVO_FULL_LAUNCH._validate_arguments(
+        ackermann_fastlivo_full_context(allow_uncalibrated_camera="true")
+    ) == []
+    with pytest.raises(RuntimeError, match="禁止绕过"):
+        ACKERMANN_FASTLIVO_FULL_LAUNCH._validate_arguments(
+            ackermann_fastlivo_full_context(
+                enable_chassis_output="true",
+                allow_uncalibrated_camera="true",
+            )
+        )
+    with pytest.raises(RuntimeError, match="禁止绕过"):
+        DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+            differential_full_context(
+                enable_chassis_output="true",
+                allow_uncalibrated_camera="true",
+            )
+        )
 
 
 def test_differential_full_stack_requires_explicit_motion_authorization():

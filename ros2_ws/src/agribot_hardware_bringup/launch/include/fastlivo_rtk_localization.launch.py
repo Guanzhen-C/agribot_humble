@@ -8,6 +8,7 @@ from launch.actions import (
     DeclareLaunchArgument,
     GroupAction,
     IncludeLaunchDescription,
+    LogInfo,
     OpaqueFunction,
 )
 from launch.conditions import IfCondition
@@ -17,6 +18,7 @@ from launch_ros.actions import Node
 
 
 def _validate_paths(context):
+    validation_actions = []
     map_base = Path(LaunchConfiguration("map_base").perform(context)).expanduser()
     initialization_source = LaunchConfiguration("initialization_source").perform(
         context
@@ -80,6 +82,9 @@ def _validate_paths(context):
     start_fastlivo = LaunchConfiguration("start_fastlivo").perform(
         context
     ).lower() in ("true", "1", "yes", "on")
+    allow_uncalibrated_camera = LaunchConfiguration(
+        "allow_uncalibrated_camera"
+    ).perform(context).lower() in ("true", "1", "yes", "on")
     camera_driver = LaunchConfiguration("camera_driver").perform(context)
     if start_fastlivo and camera_driver == "hikrobot_mvs":
         status_path = Path(
@@ -102,12 +107,22 @@ def _validate_paths(context):
         if status.get("serial_number") != expected_serial:
             incomplete.append("serial_number")
         if incomplete:
-            raise RuntimeError(
-                "海康相机尚未完成FAST-LIVO2标定，禁止启动视觉定位: "
-                + ", ".join(incomplete)
-                + "；可用start_fastlivo:=false只测试相机取流"
+            detail = ", ".join(incomplete)
+            if not allow_uncalibrated_camera:
+                raise RuntimeError(
+                    "海康相机尚未完成FAST-LIVO2标定，禁止启动视觉定位: "
+                    + detail
+                    + "；可用start_fastlivo:=false只测试相机取流"
+                )
+            validation_actions.append(
+                LogInfo(
+                    msg=(
+                        "警告：海康相机FAST-LIVO2标定未完成，仅允许无底盘输出的"
+                        f"观察模式运行: {detail}"
+                    )
+                )
             )
-    return []
+    return validation_actions
 
 
 def _robot_state_publisher(context):
@@ -214,6 +229,11 @@ def generate_launch_description():
                     "config",
                     "hikrobot_camera_calibration_status.yaml",
                 ),
+            ),
+            DeclareLaunchArgument(
+                "allow_uncalibrated_camera",
+                default_value="false",
+                description="仅供无底盘输出的观察模式临时使用",
             ),
             DeclareLaunchArgument(
                 "fastlivo_bridge_config",

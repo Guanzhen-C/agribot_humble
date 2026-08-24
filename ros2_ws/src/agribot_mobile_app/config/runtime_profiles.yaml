@@ -50,9 +50,12 @@ profiles:
       allow_missing_georeference: true
       start_rtk: true
       rviz: false
+      allow_uncalibrated_camera: true
       chassis_driver: ackermann_can
       can_transport: zqwl_cdc
       zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+    motion_args:
+      allow_uncalibrated_camera: false
 
   ackermann_outdoor_0811:
     label: 室外0811
@@ -70,8 +73,10 @@ profiles:
       enable_fpfh: false
       allow_missing_georeference: false
       rviz: false
+      allow_uncalibrated_camera: true
     motion_args:
       motion_authorization: ENABLE_OUTDOOR_MOTION
+      allow_uncalibrated_camera: false
 
   differential_indoor:
     label: 室内地图
@@ -88,11 +93,13 @@ profiles:
       allow_missing_georeference: true
       start_rtk: true
       rviz: false
+      allow_uncalibrated_camera: true
       chassis_driver: differential_can
       can_transport: zqwl_cdc
       zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
     motion_args:
       motion_authorization: ENABLE_DIFFERENTIAL_MOTION
+      allow_uncalibrated_camera: false
 
   differential_outdoor:
     label: 室外地图
@@ -108,7 +115,9 @@ profiles:
       enable_fpfh: false
       allow_missing_georeference: false
       rviz: false
+      allow_uncalibrated_camera: true
       can_transport: zqwl_cdc
       zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
     motion_args:
       motion_authorization: ENABLE_DIFFERENTIAL_MOTION
+      allow_uncalibrated_camera: false
