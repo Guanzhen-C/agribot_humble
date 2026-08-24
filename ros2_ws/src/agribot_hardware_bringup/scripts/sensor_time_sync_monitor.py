@@ -106,7 +106,7 @@ class SensorTimeSyncMonitor(Node):
 
         definitions = {
             "lidar": (
-                self.lidar_topic,
+                self.lidar_stamp_topic,
                 float(self.declare_parameter("lidar_minimum_rate_hz", 8.0).value),
                 float(self.declare_parameter("lidar_maximum_age_sec", 0.30).value),
             ),
@@ -116,7 +116,7 @@ class SensorTimeSyncMonitor(Node):
                 float(self.declare_parameter("imu_maximum_age_sec", 0.20).value),
             ),
             "camera": (
-                self.camera_topic,
+                self.camera_stamp_topic,
                 float(self.declare_parameter("camera_minimum_rate_hz", 8.0).value),
                 float(self.declare_parameter("camera_maximum_age_sec", 0.30).value),
             ),
@@ -194,6 +194,11 @@ class SensorTimeSyncMonitor(Node):
 
     def record_lightweight_stamp(self, name, stamp):
         receipt = self.get_clock().now().nanoseconds * 1.0e-9
+        self.timings[name].topic = (
+            self.lidar_stamp_topic
+            if name == "lidar"
+            else self.camera_stamp_topic
+        )
         self.timings[name].add(stamp, receipt)
         self.lightweight_stamp_seen[name] = True
         subscription = self.fallback_subscriptions.pop(name, None)
@@ -207,6 +212,7 @@ class SensorTimeSyncMonitor(Node):
             not self.lightweight_stamp_seen["lidar"]
             and "lidar" not in self.fallback_subscriptions
         ):
+            self.timings["lidar"].topic = self.lidar_topic
             self.fallback_subscriptions["lidar"] = self.create_subscription(
                 PointCloud2,
                 self.lidar_topic,
@@ -220,6 +226,7 @@ class SensorTimeSyncMonitor(Node):
             not self.lightweight_stamp_seen["camera"]
             and "camera" not in self.fallback_subscriptions
         ):
+            self.timings["camera"].topic = self.camera_topic
             self.fallback_subscriptions["camera"] = self.create_subscription(
                 Image,
                 self.camera_topic,
