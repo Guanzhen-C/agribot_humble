@@ -8,7 +8,7 @@ from launch import LaunchContext
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
-LPWM_SCRIPT = PACKAGE_ROOT / "scripts" / "configure_camera_trigger_pwm.sh"
+TRIGGER_SCRIPT = PACKAGE_ROOT / "scripts" / "configure_camera_trigger_pwm.sh"
 RIGHT_CAMERA_LAUNCH = PACKAGE_ROOT / "launch" / "include" / "right_camera.launch.py"
 
 
@@ -22,6 +22,21 @@ def load_right_camera_launch():
 
 
 RIGHT_CAMERA = load_right_camera_launch()
+
+
+def make_pwm_tree(tmp_path):
+    chip = tmp_path / "pwmchip0"
+    pwm = chip / "pwm0"
+    (chip / "device").mkdir(parents=True)
+    pwm.mkdir()
+    (chip / "device" / "uevent").write_text("OF_ALIAS_0=pwm3\n")
+    (chip / "npwm").write_text("2\n")
+    (chip / "export").write_text("")
+    (pwm / "period").write_text("0\n")
+    (pwm / "duty_cycle").write_text("0\n")
+    (pwm / "enable").write_text("0\n")
+    (pwm / "polarity").write_text("normal\n")
+    return pwm
 
 
 def make_lpwm_tree(tmp_path):
@@ -39,41 +54,26 @@ def make_lpwm_tree(tmp_path):
         "3\t0\t0\t0\t0\t0\t0\tNONE\n"
     )
     (chip / "npwm").write_text("4\n")
+    return device
 
+
+def make_fake_devmem(tmp_path):
     register = tmp_path / "pinmux_register"
     register.write_text("0x00F000AA\n")
-    fake_devmem = tmp_path / "fake_devmem.sh"
-    fake_devmem.write_text(
+    command = tmp_path / "fake_devmem.sh"
+    command.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "if [[ $# -eq 3 ]]; then printf '%s\\n' \"$3\" > \"$AGRIBOT_FAKE_REGISTER\"; fi\n"
-        "cat \"$AGRIBOT_FAKE_REGISTER\"\n"
+        'if [[ $# -eq 3 ]]; then printf "%s\\n" "$3" > "$AGRIBOT_FAKE_REGISTER"; fi\n'
+        'cat "$AGRIBOT_FAKE_REGISTER"\n'
     )
-    fake_devmem.chmod(0o755)
-
-    legacy = tmp_path / "legacy_enable"
-    legacy.write_text("1\n")
-    return device, register, fake_devmem, legacy
+    command.chmod(0o755)
+    return register, command
 
 
-def lpwm_environment(tmp_path, register, fake_devmem, legacy, ready_file):
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "AGRIBOT_PWM_SYSFS_ROOT": str(tmp_path),
-            "AGRIBOT_DEVMEM_COMMAND": str(fake_devmem),
-            "AGRIBOT_FAKE_REGISTER": str(register),
-            "LPWM_DEVICE": str(tmp_path / "fake-hobot-lpwm1"),
-            "LPWM_READY_FILE": str(ready_file),
-            "LPWM_LEGACY_PWM_ENABLE_PATH": str(legacy),
-        }
-    )
-    return environment
-
-
-def run_lpwm_script(environment, action):
+def run_trigger_script(environment, action):
     return subprocess.run(
-        ["bash", str(LPWM_SCRIPT), action],
+        ["bash", str(TRIGGER_SCRIPT), action],
         check=False,
         capture_output=True,
         text=True,
@@ -81,12 +81,48 @@ def run_lpwm_script(environment, action):
     )
 
 
-def write_ready_file(path, device):
+def base_environment(tmp_path, ready_file):
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AGRIBOT_PWM_SYSFS_ROOT": str(tmp_path),
+            "CAMERA_TRIGGER_READY_FILE": str(ready_file),
+        }
+    )
+    return environment
+
+
+def write_pin32_ready(path, pwm):
     path.write_text(
-        f"device={device}\n"
+        "backend=pin32_pwm\n"
+        f"pwm_enable_path={pwm / 'enable'}\n"
+        "period_ns=100000000\n"
+        "duty_cycle_ns=1000000\n"
+        "polarity=normal\n"
+        "pps_rephase=continuous\n"
+        "pps_sequence=42\n"
+        "last_latency_us=123.0\n"
+        f"pid={os.getpid()}\n"
+    )
+
+
+def set_lpwm_running(device):
+    (device / "lpwm_config_info").write_text(
+        "core\tsource\toffset\tperiod\tduty_time\tthreshold\tadjust_step\toccupied\n"
+        "0\t6\t10\t99999\t999\t0\t0\tCAMSYS\n"
+        "1\t6\t0\t0\t0\t0\t0\tCAMSYS\n"
+        "2\t6\t0\t0\t0\t0\t0\tCAMSYS\n"
+        "3\t6\t0\t0\t0\t0\t0\tCAMSYS\n"
+    )
+
+
+def write_lpwm_ready(path, device_path):
+    path.write_text(
+        "backend=j14_lpwm\n"
+        f"device={device_path}\n"
         "channel_id=4\n"
         "channel=0\n"
-        "trigger_source=2\n"
+        "trigger_source=6\n"
         "trigger_mode=1\n"
         "period_us=100000\n"
         "offset_us=10\n"
@@ -98,51 +134,65 @@ def write_ready_file(path, device):
     )
 
 
-def set_running_config(device):
-    (device / "lpwm_config_info").write_text(
-        "core\tsource\toffset\tperiod\tduty_time\tthreshold\tadjust_step\toccupied\n"
-        "0\t2\t10\t99999\t999\t0\t0\tCAMSYS\n"
-        "1\t2\t0\t0\t0\t0\t0\tNONE\n"
-        "2\t2\t0\t0\t0\t0\t0\tNONE\n"
-        "3\t2\t0\t0\t0\t0\t0\tNONE\n"
-    )
+def test_pin32_prepare_and_status_require_continuous_pps_rephase(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    ready = tmp_path / "ready"
+    environment = base_environment(tmp_path, ready)
 
-
-def test_lpwm_prepare_selects_timesync2_and_disables_legacy_pwm(tmp_path):
-    _, register, fake_devmem, legacy = make_lpwm_tree(tmp_path)
-    ready_file = tmp_path / "ready"
-    environment = lpwm_environment(
-        tmp_path, register, fake_devmem, legacy, ready_file
-    )
-
-    result = run_lpwm_script(environment, "prepare")
-    assert result.returncode == 0, result.stderr
-    assert int(register.read_text().strip(), 0) == 0x00B000AA
-    assert legacy.read_text().strip() == "0"
-    assert "Pin 33" in result.stdout
-
-
-def test_lpwm_status_checks_driver_and_live_process(tmp_path):
-    device, register, fake_devmem, legacy = make_lpwm_tree(tmp_path)
-    ready_file = tmp_path / "ready"
-    environment = lpwm_environment(
-        tmp_path, register, fake_devmem, legacy, ready_file
-    )
-    prepared = run_lpwm_script(environment, "prepare")
+    prepared = run_trigger_script(environment, "prepare")
     assert prepared.returncode == 0, prepared.stderr
-    set_running_config(device)
-    write_ready_file(ready_file, environment["LPWM_DEVICE"])
+    assert (pwm / "period").read_text().strip() == "100000000"
+    assert (pwm / "duty_cycle").read_text().strip() == "1000000"
+    assert (pwm / "enable").read_text().strip() == "0"
 
-    status = run_lpwm_script(environment, "status")
+    (pwm / "enable").write_text("1\n")
+    write_pin32_ready(ready, pwm)
+    status = run_trigger_script(environment, "status")
+    assert status.returncode == 0, status.stderr
+    assert "40Pin物理Pin 32" in status.stdout
+    assert "每个PPS周期" in status.stdout
+
+    cleaned = run_trigger_script(environment, "cleanup")
+    assert cleaned.returncode == 0, cleaned.stderr
+    assert (pwm / "enable").read_text().strip() == "0"
+    assert not ready.exists()
+
+
+def test_j14_backend_is_retained_with_official_timesync2_source(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    register, fake_devmem = make_fake_devmem(tmp_path)
+    ready = tmp_path / "ready"
+    environment = base_environment(tmp_path, ready)
+    environment.update(
+        {
+            "CAMERA_TRIGGER_BACKEND": "j14_lpwm",
+            "AGRIBOT_DEVMEM_COMMAND": str(fake_devmem),
+            "AGRIBOT_FAKE_REGISTER": str(register),
+            "LPWM_DEVICE": str(tmp_path / "fake-hobot-lpwm1"),
+        }
+    )
+    (pwm / "enable").write_text("1\n")
+
+    prepared = run_trigger_script(environment, "prepare")
+    assert prepared.returncode == 0, prepared.stderr
+    assert int(register.read_text().strip(), 0) == 0x00B000AA
+    assert (pwm / "enable").read_text().strip() == "0"
+
+    set_lpwm_running(device)
+    write_lpwm_ready(ready, environment["LPWM_DEVICE"])
+    status = run_trigger_script(environment, "status")
     assert status.returncode == 0, status.stderr
     assert "J14 Pin 18" in status.stdout
-    assert "TIME_SYNC2/SGT1" in status.stdout
+    assert "source 6" in status.stdout
 
 
-def trigger_context(lpwm_device_path, ready_path, **overrides):
+def trigger_context(pwm_path, lpwm_device_path, ready_path, **overrides):
     values = {
         "camera_driver": "hikrobot_mvs",
         "hikrobot_trigger_enable": "true",
+        "hikrobot_trigger_backend": "auto",
+        "hikrobot_trigger_pwm_path": str(pwm_path),
         "hikrobot_trigger_lpwm_device_path": str(lpwm_device_path),
         "hikrobot_trigger_ready_path": str(ready_path),
         "hikrobot_trigger_period_ns": "100000000",
@@ -154,21 +204,36 @@ def trigger_context(lpwm_device_path, ready_path, **overrides):
     return context
 
 
-def test_camera_launch_accepts_ready_lpwm_hardware_trigger(tmp_path):
-    device, _, _, _ = make_lpwm_tree(tmp_path)
-    set_running_config(device)
+def test_camera_launch_accepts_ready_pin32_trigger(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
     ready = tmp_path / "ready"
-    write_ready_file(ready, "/dev/hobot-lpwm1")
+    (pwm / "period").write_text("100000000\n")
+    (pwm / "duty_cycle").write_text("1000000\n")
+    (pwm / "enable").write_text("1\n")
+    write_pin32_ready(ready, pwm)
     assert RIGHT_CAMERA._validate_hardware_trigger(
-        trigger_context(device, ready)
+        trigger_context(pwm, device, ready)
     ) == []
 
 
-def test_camera_launch_rejects_missing_lpwm_service_state(tmp_path):
-    device, _, _, _ = make_lpwm_tree(tmp_path)
-    with pytest.raises(RuntimeError, match="无法读取RDK LPWM状态"):
+def test_camera_launch_accepts_retained_j14_trigger(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    ready = tmp_path / "ready"
+    set_lpwm_running(device)
+    write_lpwm_ready(ready, "/dev/hobot-lpwm1")
+    assert RIGHT_CAMERA._validate_hardware_trigger(
+        trigger_context(pwm, device, ready)
+    ) == []
+
+
+def test_camera_launch_rejects_missing_trigger_service_state(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    with pytest.raises(RuntimeError, match="触发服务未就绪"):
         RIGHT_CAMERA._validate_hardware_trigger(
-            trigger_context(device, tmp_path / "missing-ready")
+            trigger_context(pwm, device, tmp_path / "missing-ready")
         )
 
 
@@ -199,49 +264,44 @@ def test_physical_differential_camera_defaults_to_hardware_trigger():
         assert '"lidar_forward_point_offset_sec", default_value="0.05004"' in source
 
 
-def test_camera_trigger_service_uses_continuous_hardware_pps_retrigger():
+def test_service_dispatches_exclusive_trigger_backends():
     service = (
         PACKAGE_ROOT / "systemd" / "agribot-camera-trigger.service"
     ).read_text()
     assert "Type=simple" in service
-    assert "camera-trigger-lpwm" in service
-    assert "--trigger-source ${LPWM_TRIGGER_SOURCE}" in service
-    assert "RemainAfterExit" not in service
+    assert "ExecStart=/usr/local/sbin/agribot-camera-trigger-run" in service
+    assert "ExecStartPre=/usr/local/sbin/agribot-camera-trigger-pwm prepare" in service
+    assert "ExecStopPost=/usr/local/sbin/agribot-camera-trigger-pwm cleanup" in service
     assert "Restart=on-failure" in service
+
+    runner = (PACKAGE_ROOT / "scripts" / "run_camera_trigger.sh").read_text()
+    assert "pin32_pwm)" in runner
+    assert "j14_lpwm)" in runner
+    assert "agribot-camera-trigger-pps-lock" in runner
+    assert "agribot-camera-trigger-lpwm" in runner
 
     installer = (
         PACKAGE_ROOT / "scripts" / "install_camera_trigger_pwm.sh"
     ).read_text()
-    assert "systemctl stop agribot-camera-trigger.service" in installer
+    assert "agribot-camera-trigger-run" in installer
+    assert "agribot-camera-trigger-pps-lock" in installer
     assert "agribot-camera-trigger-lpwm" in installer
-    assert "agribot-camera-trigger-pps-lock" not in installer
-
-    checker = (
-        PACKAGE_ROOT / "scripts" / "check_camera_trigger_pwm.sh"
-    ).read_text()
-    assert 'LPWM_DEVICE:-/dev/hobot-lpwm1' in checker
-    assert "TIME_SYNC2" in checker
-    assert "sudo /usr/local/sbin/agribot-camera-trigger-pwm status" in checker
-
-    configurator = LPWM_SCRIPT.read_text()
-    assert '[[ -d "/proc/${pid}" ]]' in configurator
-    assert 'kill -0 "${pid}"' not in configurator
 
     environment = (
         PACKAGE_ROOT / "config" / "time_sync" / "camera_trigger_pwm.env"
     ).read_text()
-    assert "LPWM_TRIGGER_SOURCE=2" in environment
-    assert "LPWM_TIME_SYNC_PINMUX_SHIFT=22" in environment
-    assert "LPWM_PERIOD_US=100000" in environment
-    assert "LPWM_PPS_DEVICE=/dev/pps-rtk" in environment
+    assert "CAMERA_TRIGGER_BACKEND=pin32_pwm" in environment
+    assert "LPWM_TRIGGER_SOURCE=6" in environment
 
-    helper = (
+    pin32_helper = (
+        PACKAGE_ROOT / "time_sync" / "src" / "camera_trigger_pps_lock.cpp"
+    ).read_text()
+    assert "next_guard_time" in pin32_helper
+    assert "pps_rephase=continuous" in pin32_helper
+    assert "write_pwm_enable(pwm.get(), false)" in pin32_helper
+
+    lpwm_helper = (
         PACKAGE_ROOT / "time_sync" / "src" / "camera_trigger_lpwm.cpp"
     ).read_text()
-    assert "kHardwareTriggerMode = 1" in helper
-    assert "kLpwmInit == 0x40784c12UL" in helper
-    assert "kLpwmClose == 0x40044c13UL" in helper
-    assert "RTK PPS序号在超时时间内没有递增" in helper
-
-    camera_launch = RIGHT_CAMERA_LAUNCH.read_text()
-    assert 'Path(f"/proc/{process_id}").is_dir()' in camera_launch
+    assert 'output << "backend=j14_lpwm' in lpwm_helper
+    assert "trigger_source{6U}" in lpwm_helper

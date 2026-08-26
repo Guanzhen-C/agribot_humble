@@ -378,24 +378,22 @@ received PTP seconds directly into packets, while ROS interprets them as UTC;
 using the normal TAI offset would make cloud timestamps 37 seconds fast in
 2026.
 
-### Camera-to-C16 hardware phase alignment
+### Camera-to-C16 phase alignment
 
-The Hikrobot camera uses the RDK X5 camera subsystem LPWM instead of the
-ordinary 40-pin PWM output. Wire the trigger path as follows with the vehicle
-powered off:
+The current `pin32_pwm` backend connects Hikrobot `Line0` to RDK X5 physical
+pin 32 and a confirmed common ground. Physical pin 36 remains the RTK PPS input
+for `/dev/pps-rtk`. The daemon stops PWM6 10 ms before each predicted PPS edge,
+then starts the 10 Hz, 1 ms active-high waveform on the actual PPS event. This
+re-aligns the phase every second and fails closed when PPS disappears. It is a
+real-time software re-phase operation, not a direct SoC hardware route.
 
-- split RTK PPS to physical pin 36 and physical pin 33;
-- connect camera `Line0` to MIPI CAM1 connector J14 pin 18
-  (`CAM1_TRIG_3V3`), replacing the old physical-pin-32 trigger;
-- connect the camera trigger ground to J14 pin 19 or another confirmed common
-  ground.
-
-At service startup, physical pin 33 is muxed to `TIME_SYNC2`, which the LPWM1
-driver receives as `SGT1` trigger source 2. LPWM1 channel 0 then emits a 10 Hz,
-1 ms active-high signal on J14 pin 18. Hardware trigger mode restarts the
-waveform on every PPS rising edge, so it cannot accumulate phase drift between
-the camera trigger and RTK PPS. Physical pin 36 remains dedicated to
-`/dev/pps-rtk` for chrony and independent PPS-loss monitoring.
+The `j14_lpwm` backend is retained for a future 22-pin breakout. With the
+vehicle powered off, split PPS to physical pins 36 and 33, connect `Line0` to
+MIPI CAM1 J14 pin 18 (`CAM1_TRIG_3V3`), and connect the trigger ground to J14
+pin 19. Then set `CAMERA_TRIGGER_BACKEND=j14_lpwm` in
+`/etc/default/agribot-camera-trigger` and restart the service. LPWM1 uses the
+official `TIME_SYNC2` trigger-source value 6 and re-triggers entirely in
+hardware on every PPS.
 
 Install or refresh the service after building and after completing that wiring:
 
@@ -406,7 +404,7 @@ ros2 run agribot_hardware_bringup install_camera_trigger_pwm.sh
 sudo journalctl -b -u agribot-camera-trigger.service --no-pager
 ```
 
-Check the live LPWM configuration and camera frames:
+Check the selected trigger backend and actual camera frames:
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -414,10 +412,11 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 run agribot_hardware_bringup check_camera_trigger_pwm.sh
 ```
 
-The checker must report `Pin 33/TIME_SYNC2`, LPWM driver source `2`, and
-`occupied=CAMSYS`. The service fails closed and retries when RTK PPS is absent;
-it does not fall back to a free-running trigger. Do not reconnect J14, the
-40-pin header, or camera Line0 while the RDK or camera is powered.
+The current checker must report `pin32_pwm`, continuous PPS re-phase, and an
+actual image rate near 10 Hz. For the future J14 backend it must report LPWM
+driver source 6 and `occupied=CAMSYS`. Neither backend falls back to a
+free-running trigger. Do not reconnect J14, the 40-pin header, or camera Line0
+while the RDK or camera is powered.
 
 Configure the C16 rotation phase once, with the lidar driver stopped so UDP
 port 2369 is free. Read the status before writing, preview the requested value,

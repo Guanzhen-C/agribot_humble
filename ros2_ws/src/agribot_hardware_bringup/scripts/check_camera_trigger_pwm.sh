@@ -7,25 +7,34 @@ if [[ -r "${config_file}" ]]; then
   source "${config_file}"
 fi
 
-pps_device="${LPWM_PPS_DEVICE:-/dev/pps-rtk}"
-lpwm_device="${LPWM_DEVICE:-/dev/hobot-lpwm1}"
-lpwm_helper="/usr/local/sbin/agribot-camera-trigger-lpwm"
+backend="${CAMERA_TRIGGER_BACKEND:-pin32_pwm}"
+pps_device="${CAMERA_TRIGGER_PPS_DEVICE:-/dev/pps-rtk}"
 [[ -c "${pps_device}" ]] || {
   echo "错误：RTK PPS字符设备不存在：${pps_device}" >&2
   exit 1
 }
-[[ -c "${lpwm_device}" ]] || {
-  echo "错误：LPWM字符设备不存在：${lpwm_device}" >&2
-  exit 1
-}
-[[ -x "${lpwm_helper}" ]] || {
-  echo "错误：LPWM硬件触发程序不可执行：${lpwm_helper}" >&2
+case "${backend}" in
+  pin32_pwm)
+    helper="/usr/local/sbin/agribot-camera-trigger-pps-lock"
+    description="RTK PPS -> Pin 32/PWM6（逐PPS软件校相）"
+    ;;
+  j14_lpwm)
+    helper="/usr/local/sbin/agribot-camera-trigger-lpwm"
+    description="RTK PPS -> Pin 33/TIME_SYNC2 -> LPWM1 -> J14 Pin 18"
+    ;;
+  *)
+    echo "错误：未知相机触发后端${backend}" >&2
+    exit 1
+    ;;
+esac
+[[ -x "${helper}" ]] || {
+  echo "错误：相机触发程序不可执行：${helper}" >&2
   exit 1
 }
 
 systemctl is-active --quiet agribot-camera-trigger.service
 sudo /usr/local/sbin/agribot-camera-trigger-pwm status
-echo "相机触发：RTK PPS -> Pin 33/TIME_SYNC2 -> LPWM1 -> J14 Pin 18"
+echo "相机触发：${description}"
 
 get_camera_parameter() {
   local name="$1"
@@ -71,9 +80,10 @@ get_camera_parameter trigger_selector FrameBurstStart
 get_camera_parameter trigger_source Line0
 get_camera_parameter trigger_activation RisingEdge
 echo "相机图像频率（5秒）："
-rate_output="$(timeout 6 ros2 topic hz /camera/rgb/image_raw --window 30 2>&1)" || {
+rate_output="$(timeout --signal=INT --kill-after=2s 7s \
+  ros2 topic hz /camera/rgb/image_raw --window 30 2>&1)" || {
   result=$?
-  [[ ${result} -eq 124 ]] || exit "${result}"
+  [[ ${result} -eq 124 || ${result} -eq 137 ]] || exit "${result}"
 }
 echo "${rate_output}"
 grep -q "average rate:" <<<"${rate_output}" || {

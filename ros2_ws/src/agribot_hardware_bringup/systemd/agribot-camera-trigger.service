@@ -1,5 +1,5 @@
 [Unit]
-Description=Generate the PPS-retriggered Hikrobot Line0 signal with RDK X5 LPWM
+Description=Generate the PPS-aligned Hikrobot Line0 trigger on RDK X5
 Documentation=https://developer.d-robotics.cc/x5_sdk_doc/linux_development/driver_develop_guide/28-LPWM_Driver_Debug_Guide.html
 After=local-fs.target chrony.service agribot-rtk-time.service
 Wants=chrony.service agribot-rtk-time.service
@@ -11,7 +11,7 @@ EnvironmentFile=/etc/default/agribot-camera-trigger
 RuntimeDirectory=agribot-camera-trigger
 RuntimeDirectoryMode=0755
 ExecStartPre=/usr/local/sbin/agribot-camera-trigger-pwm prepare
-ExecStart=/usr/local/sbin/agribot-camera-trigger-lpwm --device ${LPWM_DEVICE} --pps-device ${LPWM_PPS_DEVICE} --ready-file ${LPWM_READY_FILE} --channel-id ${LPWM_CHANNEL_ID} --trigger-source ${LPWM_TRIGGER_SOURCE} --period-us ${LPWM_PERIOD_US} --offset-us ${LPWM_OFFSET_US} --duty-us ${LPWM_DUTY_US} --threshold-us ${LPWM_THRESHOLD_US} --adjust-step ${LPWM_ADJUST_STEP} --pps-timeout-sec ${LPWM_PPS_TIMEOUT_SEC}
+ExecStart=/usr/local/sbin/agribot-camera-trigger-run
 ExecStopPost=/usr/local/sbin/agribot-camera-trigger-pwm cleanup
 Restart=on-failure
 RestartSec=1

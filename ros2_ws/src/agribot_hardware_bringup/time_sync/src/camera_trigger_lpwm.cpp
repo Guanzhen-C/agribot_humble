@@ -62,7 +62,7 @@ struct Options
   std::string pps_device{"/dev/pps-rtk"};
   std::string ready_file{"/run/agribot-camera-trigger/ready"};
   std::uint32_t channel_id{4U};
-  std::uint32_t trigger_source{2U};
+  std::uint32_t trigger_source{6U};
   std::uint32_t period_us{100000U};
   std::uint32_t offset_us{10U};
   std::uint32_t duty_us{1000U};
@@ -248,7 +248,8 @@ void write_ready_file(const Options & options, const pps_fdata & event)
   if (!output) {
     throw std::runtime_error("无法创建LPWM就绪文件: " + temporary);
   }
-  output << "device=" << options.device << '\n'
+  output << "backend=j14_lpwm\n"
+         << "device=" << options.device << '\n'
          << "channel_id=" << options.channel_id << '\n'
          << "channel=" << options.channel_id % kChannelCount << '\n'
          << "trigger_source=" << options.trigger_source << '\n'

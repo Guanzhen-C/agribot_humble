@@ -170,6 +170,11 @@ add_executable(
 )
 
 add_executable(
+  camera_trigger_pps_lock
+  time_sync/src/camera_trigger_pps_lock.cpp
+)
+
+add_executable(
   rtk_eskf_localization
   localization/navsat/src/rtk_eskf_localization_node.cpp
   localization/navsat/src/rtk_gi_engine.cpp
@@ -298,6 +303,7 @@ install(PROGRAMS
   scripts/configure_can.sh
   scripts/configure_c16_network.sh
   scripts/configure_camera_trigger_pwm.sh
+  scripts/run_camera_trigger.sh
   scripts/c16_pps_phase_tool.py
   scripts/check_camera_trigger_pwm.sh
   scripts/check_c16_gptp.sh
@@ -377,6 +383,7 @@ install(TARGETS
   ackermann_chassis_serial_node
   ackermann_joint_state_publisher
   camera_trigger_lpwm
+  camera_trigger_pps_lock
   rtk_eskf_localization
   rtk_map_initializer
   georeference_test_bridge
