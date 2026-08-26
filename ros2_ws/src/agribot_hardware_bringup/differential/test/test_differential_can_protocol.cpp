@@ -94,7 +94,7 @@ TEST(DifferentialCanProtocol, DecodesThreeInOneMotorFeedback)
 {
   const auto frame = finalizeFrame(
     differential::kLeftMotorStateId,
-    {0xad, 0xf4, 0xd4, 0xfe, 0x7b, 0x00, 0x07, 0x00});
+    {0xad, 0xd4, 0xfe, 0x4b, 0xf4, 0x49, 0x07, 0x00});
 
   const auto state = differential::decodeMotorState(frame);
   ASSERT_TRUE(state.has_value());
@@ -106,24 +106,27 @@ TEST(DifferentialCanProtocol, DecodesThreeInOneMotorFeedback)
   EXPECT_TRUE(state->locked_rotor_protection);
   EXPECT_FALSE(state->hall_fault);
   EXPECT_TRUE(state->shake_fault);
-  EXPECT_EQ(state->temperature, -12);
   EXPECT_EQ(state->speed, -300);
-  EXPECT_EQ(state->running_current, 123);
+  EXPECT_EQ(state->motor_voltage, 75);
+  EXPECT_EQ(state->running_current, -12);
+  EXPECT_EQ(state->temperature, 33);
   EXPECT_EQ(state->rolling_counter, 7);
   EXPECT_TRUE(state->hasFault());
 }
 
-TEST(DifferentialCanProtocol, DecodesSignedSpeedTemperatureAndCurrent)
+TEST(DifferentialCanProtocol, DecodesCapturedStationaryMotorFrame)
 {
-  const auto frame = finalizeFrame(
+  common::Frame frame{
     differential::kRightMotorStateId,
-    {0x00, 0x50, 0xff, 0x7f, 0x00, 0x80, 0x0a, 0x00});
+    {0x00, 0x00, 0x00, 0x4b, 0x00, 0x49, 0x0a, 0x08}};
+  ASSERT_TRUE(common::hasValidChecksum(frame.data));
 
   const auto state = differential::decodeMotorState(frame);
   ASSERT_TRUE(state.has_value());
-  EXPECT_EQ(state->temperature, 80);
-  EXPECT_EQ(state->speed, 32767);
-  EXPECT_EQ(state->running_current, -32768);
+  EXPECT_EQ(state->speed, 0);
+  EXPECT_EQ(state->motor_voltage, 75);
+  EXPECT_EQ(state->running_current, 0);
+  EXPECT_EQ(state->temperature, 33);
   EXPECT_FALSE(state->hasFault());
 }
 
@@ -197,10 +200,10 @@ TEST(DifferentialCanAdapter, UsesThreeInOneFeedbackForMotionAndSafety)
     {0x21, 0x00, 0xe0, 0x01, 0x00, 0x00, 0x01, 0x00});
   auto left = finalizeFrame(
     differential::kLeftMotorStateId,
-    {0x00, 0x14, 0xe8, 0x03, 0x04, 0x00, 0x01, 0x00});
+    {0x00, 0xe8, 0x03, 0x4b, 0x04, 0x3c, 0x01, 0x00});
   auto right = finalizeFrame(
     differential::kRightMotorStateId,
-    {0x00, 0x15, 0xb0, 0x04, 0x05, 0x00, 0x01, 0x00});
+    {0x00, 0xb0, 0x04, 0x4b, 0x05, 0x3d, 0x01, 0x00});
 
   EXPECT_TRUE(adapter->processFrame(chassis, stamp).valid);
   EXPECT_TRUE(adapter->processFrame(left, stamp).valid);
@@ -223,6 +226,12 @@ TEST(DifferentialCanAdapter, UsesThreeInOneFeedbackForMotionAndSafety)
     20.0);
   EXPECT_DOUBLE_EQ(
     status.motor_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_RIGHT].temperature,
+    21.0);
+  EXPECT_DOUBLE_EQ(
+    status.driver_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_LEFT].driver_voltage,
+    75.0);
+  EXPECT_DOUBLE_EQ(
+    status.driver_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_RIGHT].driver_temperature,
     21.0);
 
   left.data[0] = 0x01;

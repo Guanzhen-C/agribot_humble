@@ -99,30 +99,29 @@ Nav2 command path is:
 
 ## Differential CAN protocol
 
-The differential driver implements the `三合一底盘` sheet in
-`主控到分控数据格式V2.4.xlsx`. The workbook is authoritative for signal
-positions, Intel byte order, rolling counter, XOR checksum, and the default
-250 kbit/s CAN bitrate.
+The differential driver implements the three-in-one chassis protocol and the
+default 250 kbit/s bitrate. Motor feedback follows the on-wire layout confirmed
+by the vehicle's captured frames, where byte 3 is motor voltage.
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
 | TX | `0x514` | Signed left/right PWM and headlight |
 | RX | `0x532` | Mode, emergency stop, motion, remote connection, headlight, and battery voltage |
-| RX | `0x533` | Left motor faults, temperature, signed speed, and current |
-| RX | `0x534` | Right motor faults, temperature, signed speed, and current |
+| RX | `0x533` | Left motor faults, speed, voltage, current, and temperature |
+| RX | `0x534` | Right motor faults, speed, voltage, current, and temperature |
 
 All frames are standard 11-bit, 8-byte CAN frames. Byte 6 low nibble is the
 rolling counter and byte 7 is XOR of bytes 0 through 6. Invalid checksums and
-unchanged replay counters are rejected. Counter jumps are accepted as dropped
-frames but recorded in `/diagnostics`.
+unchanged replay counters are rejected. Non-sequential feedback counter values
+are accepted because the controller advances its counter between the frames
+visible to this driver.
 
-Command byte 0 is reserved, bytes 1 and 2 are signed left and right PWM
-percentages, and byte 3 bit 0 controls the headlight. A safety stop is encoded
-as zero PWM on both sides because this protocol has no independent brake bits.
-Chassis voltage is an Intel-order unsigned 16-bit value in bytes 2-3 with a
-`0.1 V` resolution. Motor temperature is signed byte 1, while speed and current
-are Intel-order signed 16-bit values in bytes 2-3 and 4-5. Reserved bits and
-bytes are transmitted as zero and ignored on reception.
+Command byte 0 is reserved, bytes 1-2 are signed PWM percentages, and byte 3
+bit 0 controls the headlight. A safety stop sends zero PWM on both sides.
+Chassis battery voltage is an Intel-order unsigned 16-bit value in bytes 2-3
+with a `0.1 V` resolution. In motor feedback, bytes 1-2 are Intel-order signed
+RPM, byte 3 is motor voltage (`0x4b` means `75 V`), byte 4 is signed current,
+and byte 5 minus 40 is temperature.
 
 The driver command topic is configurable. The unified navigation launch routes
 `geometry_msgs/msg/Twist` from `/nav2/cmd_vel` directly to the selected
@@ -200,7 +199,7 @@ ros2 run agribot_hardware_bringup differential_chassis_can_node --ros-args \
   -p can_interface:=vcan0
 ```
 
-The differential node sends at the workbook's specified 200 ms period (5 Hz).
+The differential node sends at the protocol's specified 200 ms period (5 Hz).
 Motion is independently blocked
 when the command is older than 0.25 s, required feedback is older than 0.6 s,
 the controller is not in autonomous mode, emergency stop is active, or a

@@ -102,9 +102,10 @@ std::optional<MotorState> decodeMotorState(const chassis_can::Frame & frame)
   state.locked_rotor_protection = (frame.data[0] & 0x20U) != 0U;
   state.hall_fault = (frame.data[0] & 0x40U) != 0U;
   state.shake_fault = (frame.data[0] & 0x80U) != 0U;
-  state.temperature = decodeInt8(frame.data[1]);
-  state.speed = chassis_can::getInt16Le(frame.data, 2);
-  state.running_current = chassis_can::getInt16Le(frame.data, 4);
+  state.speed = chassis_can::getInt16Le(frame.data, 1);
+  state.motor_voltage = frame.data[3];
+  state.running_current = decodeInt8(frame.data[4]);
+  state.temperature = static_cast<int16_t>(frame.data[5]) - 40;
   state.rolling_counter = chassis_can::rollingCounter(frame.data);
   return state;
 }

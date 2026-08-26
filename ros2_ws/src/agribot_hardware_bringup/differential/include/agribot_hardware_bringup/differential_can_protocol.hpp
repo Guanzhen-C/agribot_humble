@@ -52,9 +52,10 @@ struct MotorState
   bool locked_rotor_protection{false};
   bool hall_fault{false};
   bool shake_fault{false};
-  int8_t temperature{0};
   int16_t speed{0};
-  int16_t running_current{0};
+  uint8_t motor_voltage{0};
+  int8_t running_current{0};
+  int16_t temperature{0};
   uint8_t rolling_counter{0};
 
   bool hasFault() const;

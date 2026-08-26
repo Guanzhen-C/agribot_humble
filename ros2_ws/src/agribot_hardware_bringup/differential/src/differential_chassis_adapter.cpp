@@ -169,6 +169,9 @@ public:
       status.motor_states[index].rpm = static_cast<double>(motor.speed);
       status.motor_states[index].temperature = static_cast<double>(motor.temperature);
       status.motor_states[index].motor_pose = 0.0;
+      status.driver_states[index].driver_voltage = static_cast<double>(motor.motor_voltage);
+      status.driver_states[index].driver_temperature = static_cast<double>(motor.temperature);
+      status.driver_states[index].driver_state = motor.hasFault() ? 1U : 0U;
     };
     if (left_motor_state_.has_value()) {
       fillMotor(scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_LEFT, *left_motor_state_);
