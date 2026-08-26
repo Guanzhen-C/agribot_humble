@@ -141,7 +141,8 @@ public:
   bool feedbackAllowsMotion(bool require_autonomous_mode) const override
   {
     if (!chassis_state_.has_value() || !left_motor_state_.has_value() ||
-      !right_motor_state_.has_value() || chassis_state_->emergency_stop)
+      !right_motor_state_.has_value() || chassis_state_->emergency_stop ||
+      chassis_state_->hasFault())
     {
       return false;
     }
@@ -158,7 +159,7 @@ public:
     }
     status.control_mode = chassis_state_->work_mode;
     status.battery_voltage = chassis_state_->battery_voltage;
-    const bool chassis_fault = chassis_state_->emergency_stop;
+    const bool chassis_fault = chassis_state_->emergency_stop || chassis_state_->hasFault();
     status.base_state = chassis_fault ? 1U : 0U;
     status.fault_code = chassis_fault ? 1U : 0U;
     status.light_control_enabled = true;

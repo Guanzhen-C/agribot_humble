@@ -6,7 +6,7 @@
     can_interface: can0
     zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
     zqwl_channel: 0
-    # 主控到分控数据格式 V2.4 的全局默认 CAN 波特率。
+    # 实车已验证的三合一底盘 CAN 波特率；新版 Excel 未单独声明波特率。
     zqwl_bitrate: 250000
     command_topic: /hardware/cmd_vel
     odom_topic: /wheel/odometry

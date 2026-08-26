@@ -47,11 +47,17 @@ int8_t decodeInt8(uint8_t value)
 
 }  // namespace
 
+bool ChassisState::hasFault() const
+{
+  return vrc_communication_fault || autonomous_communication_fault ||
+         motor_driver_communication_fault || bms_communication_fault;
+}
+
 bool MotorState::hasFault() const
 {
-  return over_current_protection || load_fault || over_temperature_protection ||
-         over_voltage_protection || under_voltage_protection ||
-         locked_rotor_protection || hall_fault || shake_fault;
+  return over_voltage_protection || under_voltage_protection || temperature_fault ||
+         over_current_protection || overload_protection || hall_fault ||
+         locked_rotor_protection || other_fault;
 }
 
 chassis_can::Frame encodeCommand(const Command & command, uint8_t rolling_counter)
@@ -76,10 +82,13 @@ std::optional<ChassisState> decodeChassisState(const chassis_can::Frame & frame)
   state.work_mode = frame.data[0] & 0x03U;
   state.emergency_stop = ((frame.data[0] >> 2U) & 0x01U) != 0U;
   state.running = ((frame.data[0] >> 3U) & 0x01U) != 0U;
-  state.remote_connection_status = (frame.data[0] >> 4U) & 0x03U;
   state.headlight = ((frame.data[1] >> 2U) & 0x01U) != 0U;
   state.battery_voltage =
     static_cast<double>(chassis_can::getUint16Le(frame.data, 2)) * 0.1;
+  state.vrc_communication_fault = (frame.data[4] & 0x01U) != 0U;
+  state.autonomous_communication_fault = (frame.data[4] & 0x02U) != 0U;
+  state.motor_driver_communication_fault = (frame.data[4] & 0x04U) != 0U;
+  state.bms_communication_fault = (frame.data[4] & 0x08U) != 0U;
   state.rolling_counter = chassis_can::rollingCounter(frame.data);
   return state;
 }
@@ -94,14 +103,14 @@ std::optional<MotorState> decodeMotorState(const chassis_can::Frame & frame)
 
   MotorState state;
   state.frame_id = frame.id;
-  state.over_current_protection = (frame.data[0] & 0x01U) != 0U;
-  state.load_fault = (frame.data[0] & 0x02U) != 0U;
-  state.over_temperature_protection = (frame.data[0] & 0x04U) != 0U;
-  state.over_voltage_protection = (frame.data[0] & 0x08U) != 0U;
-  state.under_voltage_protection = (frame.data[0] & 0x10U) != 0U;
-  state.locked_rotor_protection = (frame.data[0] & 0x20U) != 0U;
-  state.hall_fault = (frame.data[0] & 0x40U) != 0U;
-  state.shake_fault = (frame.data[0] & 0x80U) != 0U;
+  state.over_voltage_protection = (frame.data[0] & 0x01U) != 0U;
+  state.under_voltage_protection = (frame.data[0] & 0x02U) != 0U;
+  state.temperature_fault = (frame.data[0] & 0x04U) != 0U;
+  state.over_current_protection = (frame.data[0] & 0x08U) != 0U;
+  state.overload_protection = (frame.data[0] & 0x10U) != 0U;
+  state.hall_fault = (frame.data[0] & 0x20U) != 0U;
+  state.locked_rotor_protection = (frame.data[0] & 0x40U) != 0U;
+  state.other_fault = (frame.data[0] & 0x80U) != 0U;
   state.speed = chassis_can::getInt16Le(frame.data, 1);
   state.motor_voltage = frame.data[3];
   state.running_current = decodeInt8(frame.data[4]);

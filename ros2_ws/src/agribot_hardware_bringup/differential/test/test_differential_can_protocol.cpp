@@ -66,16 +66,20 @@ TEST(DifferentialCanProtocol, DecodesThreeInOneChassisState)
 {
   const auto frame = finalizeFrame(
     differential::kChassisStateId,
-    {0x2d, 0x04, 0xe7, 0x01, 0x00, 0x00, 0x0f, 0x00});
+    {0x0d, 0x04, 0xe7, 0x01, 0x0a, 0x00, 0x0f, 0x00});
 
   const auto state = differential::decodeChassisState(frame);
   ASSERT_TRUE(state.has_value());
   EXPECT_EQ(state->work_mode, 1);
   EXPECT_TRUE(state->emergency_stop);
   EXPECT_TRUE(state->running);
-  EXPECT_EQ(state->remote_connection_status, 2);
   EXPECT_TRUE(state->headlight);
   EXPECT_DOUBLE_EQ(state->battery_voltage, 48.7);
+  EXPECT_FALSE(state->vrc_communication_fault);
+  EXPECT_TRUE(state->autonomous_communication_fault);
+  EXPECT_FALSE(state->motor_driver_communication_fault);
+  EXPECT_TRUE(state->bms_communication_fault);
+  EXPECT_TRUE(state->hasFault());
   EXPECT_EQ(state->rolling_counter, 15);
 }
 
@@ -90,6 +94,24 @@ TEST(DifferentialCanProtocol, RejectsInvalidChassisFrames)
   EXPECT_FALSE(differential::decodeChassisState(frame).has_value());
 }
 
+TEST(DifferentialCanProtocol, DecodesCapturedStationaryChassisFrame)
+{
+  common::Frame frame{
+    differential::kChassisStateId,
+    {0x00, 0x00, 0x77, 0x00, 0x00, 0x00, 0x08, 0x7f}};
+  ASSERT_TRUE(common::hasValidChecksum(frame.data));
+
+  const auto state = differential::decodeChassisState(frame);
+  ASSERT_TRUE(state.has_value());
+  EXPECT_EQ(state->work_mode, 0);
+  EXPECT_FALSE(state->emergency_stop);
+  EXPECT_FALSE(state->running);
+  EXPECT_FALSE(state->headlight);
+  EXPECT_DOUBLE_EQ(state->battery_voltage, 11.9);
+  EXPECT_FALSE(state->hasFault());
+  EXPECT_EQ(state->rolling_counter, 8);
+}
+
 TEST(DifferentialCanProtocol, DecodesThreeInOneMotorFeedback)
 {
   const auto frame = finalizeFrame(
@@ -98,14 +120,14 @@ TEST(DifferentialCanProtocol, DecodesThreeInOneMotorFeedback)
 
   const auto state = differential::decodeMotorState(frame);
   ASSERT_TRUE(state.has_value());
-  EXPECT_TRUE(state->over_current_protection);
-  EXPECT_FALSE(state->load_fault);
-  EXPECT_TRUE(state->over_temperature_protection);
   EXPECT_TRUE(state->over_voltage_protection);
   EXPECT_FALSE(state->under_voltage_protection);
-  EXPECT_TRUE(state->locked_rotor_protection);
-  EXPECT_FALSE(state->hall_fault);
-  EXPECT_TRUE(state->shake_fault);
+  EXPECT_TRUE(state->temperature_fault);
+  EXPECT_TRUE(state->over_current_protection);
+  EXPECT_FALSE(state->overload_protection);
+  EXPECT_TRUE(state->hall_fault);
+  EXPECT_FALSE(state->locked_rotor_protection);
+  EXPECT_TRUE(state->other_fault);
   EXPECT_EQ(state->speed, -300);
   EXPECT_EQ(state->motor_voltage, 75);
   EXPECT_EQ(state->running_current, -12);
@@ -197,7 +219,7 @@ TEST(DifferentialCanAdapter, UsesThreeInOneFeedbackForMotionAndSafety)
   const rclcpp::Time stamp(10, 0, RCL_ROS_TIME);
   auto chassis = finalizeFrame(
     differential::kChassisStateId,
-    {0x21, 0x00, 0xe0, 0x01, 0x00, 0x00, 0x01, 0x00});
+    {0x01, 0x00, 0xe0, 0x01, 0x00, 0x00, 0x01, 0x00});
   auto left = finalizeFrame(
     differential::kLeftMotorStateId,
     {0x00, 0xe8, 0x03, 0x4b, 0x04, 0x3c, 0x01, 0x00});
@@ -233,6 +255,18 @@ TEST(DifferentialCanAdapter, UsesThreeInOneFeedbackForMotionAndSafety)
   EXPECT_DOUBLE_EQ(
     status.driver_states[scout_msgs::msg::ScoutStatus::MOTOR_ID_FRONT_RIGHT].driver_temperature,
     21.0);
+
+  chassis.data[4] = 0x04;
+  chassis.data[6] = 0x02;
+  chassis.data[7] = common::xorChecksum(chassis.data);
+  EXPECT_TRUE(adapter->processFrame(chassis, stamp).valid);
+  EXPECT_FALSE(adapter->feedbackAllowsMotion(true));
+
+  chassis.data[4] = 0x00;
+  chassis.data[6] = 0x03;
+  chassis.data[7] = common::xorChecksum(chassis.data);
+  EXPECT_TRUE(adapter->processFrame(chassis, stamp).valid);
+  EXPECT_TRUE(adapter->feedbackAllowsMotion(true));
 
   left.data[0] = 0x01;
   left.data[6] = 0x02;

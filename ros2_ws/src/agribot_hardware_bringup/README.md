@@ -99,14 +99,16 @@ Nav2 command path is:
 
 ## Differential CAN protocol
 
-The differential driver implements the three-in-one chassis protocol and the
-default 250 kbit/s bitrate. Motor feedback follows the on-wire layout confirmed
-by the vehicle's captured frames, where byte 3 is motor voltage.
+The differential driver implements rows 2-50 of the updated
+`三合一协议.xlsx` (SHA-256 `44950cd0b66e28bd433df715daa948073a14bc3b3b471bb695c359fab8a62a17`).
+The work-device, remote-controller, and BMS frames later in that workbook belong
+to their respective device drivers and are not transmitted by the navigation
+chassis node. The verified vehicle CAN bitrate remains 250 kbit/s.
 
 | Direction | CAN ID | Content |
 | --- | --- | --- |
 | TX | `0x514` | Signed left/right PWM and headlight |
-| RX | `0x532` | Mode, emergency stop, motion, remote connection, headlight, and battery voltage |
+| RX | `0x532` | Mode, emergency stop, motion, headlight, battery voltage, and communication faults |
 | RX | `0x533` | Left motor faults, speed, voltage, current, and temperature |
 | RX | `0x534` | Right motor faults, speed, voltage, current, and temperature |
 
@@ -119,9 +121,11 @@ visible to this driver.
 Command byte 0 is reserved, bytes 1-2 are signed PWM percentages, and byte 3
 bit 0 controls the headlight. A safety stop sends zero PWM on both sides.
 Chassis battery voltage is an Intel-order unsigned 16-bit value in bytes 2-3
-with a `0.1 V` resolution. In motor feedback, bytes 1-2 are Intel-order signed
-RPM, byte 3 is motor voltage (`0x4b` means `75 V`), byte 4 is signed current,
-and byte 5 minus 40 is temperature.
+with a `0.1 V` resolution. Chassis byte 4 bits 0-3 report VRC, autonomous,
+motor-driver, and BMS communication faults. In motor feedback, byte 0 bits 0-7
+report OVP, UVP, temperature, OCP, overload, Hall, locked-rotor, and other
+faults. Bytes 1-2 are Intel-order signed RPM, byte 3 is motor voltage (`0x4b`
+means `75 V`), byte 4 is signed current, and byte 5 minus 40 is temperature.
 
 The driver command topic is configurable. The unified navigation launch routes
 `geometry_msgs/msg/Twist` from `/nav2/cmd_vel` directly to the selected

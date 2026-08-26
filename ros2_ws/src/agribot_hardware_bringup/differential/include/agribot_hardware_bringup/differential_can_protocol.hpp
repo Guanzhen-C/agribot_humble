@@ -35,23 +35,28 @@ struct ChassisState
   uint8_t work_mode{0};
   bool emergency_stop{false};
   bool running{false};
-  uint8_t remote_connection_status{0};
   bool headlight{false};
   double battery_voltage{0.0};
+  bool vrc_communication_fault{false};
+  bool autonomous_communication_fault{false};
+  bool motor_driver_communication_fault{false};
+  bool bms_communication_fault{false};
   uint8_t rolling_counter{0};
+
+  bool hasFault() const;
 };
 
 struct MotorState
 {
   uint32_t frame_id{0};
-  bool over_current_protection{false};
-  bool load_fault{false};
-  bool over_temperature_protection{false};
   bool over_voltage_protection{false};
   bool under_voltage_protection{false};
-  bool locked_rotor_protection{false};
+  bool temperature_fault{false};
+  bool over_current_protection{false};
+  bool overload_protection{false};
   bool hall_fault{false};
-  bool shake_fault{false};
+  bool locked_rotor_protection{false};
+  bool other_fault{false};
   int16_t speed{0};
   uint8_t motor_voltage{0};
   int8_t running_current{0};

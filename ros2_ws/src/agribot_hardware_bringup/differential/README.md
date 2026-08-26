@@ -8,9 +8,9 @@
 - 规划：Nav2 Smac State Lattice，使用 ROS 2 Humble 官方 5 cm 差速运动基元。
 - 控制：Nav2 MPPI，运动模型为 `DiffDrive`，允许原地旋转和倒车。
 - 避障：C16 `/lidar/points` 直接进入 STVL，不生成或订阅 `/scan`。
-- 底盘：使用三合一底盘的 `0x514` 控制和 `0x532/0x533/0x534` 反馈，
-  默认 `250 kbit/s`，支持 ZQWL USB-CAN 和 SocketCAN；电机反馈字段位置使用
-  实车原始帧验证。
+- 底盘：严格使用 2026-08-26 更新的 `三合一协议.xlsx` 第 2-50 行，
+  `0x514` 控制，`0x532/0x533/0x534` 反馈。实车 CAN 波特率为
+  `250 kbit/s`，支持 ZQWL USB-CAN 和 SocketCAN。
 
 Nav2 输出路径为：
 
@@ -20,11 +20,16 @@ Nav2 输出路径为：
 
 `0x514` 的 Byte1/Byte2 是左右电机有符号 PWM 百分比，Byte3 bit0 是大灯；
 该协议没有独立刹车位，安全停止使用左右 PWM 同时归零。`0x532` 的电池电压
-按 Byte2-3 Intel 无符号值和 `0.1 V` 分辨率解析。实车 `0x533/0x534` 的
-Byte1-2 是 Intel 有符号电机转速，Byte3 是电机电压（`0x4b` 即 `75 V`），
-Byte4 是有符号电流，Byte5 减 40 后是温度。所有帧使用 Byte6 低4位计数和
-Byte7 XOR；实车反馈计数器会在相邻发送帧之间继续推进，因此驱动拒绝重复帧
-但不强制相邻同 ID 的计数值逐次加一。
+按 Byte2-3 Intel 无符号值和 `0.1 V` 分辨率解析；Byte4 bit0-bit3 分别是遥控器、
+无人化、电机驱动和 BMS 通信故障。`0x533/0x534` 的 Byte0 bit0-bit7 分别是
+OVP、UVP、温度、OCP、过载、霍尔、堵转和其他故障，Byte1-2 是 Intel 有符号
+电机转速，Byte3 是电机电压（`0x4b` 即 `75 V`），Byte4 是有符号电流，
+Byte5 减 40 后是温度。所有帧使用 Byte6 低4位计数和 Byte7 XOR；实车反馈
+计数器会在相邻发送帧之间继续推进，因此驱动拒绝重复帧但不强制相邻同 ID 的
+计数值逐次加一。
+
+同一 Excel 后半部分的作业设备、遥控器和 BMS 帧属于各自设备节点，本导航底盘
+节点不会冒充这些设备发送报文。
 
 底盘反馈生成 `/wheel/odometry` 和 `/scout_status`。导航定位使用
 `/fastlivo_rtk/odometry`，轮速里程计只用于底盘状态和验收，不替代激光惯性定位。
