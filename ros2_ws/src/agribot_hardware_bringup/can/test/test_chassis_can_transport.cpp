@@ -107,7 +107,7 @@ TEST(ZqwlCdcProtocol, ResynchronizesAfterMalformedPacket)
   EXPECT_GT(decoded.invalid_frames, 0U);
 }
 
-TEST(ZqwlCdcProtocol, RejectsFramesFromAnInactiveChannel)
+TEST(ZqwlCdcProtocol, IgnoresFramesFromAnInactiveChannel)
 {
   chassis_can::Frame source;
   source.id = 0x101;
@@ -123,7 +123,7 @@ TEST(ZqwlCdcProtocol, RejectsFramesFromAnInactiveChannel)
   const auto decoded = decoder.append(stream.data(), stream.size(), 64);
   ASSERT_EQ(decoded.frames.size(), 1U);
   EXPECT_EQ(decoded.frames.front().id, 0x101U);
-  EXPECT_EQ(decoded.invalid_frames, 1U);
+  EXPECT_EQ(decoded.invalid_frames, 0U);
 }
 
 TEST(ZqwlCdcProtocol, IgnoresVerifiedAdapterStatusPacket)

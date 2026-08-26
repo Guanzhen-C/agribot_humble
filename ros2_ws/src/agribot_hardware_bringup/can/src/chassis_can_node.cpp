@@ -61,6 +61,8 @@ public:
     require_feedback_before_motion_ =
       declare_parameter<bool>("require_feedback_before_motion", true);
     require_autonomous_mode_ = declare_parameter<bool>("require_autonomous_mode", true);
+    require_sequential_feedback_counter_ =
+      declare_parameter<bool>("require_sequential_feedback_counter", true);
     require_localization_ready_ =
       declare_parameter<bool>("require_localization_ready", false);
     localization_ready_topic_ =
@@ -299,7 +301,7 @@ private:
         return false;
       }
       const uint8_t expected = (found->second + 1U) & 0x0fU;
-      if (counter != expected) {
+      if (require_sequential_feedback_counter_ && counter != expected) {
         ++counter_errors_;
       }
     }
@@ -463,7 +465,8 @@ private:
         usleep(2000);
       }
     } catch (const std::exception & exception) {
-      RCLCPP_ERROR(get_logger(), "Could not transmit shutdown brake: %s", exception.what());
+      RCLCPP_ERROR(
+        get_logger(), "Could not transmit shutdown safe-stop frames: %s", exception.what());
     }
   }
 
@@ -485,6 +488,7 @@ private:
   double startup_feedback_timeout_sec_{1.0};
   bool require_feedback_before_motion_{true};
   bool require_autonomous_mode_{true};
+  bool require_sequential_feedback_counter_{true};
   bool require_localization_ready_{false};
   std::string localization_ready_topic_{"/localization/ready"};
   double localization_ready_timeout_sec_{2.5};

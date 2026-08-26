@@ -21,6 +21,8 @@
     startup_feedback_timeout_sec: 1.0
     require_feedback_before_motion: true
     require_autonomous_mode: true
+    # 实车控制器在相邻反馈帧之间仍会推进计数器，只检查重复帧，不要求逐帧 +1。
+    require_sequential_feedback_counter: false
     require_localization_ready: false
     localization_ready_topic: /localization/ready
     localization_ready_timeout_sec: 0.5

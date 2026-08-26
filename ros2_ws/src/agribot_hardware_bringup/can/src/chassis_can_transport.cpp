@@ -482,7 +482,6 @@ ChassisCanReadResult FrameDecoder::append(
     if (buffer_[2] != 0U) {
       buffer_.erase(
         buffer_.begin(), buffer_.begin() + static_cast<std::ptrdiff_t>(packet_size));
-      ++result.invalid_frames;
       continue;
     }
     if (payload_size != chassis_can::kPayloadSize) {

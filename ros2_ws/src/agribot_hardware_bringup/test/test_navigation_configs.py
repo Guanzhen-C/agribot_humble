@@ -251,6 +251,7 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert chassis["track_width_m"] == geometry["track_width_m"]
     assert chassis["zqwl_bitrate"] == 250000
     assert chassis["send_rate_hz"] == 5.0
+    assert chassis["require_sequential_feedback_counter"] is False
     assert chassis["command_full_scale_wheel_speed_mps"] == drivetrain[
         "command_full_scale_wheel_speed_mps"
     ]
