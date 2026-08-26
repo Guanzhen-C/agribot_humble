@@ -3,19 +3,27 @@ set -euo pipefail
 
 action="${1:-status}"
 sysfs_root="${AGRIBOT_PWM_SYSFS_ROOT:-/sys/class/pwm}"
-chip="${PWM_CHIP:-pwmchip0}"
-channel="${PWM_CHANNEL:-0}"
-expected_alias="${PWM_EXPECTED_ALIAS:-pwm3}"
-period_ns="${PWM_PERIOD_NS:-100000000}"
-duty_cycle_ns="${PWM_DUTY_CYCLE_NS:-1000000}"
-polarity="${PWM_POLARITY:-normal}"
-phase_lock_to_pps="${PWM_PHASE_LOCK_TO_PPS:-false}"
-pps_device="${PWM_PPS_DEVICE:-/dev/pps-rtk}"
-pps_timeout_sec="${PWM_PPS_TIMEOUT_SEC:-5.0}"
-pps_maximum_latency_ms="${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}"
-pps_lock_helper="${PWM_PPS_LOCK_HELPER:-/usr/local/sbin/agribot-camera-trigger-pps-lock}"
+devmem_command="${AGRIBOT_DEVMEM_COMMAND:-devmem}"
+chip="${LPWM_CHIP:-pwmchip2}"
+channel="${LPWM_CHANNEL:-0}"
+expected_alias="${LPWM_EXPECTED_ALIAS:-lpwm1}"
+expected_driver="${LPWM_EXPECTED_DRIVER:-hobot-lpwm}"
+device="${LPWM_DEVICE:-/dev/hobot-lpwm1}"
+channel_id="${LPWM_CHANNEL_ID:-4}"
+trigger_source="${LPWM_TRIGGER_SOURCE:-2}"
+period_us="${LPWM_PERIOD_US:-100000}"
+offset_us="${LPWM_OFFSET_US:-10}"
+duty_us="${LPWM_DUTY_US:-1000}"
+threshold_us="${LPWM_THRESHOLD_US:-0}"
+adjust_step="${LPWM_ADJUST_STEP:-0}"
+ready_file="${LPWM_READY_FILE:-/run/agribot-camera-trigger/ready}"
+pinmux_register="${LPWM_TIME_SYNC_PINMUX_REGISTER:-0x34180080}"
+pinmux_shift="${LPWM_TIME_SYNC_PINMUX_SHIFT:-22}"
+pinmux_width="${LPWM_TIME_SYNC_PINMUX_WIDTH:-2}"
+pinmux_value="${LPWM_TIME_SYNC_PINMUX_VALUE:-2}"
+legacy_enable_path="${LPWM_LEGACY_PWM_ENABLE_PATH:-/sys/class/pwm/pwmchip0/pwm0/enable}"
 chip_path="${sysfs_root}/${chip}"
-pwm_path="${chip_path}/pwm${channel}"
+config_info="${chip_path}/device/lpwm_config_info"
 
 die() {
   echo "错误：$*" >&2
@@ -28,119 +36,183 @@ require_unsigned_integer() {
   [[ "${value}" =~ ^[0-9]+$ ]] || die "${name}必须是非负整数，当前值=${value}"
 }
 
-require_unsigned_integer PWM_CHANNEL "${channel}"
-require_unsigned_integer PWM_PERIOD_NS "${period_ns}"
-require_unsigned_integer PWM_DUTY_CYCLE_NS "${duty_cycle_ns}"
-(( period_ns > 0 )) || die "PWM_PERIOD_NS必须大于0"
-(( duty_cycle_ns > 0 && duty_cycle_ns < period_ns )) || \
-  die "PWM_DUTY_CYCLE_NS必须大于0且小于PWM_PERIOD_NS"
-[[ "${polarity}" == "normal" || "${polarity}" == "inversed" ]] || \
-  die "PWM_POLARITY必须是normal或inversed"
-[[ "${phase_lock_to_pps}" == "true" || "${phase_lock_to_pps}" == "false" ]] || \
-  die "PWM_PHASE_LOCK_TO_PPS必须是true或false"
-[[ -d "${chip_path}" ]] || die "PWM控制器不存在：${chip_path}"
+for item in \
+  "LPWM_CHANNEL:${channel}" \
+  "LPWM_CHANNEL_ID:${channel_id}" \
+  "LPWM_TRIGGER_SOURCE:${trigger_source}" \
+  "LPWM_PERIOD_US:${period_us}" \
+  "LPWM_OFFSET_US:${offset_us}" \
+  "LPWM_DUTY_US:${duty_us}" \
+  "LPWM_THRESHOLD_US:${threshold_us}" \
+  "LPWM_ADJUST_STEP:${adjust_step}" \
+  "LPWM_TIME_SYNC_PINMUX_SHIFT:${pinmux_shift}" \
+  "LPWM_TIME_SYNC_PINMUX_WIDTH:${pinmux_width}" \
+  "LPWM_TIME_SYNC_PINMUX_VALUE:${pinmux_value}"; do
+  require_unsigned_integer "${item%%:*}" "${item#*:}"
+done
 
-if [[ -n "${expected_alias}" && -r "${chip_path}/device/uevent" ]]; then
-  if ! grep -qx "OF_ALIAS_0=${expected_alias}" "${chip_path}/device/uevent"; then
-    die "${chip}不是期望的${expected_alias}，拒绝操作以免驱动错误引脚"
+(( channel < 4 )) || die "LPWM_CHANNEL必须小于4"
+(( channel_id == 4 + channel )) || \
+  die "LPWM1的全局通道号应为4+LPWM_CHANNEL"
+(( trigger_source <= 10 )) || die "LPWM_TRIGGER_SOURCE必须小于等于10"
+(( period_us >= 2 && period_us <= 1000000 )) || \
+  die "LPWM_PERIOD_US必须在[2,1000000]范围内"
+(( duty_us > 0 && duty_us <= 4000 && duty_us < period_us )) || \
+  die "LPWM_DUTY_US必须在[1,4000]范围内且小于周期"
+(( offset_us + duty_us <= period_us )) || \
+  die "LPWM_OFFSET_US与LPWM_DUTY_US之和不能超过周期"
+(( threshold_us <= 65535 )) || die "LPWM_THRESHOLD_US必须小于等于65535"
+(( adjust_step <= 15 )) || die "LPWM_ADJUST_STEP必须小于等于15"
+(( pinmux_width > 0 && pinmux_width < 32 )) || \
+  die "LPWM_TIME_SYNC_PINMUX_WIDTH必须在[1,31]范围内"
+(( pinmux_value < (1 << pinmux_width) )) || \
+  die "LPWM_TIME_SYNC_PINMUX_VALUE超出位宽"
+
+require_root_for_hardware() {
+  if [[ ${EUID} -ne 0 && "${sysfs_root}" == "/sys/class/pwm" ]]; then
+    die "配置LPWM和TIME_SYNC2需要root权限"
   fi
-fi
-
-wait_for_pwm_path() {
-  local attempt
-  for attempt in {1..50}; do
-    [[ -d "${pwm_path}" ]] && return 0
-    sleep 0.02
-  done
-  die "导出PWM通道后未出现：${pwm_path}"
 }
 
-export_channel() {
-  if [[ ! -d "${pwm_path}" ]]; then
-    printf '%s\n' "${channel}" > "${chip_path}/export"
-    wait_for_pwm_path
+verify_lpwm_device() {
+  [[ -d "${chip_path}" ]] || die "LPWM控制器不存在：${chip_path}"
+  [[ -r "${chip_path}/device/uevent" ]] || die "无法读取LPWM uevent"
+  grep -qx "DRIVER=${expected_driver}" "${chip_path}/device/uevent" || \
+    die "${chip}不是${expected_driver}驱动，拒绝操作"
+  grep -qx "OF_ALIAS_0=${expected_alias}" "${chip_path}/device/uevent" || \
+    die "${chip}不是期望的${expected_alias}，拒绝操作"
+  [[ -r "${chip_path}/npwm" ]] || die "无法读取${chip}通道数"
+  local channel_count
+  channel_count="$(tr -d '[:space:]' < "${chip_path}/npwm")"
+  [[ "${channel_count}" =~ ^[0-9]+$ ]] || die "LPWM通道数格式错误"
+  (( channel < channel_count )) || die "LPWM通道${channel}不存在"
+  [[ -r "${config_info}" ]] || die "LPWM配置状态不存在：${config_info}"
+  if [[ "${sysfs_root}" == "/sys/class/pwm" ]]; then
+    [[ -c "${device}" ]] || die "LPWM字符设备不存在：${device}"
   fi
 }
 
-read_value() {
-  tr -d '[:space:]' < "${pwm_path}/$1"
+read_pinmux_register() {
+  local value
+  value="$("${devmem_command}" "${pinmux_register}" 32)" || \
+    die "读取TIME_SYNC2复用寄存器失败"
+  value="$(tr -d '[:space:]' <<<"${value}")"
+  [[ "${value}" =~ ^0[xX][0-9a-fA-F]+$ || "${value}" =~ ^[0-9]+$ ]] || \
+    die "TIME_SYNC2复用寄存器返回值无效：${value}"
+  printf '%s\n' "$((value))"
+}
+
+set_timesync2_mux() {
+  command -v "${devmem_command}" >/dev/null 2>&1 || \
+    [[ -x "${devmem_command}" ]] || die "未找到devmem命令：${devmem_command}"
+  local current mask updated verified
+  current="$(read_pinmux_register)"
+  mask=$(( ((1 << pinmux_width) - 1) << pinmux_shift ))
+  updated=$(( (current & ~mask) | (pinmux_value << pinmux_shift) ))
+  if (( updated != current )); then
+    "${devmem_command}" "${pinmux_register}" 32 "$(printf '0x%08X' "${updated}")" >/dev/null
+  fi
+  verified="$(read_pinmux_register)"
+  (( ((verified >> pinmux_shift) & ((1 << pinmux_width) - 1)) == pinmux_value )) || \
+    die "物理Pin 33未成功切换为TIME_SYNC2输入"
+  printf 'TIME_SYNC2输入已就绪：Pin 33，寄存器=%s\n' \
+    "$(printf '0x%08X' "${verified}")"
+}
+
+disable_legacy_pwm() {
+  if [[ -w "${legacy_enable_path}" ]] && \
+    [[ "$(tr -d '[:space:]' < "${legacy_enable_path}")" == "1" ]]; then
+    printf '0\n' > "${legacy_enable_path}"
+    echo "旧Pin 32普通PWM已停止"
+  fi
+}
+
+ready_value() {
+  local name="$1"
+  awk -F= -v key="${name}" '$1 == key {print substr($0, length(key) + 2); exit}' \
+    "${ready_file}"
+}
+
+assert_ready_value() {
+  local name="$1"
+  local expected="$2"
+  local actual
+  actual="$(ready_value "${name}")"
+  [[ "${actual}" == "${expected}" ]] || \
+    die "LPWM就绪状态${name}=${actual:-缺失}，期望${expected}"
 }
 
 show_status() {
-  [[ -d "${pwm_path}" ]] || die "PWM通道尚未导出：${pwm_path}"
-  local actual_period actual_duty actual_enable actual_polarity
-  actual_period="$(read_value period)"
-  actual_duty="$(read_value duty_cycle)"
-  actual_enable="$(read_value enable)"
-  actual_polarity="$(read_value polarity)"
-  echo "PWM路径：${pwm_path}"
-  echo "周期：${actual_period} ns"
-  echo "高电平：${actual_duty} ns"
-  echo "极性：${actual_polarity}"
-  echo "使能：${actual_enable}"
-  [[ "${actual_period}" == "${period_ns}" ]] || die "PWM周期不符合配置"
-  [[ "${actual_duty}" == "${duty_cycle_ns}" ]] || die "PWM高电平时间不符合配置"
-  [[ "${actual_polarity}" == "${polarity}" ]] || die "PWM极性不符合配置"
-  [[ "${actual_enable}" == "1" ]] || die "PWM尚未使能"
+  verify_lpwm_device
+  [[ -r "${ready_file}" ]] || die "LPWM服务尚未发布就绪状态：${ready_file}"
+  assert_ready_value device "${device}"
+  assert_ready_value channel_id "${channel_id}"
+  assert_ready_value trigger_source "${trigger_source}"
+  assert_ready_value trigger_mode "1"
+  assert_ready_value period_us "${period_us}"
+  assert_ready_value offset_us "${offset_us}"
+  assert_ready_value duty_us "${duty_us}"
+
+  local pid row expected_period expected_duty
+  pid="$(ready_value pid)"
+  [[ "${pid}" =~ ^[0-9]+$ ]] || die "LPWM服务PID无效"
+  kill -0 "${pid}" 2>/dev/null || die "LPWM服务进程${pid}不存在"
+
+  row="$(awk -v selected="${channel}" '$1 == selected {print; exit}' "${config_info}")"
+  [[ -n "${row}" ]] || die "未找到LPWM通道${channel}状态"
+  read -r _ actual_source actual_offset actual_period actual_duty \
+    actual_threshold actual_adjust occupied <<<"${row}"
+  expected_period=$((period_us - 1))
+  expected_duty=$((duty_us - 1))
+  [[ "${actual_source}" == "${trigger_source}" ]] || die "LPWM触发源不符合配置"
+  [[ "${actual_offset}" == "${offset_us}" ]] || die "LPWM相位偏移不符合配置"
+  [[ "${actual_period}" == "${expected_period}" ]] || die "LPWM周期不符合配置"
+  [[ "${actual_duty}" == "${expected_duty}" ]] || die "LPWM高电平时间不符合配置"
+  [[ "${actual_threshold}" == "${threshold_us}" ]] || die "LPWM同步阈值不符合配置"
+  [[ "${actual_adjust}" == "${adjust_step}" ]] || die "LPWM调整步长不符合配置"
+  [[ "${occupied}" == "CAMSYS" ]] || die "LPWM通道未被CAMSYS硬件触发程序占用"
+
+  local register_value
+  register_value="$(read_pinmux_register)"
+  (( ((register_value >> pinmux_shift) & ((1 << pinmux_width) - 1)) == pinmux_value )) || \
+    die "物理Pin 33当前不是TIME_SYNC2输入"
+
+  echo "LPWM设备：${device}"
+  echo "LPWM输出：J14 Pin 18（CAM1_TRIG_3V3）"
+  echo "PPS硬触发输入：物理Pin 33（TIME_SYNC2/SGT1）"
+  echo "配置：10 Hz，PPS后${offset_us} us输出${duty_us} us高电平"
+  echo "驱动状态：${row}"
 }
 
-prepare_pwm() {
-  if [[ ${EUID} -ne 0 && "${sysfs_root}" == "/sys/class/pwm" ]]; then
-    die "启动PWM需要root权限"
-  fi
-  export_channel
-
-  if [[ "$(read_value enable)" == "1" ]]; then
-    printf '0\n' > "${pwm_path}/enable"
-  fi
-
-  local current_period
-  current_period="$(read_value period)"
-  if [[ "${current_period}" != "0" ]]; then
-    printf '0\n' > "${pwm_path}/duty_cycle"
-  fi
-  printf '%s\n' "${period_ns}" > "${pwm_path}/period"
-  printf '%s\n' "${duty_cycle_ns}" > "${pwm_path}/duty_cycle"
-  printf '%s\n' "${polarity}" > "${pwm_path}/polarity"
+prepare() {
+  require_root_for_hardware
+  verify_lpwm_device
+  disable_legacy_pwm
+  set_timesync2_mux
+  rm -f "${ready_file}" "${ready_file}.tmp"
 }
 
-start_pwm() {
-  prepare_pwm
-  if [[ "${phase_lock_to_pps}" == "true" ]]; then
-    [[ -e "${pps_device}" ]] || die "PPS设备不存在：${pps_device}"
-    [[ -x "${pps_lock_helper}" ]] || die "PPS锁相程序不可执行：${pps_lock_helper}"
-    "${pps_lock_helper}" \
-      --pps-device "${pps_device}" \
-      --pwm-enable-path "${pwm_path}/enable" \
-      --timeout-sec "${pps_timeout_sec}" \
-      --maximum-latency-ms "${pps_maximum_latency_ms}"
-  else
-    printf '1\n' > "${pwm_path}/enable"
-  fi
-  show_status
-}
-
-stop_pwm() {
-  if [[ ${EUID} -ne 0 && "${sysfs_root}" == "/sys/class/pwm" ]]; then
-    die "停止PWM需要root权限"
-  fi
-  if [[ -d "${pwm_path}" && "$(read_value enable)" == "1" ]]; then
-    printf '0\n' > "${pwm_path}/enable"
-  fi
-  echo "相机触发PWM已停止"
+cleanup() {
+  require_root_for_hardware
+  rm -f "${ready_file}" "${ready_file}.tmp"
+  disable_legacy_pwm
 }
 
 case "${action}" in
-  start)
-    start_pwm
-    ;;
-  stop)
-    stop_pwm
+  prepare)
+    prepare
     ;;
   status)
     show_status
     ;;
+  cleanup)
+    cleanup
+    ;;
+  disable-legacy)
+    require_root_for_hardware
+    disable_legacy_pwm
+    ;;
   *)
-    die "用法：$0 {start|stop|status}"
+    die "用法：$0 {prepare|status|cleanup|disable-legacy}"
     ;;
 esac

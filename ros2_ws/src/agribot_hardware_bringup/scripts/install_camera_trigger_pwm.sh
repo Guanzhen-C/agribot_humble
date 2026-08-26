@@ -14,6 +14,12 @@ if [[ ${EUID} -ne 0 ]]; then
   exec sudo -- "$0" "$@"
 fi
 
+if systemctl is-active --quiet agribot-camera-trigger.service; then
+  # Stop the old Pin 32 service with its currently loaded unit before replacing
+  # the unit file. This prevents two independent trigger sources from running.
+  systemctl stop agribot-camera-trigger.service
+fi
+
 install -d -m 0755 /etc/default /etc/systemd/system /usr/local/sbin
 install -m 0644 \
   "${share_dir}/config/time_sync/camera_trigger_pwm.env" \
@@ -22,8 +28,8 @@ install -m 0755 \
   "${script_dir}/configure_camera_trigger_pwm.sh" \
   /usr/local/sbin/agribot-camera-trigger-pwm
 install -m 0755 \
-  "${script_dir}/camera_trigger_pps_lock" \
-  /usr/local/sbin/agribot-camera-trigger-pps-lock
+  "${script_dir}/camera_trigger_lpwm" \
+  /usr/local/sbin/agribot-camera-trigger-lpwm
 install -m 0644 \
   "${share_dir}/systemd/agribot-camera-trigger.service" \
   /etc/systemd/system/agribot-camera-trigger.service

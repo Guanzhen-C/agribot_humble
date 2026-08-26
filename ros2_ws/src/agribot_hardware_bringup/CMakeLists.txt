@@ -165,8 +165,8 @@ ament_target_dependencies(ackermann_joint_state_publisher
 )
 
 add_executable(
-  camera_trigger_pps_lock
-  time_sync/src/camera_trigger_pps_lock.cpp
+  camera_trigger_lpwm
+  time_sync/src/camera_trigger_lpwm.cpp
 )
 
 add_executable(
@@ -376,7 +376,7 @@ install(TARGETS
   ackermann_chassis_can_node
   ackermann_chassis_serial_node
   ackermann_joint_state_publisher
-  camera_trigger_pps_lock
+  camera_trigger_lpwm
   rtk_eskf_localization
   rtk_map_initializer
   georeference_test_bridge

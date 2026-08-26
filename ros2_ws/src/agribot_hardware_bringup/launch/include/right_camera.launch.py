@@ -20,6 +20,16 @@ def _enabled(value):
     return value.lower() in ("true", "1", "yes", "on")
 
 
+def _read_key_values(path):
+    values = {}
+    for line in path.read_text().splitlines():
+        if "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        values[name] = value
+    return values
+
+
 def _validate_hardware_trigger(context):
     driver = LaunchConfiguration("camera_driver").perform(context)
     trigger_enabled = _enabled(
@@ -28,43 +38,89 @@ def _validate_hardware_trigger(context):
     if driver != "hikrobot_mvs" or not trigger_enabled:
         return []
 
-    pwm_path = Path(
-        LaunchConfiguration("hikrobot_trigger_pwm_path").perform(context)
+    lpwm_device_path = Path(
+        LaunchConfiguration("hikrobot_trigger_lpwm_device_path").perform(context)
     )
-    expected = {
-        "enable": "1",
-        "period": LaunchConfiguration(
-            "hikrobot_trigger_period_ns"
-        ).perform(context),
-        "duty_cycle": LaunchConfiguration(
-            "hikrobot_trigger_duty_cycle_ns"
-        ).perform(context),
-        "polarity": "normal",
-    }
+    ready_path = Path(
+        LaunchConfiguration("hikrobot_trigger_ready_path").perform(context)
+    )
     try:
-        actual = {
-            name: (pwm_path / name).read_text().strip() for name in expected
-        }
-        int(
+        period_ns = int(
             LaunchConfiguration("hikrobot_trigger_period_ns").perform(context)
         )
-        int(
+        duty_ns = int(
             LaunchConfiguration("hikrobot_trigger_duty_cycle_ns").perform(context)
         )
-    except (OSError, UnicodeError, ValueError) as error:
+        if period_ns % 1000 or duty_ns % 1000:
+            raise ValueError("LPWM周期和高电平必须是整数微秒")
+        ready = _read_key_values(ready_path)
+        process_id = int(ready["pid"])
+        os.kill(process_id, 0)
+        rows = [
+            line.split()
+            for line in (lpwm_device_path / "lpwm_config_info")
+            .read_text()
+            .splitlines()[1:]
+            if line.strip()
+        ]
+    except (KeyError, OSError, UnicodeError, ValueError) as error:
         raise RuntimeError(
-            "海康相机已要求Line0硬触发，但无法读取RDK PWM状态："
-            f"{pwm_path}: {error}；请先安装并启动agribot-camera-trigger.service"
+            "海康相机已要求Line0硬触发，但无法读取RDK LPWM状态："
+            f"{lpwm_device_path}: {error}；请先安装并启动"
+            "agribot-camera-trigger.service"
         ) from error
 
-    mismatches = [
-        f"{name}={actual[name]}(期望{value})"
-        for name, value in expected.items()
-        if actual[name] != value
-    ]
+    selected = next((row for row in rows if row[0] == "0"), None)
+    if selected is None or len(selected) != 8:
+        raise RuntimeError("RDK LPWM1通道0状态缺失或格式错误")
+
+    expected_ready = {
+        "channel_id": "4",
+        "channel": "0",
+        "trigger_source": "2",
+        "trigger_mode": "1",
+        "period_us": str(period_ns // 1000),
+        "offset_us": "10",
+        "duty_us": str(duty_ns // 1000),
+    }
+    expected_driver = {
+        "source": "2",
+        "offset": "10",
+        "period": str(period_ns // 1000 - 1),
+        "duty_time": str(duty_ns // 1000 - 1),
+        "threshold": "0",
+        "adjust_step": "0",
+        "occupied": "CAMSYS",
+    }
+    actual_driver = dict(
+        zip(
+            (
+                "core",
+                "source",
+                "offset",
+                "period",
+                "duty_time",
+                "threshold",
+                "adjust_step",
+                "occupied",
+            ),
+            selected,
+        )
+    )
+    mismatches = []
+    mismatches.extend(
+        f"ready.{name}={ready.get(name, '缺失')}(期望{value})"
+        for name, value in expected_ready.items()
+        if ready.get(name) != value
+    )
+    mismatches.extend(
+        f"lpwm.{name}={actual_driver[name]}(期望{value})"
+        for name, value in expected_driver.items()
+        if actual_driver[name] != value
+    )
     if mismatches:
         raise RuntimeError(
-            "海康相机Line0硬触发PWM未就绪："
+            "海康相机Line0硬件PPS重触发LPWM未就绪："
             + ", ".join(mismatches)
             + "；请执行sudo systemctl restart agribot-camera-trigger.service"
         )
@@ -89,8 +145,12 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("hikrobot_trigger_enable", default_value="false"),
             DeclareLaunchArgument(
-                "hikrobot_trigger_pwm_path",
-                default_value="/sys/class/pwm/pwmchip0/pwm0",
+                "hikrobot_trigger_lpwm_device_path",
+                default_value="/sys/class/pwm/pwmchip2/device",
+            ),
+            DeclareLaunchArgument(
+                "hikrobot_trigger_ready_path",
+                default_value="/run/agribot-camera-trigger/ready",
             ),
             DeclareLaunchArgument(
                 "hikrobot_trigger_period_ns", default_value="100000000"
