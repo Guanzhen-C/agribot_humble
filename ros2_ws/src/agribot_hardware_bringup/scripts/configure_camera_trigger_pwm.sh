@@ -173,12 +173,13 @@ show_pin32_status() {
   [[ -r "${ready_file}" ]] || die "触发服务尚未发布就绪状态：${ready_file}"
   assert_ready_value backend pin32_pwm
   assert_ready_value pwm_enable_path "${pwm_path}/enable"
+  assert_ready_value pwm_period_path "${pwm_path}/period"
   assert_ready_value period_ns "${pwm_period_ns}"
   assert_ready_value duty_cycle_ns "${pwm_duty_ns}"
   assert_ready_value polarity "${pwm_polarity}"
   assert_ready_value pps_alignment every_pps
   assert_ready_value pps_monitoring continuous
-  assert_ready_value pwm_rearm before_each_pps
+  assert_ready_value pwm_phase_control period_adjust_each_pps
   assert_ready_value physical_edge_capture pin33_gpio
   assert_ready_value edge_timestamp_source gpio_v2_realtime
   assert_ready_value edge_gpio_chip "${pwm_edge_gpio_chip}"
@@ -186,8 +187,11 @@ show_pin32_status() {
   assert_ready_value edge_buffer_path "${pwm_edge_buffer_path}"
   assert_ready_process
 
-  [[ "$(read_value "${pwm_path}/period")" == "${pwm_period_ns}" ]] || \
-    die "Pin32 PWM周期不符合配置"
+  local applied_period
+  applied_period="$(ready_value applied_period_ns)"
+  [[ "${applied_period}" =~ ^[0-9]+$ ]] || die "软件锁相PWM周期无效"
+  [[ "$(read_value "${pwm_path}/period")" == "${applied_period}" ]] || \
+    die "Pin32当前PWM周期与软件锁相结果不一致"
   [[ "$(read_value "${pwm_path}/duty_cycle")" == "${pwm_duty_ns}" ]] || \
     die "Pin32 PWM高电平时间不符合配置"
   [[ "$(read_value "${pwm_path}/polarity")" == "${pwm_polarity}" ]] || \
@@ -203,7 +207,7 @@ show_pin32_status() {
   echo "当前后端：pin32_pwm"
   echo "相机触发输出：40Pin物理Pin 32（PWM6）"
   echo "物理沿回采：40Pin物理Pin 33（GPIO357，内核CLOCK_REALTIME时间戳）"
-  echo "PPS对相：每个PPS前预关断并在PPS后重启，严格保持每秒${expected_edges}沿"
+  echo "PPS对相：每个PPS按Pin33实测相位调整下一秒周期，严格保持每秒${expected_edges}沿"
   echo "最近PPS序号：$(ready_value pps_sequence)"
   echo "最近物理沿相位误差：$(ready_value edge_phase_error_us) us"
   echo "最近一秒物理沿数：$(ready_value edges_previous_second)"

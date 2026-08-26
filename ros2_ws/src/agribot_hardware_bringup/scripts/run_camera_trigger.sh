@@ -12,6 +12,7 @@ case "${backend}" in
     exec /usr/local/sbin/agribot-camera-trigger-pps-lock \
       --pps-device "${pps_device}" \
       --pwm-enable-path "${pwm_path}/enable" \
+      --pwm-period-path "${pwm_path}/period" \
       --ready-file "${ready_file}" \
       --edge-gpio-chip "${PWM_EDGE_GPIO_CHIP:-/dev/gpiochip5}" \
       --edge-gpio-offset "${PWM_EDGE_GPIO_OFFSET:-10}" \
@@ -21,7 +22,9 @@ case "${backend}" in
       --polarity "${PWM_POLARITY:-normal}" \
       --timeout-sec "${timeout_sec}" \
       --maximum-latency-ms "${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}" \
-      --rearm-guard-ms "${PWM_PPS_REARM_GUARD_MS:-5.0}"
+      --phase-target-ms "${PWM_PPS_PHASE_TARGET_MS:-1.0}" \
+      --maximum-period-adjustment-ns \
+        "${PWM_PPS_MAXIMUM_PERIOD_ADJUSTMENT_NS:-500000}"
     ;;
   j14_lpwm)
     exec /usr/local/sbin/agribot-camera-trigger-lpwm \

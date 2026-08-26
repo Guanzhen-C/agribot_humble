@@ -391,11 +391,11 @@ The current `pin32_pwm` backend connects Hikrobot `Line0` to RDK X5 physical
 pin 32 and a confirmed common ground. Physical pin 36 remains the RTK PPS input
 for `/dev/pps-rtk`. Split the Pin32 signal to Hikrobot `Line0` and physical
 Pin33. Pin33 is GPIO357 (`/dev/gpiochip5` line 10) and timestamps every real
-rising edge in the kernel with `CLOCK_REALTIME`. Before every PPS the daemon
-stops PWM after the tenth pulse, then restarts it on that PPS. This removes
-long-term PWM drift without dropping or duplicating the ten pulses in each
-second. Missing PPS, a missing Pin33 edge, an incorrect edge count, or a phase
-error above 5 ms makes the trigger service fail closed.
+rising edge in the kernel with `CLOCK_REALTIME`. PWM remains continuous. At
+every PPS the daemon measures the physical phase and adjusts the following ten
+periods as a software PLL. This removes long-term drift without stopping the
+waveform or dropping a frame. Missing PPS, a missing Pin33 edge, an incorrect
+edge count, or a phase error above 5 ms makes the trigger service fail closed.
 
 The `j14_lpwm` backend is retained for a future 22-pin breakout. With the
 vehicle powered off, split PPS to physical pins 36 and 33, connect `Line0` to

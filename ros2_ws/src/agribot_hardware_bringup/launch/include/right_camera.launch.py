@@ -48,12 +48,13 @@ def _validate_pin32_trigger(
     expected_ready = {
         "backend": "pin32_pwm",
         "pwm_enable_path": str(pwm_path / "enable"),
+        "pwm_period_path": str(pwm_path / "period"),
         "period_ns": str(period_ns),
         "duty_cycle_ns": str(duty_ns),
         "polarity": "normal",
         "pps_alignment": "every_pps",
         "pps_monitoring": "continuous",
-        "pwm_rearm": "before_each_pps",
+        "pwm_phase_control": "period_adjust_each_pps",
         "physical_edge_capture": "pin33_gpio",
         "edge_timestamp_source": "gpio_v2_realtime",
         "edge_gpio_chip": "/dev/gpiochip5",
@@ -61,7 +62,7 @@ def _validate_pin32_trigger(
         "edge_buffer_path": str(edge_buffer_path),
     }
     expected_pwm = {
-        "period": str(period_ns),
+        "period": ready.get("applied_period_ns", "缺失"),
         "duty_cycle": str(duty_ns),
         "polarity": "normal",
         "enable": "1",

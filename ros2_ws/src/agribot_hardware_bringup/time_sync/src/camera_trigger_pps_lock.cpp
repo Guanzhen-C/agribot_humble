@@ -34,6 +34,7 @@ struct Options
 {
   std::string pps_device{"/dev/pps-rtk"};
   std::string pwm_enable_path{"/sys/class/pwm/pwmchip0/pwm0/enable"};
+  std::string pwm_period_path{"/sys/class/pwm/pwmchip0/pwm0/period"};
   std::string ready_file{"/run/agribot-camera-trigger/ready"};
   std::string edge_gpio_chip{"/dev/gpiochip5"};
   std::uint32_t edge_gpio_offset{10U};
@@ -43,7 +44,8 @@ struct Options
   std::string polarity{"normal"};
   double timeout_sec{2.5};
   double maximum_latency_ms{5.0};
-  double rearm_guard_ms{5.0};
+  double phase_target_ms{1.0};
+  std::uint64_t maximum_period_adjustment_ns{500000U};
 };
 
 volatile std::sig_atomic_t stop_requested = 0;
@@ -91,10 +93,11 @@ Options parse_options(int argc, char ** argv)
     if (argument == "--help") {
       std::cout <<
         "用法: camera_trigger_pps_lock [--pps-device PATH] "
-        "[--pwm-enable-path PATH] [--ready-file PATH] "
+        "[--pwm-enable-path PATH] [--pwm-period-path PATH] [--ready-file PATH] "
         "[--edge-gpio-chip PATH] [--edge-gpio-offset N] [--edge-buffer-path PATH] "
         "[--period-ns N] [--duty-cycle-ns N] [--polarity VALUE] "
-        "[--timeout-sec SEC] [--maximum-latency-ms MS] [--rearm-guard-ms MS]\n";
+        "[--timeout-sec SEC] [--maximum-latency-ms MS] [--phase-target-ms MS] "
+        "[--maximum-period-adjustment-ns N]\n";
       std::exit(0);
     }
     if (index + 1 >= argc) {
@@ -105,6 +108,8 @@ Options parse_options(int argc, char ** argv)
       options.pps_device = value;
     } else if (argument == "--pwm-enable-path") {
       options.pwm_enable_path = value;
+    } else if (argument == "--pwm-period-path") {
+      options.pwm_period_path = value;
     } else if (argument == "--ready-file") {
       options.ready_file = value;
     } else if (argument == "--edge-gpio-chip") {
@@ -123,8 +128,10 @@ Options parse_options(int argc, char ** argv)
       options.timeout_sec = parse_positive_double(argument, value);
     } else if (argument == "--maximum-latency-ms") {
       options.maximum_latency_ms = parse_positive_double(argument, value);
-    } else if (argument == "--rearm-guard-ms") {
-      options.rearm_guard_ms = parse_positive_double(argument, value);
+    } else if (argument == "--phase-target-ms") {
+      options.phase_target_ms = parse_positive_double(argument, value);
+    } else if (argument == "--maximum-period-adjustment-ns") {
+      options.maximum_period_adjustment_ns = parse_positive_unsigned(argument, value);
     } else {
       throw std::invalid_argument("未知参数: " + argument);
     }
@@ -138,8 +145,11 @@ Options parse_options(int argc, char ** argv)
   if (1000000000ULL % options.period_ns != 0U) {
     throw std::invalid_argument("period-ns必须能整除1秒，才能逐PPS无丢帧校相");
   }
-  if (options.rearm_guard_ms * 1.0e6 >= static_cast<double>(options.period_ns)) {
-    throw std::invalid_argument("rearm-guard-ms必须小于一个PWM周期");
+  if (options.phase_target_ms >= options.maximum_latency_ms) {
+    throw std::invalid_argument("phase-target-ms必须小于maximum-latency-ms");
+  }
+  if (options.maximum_period_adjustment_ns * 2U >= options.period_ns) {
+    throw std::invalid_argument("maximum-period-adjustment-ns必须小于半个PWM周期");
   }
   return options;
 }
@@ -190,6 +200,17 @@ void write_pwm_enable(const int file_descriptor, const bool enabled)
   const char * value = enabled ? "1\n" : "0\n";
   if (write(file_descriptor, value, 2) != 2) {
     throw std::runtime_error("写入PWM使能状态失败: " + std::string(std::strerror(errno)));
+  }
+}
+
+void write_pwm_period(const int file_descriptor, const std::uint64_t period_ns)
+{
+  if (lseek(file_descriptor, 0, SEEK_SET) < 0) {
+    throw std::runtime_error("重置PWM周期文件偏移失败: " + std::string(std::strerror(errno)));
+  }
+  const std::string value = std::to_string(period_ns) + "\n";
+  if (write(file_descriptor, value.data(), value.size()) != static_cast<ssize_t>(value.size())) {
+    throw std::runtime_error("写入PWM周期失败: " + std::string(std::strerror(errno)));
   }
 }
 
@@ -414,39 +435,57 @@ std::int64_t pps_timestamp_ns(const pps_fdata & event)
     static_cast<std::int64_t>(event.info.assert_tu.nsec);
 }
 
-bool sleep_until_realtime(const std::int64_t timestamp_ns)
+double physical_phase_ms(const EdgeSnapshot & edge, const pps_fdata & event)
 {
-  timespec target{};
-  target.tv_sec = timestamp_ns / 1000000000LL;
-  target.tv_nsec = timestamp_ns % 1000000000LL;
-  while (stop_requested == 0) {
-    const int result = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &target, nullptr);
-    if (result == 0) {
-      return true;
-    }
-    if (result != EINTR) {
-      throw std::runtime_error("等待下一次PPS预关断时刻失败: " + std::string(std::strerror(result)));
-    }
-  }
-  return false;
+  return static_cast<double>(edge.timestamp_ns - pps_timestamp_ns(event)) * 1.0e-6;
 }
 
-double validate_physical_phase(
-  const EdgeSnapshot & edge, const pps_fdata & event, const double maximum_latency_ms)
+EdgeSnapshot match_pps_edge(
+  GpioEdgeCapture & capture, const pps_fdata & event,
+  const std::uint64_t previous_pps_edge_count, const std::uint64_t expected_edges,
+  const double maximum_latency_ms)
 {
-  const double phase_ms = static_cast<double>(edge.timestamp_ns - pps_timestamp_ns(event)) * 1.0e-6;
-  if (phase_ms < 0.0 || phase_ms > maximum_latency_ms) {
+  EdgeSnapshot edge = capture.snapshot();
+  double phase_ms = physical_phase_ms(edge, event);
+  if (edge.count <= previous_pps_edge_count || std::abs(phase_ms) > maximum_latency_ms) {
+    const std::uint64_t count = edge.count;
+    edge = capture.wait_after(count, maximum_latency_ms + 2.0);
+    phase_ms = physical_phase_ms(edge, event);
+  }
+  if (edge.count - previous_pps_edge_count != expected_edges) {
+    throw std::runtime_error(
+            "相邻PPS之间的Pin33物理沿数错误: 实际" +
+            std::to_string(edge.count - previous_pps_edge_count) + "，期望" +
+            std::to_string(expected_edges));
+  }
+  if (std::abs(phase_ms) > maximum_latency_ms) {
     throw std::runtime_error(
             "Pin33物理上升沿相对PPS的相位超限: " + std::to_string(phase_ms) + " ms");
   }
-  return phase_ms;
+  return edge;
+}
+
+std::uint64_t calculate_locked_period(
+  const Options & options, const EdgeSnapshot & edge, const pps_fdata & event)
+{
+  const std::int64_t target_ns = static_cast<std::int64_t>(options.phase_target_ms * 1.0e6);
+  const std::int64_t phase_ns = edge.timestamp_ns - pps_timestamp_ns(event);
+  const timespec now = realtime_now();
+  const std::int64_t now_ns = static_cast<std::int64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+  const std::int64_t dispatch_ns = std::max<std::int64_t>(now_ns - edge.timestamp_ns, 0);
+  const std::int64_t pulses = static_cast<std::int64_t>(1000000000ULL / options.period_ns);
+  std::int64_t adjustment = (target_ns - phase_ns - dispatch_ns) / pulses;
+  const std::int64_t limit = static_cast<std::int64_t>(options.maximum_period_adjustment_ns);
+  adjustment = std::clamp(adjustment, -limit, limit);
+  return static_cast<std::uint64_t>(static_cast<std::int64_t>(options.period_ns) + adjustment);
 }
 
 void write_ready_file(
   const Options & options, const pps_fdata & event,
   const std::uint32_t initial_sequence, const double initial_edge_phase_ms,
   const double last_pps_latency_ms, const double edge_phase_ms,
-  const std::uint64_t edges_previous_second, const EdgeSnapshot & edge)
+  const std::uint64_t edges_previous_second, const std::uint64_t applied_period_ns,
+  const EdgeSnapshot & edge)
 {
   const std::string temporary = options.ready_file + ".tmp";
   std::ofstream output(temporary, std::ios::trunc);
@@ -455,14 +494,17 @@ void write_ready_file(
   }
   output << "backend=pin32_pwm\n"
          << "pwm_enable_path=" << options.pwm_enable_path << '\n'
+         << "pwm_period_path=" << options.pwm_period_path << '\n'
          << "period_ns=" << options.period_ns << '\n'
          << "duty_cycle_ns=" << options.duty_cycle_ns << '\n'
          << "polarity=" << options.polarity << '\n'
          << "pps_alignment=every_pps\n"
          << "pps_monitoring=continuous\n"
-         << "pwm_rearm=before_each_pps\n"
+         << "pwm_phase_control=period_adjust_each_pps\n"
          << "pulses_per_pps=" << 1000000000ULL / options.period_ns << '\n'
-         << "rearm_guard_us=" << options.rearm_guard_ms * 1.0e3 << '\n'
+         << "nominal_period_ns=" << options.period_ns << '\n'
+         << "applied_period_ns=" << applied_period_ns << '\n'
+         << "phase_target_us=" << options.phase_target_ms * 1.0e3 << '\n'
          << "physical_edge_capture=pin33_gpio\n"
          << "edge_timestamp_source=gpio_v2_realtime\n"
          << "edge_gpio_chip=" << options.edge_gpio_chip << '\n'
@@ -482,6 +524,8 @@ void write_ready_file(
          << "pps_nsec=" << event.info.assert_tu.nsec << '\n'
          << "last_pps_latency_us=" << last_pps_latency_ms * 1.0e3 << '\n'
          << "edge_phase_error_us=" << edge_phase_ms * 1.0e3 << '\n'
+         << "phase_lock_error_us=" <<
+    (edge_phase_ms - options.phase_target_ms) * 1.0e3 << '\n'
          << "pid=" << getpid() << '\n';
   output.close();
   if (!output) {
@@ -527,6 +571,7 @@ void run(const Options & options)
 
   FileDescriptor pps(options.pps_device, O_RDONLY);
   FileDescriptor pwm(options.pwm_enable_path, O_WRONLY);
+  FileDescriptor pwm_period(options.pwm_period_path, O_WRONLY);
   ReadyFileGuard ready_guard(options.ready_file);
   GpioEdgeCapture edge_capture(options);
   request_realtime_scheduling();
@@ -534,62 +579,53 @@ void run(const Options & options)
   bool enabled = false;
   try {
     pps_fdata event = fetch_pps(pps.get(), options.timeout_sec);
-    const double initial_pps_latency_ms =
-      require_fresh_pps(event, 0U, options.maximum_latency_ms);
+    require_fresh_pps(event, 0U, options.maximum_latency_ms);
     EdgeSnapshot before_enable = edge_capture.snapshot();
     write_pwm_enable(pwm.get(), true);
     enabled = true;
-    EdgeSnapshot edge = edge_capture.wait_after(
-      before_enable.count, options.maximum_latency_ms + 10.0);
-    const double initial_edge_phase_ms =
-      validate_physical_phase(edge, event, options.maximum_latency_ms);
     const std::uint32_t initial_sequence = event.info.assert_sequence;
-    std::cout << "Pin32相机触发已启动并由Pin33回采: 10 Hz, initial_pps="
-              << event.info.assert_sequence << ", physical_phase="
-              << initial_edge_phase_ms * 1.0e3
-              << " us, pps_dispatch=" << initial_pps_latency_ms * 1.0e3
-              << " us；完成首个整秒沿数验收后发布就绪状态" << std::endl;
-
-    std::uint32_t last_sequence = event.info.assert_sequence;
     const std::uint64_t expected_edges = 1000000000ULL / options.period_ns;
-    std::uint64_t second_start_count = before_enable.count;
+    std::cout << "Pin32相机触发已启动并由Pin33回采: 10 Hz, initial_pps="
+              << initial_sequence << "；等待下一个PPS完成首个整秒验收" << std::endl;
+
+    std::uint32_t last_sequence = initial_sequence;
+    event = fetch_pps(pps.get(), options.timeout_sec);
+    double latency_ms = require_fresh_pps(event, last_sequence, options.maximum_latency_ms);
+    if (event.info.assert_sequence != last_sequence + 1U) {
+      throw std::runtime_error("初始锁相期间检测到PPS序号跳变");
+    }
+    last_sequence = event.info.assert_sequence;
+    EdgeSnapshot edge = match_pps_edge(
+      edge_capture, event, before_enable.count, expected_edges, options.maximum_latency_ms);
+    const double initial_edge_phase_ms = physical_phase_ms(edge, event);
+    std::uint64_t applied_period_ns = calculate_locked_period(options, edge, event);
+    write_pwm_period(pwm_period.get(), applied_period_ns);
+    write_ready_file(
+      options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
+      initial_edge_phase_ms, expected_edges, applied_period_ns, edge);
+    std::uint64_t previous_pps_edge_count = edge.count;
+
     while (stop_requested == 0) {
-      const std::int64_t rearm_time_ns = pps_timestamp_ns(event) + 1000000000LL -
-        static_cast<std::int64_t>(options.rearm_guard_ms * 1.0e6);
-      if (!sleep_until_realtime(rearm_time_ns)) {
-        break;
-      }
-      const EdgeSnapshot before_rearm = edge_capture.snapshot();
-      const std::uint64_t edges_this_second = before_rearm.count - second_start_count;
-      if (edges_this_second != expected_edges) {
-        throw std::runtime_error(
-                "逐PPS校相前检测到触发沿数错误: 实际" +
-                std::to_string(edges_this_second) + "，期望" +
-                std::to_string(expected_edges));
-      }
-      write_pwm_enable(pwm.get(), false);
-      enabled = false;
       event = fetch_pps(pps.get(), options.timeout_sec);
       if (stop_requested != 0) {
         break;
       }
-      const double latency_ms = require_fresh_pps(
+      latency_ms = require_fresh_pps(
         event, last_sequence, options.maximum_latency_ms);
       if (event.info.assert_sequence != last_sequence + 1U) {
         throw std::runtime_error("逐PPS校相期间检测到PPS序号跳变");
       }
       last_sequence = event.info.assert_sequence;
-      before_enable = edge_capture.snapshot();
-      write_pwm_enable(pwm.get(), true);
-      enabled = true;
-      edge = edge_capture.wait_after(
-        before_enable.count, options.maximum_latency_ms + 10.0);
-      const double edge_phase_ms =
-        validate_physical_phase(edge, event, options.maximum_latency_ms);
+      edge = match_pps_edge(
+        edge_capture, event, previous_pps_edge_count, expected_edges,
+        options.maximum_latency_ms);
+      const double edge_phase_ms = physical_phase_ms(edge, event);
+      applied_period_ns = calculate_locked_period(options, edge, event);
+      write_pwm_period(pwm_period.get(), applied_period_ns);
       write_ready_file(
         options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
-        edge_phase_ms, edges_this_second, edge);
-      second_start_count = before_enable.count;
+        edge_phase_ms, expected_edges, applied_period_ns, edge);
+      previous_pps_edge_count = edge.count;
     }
   } catch (...) {
     if (enabled) {

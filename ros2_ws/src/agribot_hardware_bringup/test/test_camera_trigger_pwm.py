@@ -99,12 +99,13 @@ def write_pin32_ready(path, pwm):
     path.write_text(
         "backend=pin32_pwm\n"
         f"pwm_enable_path={pwm / 'enable'}\n"
+        f"pwm_period_path={pwm / 'period'}\n"
         "period_ns=100000000\n"
         "duty_cycle_ns=1000000\n"
         "polarity=normal\n"
         "pps_alignment=every_pps\n"
         "pps_monitoring=continuous\n"
-        "pwm_rearm=before_each_pps\n"
+        "pwm_phase_control=period_adjust_each_pps\n"
         "physical_edge_capture=pin33_gpio\n"
         "edge_timestamp_source=gpio_v2_realtime\n"
         "edge_gpio_chip=/dev/gpiochip5\n"
@@ -115,6 +116,7 @@ def write_pin32_ready(path, pwm):
         "edge_count=101\n"
         "edges_previous_second=10\n"
         "edge_phase_error_us=123.0\n"
+        "applied_period_ns=100000000\n"
         "initial_enable_latency_us=123.0\n"
         "pps_sequence=42\n"
         "last_pps_latency_us=123.0\n"
@@ -168,7 +170,7 @@ def test_pin32_prepare_and_status_require_every_pps_lock_and_physical_edges(
     status = run_trigger_script(environment, "status")
     assert status.returncode == 0, status.stderr
     assert "40Pin物理Pin 32" in status.stdout
-    assert "每个PPS前预关断" in status.stdout
+    assert "每个PPS按Pin33实测相位" in status.stdout
     assert "Pin 33" in status.stdout
     assert "最近一秒物理沿数：10" in status.stdout
 
@@ -328,7 +330,7 @@ def test_service_dispatches_exclusive_trigger_backends():
     assert "pps_alignment=every_pps" in pin32_helper
     assert "pps_monitoring=continuous" in pin32_helper
     assert "GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME" in pin32_helper
-    assert "edges_this_second != expected_edges" in pin32_helper
+    assert "edge.count - previous_pps_edge_count != expected_edges" in pin32_helper
     assert "write_pwm_enable(pwm.get(), false)" in pin32_helper
 
     lpwm_helper = (
