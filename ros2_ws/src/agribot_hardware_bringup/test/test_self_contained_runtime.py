@@ -94,7 +94,10 @@ def test_migrated_runtime_resources_exist_and_parse():
         "models/eigenplaces_r18_512_480x640_bayes_e.bin",
         "scripts/start_wheeltec_car_gui.sh",
         "scripts/wheeltec_car_gui.py",
+        "scripts/start_differential_car_gui.sh",
+        "scripts/differential_car_gui.py",
         "desktop/wheeltec-car-gui.desktop",
+        "desktop/differential-car-gui.desktop",
     )
     for relative_path in expected:
         assert (PACKAGE_ROOT / relative_path).is_file()

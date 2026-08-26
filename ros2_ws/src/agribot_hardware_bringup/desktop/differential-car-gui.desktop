@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=履带差速车控制
+Comment=触摸、鼠标和键盘控制三合一履带差速底盘
+Exec=/home/sunrise/agribot_ws/ros2_ws/install/agribot_hardware_bringup/lib/agribot_hardware_bringup/start_differential_car_gui.sh
+Icon=input-gaming
+Terminal=false
+Categories=Utility;
+StartupNotify=true

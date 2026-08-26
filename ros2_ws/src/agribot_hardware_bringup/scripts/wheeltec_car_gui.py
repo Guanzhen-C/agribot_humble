@@ -138,9 +138,21 @@ class ZqwlFrameDecoder:
 class CanLink:
     """Exclusive ZQWL USB CDC transport used by the standalone GUI."""
 
-    def __init__(self, port: str, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        port: str,
+        dry_run: bool = False,
+        command_id: int = COMMAND_ID,
+        telemetry_ids: set[int] | None = None,
+        telemetry_timeout_sec: float = 0.6,
+    ) -> None:
         self.port = port
         self.dry_run = dry_run
+        self.command_id = command_id
+        self.telemetry_ids = set(
+            TELEMETRY_IDS if telemetry_ids is None else telemetry_ids
+        )
+        self.telemetry_timeout_sec = telemetry_timeout_sec
         self.fd: int | None = None
         self.decoder = ZqwlFrameDecoder()
         self.last_error = ""
@@ -153,6 +165,8 @@ class CanLink:
         self.startup_reopen_attempted = False
         self.startup_reopen_count = 0
         self.last_payload = bytes(8)
+        self.latest_payloads: dict[int, bytes] = {}
+        self.latest_payload_times: dict[int, float] = {}
         self.dry_run_payloads: list[bytes] = []
 
     def connect(self, reset_startup_recovery: bool = True) -> bool:
@@ -189,6 +203,8 @@ class CanLink:
             self._write_all(ZQWL_START_PACKET)
             self.decoder = ZqwlFrameDecoder()
             self.connection_seen_ids.clear()
+            self.latest_payloads.clear()
+            self.latest_payload_times.clear()
             self.connected_at = time.monotonic()
             self.last_rx_time = 0.0
             if reset_startup_recovery:
@@ -231,7 +247,7 @@ class CanLink:
         fd = self.fd
         try:
             if send_stop:
-                zero_packet = encode_can_packet(COMMAND_ID, bytes(8))
+                zero_packet = encode_can_packet(self.command_id, bytes(8))
                 for _ in range(8):
                     self._write_all(zero_packet)
                     time.sleep(0.01)
@@ -248,7 +264,10 @@ class CanLink:
         if self.dry_run:
             return True
         current = time.monotonic() if now is None else now
-        return self.fd is not None and current - self.last_rx_time < 0.6
+        return (
+            self.fd is not None
+            and current - self.last_rx_time < self.telemetry_timeout_sec
+        )
 
     def recover_silent_startup(
         self,
@@ -259,7 +278,7 @@ class CanLink:
             self.dry_run
             or self.fd is None
             or self.startup_reopen_attempted
-            or self.connection_seen_ids == TELEMETRY_IDS
+            or self.connection_seen_ids == self.telemetry_ids
         ):
             return False
 
@@ -290,12 +309,15 @@ class CanLink:
                     break
                 if not chunk:
                     break
-                for can_id, _payload in self.decoder.feed(chunk):
-                    if can_id in TELEMETRY_IDS:
-                        self.last_rx_time = time.monotonic()
+                for can_id, payload in self.decoder.feed(chunk):
+                    if can_id in self.telemetry_ids:
+                        received_at = time.monotonic()
+                        self.last_rx_time = received_at
                         self.rx_count += 1
                         self.seen_ids.add(can_id)
                         self.connection_seen_ids.add(can_id)
+                        self.latest_payloads[can_id] = payload
+                        self.latest_payload_times[can_id] = received_at
         except OSError as exc:
             self.last_error = str(exc)
             self.close(send_stop=False)
@@ -310,7 +332,7 @@ class CanLink:
         if self.fd is None and not self.connect():
             return False
         try:
-            self._write_all(encode_can_packet(COMMAND_ID, payload))
+            self._write_all(encode_can_packet(self.command_id, payload))
             self.tx_count += 1
             self.last_error = ""
             return True

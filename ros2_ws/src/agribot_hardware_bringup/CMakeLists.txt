@@ -324,7 +324,9 @@ install(PROGRAMS
   scripts/rtk_nmea_node.py
   scripts/rtk_time_feeder.py
   scripts/sensor_time_sync_monitor.py
+  scripts/start_differential_car_gui.sh
   scripts/start_wheeltec_car_gui.sh
+  scripts/differential_car_gui.py
   scripts/wheeltec_car_gui.py
   localization/fastlio/scripts/fastlio_odom_bridge.py
   localization/navsat/scripts/navsat_pose_bridge.py
@@ -361,6 +363,7 @@ install(FILES differential/README.md DESTINATION share/${PROJECT_NAME}/different
 install(FILES ackermann/README.md DESTINATION share/${PROJECT_NAME}/ackermann)
 install(FILES
   desktop/README.md
+  desktop/differential-car-gui.desktop
   desktop/wheeltec-car-gui.desktop
   DESTINATION share/${PROJECT_NAME}/desktop
 )
@@ -505,6 +508,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_planner_validation
     test/test_planner_validation.py
+  )
+  ament_add_pytest_test(
+    test_differential_car_gui
+    test/test_differential_car_gui.py
   )
   ament_add_pytest_test(
     test_wheeltec_car_gui
