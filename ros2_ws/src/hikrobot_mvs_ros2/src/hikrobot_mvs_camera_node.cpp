@@ -158,8 +158,9 @@ public:
     frame_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
       frame_stamp_topic, rclcpp::SensorDataQoS());
     if (trigger_enable_ && use_physical_trigger_timestamp_) {
+      const auto physical_edge_qos = rclcpp::QoS(64).reliable().durability_volatile();
       physical_trigger_edge_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
-        physical_trigger_edge_stamp_topic, rclcpp::SensorDataQoS());
+        physical_trigger_edge_stamp_topic, physical_edge_qos);
     }
     const auto state_qos = rclcpp::QoS(1).reliable().transient_local();
     connected_pub_ = create_publisher<std_msgs::msg::Bool>("~/connected", state_qos);

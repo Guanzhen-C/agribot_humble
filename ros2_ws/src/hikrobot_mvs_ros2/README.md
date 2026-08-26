@@ -30,8 +30,8 @@ ros2 topic hz /camera/rgb/image_raw
 上升沿打 `CLOCK_REALTIME` 时间戳。驱动利用相机帧号与这些物理沿逐帧配对，
 并直接把对应物理沿写入图像、CameraInfo和`/camera/rgb/frame_stamp`，不再
 使用固定的 `-15.8 ms` 设备时钟补偿。无法配对的帧会被丢弃并在
-`hikrobot_mvs/time_sync` 中报错。`/camera/trigger/physical_edge_stamp`独立
-发布运行期间每一个Pin33物理上升沿的内核时间戳，可用以下命令逐沿查看：
+`hikrobot_mvs/time_sync` 中报错。`/camera/trigger/physical_edge_stamp`以可靠
+QoS独立发布运行期间每一个Pin33物理上升沿的内核时间戳，可用以下命令逐沿查看：
 
 ```bash
 ros2 topic echo /camera/trigger/physical_edge_stamp
