@@ -44,7 +44,7 @@ struct Options
   std::string polarity{"normal"};
   double timeout_sec{2.5};
   double maximum_latency_ms{5.0};
-  double phase_target_ms{1.0};
+  double period_update_compensation_ms{1.0};
   std::uint64_t maximum_period_adjustment_ns{500000U};
 };
 
@@ -96,7 +96,8 @@ Options parse_options(int argc, char ** argv)
         "[--pwm-enable-path PATH] [--pwm-period-path PATH] [--ready-file PATH] "
         "[--edge-gpio-chip PATH] [--edge-gpio-offset N] [--edge-buffer-path PATH] "
         "[--period-ns N] [--duty-cycle-ns N] [--polarity VALUE] "
-        "[--timeout-sec SEC] [--maximum-latency-ms MS] [--phase-target-ms MS] "
+        "[--timeout-sec SEC] [--maximum-latency-ms MS] "
+        "[--period-update-compensation-ms MS] "
         "[--maximum-period-adjustment-ns N]\n";
       std::exit(0);
     }
@@ -128,8 +129,8 @@ Options parse_options(int argc, char ** argv)
       options.timeout_sec = parse_positive_double(argument, value);
     } else if (argument == "--maximum-latency-ms") {
       options.maximum_latency_ms = parse_positive_double(argument, value);
-    } else if (argument == "--phase-target-ms") {
-      options.phase_target_ms = parse_positive_double(argument, value);
+    } else if (argument == "--period-update-compensation-ms") {
+      options.period_update_compensation_ms = parse_positive_double(argument, value);
     } else if (argument == "--maximum-period-adjustment-ns") {
       options.maximum_period_adjustment_ns = parse_positive_unsigned(argument, value);
     } else {
@@ -145,8 +146,9 @@ Options parse_options(int argc, char ** argv)
   if (1000000000ULL % options.period_ns != 0U) {
     throw std::invalid_argument("period-ns必须能整除1秒，才能逐PPS无丢帧校相");
   }
-  if (options.phase_target_ms >= options.maximum_latency_ms) {
-    throw std::invalid_argument("phase-target-ms必须小于maximum-latency-ms");
+  if (options.period_update_compensation_ms >= options.maximum_latency_ms) {
+    throw std::invalid_argument(
+            "period-update-compensation-ms必须小于maximum-latency-ms");
   }
   if (options.maximum_period_adjustment_ns * 2U >= options.period_ns) {
     throw std::invalid_argument("maximum-period-adjustment-ns必须小于半个PWM周期");
@@ -482,13 +484,14 @@ EdgeSnapshot match_pps_edge(
 std::uint64_t calculate_locked_period(
   const Options & options, const EdgeSnapshot & edge, const pps_fdata & event)
 {
-  const std::int64_t target_ns = static_cast<std::int64_t>(options.phase_target_ms * 1.0e6);
+  const std::int64_t compensation_ns =
+    static_cast<std::int64_t>(options.period_update_compensation_ms * 1.0e6);
   const std::int64_t phase_ns = edge.timestamp_ns - pps_timestamp_ns(event);
   const timespec now = realtime_now();
   const std::int64_t now_ns = static_cast<std::int64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
   const std::int64_t dispatch_ns = std::max<std::int64_t>(now_ns - edge.timestamp_ns, 0);
   const std::int64_t pulses = static_cast<std::int64_t>(1000000000ULL / options.period_ns);
-  std::int64_t adjustment = (target_ns - phase_ns - dispatch_ns) / pulses;
+  std::int64_t adjustment = (compensation_ns - phase_ns - dispatch_ns) / pulses;
   const std::int64_t limit = static_cast<std::int64_t>(options.maximum_period_adjustment_ns);
   adjustment = std::clamp(adjustment, -limit, limit);
   return static_cast<std::uint64_t>(static_cast<std::int64_t>(options.period_ns) + adjustment);
@@ -518,7 +521,9 @@ void write_ready_file(
          << "pulses_per_pps=" << 1000000000ULL / options.period_ns << '\n'
          << "nominal_period_ns=" << options.period_ns << '\n'
          << "applied_period_ns=" << applied_period_ns << '\n'
-         << "phase_target_us=" << options.phase_target_ms * 1.0e3 << '\n'
+         << "phase_lock_target_us=0\n"
+         << "period_update_compensation_us=" <<
+    options.period_update_compensation_ms * 1.0e3 << '\n'
          << "physical_edge_capture=pin33_gpio\n"
          << "edge_timestamp_source=gpio_v2_realtime\n"
          << "edge_gpio_chip=" << options.edge_gpio_chip << '\n'
@@ -535,14 +540,13 @@ void write_ready_file(
          << "edges_previous_second=" << edges_previous_second << '\n'
          << "initial_pps_sequence=" << initial_sequence << '\n'
          << std::fixed << std::setprecision(3)
-         << "initial_enable_latency_us=" << initial_edge_phase_ms * 1.0e3 << '\n'
+         << "initial_edge_phase_us=" << initial_edge_phase_ms * 1.0e3 << '\n'
          << "pps_sequence=" << event.info.assert_sequence << '\n'
          << "pps_sec=" << event.info.assert_tu.sec << '\n'
          << "pps_nsec=" << event.info.assert_tu.nsec << '\n'
          << "last_pps_latency_us=" << last_pps_latency_ms * 1.0e3 << '\n'
          << "edge_phase_error_us=" << edge_phase_ms * 1.0e3 << '\n'
-         << "phase_lock_error_us=" <<
-    (edge_phase_ms - options.phase_target_ms) * 1.0e3 << '\n'
+         << "phase_lock_error_us=" << edge_phase_ms * 1.0e3 << '\n'
          << "pid=" << getpid() << '\n';
   output.close();
   if (!output) {

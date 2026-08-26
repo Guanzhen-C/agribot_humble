@@ -22,7 +22,8 @@ case "${backend}" in
       --polarity "${PWM_POLARITY:-normal}" \
       --timeout-sec "${timeout_sec}" \
       --maximum-latency-ms "${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}" \
-      --phase-target-ms "${PWM_PPS_PHASE_TARGET_MS:-1.0}" \
+      --period-update-compensation-ms \
+        "${PWM_PPS_PERIOD_UPDATE_COMPENSATION_MS:-1.0}" \
       --maximum-period-adjustment-ns \
         "${PWM_PPS_MAXIMUM_PERIOD_ADJUSTMENT_NS:-500000}"
     ;;

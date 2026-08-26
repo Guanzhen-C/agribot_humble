@@ -117,7 +117,7 @@ def write_pin32_ready(path, pwm):
         "edges_previous_second=10\n"
         "edge_phase_error_us=123.0\n"
         "applied_period_ns=100000000\n"
-        "initial_enable_latency_us=123.0\n"
+        "initial_edge_phase_us=123.0\n"
         "pps_sequence=42\n"
         "last_pps_latency_us=123.0\n"
         f"pid={os.getpid()}\n"
