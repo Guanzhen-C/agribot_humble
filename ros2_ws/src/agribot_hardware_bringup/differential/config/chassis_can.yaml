@@ -34,7 +34,8 @@
     # Direct 0x514 command calibration. A value of 0.80 means that +100 percent
     # corresponds to an estimated +0.80 m/s wheel-group speed. No motor RPM or
     # reduction-ratio model is used to generate commands.
-    track_width_m: 0.590224
+    # Initial geometric value; refine from an in-place-turn test for track slip.
+    track_width_m: 0.60
     command_full_scale_wheel_speed_mps: 0.80
     # 实车0x533/0x534反馈的Byte1-2是电机RPM；该临时比例只用于可选
     # 轮速里程计，不参与导航定位或控制指令换算，需结合减速比实测标定。

@@ -176,7 +176,7 @@ global_costmap:
       track_unknown_space: true
       # Recentered Ackermann outline plus 0.10 m fore/aft and 0.15 m lateral
       # clearance. Replace after measuring the physical differential vehicle.
-      footprint: "[[0.49152525, 0.485974], [0.49152525, -0.485974], [-0.49079275, -0.485974], [-0.49079275, 0.485974]]"
+      footprint: "[[0.70, 0.53], [0.70, -0.53], [-0.70, -0.53], [-0.70, 0.53]]"
       footprint_padding: 0.0
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:
@@ -242,7 +242,7 @@ local_costmap:
       publish_frequency: 2.0
       transform_tolerance: 0.8
       # Must match the global costmap footprint exactly.
-      footprint: "[[0.49152525, 0.485974], [0.49152525, -0.485974], [-0.49079275, -0.485974], [-0.49079275, 0.485974]]"
+      footprint: "[[0.70, 0.53], [0.70, -0.53], [-0.70, -0.53], [-0.70, 0.53]]"
       footprint_padding: 0.0
       plugins: [static_layer, stvl_layer, inflation_layer]
       static_layer:

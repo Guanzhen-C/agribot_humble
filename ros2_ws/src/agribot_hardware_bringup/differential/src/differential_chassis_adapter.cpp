@@ -21,7 +21,7 @@ public:
   {
     invert_left_motor_ = node.declare_parameter<bool>("invert_left_motor", false);
     invert_right_motor_ = node.declare_parameter<bool>("invert_right_motor", false);
-    config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.590224);
+    config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.60);
     config_.command_full_scale_wheel_speed_mps =
       node.declare_parameter<double>("command_full_scale_wheel_speed_mps", 0.80);
     config_.feedback_wheel_speed_mps_per_speed_unit =

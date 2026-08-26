@@ -1,5 +1,6 @@
-# Provisional differential-vehicle copy. Replace lidar-to-IMU, lidar-to-camera,
-# and image-time-offset values after rigidly mounting and calibrating sensors.
+# Differential tracked-vehicle geometry measured on 2026-08-26. The nominal
+# axis-aligned rotations still require motion/target validation before enabling
+# chassis output.
 /**:
   ros__parameters:
     common:
@@ -23,27 +24,26 @@
       verbose_log: false
 
     extrin_calib:
-      # Structural placeholders copied from the Ackermann calibration.
       # p_imu = extrinsic_R * p_lidar + extrinsic_T
-      extrinsic_T: [0.338308452, 0.000050633, 0.086911672]
-      extrinsic_R: [0.999973327, -0.000065498, 0.007303534,
-                    0.000005455, 0.999966209, 0.008220786,
-                    -0.007303826, -0.008220527, 0.999939537]
+      extrinsic_T: [0.47, 0.0, 0.27]
+      extrinsic_R: [-1.0, 0.0, 0.0,
+                     0.0, -1.0, 0.0,
+                     0.0, 0.0, 1.0]
 
       # p_camera_optical = Rcl * p_lidar + Pcl.
-      # Refine this estimate with a lidar-camera target calibration.
-      Rcl: [-0.000007020, -0.999970751, -0.007648400,
-            -0.001835660,  0.007648400, -0.999969066,
-             0.999998315,  0.000007020, -0.001835660]
-      Pcl: [-0.030, -0.091, -0.100]
+      # Translation is measured; validate the nominal axis alignment with a
+      # lidar-camera target before authorizing autonomous motion.
+      Rcl: [0.0, 1.0, 0.0,
+            0.0, 0.0, -1.0,
+            -1.0, 0.0, 0.0]
+      Pcl: [0.0, 0.05, -0.0035]
 
     time_offset:
       imu_time_offset: 0.0
       dynamic_imu_sync_en: false
-      # Provisional extrinsics remain vehicle-specific, but both real vehicles
-      # use the scan-start C16 stamp and PPS-locked camera trigger. The shared
-      # hardware phase test measured camera minus the PPS-aligned sector as
-      # -3.263 ms. The differential mounting aligns its -Y sector with +X.
+      # The C16 uses scan-start/per-point hardware stamps and the camera uses
+      # the captured PWM physical edge. Retain the previously measured residual
+      # correction until a motion-based temporal refinement is repeated.
       # FAST-LIVO2 computes corrected_time = image_stamp - img_time_offset.
       img_time_offset: -0.0033
       exposure_time_init: 0.0

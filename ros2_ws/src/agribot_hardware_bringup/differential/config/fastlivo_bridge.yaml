@@ -9,6 +9,6 @@ fastlio_odom_bridge:
     publish_tf: true
     stamp_with_current_time: false
     is_simulation: false
-    # Provisional base-to-IMU transform. Must match sensor_mounts.yaml.
-    base_to_body_xyz: [-0.12079275, 0.0, 0.143]
-    base_to_body_rpy: [0.000572424, -0.009139547, -0.000002616]
+    # Measured base-to-IMU transform. Must match sensor_mounts.yaml.
+    base_to_body_xyz: [0.0, 0.0, 0.64]
+    base_to_body_rpy: [0.0, 0.0, 0.0]

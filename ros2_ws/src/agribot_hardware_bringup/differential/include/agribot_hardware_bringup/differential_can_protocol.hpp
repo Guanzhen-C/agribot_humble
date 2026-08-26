@@ -23,7 +23,7 @@ struct Command
 
 struct Kinematics
 {
-  double track_width_m{0.590224};
+  double track_width_m{0.60};
   double command_full_scale_wheel_speed_mps{0.80};
   double feedback_wheel_speed_mps_per_speed_unit{0.000436332313};
   double max_linear_velocity{1.0};

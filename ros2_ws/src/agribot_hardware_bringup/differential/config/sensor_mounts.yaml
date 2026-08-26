@@ -1,28 +1,29 @@
-# Provisional Ackermann transforms, shifted by half its wheelbase so base_link
-# is at the four-wheel geometric center. They are NOT measurements of the
-# differential vehicle. Translation is in meters and RPY is in radians.
+# Measured on the tracked differential vehicle on 2026-08-26. base_link uses
+# FLU at the ground projection of the nominal skid-steer center. Translation
+# is in meters and RPY is in radians; RPY maps each child frame into base_link.
 calibration:
   complete: false
-  source: ackermann_recentered_provisional
-  base_link_reference: four_wheel_geometric_center
+  source: tracked_vehicle_manual_measurement_2026_08_26
+  base_link_reference: tracked_contact_patch_center
 imu:
   child_frame: imu_link
-  xyz: [-0.12079275, 0.0, 0.143]
-  # Replace xyz/rpy after mounting the IMU on the differential vehicle.
-  rpy: [0.000572424, -0.009139547, -0.000002616]
+  xyz: [0.0, 0.0, 0.64]
+  # The IMU housing axes are aligned with vehicle FLU.
+  rpy: [0.0, 0.0, 0.0]
 lidar:
   child_frame: lidar_link
-  xyz: [0.21670725, 0.0, 0.233]
-  # Replace xyz/rpy after mounting the C16 on the differential vehicle.
-  rpy: [-0.007648487, -0.001835661, 0.000007020]
+  xyz: [0.47, 0.0, 0.91]
+  # C16 native +X follows the cable outlet, which points vehicle rearward.
+  rpy: [0.0, 0.0, 3.141592654]
 camera:
   child_frame: right_camera_optical_frame
-  # Replace xyz/rpy after mounting and calibrating the right camera.
-  xyz: [0.31670725, -0.03, 0.142]
+  xyz: [0.4735, 0.0, 0.96]
   # Camera optical axes: +X right, +Y down, +Z forward.
   rpy: [-1.570796327, 0.0, -1.570796327]
 rtk:
   child_frame: rtk_link
-  # Provisional left-master antenna point; replace it and the baseline geometry.
-  xyz: [-0.12079275, 0.2952585, 0.78476]
+  # Left master and right secondary antenna measurement points.
+  xyz: [-0.48, 0.35, 0.748]
+  secondary_xyz: [-0.48, -0.35, 0.748]
+  baseline_m: 0.70
   rpy: [0.0, 0.0, 0.0]

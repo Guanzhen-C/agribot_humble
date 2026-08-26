@@ -41,22 +41,19 @@ fastlivo_rtk_fusion:
     keyframe_distance_m: 0.30
     keyframe_angle_rad: 0.08726646259971647
 
-    # Fixed RTK contributes horizontal antenna position only. The provisional
-    # lever arm below must be replaced by the differential-vehicle measurement.
-    # The node also
+    # Fixed RTK contributes horizontal antenna position only. The node also
     # combines this receiver floor with the map georeference RMSE.
     rtk_factor_min_distance_m: 0.30
     rtk_max_innovation_m: 1.50
     rtk_horizontal_sigma_floor_m: 0.10
     rtk_huber_delta: 1.345
-    base_to_antenna_xyz: [-0.12079275, 0.2952585, 0.78476]
+    base_to_antenna_xyz: [-0.48, 0.35, 0.748]
 
-    # The provisional IMU rotation must be replaced by the differential-vehicle
-    # calibration. The factor constrains
+    # The IMU housing axes are aligned with base_link FLU. The factor constrains
     # roll and pitch only; yaw remains determined by FAST-LIVO2 and RTK motion.
     gravity_sigma_rad: 0.017453292519943295
     gravity_huber_delta: 1.345
-    base_from_imu_rpy: [0.000572424, -0.009139547, -0.000002616]
+    base_from_imu_rpy: [0.0, 0.0, 0.0]
 
     odom_rotation_sigma_rad: 0.008726646259971648
     odom_yaw_sigma_rad: 0.017453292519943295

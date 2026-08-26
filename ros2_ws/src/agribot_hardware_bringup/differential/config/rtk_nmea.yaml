@@ -1,5 +1,5 @@
-# Provisional dual-antenna convention. Verify master/secondary placement and
-# heading sign on the differential vehicle before enabling motion.
+# Dual-antenna layout measured on 2026-08-26: left master at
+# (-0.48, +0.35, 0.748) m and right secondary at (-0.48, -0.35, 0.748) m.
 rtk_nmea:
   ros__parameters:
     serial_port: /dev/serial/by-id/usb-AirM2M_AirM2M_Compo_000000000001-if06
@@ -19,7 +19,8 @@ rtk_nmea:
     differential_age_topic: /rtk/differential_age
     reference_station_topic: /rtk/reference_station_id
     heading_reference_frame: map
-    # Placeholder assumes master on the left and secondary on the right.
+    # Receiver master-to-secondary baseline points vehicle right; subtracting
+    # 90 degrees converts it to vehicle-forward heading.
     heading_offset_deg: -90.0
     # Use the receiver-reported uncertainty with a conservative floor per fix type.
     fixed_heading_std_floor_deg: 1.0

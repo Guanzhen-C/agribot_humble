@@ -1,5 +1,5 @@
-# Provisional differential-vehicle copy. Recompute the lidar-to-IMU transform
-# from differential/config/sensor_mounts.yaml before physical use.
+# Differential tracked-vehicle nominal lidar-to-IMU transform measured on
+# 2026-08-26. Refine the rotation with a motion dataset before chassis output.
 /**:
   ros__parameters:
     feature_extract_enable: false
@@ -33,12 +33,11 @@
       fov_degree: 360.0
       det_range: 60.0
       extrinsic_est_en: false
-      # Structural placeholder copied from the Ackermann calibration.
       # FAST-LIO maps points with p_imu = extrinsic_R * p_lidar + extrinsic_T.
-      extrinsic_T: [0.338308452, 0.000050633, 0.086911672]
-      extrinsic_R: [0.999973327, -0.000065498, 0.007303534,
-                    0.000005455, 0.999966209, 0.008220786,
-                    -0.007303826, -0.008220527, 0.999939537]
+      extrinsic_T: [0.47, 0.0, 0.27]
+      extrinsic_R: [-1.0, 0.0, 0.0,
+                     0.0, -1.0, 0.0,
+                     0.0, 0.0, 1.0]
 
     publish:
       path_en: true

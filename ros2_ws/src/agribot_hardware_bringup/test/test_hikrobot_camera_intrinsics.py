@@ -64,3 +64,19 @@ def test_ackermann_status_enables_only_completed_camera_calibrations():
     assert status["image_time_offset_source"] == (
         "pps_phase_measurement_2026_08_22"
     )
+
+
+def test_differential_status_keeps_visual_motion_blocked_until_extrinsic_validation():
+    status = load_yaml(
+        HARDWARE_PACKAGE
+        / "differential"
+        / "config"
+        / "hikrobot_camera_calibration_status.yaml"
+    )
+
+    assert status["camera_model"] == "MV-CU013-A0UC"
+    assert status["serial_number"] == "DB0447659"
+    assert status["lens_installed"] is True
+    assert status["intrinsics_calibrated"] is True
+    assert status["lidar_camera_extrinsics_calibrated"] is False
+    assert status["image_time_offset_calibrated"] is True

@@ -322,7 +322,7 @@ def test_differential_lattice_matches_costmap_and_supports_in_place_rotation():
     )
 
 
-def test_differential_localization_extrinsics_share_one_provisional_source():
+def test_differential_localization_extrinsics_share_one_measured_source():
     mounts = load_config("sensor_mounts.yaml", "differential")
     fastlio = load_config("fast_lio_c16.yaml", "differential")["/**"][
         "ros__parameters"
@@ -365,7 +365,19 @@ def test_differential_localization_extrinsics_share_one_provisional_source():
 
     assert mounts["calibration"]["complete"] is False
     assert calibration["calibration_complete"] is False
-    assert calibration["base_link_reference"] == "four_wheel_geometric_center"
+    assert calibration["base_link_reference"] == "tracked_contact_patch_center"
+    assert mounts["imu"]["xyz"] == pytest.approx([0.0, 0.0, 0.64])
+    assert mounts["imu"]["rpy"] == pytest.approx([0.0, 0.0, 0.0])
+    assert mounts["lidar"]["xyz"] == pytest.approx([0.47, 0.0, 0.91])
+    assert mounts["lidar"]["rpy"] == pytest.approx(
+        [0.0, 0.0, math.pi], abs=1.0e-8
+    )
+    assert mounts["camera"]["xyz"] == pytest.approx([0.4735, 0.0, 0.96])
+    assert mounts["rtk"]["xyz"] == pytest.approx([-0.48, 0.35, 0.748])
+    assert mounts["rtk"]["secondary_xyz"] == pytest.approx(
+        [-0.48, -0.35, 0.748]
+    )
+    assert mounts["rtk"]["baseline_m"] == pytest.approx(0.70)
     assert fastlivo["time_offset"]["img_time_offset"] == -0.0033
     assert fastlio["mapping"]["extrinsic_R"] == pytest.approx(
         flatten(imu_from_lidar), abs=1.0e-8
