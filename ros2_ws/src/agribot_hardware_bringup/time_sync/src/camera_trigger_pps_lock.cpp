@@ -283,6 +283,8 @@ void request_realtime_scheduling()
 struct EdgeSnapshot
 {
   std::uint64_t count{0U};
+  std::uint64_t raw_count{0U};
+  std::uint64_t rejected_count{0U};
   std::uint64_t ring_sequence{0U};
   std::uint64_t ring_generation{0U};
   std::int64_t timestamp_ns{0};
@@ -293,7 +295,7 @@ class GpioEdgeCapture
 {
 public:
   explicit GpioEdgeCapture(const Options & options)
-  : ring_(options.edge_buffer_path)
+  : ring_(options.edge_buffer_path), minimum_interval_ns_(options.period_ns / 2U)
   {
     chip_descriptor_ = open(options.edge_gpio_chip.c_str(), O_RDONLY | O_CLOEXEC);
     if (chip_descriptor_ < 0) {
@@ -395,6 +397,17 @@ private:
       if (event.id != GPIO_V2_LINE_EVENT_RISING_EDGE) {
         continue;
       }
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++snapshot_.raw_count;
+        const std::int64_t timestamp_ns = static_cast<std::int64_t>(event.timestamp_ns);
+        if (snapshot_.timestamp_ns > 0 &&
+          timestamp_ns - snapshot_.timestamp_ns < static_cast<std::int64_t>(minimum_interval_ns_))
+        {
+          ++snapshot_.rejected_count;
+          continue;
+        }
+      }
       const std::uint64_t ring_sequence = ring_.write(
         static_cast<std::int64_t>(event.timestamp_ns), event.line_seqno);
       {
@@ -419,6 +432,7 @@ private:
   }
 
   agribot_time_sync::TriggerEdgeRingWriter ring_;
+  std::uint64_t minimum_interval_ns_{0U};
   int chip_descriptor_{-1};
   int line_descriptor_{-1};
   std::atomic<bool> running_{false};
@@ -515,6 +529,9 @@ void write_ready_file(
          << "edge_kernel_sequence=" << edge.kernel_sequence << '\n'
          << "edge_timestamp_ns=" << edge.timestamp_ns << '\n'
          << "edge_count=" << edge.count << '\n'
+         << "edge_raw_count=" << edge.raw_count << '\n'
+         << "edge_rejected_count=" << edge.rejected_count << '\n'
+         << "edge_filter=minimum_half_period\n"
          << "edges_previous_second=" << edges_previous_second << '\n'
          << "initial_pps_sequence=" << initial_sequence << '\n'
          << std::fixed << std::setprecision(3)

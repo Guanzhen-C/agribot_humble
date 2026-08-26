@@ -396,6 +396,10 @@ every PPS the daemon measures the physical phase and adjusts the following ten
 periods as a software PLL. This removes long-term drift without stopping the
 waveform or dropping a frame. Missing PPS, a missing Pin33 edge, an incorrect
 edge count, or a phase error above 5 ms makes the trigger service fail closed.
+The X5 GPIO-v2 driver reports both transitions with a rising-edge event ID, so
+the daemon keeps the first transition in each half-period; with the configured
+active-high 1 ms pulse this is the physical rising edge, while the event about
+1 ms later is the falling edge and is counted as rejected diagnostics.
 
 The `j14_lpwm` backend is retained for a future 22-pin breakout. With the
 vehicle powered off, split PPS to physical pins 36 and 33, connect `Line0` to
