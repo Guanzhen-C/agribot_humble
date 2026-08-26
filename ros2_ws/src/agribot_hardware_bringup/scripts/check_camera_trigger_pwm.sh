@@ -79,14 +79,20 @@ get_camera_parameter trigger_enable True
 get_camera_parameter trigger_selector FrameBurstStart
 get_camera_parameter trigger_source Line0
 get_camera_parameter trigger_activation RisingEdge
-echo "相机图像频率（5秒）："
-rate_output="$(timeout --signal=INT --kill-after=2s 7s \
-  ros2 topic hz /camera/rgb/image_raw --window 30 2>&1)" || {
-  result=$?
-  [[ ${result} -eq 124 || ${result} -eq 137 ]] || exit "${result}"
+echo "相机驱动内部实测取流频率："
+rate_output="$(timeout 8 ros2 topic echo \
+  /agribot_right_camera/frame_rate_hz std_msgs/msg/Float32 \
+  --once --qos-reliability reliable --qos-durability transient_local 2>&1)" || {
+  echo "错误：未收到相机驱动内部频率状态：${rate_output}" >&2
+  exit 1
 }
 echo "${rate_output}"
-grep -q "average rate:" <<<"${rate_output}" || {
-  echo "错误：5秒内没有收到相机图像" >&2
+measured_rate="$(awk '$1 == "data:" {print $2; exit}' <<<"${rate_output}")"
+[[ "${measured_rate}" =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+  echo "错误：相机取流频率格式无效" >&2
+  exit 1
+}
+awk -v rate="${measured_rate}" 'BEGIN {exit !(rate >= 9.5 && rate <= 10.5)}' || {
+  echo "错误：相机取流频率${measured_rate} Hz不在[9.5,10.5] Hz范围内" >&2
   exit 1
 }

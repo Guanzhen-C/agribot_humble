@@ -292,6 +292,12 @@ def test_service_dispatches_exclusive_trigger_backends():
     assert "agribot-camera-trigger-pps-lock" in installer
     assert "agribot-camera-trigger-lpwm" in installer
 
+    checker = (
+        PACKAGE_ROOT / "scripts" / "check_camera_trigger_pwm.sh"
+    ).read_text()
+    assert "/agribot_right_camera/frame_rate_hz" in checker
+    assert "ros2 topic hz /camera/rgb/image_raw" not in checker
+
     environment = (
         PACKAGE_ROOT / "config" / "time_sync" / "camera_trigger_pwm.env"
     ).read_text()
