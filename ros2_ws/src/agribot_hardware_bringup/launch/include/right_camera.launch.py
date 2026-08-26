@@ -38,7 +38,9 @@ def _mismatches(actual, expected, prefix):
     ]
 
 
-def _validate_pin32_trigger(ready, pwm_path, period_ns, duty_ns):
+def _validate_pin32_trigger(
+    ready, pwm_path, edge_buffer_path, period_ns, duty_ns
+):
     actual_pwm = {
         name: (pwm_path / name).read_text().strip()
         for name in ("period", "duty_cycle", "polarity", "enable")
@@ -49,8 +51,14 @@ def _validate_pin32_trigger(ready, pwm_path, period_ns, duty_ns):
         "period_ns": str(period_ns),
         "duty_cycle_ns": str(duty_ns),
         "polarity": "normal",
-        "pps_alignment": "initial",
+        "pps_alignment": "every_pps",
         "pps_monitoring": "continuous",
+        "pwm_rearm": "before_each_pps",
+        "physical_edge_capture": "pin33_gpio",
+        "edge_timestamp_source": "gpio_v2_realtime",
+        "edge_gpio_chip": "/dev/gpiochip5",
+        "edge_gpio_offset": "10",
+        "edge_buffer_path": str(edge_buffer_path),
     }
     expected_pwm = {
         "period": str(period_ns),
@@ -58,9 +66,20 @@ def _validate_pin32_trigger(ready, pwm_path, period_ns, duty_ns):
         "polarity": "normal",
         "enable": "1",
     }
-    return _mismatches(ready, expected_ready, "ready") + _mismatches(
+    mismatches = _mismatches(ready, expected_ready, "ready") + _mismatches(
         actual_pwm, expected_pwm, "pwm"
     )
+    expected_edges = 1_000_000_000 // period_ns
+    if int(ready.get("edges_previous_second", "-1")) != expected_edges:
+        mismatches.append(
+            "ready.edges_previous_second="
+            f"{ready.get('edges_previous_second', '缺失')}(期望{expected_edges})"
+        )
+    if abs(float(ready.get("edge_phase_error_us", "inf"))) > 5000.0:
+        mismatches.append("ready.edge_phase_error_us超出5ms")
+    if not edge_buffer_path.is_file():
+        mismatches.append(f"物理沿缓冲不存在：{edge_buffer_path}")
+    return mismatches
 
 
 def _validate_j14_trigger(ready, lpwm_device_path, period_ns, duty_ns):
@@ -132,6 +151,9 @@ def _validate_hardware_trigger(context):
     ready_path = Path(
         LaunchConfiguration("hikrobot_trigger_ready_path").perform(context)
     )
+    edge_buffer_path = Path(
+        LaunchConfiguration("hikrobot_trigger_edge_buffer_path").perform(context)
+    )
     requested_backend = LaunchConfiguration(
         "hikrobot_trigger_backend"
     ).perform(context)
@@ -157,7 +179,7 @@ def _validate_hardware_trigger(context):
             raise ValueError("PPS序号无效")
         if backend == "pin32_pwm":
             mismatches = _validate_pin32_trigger(
-                ready, pwm_path, period_ns, duty_ns
+                ready, pwm_path, edge_buffer_path, period_ns, duty_ns
             )
         else:
             mismatches = _validate_j14_trigger(
@@ -209,6 +231,10 @@ def generate_launch_description():
                 default_value="/run/agribot-camera-trigger/ready",
             ),
             DeclareLaunchArgument(
+                "hikrobot_trigger_edge_buffer_path",
+                default_value="/run/agribot-camera-trigger/physical_edges.bin",
+            ),
+            DeclareLaunchArgument(
                 "hikrobot_trigger_period_ns", default_value="100000000"
             ),
             DeclareLaunchArgument(
@@ -238,6 +264,9 @@ def generate_launch_description():
                         ),
                         "trigger_enable": LaunchConfiguration(
                             "hikrobot_trigger_enable"
+                        ),
+                        "trigger_edge_buffer_path": LaunchConfiguration(
+                            "hikrobot_trigger_edge_buffer_path"
                         ),
                         "use_sim_time": LaunchConfiguration("use_sim_time"),
                     },

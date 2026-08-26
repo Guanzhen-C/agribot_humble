@@ -16,7 +16,7 @@ pps_device="${CAMERA_TRIGGER_PPS_DEVICE:-/dev/pps-rtk}"
 case "${backend}" in
   pin32_pwm)
     helper="/usr/local/sbin/agribot-camera-trigger-pps-lock"
-    description="RTK PPS -> Pin 32/PWM6（初始对相+持续PPS监测）"
+    description="RTK PPS -> Pin 32/PWM6（逐PPS锁相）-> Pin 33物理沿回采"
     ;;
   j14_lpwm)
     helper="/usr/local/sbin/agribot-camera-trigger-lpwm"
@@ -79,6 +79,7 @@ get_camera_parameter trigger_enable True
 get_camera_parameter trigger_selector FrameBurstStart
 get_camera_parameter trigger_source Line0
 get_camera_parameter trigger_activation RisingEdge
+get_camera_parameter use_physical_trigger_timestamp True
 echo "相机驱动内部实测取流频率："
 rate_output="$(timeout 8 ros2 topic echo \
   /agribot_right_camera/frame_rate_hz std_msgs/msg/Float32 \

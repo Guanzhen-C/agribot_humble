@@ -22,6 +22,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_affine_clock_mapper test/test_affine_clock_mapper.cpp)
   target_link_libraries(test_affine_clock_mapper agribot_time_sync)
+  ament_add_gtest(test_trigger_edge_ring test/test_trigger_edge_ring.cpp)
+  target_link_libraries(test_trigger_edge_ring agribot_time_sync)
 endif()
 
 ament_package()

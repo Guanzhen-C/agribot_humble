@@ -1,5 +1,7 @@
 #include <fcntl.h>
+#include <linux/gpio.h>
 #include <linux/pps.h>
+#include <poll.h>
 #include <sched.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -7,7 +9,10 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <atomic>
 #include <cmath>
+#include <condition_variable>
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -15,9 +20,13 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
+
+#include <agribot_time_sync/trigger_edge_ring.hpp>
 
 namespace
 {
@@ -26,11 +35,15 @@ struct Options
   std::string pps_device{"/dev/pps-rtk"};
   std::string pwm_enable_path{"/sys/class/pwm/pwmchip0/pwm0/enable"};
   std::string ready_file{"/run/agribot-camera-trigger/ready"};
+  std::string edge_gpio_chip{"/dev/gpiochip5"};
+  std::uint32_t edge_gpio_offset{10U};
+  std::string edge_buffer_path{"/run/agribot-camera-trigger/physical_edges.bin"};
   std::uint64_t period_ns{100000000U};
   std::uint64_t duty_cycle_ns{1000000U};
   std::string polarity{"normal"};
   double timeout_sec{2.5};
   double maximum_latency_ms{5.0};
+  double rearm_guard_ms{5.0};
 };
 
 volatile std::sig_atomic_t stop_requested = 0;
@@ -60,6 +73,16 @@ std::uint64_t parse_positive_unsigned(const std::string & name, const std::strin
   return static_cast<std::uint64_t>(parsed);
 }
 
+std::uint32_t parse_unsigned(const std::string & name, const std::string & value)
+{
+  std::size_t consumed = 0;
+  const unsigned long parsed = std::stoul(value, &consumed, 0);
+  if (consumed != value.size() || parsed > UINT32_MAX) {
+    throw std::invalid_argument(name + "必须是32位非负整数");
+  }
+  return static_cast<std::uint32_t>(parsed);
+}
+
 Options parse_options(int argc, char ** argv)
 {
   Options options;
@@ -69,8 +92,9 @@ Options parse_options(int argc, char ** argv)
       std::cout <<
         "用法: camera_trigger_pps_lock [--pps-device PATH] "
         "[--pwm-enable-path PATH] [--ready-file PATH] "
+        "[--edge-gpio-chip PATH] [--edge-gpio-offset N] [--edge-buffer-path PATH] "
         "[--period-ns N] [--duty-cycle-ns N] [--polarity VALUE] "
-        "[--timeout-sec SEC] [--maximum-latency-ms MS]\n";
+        "[--timeout-sec SEC] [--maximum-latency-ms MS] [--rearm-guard-ms MS]\n";
       std::exit(0);
     }
     if (index + 1 >= argc) {
@@ -83,6 +107,12 @@ Options parse_options(int argc, char ** argv)
       options.pwm_enable_path = value;
     } else if (argument == "--ready-file") {
       options.ready_file = value;
+    } else if (argument == "--edge-gpio-chip") {
+      options.edge_gpio_chip = value;
+    } else if (argument == "--edge-gpio-offset") {
+      options.edge_gpio_offset = parse_unsigned(argument, value);
+    } else if (argument == "--edge-buffer-path") {
+      options.edge_buffer_path = value;
     } else if (argument == "--period-ns") {
       options.period_ns = parse_positive_unsigned(argument, value);
     } else if (argument == "--duty-cycle-ns") {
@@ -93,6 +123,8 @@ Options parse_options(int argc, char ** argv)
       options.timeout_sec = parse_positive_double(argument, value);
     } else if (argument == "--maximum-latency-ms") {
       options.maximum_latency_ms = parse_positive_double(argument, value);
+    } else if (argument == "--rearm-guard-ms") {
+      options.rearm_guard_ms = parse_positive_double(argument, value);
     } else {
       throw std::invalid_argument("未知参数: " + argument);
     }
@@ -102,6 +134,12 @@ Options parse_options(int argc, char ** argv)
   }
   if (options.polarity != "normal" && options.polarity != "inversed") {
     throw std::invalid_argument("polarity必须是normal或inversed");
+  }
+  if (1000000000ULL % options.period_ns != 0U) {
+    throw std::invalid_argument("period-ns必须能整除1秒，才能逐PPS无丢帧校相");
+  }
+  if (options.rearm_guard_ms * 1.0e6 >= static_cast<double>(options.period_ns)) {
+    throw std::invalid_argument("rearm-guard-ms必须小于一个PWM周期");
   }
   return options;
 }
@@ -221,10 +259,194 @@ void request_realtime_scheduling()
   }
 }
 
+struct EdgeSnapshot
+{
+  std::uint64_t count{0U};
+  std::uint64_t ring_sequence{0U};
+  std::uint64_t ring_generation{0U};
+  std::int64_t timestamp_ns{0};
+  std::uint32_t kernel_sequence{0U};
+};
+
+class GpioEdgeCapture
+{
+public:
+  explicit GpioEdgeCapture(const Options & options)
+  : ring_(options.edge_buffer_path)
+  {
+    chip_descriptor_ = open(options.edge_gpio_chip.c_str(), O_RDONLY | O_CLOEXEC);
+    if (chip_descriptor_ < 0) {
+      throw std::runtime_error(
+              "无法打开Pin33 GPIO控制器" + options.edge_gpio_chip + ": " +
+              std::strerror(errno));
+    }
+
+    gpio_v2_line_request request{};
+    request.offsets[0] = options.edge_gpio_offset;
+    request.num_lines = 1U;
+    request.event_buffer_size = 64U;
+    std::strncpy(request.consumer, "agribot-camera-edge", sizeof(request.consumer) - 1U);
+    request.config.flags = GPIO_V2_LINE_FLAG_INPUT |
+      GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME;
+    if (ioctl(chip_descriptor_, GPIO_V2_GET_LINE_IOCTL, &request) != 0) {
+      const std::string error = std::strerror(errno);
+      close(chip_descriptor_);
+      chip_descriptor_ = -1;
+      throw std::runtime_error("无法申请Pin33上升沿中断: " + error);
+    }
+    line_descriptor_ = request.fd;
+    running_.store(true);
+    thread_ = std::thread(&GpioEdgeCapture::capture_loop, this);
+  }
+
+  ~GpioEdgeCapture()
+  {
+    running_.store(false);
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+    if (line_descriptor_ >= 0) {
+      close(line_descriptor_);
+    }
+    if (chip_descriptor_ >= 0) {
+      close(chip_descriptor_);
+    }
+  }
+
+  GpioEdgeCapture(const GpioEdgeCapture &) = delete;
+  GpioEdgeCapture & operator=(const GpioEdgeCapture &) = delete;
+
+  EdgeSnapshot snapshot() const
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    require_healthy_locked();
+    return snapshot_;
+  }
+
+  EdgeSnapshot wait_after(const std::uint64_t count, const double timeout_ms)
+  {
+    std::unique_lock<std::mutex> lock(mutex_);
+    const bool ready = condition_.wait_for(
+      lock, std::chrono::duration<double, std::milli>(timeout_ms),
+      [this, count]() {return snapshot_.count > count || !error_.empty();});
+    require_healthy_locked();
+    if (!ready || snapshot_.count <= count) {
+      throw std::runtime_error("Pin33未在时限内捕获到PWM物理上升沿");
+    }
+    return snapshot_;
+  }
+
+private:
+  void require_healthy_locked() const
+  {
+    if (!error_.empty()) {
+      throw std::runtime_error("Pin33物理沿采集失败: " + error_);
+    }
+  }
+
+  void capture_loop()
+  {
+    while (running_.load() && stop_requested == 0) {
+      pollfd descriptor{};
+      descriptor.fd = line_descriptor_;
+      descriptor.events = POLLIN;
+      const int result = poll(&descriptor, 1, 100);
+      if (result == 0 || (result < 0 && errno == EINTR)) {
+        continue;
+      }
+      if (result < 0) {
+        publish_error(std::strerror(errno));
+        return;
+      }
+      if ((descriptor.revents & POLLIN) == 0) {
+        publish_error("GPIO事件文件返回异常状态");
+        return;
+      }
+      gpio_v2_line_event event{};
+      const ssize_t size = read(line_descriptor_, &event, sizeof(event));
+      if (size != static_cast<ssize_t>(sizeof(event))) {
+        if (size < 0 && (errno == EINTR || errno == EAGAIN)) {
+          continue;
+        }
+        publish_error(size < 0 ? std::strerror(errno) : "GPIO事件长度错误");
+        return;
+      }
+      if (event.id != GPIO_V2_LINE_EVENT_RISING_EDGE) {
+        continue;
+      }
+      const std::uint64_t ring_sequence = ring_.write(
+        static_cast<std::int64_t>(event.timestamp_ns), event.line_seqno);
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++snapshot_.count;
+        snapshot_.ring_sequence = ring_sequence;
+        snapshot_.ring_generation = ring_.generation();
+        snapshot_.timestamp_ns = static_cast<std::int64_t>(event.timestamp_ns);
+        snapshot_.kernel_sequence = event.line_seqno;
+      }
+      condition_.notify_all();
+    }
+  }
+
+  void publish_error(const std::string & error)
+  {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      error_ = error;
+    }
+    condition_.notify_all();
+  }
+
+  agribot_time_sync::TriggerEdgeRingWriter ring_;
+  int chip_descriptor_{-1};
+  int line_descriptor_{-1};
+  std::atomic<bool> running_{false};
+  std::thread thread_;
+  mutable std::mutex mutex_;
+  std::condition_variable condition_;
+  EdgeSnapshot snapshot_;
+  std::string error_;
+};
+
+std::int64_t pps_timestamp_ns(const pps_fdata & event)
+{
+  return static_cast<std::int64_t>(event.info.assert_tu.sec) * 1000000000LL +
+    static_cast<std::int64_t>(event.info.assert_tu.nsec);
+}
+
+bool sleep_until_realtime(const std::int64_t timestamp_ns)
+{
+  timespec target{};
+  target.tv_sec = timestamp_ns / 1000000000LL;
+  target.tv_nsec = timestamp_ns % 1000000000LL;
+  while (stop_requested == 0) {
+    const int result = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &target, nullptr);
+    if (result == 0) {
+      return true;
+    }
+    if (result != EINTR) {
+      throw std::runtime_error("等待下一次PPS预关断时刻失败: " + std::string(std::strerror(result)));
+    }
+  }
+  return false;
+}
+
+double validate_physical_phase(
+  const EdgeSnapshot & edge, const pps_fdata & event, const double maximum_latency_ms)
+{
+  const double phase_ms = static_cast<double>(edge.timestamp_ns - pps_timestamp_ns(event)) * 1.0e-6;
+  if (phase_ms < 0.0 || phase_ms > maximum_latency_ms) {
+    throw std::runtime_error(
+            "Pin33物理上升沿相对PPS的相位超限: " + std::to_string(phase_ms) + " ms");
+  }
+  return phase_ms;
+}
+
 void write_ready_file(
   const Options & options, const pps_fdata & event,
-  const std::uint32_t initial_sequence, const double initial_enable_latency_ms,
-  const double last_pps_latency_ms)
+  const std::uint32_t initial_sequence, const double initial_edge_phase_ms,
+  const double last_pps_latency_ms, const double edge_phase_ms,
+  const std::uint64_t edges_previous_second, const EdgeSnapshot & edge)
 {
   const std::string temporary = options.ready_file + ".tmp";
   std::ofstream output(temporary, std::ios::trunc);
@@ -236,15 +458,30 @@ void write_ready_file(
          << "period_ns=" << options.period_ns << '\n'
          << "duty_cycle_ns=" << options.duty_cycle_ns << '\n'
          << "polarity=" << options.polarity << '\n'
-         << "pps_alignment=initial\n"
+         << "pps_alignment=every_pps\n"
          << "pps_monitoring=continuous\n"
+         << "pwm_rearm=before_each_pps\n"
+         << "pulses_per_pps=" << 1000000000ULL / options.period_ns << '\n'
+         << "rearm_guard_us=" << options.rearm_guard_ms * 1.0e3 << '\n'
+         << "physical_edge_capture=pin33_gpio\n"
+         << "edge_timestamp_source=gpio_v2_realtime\n"
+         << "edge_gpio_chip=" << options.edge_gpio_chip << '\n'
+         << "edge_gpio_offset=" << options.edge_gpio_offset << '\n'
+         << "edge_buffer_path=" << options.edge_buffer_path << '\n'
+         << "edge_buffer_generation=" << edge.ring_generation << '\n'
+         << "edge_sequence=" << edge.ring_sequence << '\n'
+         << "edge_kernel_sequence=" << edge.kernel_sequence << '\n'
+         << "edge_timestamp_ns=" << edge.timestamp_ns << '\n'
+         << "edge_count=" << edge.count << '\n'
+         << "edges_previous_second=" << edges_previous_second << '\n'
          << "initial_pps_sequence=" << initial_sequence << '\n'
          << std::fixed << std::setprecision(3)
-         << "initial_enable_latency_us=" << initial_enable_latency_ms * 1.0e3 << '\n'
+         << "initial_enable_latency_us=" << initial_edge_phase_ms * 1.0e3 << '\n'
          << "pps_sequence=" << event.info.assert_sequence << '\n'
          << "pps_sec=" << event.info.assert_tu.sec << '\n'
          << "pps_nsec=" << event.info.assert_tu.nsec << '\n'
          << "last_pps_latency_us=" << last_pps_latency_ms * 1.0e3 << '\n'
+         << "edge_phase_error_us=" << edge_phase_ms * 1.0e3 << '\n'
          << "pid=" << getpid() << '\n';
   output.close();
   if (!output) {
@@ -291,39 +528,68 @@ void run(const Options & options)
   FileDescriptor pps(options.pps_device, O_RDONLY);
   FileDescriptor pwm(options.pwm_enable_path, O_WRONLY);
   ReadyFileGuard ready_guard(options.ready_file);
+  GpioEdgeCapture edge_capture(options);
   request_realtime_scheduling();
 
   bool enabled = false;
   try {
     pps_fdata event = fetch_pps(pps.get(), options.timeout_sec);
-    require_fresh_pps(event, 0U, options.maximum_latency_ms);
+    const double initial_pps_latency_ms =
+      require_fresh_pps(event, 0U, options.maximum_latency_ms);
+    EdgeSnapshot before_enable = edge_capture.snapshot();
     write_pwm_enable(pwm.get(), true);
     enabled = true;
-    const double initial_enable_latency_ms = event_age_ms(event, realtime_now());
-    if (initial_enable_latency_ms > options.maximum_latency_ms) {
-      throw std::runtime_error(
-              "使能Pin32 PWM后的初始对相延迟超限: " +
-              std::to_string(initial_enable_latency_ms) + " ms");
-    }
+    EdgeSnapshot edge = edge_capture.wait_after(
+      before_enable.count, options.maximum_latency_ms + 10.0);
+    const double initial_edge_phase_ms =
+      validate_physical_phase(edge, event, options.maximum_latency_ms);
     const std::uint32_t initial_sequence = event.info.assert_sequence;
-    write_ready_file(
-      options, event, initial_sequence, initial_enable_latency_ms,
-      initial_enable_latency_ms);
-    std::cout << "Pin32相机触发已启动: 10 Hz, initial_pps="
-              << event.info.assert_sequence << ", latency="
-              << initial_enable_latency_ms * 1.0e3 << " us" << std::endl;
+    std::cout << "Pin32相机触发已启动并由Pin33回采: 10 Hz, initial_pps="
+              << event.info.assert_sequence << ", physical_phase="
+              << initial_edge_phase_ms * 1.0e3
+              << " us, pps_dispatch=" << initial_pps_latency_ms * 1.0e3
+              << " us；完成首个整秒沿数验收后发布就绪状态" << std::endl;
 
     std::uint32_t last_sequence = event.info.assert_sequence;
+    const std::uint64_t expected_edges = 1000000000ULL / options.period_ns;
+    std::uint64_t second_start_count = before_enable.count;
     while (stop_requested == 0) {
+      const std::int64_t rearm_time_ns = pps_timestamp_ns(event) + 1000000000LL -
+        static_cast<std::int64_t>(options.rearm_guard_ms * 1.0e6);
+      if (!sleep_until_realtime(rearm_time_ns)) {
+        break;
+      }
+      const EdgeSnapshot before_rearm = edge_capture.snapshot();
+      const std::uint64_t edges_this_second = before_rearm.count - second_start_count;
+      if (edges_this_second != expected_edges) {
+        throw std::runtime_error(
+                "逐PPS校相前检测到触发沿数错误: 实际" +
+                std::to_string(edges_this_second) + "，期望" +
+                std::to_string(expected_edges));
+      }
+      write_pwm_enable(pwm.get(), false);
+      enabled = false;
       event = fetch_pps(pps.get(), options.timeout_sec);
       if (stop_requested != 0) {
         break;
       }
       const double latency_ms = require_fresh_pps(
-        event, last_sequence, options.timeout_sec * 1.0e3);
+        event, last_sequence, options.maximum_latency_ms);
+      if (event.info.assert_sequence != last_sequence + 1U) {
+        throw std::runtime_error("逐PPS校相期间检测到PPS序号跳变");
+      }
       last_sequence = event.info.assert_sequence;
+      before_enable = edge_capture.snapshot();
+      write_pwm_enable(pwm.get(), true);
+      enabled = true;
+      edge = edge_capture.wait_after(
+        before_enable.count, options.maximum_latency_ms + 10.0);
+      const double edge_phase_ms =
+        validate_physical_phase(edge, event, options.maximum_latency_ms);
       write_ready_file(
-        options, event, initial_sequence, initial_enable_latency_ms, latency_ms);
+        options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
+        edge_phase_ms, edges_this_second, edge);
+      second_start_count = before_enable.count;
     }
   } catch (...) {
     if (enabled) {

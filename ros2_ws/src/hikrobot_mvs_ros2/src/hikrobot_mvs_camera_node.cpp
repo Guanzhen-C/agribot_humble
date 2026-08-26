@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -17,6 +18,7 @@
 #include <vector>
 
 #include <agribot_time_sync/affine_clock_mapper.hpp>
+#include <agribot_time_sync/trigger_edge_ring.hpp>
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
@@ -98,6 +100,23 @@ public:
       throw std::invalid_argument("device_timestamp_frequency_hz must be positive");
     }
     timestamp_offset_sec_ = declare_parameter<double>("timestamp_offset_sec", 0.0);
+    use_physical_trigger_timestamp_ =
+      declare_parameter<bool>("use_physical_trigger_timestamp", true);
+    trigger_edge_buffer_path_ = declare_parameter<std::string>(
+      "trigger_edge_buffer_path", "/run/agribot-camera-trigger/physical_edges.bin");
+    const double trigger_edge_max_receipt_delay_ms = declare_parameter<double>(
+      "trigger_edge_max_receipt_delay_ms", 90.0);
+    const double trigger_edge_max_future_ms = declare_parameter<double>(
+      "trigger_edge_max_future_ms", 2.0);
+    if (trigger_edge_max_receipt_delay_ms <= 0.0 || trigger_edge_max_future_ms < 0.0) {
+      throw std::invalid_argument("physical trigger timestamp tolerances are invalid");
+    }
+    if (trigger_enable_ && use_physical_trigger_timestamp_) {
+      trigger_edge_reader_.open_path(trigger_edge_buffer_path_);
+      trigger_edge_matcher_ = std::make_unique<agribot_time_sync::TriggerEdgeMatcher>(
+        static_cast<std::int64_t>(trigger_edge_max_receipt_delay_ms * 1.0e6),
+        static_cast<std::int64_t>(trigger_edge_max_future_ms * 1.0e6));
+    }
     agribot_time_sync::ClockMapperConfig clock_config;
     clock_config.window_size = static_cast<std::size_t>(std::max<int64_t>(
         declare_parameter<int>("time_sync_window_size", 600), 20));
@@ -328,9 +347,29 @@ private:
     }
   }
 
-  rclcpp::Time frame_stamp(const MV_FRAME_OUT_INFO_EX & frame_info)
+  std::optional<rclcpp::Time> frame_stamp(const MV_FRAME_OUT_INFO_EX & frame_info)
   {
     const rclcpp::Time ros_receipt = now();
+    if (trigger_enable_ && use_physical_trigger_timestamp_) {
+      const auto result = trigger_edge_matcher_->match(
+        frame_info.nFrameNum, ros_receipt.nanoseconds(), trigger_edge_reader_);
+      if (!result.matched) {
+        ++physical_edge_unmatched_frames_;
+        physical_edge_timestamp_valid_.store(false);
+        RCLCPP_ERROR_THROTTLE(
+          get_logger(), *get_clock(), 2000,
+          "相机帧%u无法匹配Pin33物理触发沿，丢弃该帧", frame_info.nFrameNum);
+        return std::nullopt;
+      }
+      ++physical_edge_matched_frames_;
+      physical_edge_timestamp_valid_.store(true);
+      last_physical_edge_sequence_.store(result.edge.sequence);
+      last_physical_kernel_sequence_.store(result.edge.kernel_sequence);
+      last_physical_edge_timestamp_ns_.store(result.edge.timestamp_ns);
+      last_physical_receipt_delay_ns_.store(result.receipt_delay_ns);
+      return rclcpp::Time(result.edge.timestamp_ns, ros_receipt.get_clock_type());
+    }
+
     double receipt_sec = ros_receipt.seconds();
     if (frame_info.nHostTimeStamp > 0) {
       const double sdk_receipt_sec = static_cast<double>(frame_info.nHostTimeStamp) * 1.0e-3;
@@ -360,6 +399,9 @@ private:
   void publish_frame(const MV_FRAME_OUT & frame)
   {
     const auto stamp = frame_stamp(frame.stFrameInfo);
+    if (!stamp.has_value()) {
+      return;
+    }
     const uint32_t width = frame.stFrameInfo.nExtendWidth;
     const uint32_t height = frame.stFrameInfo.nExtendHeight;
     if (width == 0 || height == 0) {
@@ -386,7 +428,7 @@ private:
     }
 
     std_msgs::msg::Header frame_header;
-    frame_header.stamp = stamp;
+    frame_header.stamp = *stamp;
     frame_header.frame_id = frame_id_;
 
     sensor_msgs::msg::Image image;
@@ -423,7 +465,14 @@ private:
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.name = "hikrobot_mvs/time_sync";
     status.hardware_id = serial_number_;
-    if (timestamp_source_ == "receipt") {
+    const bool physical_trigger_time = trigger_enable_ && use_physical_trigger_timestamp_;
+    if (physical_trigger_time && !physical_edge_timestamp_valid_.load()) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+      status.message = "waiting for Pin33 physical trigger edge";
+    } else if (physical_trigger_time) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+      status.message = "using Pin33 kernel physical-edge timestamps";
+    } else if (timestamp_source_ == "receipt") {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
       status.message = "using SDK receipt timestamps";
     } else if (!device_timestamp_valid) {
@@ -436,7 +485,8 @@ private:
       status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
       status.message = "device clock mapped to ROS time";
     }
-    status.values.push_back(diagnostic_value("source", timestamp_source_));
+    status.values.push_back(diagnostic_value(
+      "source", physical_trigger_time ? "physical_trigger_edge" : timestamp_source_));
     status.values.push_back(
       diagnostic_value("capture_mode", trigger_enable_ ? "hardware_trigger" : "free_run"));
     status.values.push_back(
@@ -453,7 +503,9 @@ private:
         "device_tick_hz", std::to_string(device_timestamp_frequency_hz_)));
     status.values.push_back(
       diagnostic_value(
-        "synchronized", clock_result.synchronized ? "true" : "false"));
+        "synchronized",
+        (physical_trigger_time ? physical_edge_timestamp_valid_.load() : clock_result.synchronized) ?
+        "true" : "false"));
     status.values.push_back(
       diagnostic_value(
         "samples", std::to_string(clock_result.sample_count)));
@@ -469,6 +521,21 @@ private:
     status.values.push_back(
       diagnostic_value(
         "reset_count", std::to_string(clock_result.reset_count)));
+    if (physical_trigger_time) {
+      status.values.push_back(diagnostic_value(
+        "trigger_edge_buffer", trigger_edge_buffer_path_));
+      status.values.push_back(diagnostic_value(
+        "matched_frames", std::to_string(physical_edge_matched_frames_.load())));
+      status.values.push_back(diagnostic_value(
+        "unmatched_frames", std::to_string(physical_edge_unmatched_frames_.load())));
+      status.values.push_back(diagnostic_value(
+        "edge_sequence", std::to_string(last_physical_edge_sequence_.load())));
+      status.values.push_back(diagnostic_value(
+        "kernel_edge_sequence", std::to_string(last_physical_kernel_sequence_.load())));
+      status.values.push_back(diagnostic_value(
+        "trigger_to_receipt_ms",
+        std::to_string(static_cast<double>(last_physical_receipt_delay_ns_.load()) * 1.0e-6)));
+    }
     array.status.push_back(std::move(status));
     diagnostics_pub_->publish(std::move(array));
   }
@@ -521,8 +588,10 @@ private:
   std::string gain_auto_;
   std::string pixel_format_;
   std::string timestamp_source_;
+  std::string trigger_edge_buffer_path_;
   std::string publisher_reliability_;
   bool trigger_enable_;
+  bool use_physical_trigger_timestamp_;
   bool gamma_enable_;
   double frame_rate_;
   double exposure_time_us_;
@@ -546,6 +615,15 @@ private:
   std::unique_ptr<agribot_time_sync::AffineClockMapper> clock_mapper_;
   agribot_time_sync::ClockMapperResult last_clock_result_;
   bool device_timestamp_valid_{false};
+  agribot_time_sync::TriggerEdgeRingReader trigger_edge_reader_;
+  std::unique_ptr<agribot_time_sync::TriggerEdgeMatcher> trigger_edge_matcher_;
+  std::atomic<bool> physical_edge_timestamp_valid_{false};
+  std::atomic<std::uint64_t> physical_edge_matched_frames_{0U};
+  std::atomic<std::uint64_t> physical_edge_unmatched_frames_{0U};
+  std::atomic<std::uint64_t> last_physical_edge_sequence_{0U};
+  std::atomic<std::uint32_t> last_physical_kernel_sequence_{0U};
+  std::atomic<std::int64_t> last_physical_edge_timestamp_ns_{0};
+  std::atomic<std::int64_t> last_physical_receipt_delay_ns_{0};
 
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;

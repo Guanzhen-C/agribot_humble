@@ -31,9 +31,13 @@
     # MV-CU013-A0UC实测设备时间戳频率为100MHz，映射到SDK主机接收时间。
     timestamp_source: device
     device_timestamp_frequency_hz: 100000000.0
-    # Three PPS-locked cold starts measured a 15.63-16.80 ms device-clock
-    # mapping delay. Shift the ROS stamp back to the physical Line0 trigger.
-    timestamp_offset_sec: -0.0158
+    # In hardware-trigger mode the frame stamp is the actual Pin33 rising-edge
+    # kernel timestamp. Do not apply the former fixed device-clock correction.
+    timestamp_offset_sec: 0.0
+    use_physical_trigger_timestamp: true
+    trigger_edge_buffer_path: "/run/agribot-camera-trigger/physical_edges.bin"
+    trigger_edge_max_receipt_delay_ms: 90.0
+    trigger_edge_max_future_ms: 2.0
     time_sync_window_size: 600
     time_sync_min_samples: 30
     time_sync_fit_interval_samples: 5

@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <build_depend>rclcpp</build_depend>
+  <build_depend>agribot_time_sync</build_depend>
   <build_depend>diagnostic_msgs</build_depend>
   <build_depend>eigen</build_depend>
   <build_depend>geographic_msgs</build_depend>
@@ -29,6 +30,7 @@
   <build_depend>yaml-cpp</build_depend>
 
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>agribot_time_sync</exec_depend>
   <exec_depend>geographic_msgs</exec_depend>
   <exec_depend>geographiclib</exec_depend>
   <exec_depend>gtsam</exec_depend>

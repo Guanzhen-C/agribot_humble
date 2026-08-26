@@ -87,20 +87,34 @@ def base_environment(tmp_path, ready_file):
         {
             "AGRIBOT_PWM_SYSFS_ROOT": str(tmp_path),
             "CAMERA_TRIGGER_READY_FILE": str(ready_file),
+            "PWM_EDGE_BUFFER_PATH": str(tmp_path / "physical_edges.bin"),
         }
     )
     return environment
 
 
 def write_pin32_ready(path, pwm):
+    edge_buffer = path.parent / "physical_edges.bin"
+    edge_buffer.write_bytes(b"physical-edge-ring")
     path.write_text(
         "backend=pin32_pwm\n"
         f"pwm_enable_path={pwm / 'enable'}\n"
         "period_ns=100000000\n"
         "duty_cycle_ns=1000000\n"
         "polarity=normal\n"
-        "pps_alignment=initial\n"
+        "pps_alignment=every_pps\n"
         "pps_monitoring=continuous\n"
+        "pwm_rearm=before_each_pps\n"
+        "physical_edge_capture=pin33_gpio\n"
+        "edge_timestamp_source=gpio_v2_realtime\n"
+        "edge_gpio_chip=/dev/gpiochip5\n"
+        "edge_gpio_offset=10\n"
+        f"edge_buffer_path={edge_buffer}\n"
+        "edge_sequence=101\n"
+        "edge_timestamp_ns=1787738000000123456\n"
+        "edge_count=101\n"
+        "edges_previous_second=10\n"
+        "edge_phase_error_us=123.0\n"
         "initial_enable_latency_us=123.0\n"
         "pps_sequence=42\n"
         "last_pps_latency_us=123.0\n"
@@ -136,7 +150,7 @@ def write_lpwm_ready(path, device_path):
     )
 
 
-def test_pin32_prepare_and_status_require_initial_alignment_and_pps_monitoring(
+def test_pin32_prepare_and_status_require_every_pps_lock_and_physical_edges(
     tmp_path,
 ):
     pwm = make_pwm_tree(tmp_path)
@@ -154,8 +168,9 @@ def test_pin32_prepare_and_status_require_initial_alignment_and_pps_monitoring(
     status = run_trigger_script(environment, "status")
     assert status.returncode == 0, status.stderr
     assert "40Pin物理Pin 32" in status.stdout
-    assert "初始PPS启动" in status.stdout
-    assert "连续监测PPS" in status.stdout
+    assert "每个PPS前预关断" in status.stdout
+    assert "Pin 33" in status.stdout
+    assert "最近一秒物理沿数：10" in status.stdout
 
     cleaned = run_trigger_script(environment, "cleanup")
     assert cleaned.returncode == 0, cleaned.stderr
@@ -200,6 +215,9 @@ def trigger_context(pwm_path, lpwm_device_path, ready_path, **overrides):
         "hikrobot_trigger_pwm_path": str(pwm_path),
         "hikrobot_trigger_lpwm_device_path": str(lpwm_device_path),
         "hikrobot_trigger_ready_path": str(ready_path),
+        "hikrobot_trigger_edge_buffer_path": str(
+            ready_path.parent / "physical_edges.bin"
+        ),
         "hikrobot_trigger_period_ns": "100000000",
         "hikrobot_trigger_duty_cycle_ns": "1000000",
     }
@@ -307,8 +325,10 @@ def test_service_dispatches_exclusive_trigger_backends():
     pin32_helper = (
         PACKAGE_ROOT / "time_sync" / "src" / "camera_trigger_pps_lock.cpp"
     ).read_text()
-    assert "pps_alignment=initial" in pin32_helper
+    assert "pps_alignment=every_pps" in pin32_helper
     assert "pps_monitoring=continuous" in pin32_helper
+    assert "GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME" in pin32_helper
+    assert "edges_this_second != expected_edges" in pin32_helper
     assert "write_pwm_enable(pwm.get(), false)" in pin32_helper
 
     lpwm_helper = (

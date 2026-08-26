@@ -389,11 +389,13 @@ using the normal TAI offset would make cloud timestamps 37 seconds fast in
 
 The current `pin32_pwm` backend connects Hikrobot `Line0` to RDK X5 physical
 pin 32 and a confirmed common ground. Physical pin 36 remains the RTK PPS input
-for `/dev/pps-rtk`. The daemon starts the continuous 10 Hz, 1 ms active-high
-waveform on the first fresh PPS and keeps monitoring every following PPS. It
-fails closed when PPS disappears. Ordinary Pin32 PWM cannot be hardware-
-retriggered every second; stopping it at each PPS drops one camera frame per
-second, so this temporary backend uses initial PPS alignment only.
+for `/dev/pps-rtk`. Split the Pin32 signal to Hikrobot `Line0` and physical
+Pin33. Pin33 is GPIO357 (`/dev/gpiochip5` line 10) and timestamps every real
+rising edge in the kernel with `CLOCK_REALTIME`. Before every PPS the daemon
+stops PWM after the tenth pulse, then restarts it on that PPS. This removes
+long-term PWM drift without dropping or duplicating the ten pulses in each
+second. Missing PPS, a missing Pin33 edge, an incorrect edge count, or a phase
+error above 5 ms makes the trigger service fail closed.
 
 The `j14_lpwm` backend is retained for a future 22-pin breakout. With the
 vehicle powered off, split PPS to physical pins 36 and 33, connect `Line0` to
@@ -420,9 +422,9 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 run agribot_hardware_bringup check_camera_trigger_pwm.sh
 ```
 
-The current checker must report `pin32_pwm`, initial PPS alignment, continuous
-PPS monitoring, and an
-actual image rate near 10 Hz. For the future J14 backend it must report LPWM
+The current checker must report `pin32_pwm`, `every_pps` alignment, Pin33 kernel
+physical-edge capture, ten edges in the previous PPS interval, and an actual
+image rate near 10 Hz. For the future J14 backend it must report LPWM
 driver source 6 and `occupied=CAMSYS`. Neither backend falls back to a
 free-running trigger. Do not reconnect J14, the 40-pin header, or camera Line0
 while the RDK or camera is powered.
@@ -653,8 +655,9 @@ time; this is the timing contract required by FAST-LIO2 and FAST-LIVO2. It no
 longer needs an RMC serial input. `sensors.launch.py` starts
 `sensor_time_sync_monitor.py`, which reports per-topic rates, timestamp age,
 monotonicity, and nearest lidar-to-IMU/camera/RTK timestamp differences on
-`/diagnostics`. These checks validate a common software time axis; camera
-timestamps include the measured PPS-locked trigger-to-device-clock correction.
+`/diagnostics`. These checks validate a common software time axis. In hardware
+trigger mode the camera `header.stamp` is the matching Pin33 physical rising-
+edge timestamp, not an inferred device-clock offset.
 The obsolete `-38 ms` image offset from the old scan-end cloud convention is
 not used. The PPS phase measurement leaves only `-3.3 ms` between the Line0
 trigger stamp and the C16 forward-axis point. Use a motion-based calibration

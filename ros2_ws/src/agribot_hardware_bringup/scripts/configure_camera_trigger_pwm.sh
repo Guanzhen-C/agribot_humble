@@ -22,6 +22,11 @@ pwm_expected_alias="${PWM_EXPECTED_ALIAS:-pwm3}"
 pwm_period_ns="${PWM_PERIOD_NS:-100000000}"
 pwm_duty_ns="${PWM_DUTY_CYCLE_NS:-1000000}"
 pwm_polarity="${PWM_POLARITY:-normal}"
+pwm_edge_gpio_chip="${PWM_EDGE_GPIO_CHIP:-/dev/gpiochip5}"
+pwm_edge_gpio_offset="${PWM_EDGE_GPIO_OFFSET:-10}"
+pwm_edge_gpio_global="${PWM_EDGE_GPIO_GLOBAL:-357}"
+pwm_edge_buffer_path="${PWM_EDGE_BUFFER_PATH:-/run/agribot-camera-trigger/physical_edges.bin}"
+pwm_edge_gpio_pinmux_value="${PWM_EDGE_GPIO_PINMUX_VALUE:-1}"
 pwm_chip_path="${sysfs_root}/${pwm_chip}"
 pwm_path="${pwm_chip_path}/pwm${pwm_channel}"
 
@@ -149,7 +154,17 @@ prepare_pin32_pwm() {
   printf '%s\n' "${pwm_period_ns}" > "${pwm_path}/period"
   printf '%s\n' "${pwm_duty_ns}" > "${pwm_path}/duty_cycle"
   printf '%s\n' "${pwm_polarity}" > "${pwm_path}/polarity"
-  echo "Pin32 PWM已准备：10 Hz，${pwm_duty_ns} ns高电平，等待PPS校相"
+  if [[ "${sysfs_root}" == "/sys/class/pwm" ]]; then
+    [[ -c "${pwm_edge_gpio_chip}" ]] || \
+      die "Pin33 GPIO控制器不存在：${pwm_edge_gpio_chip}"
+    require_unsigned_integer "PWM_EDGE_GPIO_OFFSET" "${pwm_edge_gpio_offset}"
+    require_unsigned_integer "PWM_EDGE_GPIO_GLOBAL" "${pwm_edge_gpio_global}"
+    if [[ -d "/sys/class/gpio/gpio${pwm_edge_gpio_global}" ]]; then
+      printf '%s\n' "${pwm_edge_gpio_global}" > /sys/class/gpio/unexport
+    fi
+    set_pin33_gpio_mux
+  fi
+  echo "Pin32 PWM已准备：10 Hz；Pin33物理沿回采已准备；等待逐PPS校相"
 }
 
 show_pin32_status() {
@@ -161,8 +176,14 @@ show_pin32_status() {
   assert_ready_value period_ns "${pwm_period_ns}"
   assert_ready_value duty_cycle_ns "${pwm_duty_ns}"
   assert_ready_value polarity "${pwm_polarity}"
-  assert_ready_value pps_alignment initial
+  assert_ready_value pps_alignment every_pps
   assert_ready_value pps_monitoring continuous
+  assert_ready_value pwm_rearm before_each_pps
+  assert_ready_value physical_edge_capture pin33_gpio
+  assert_ready_value edge_timestamp_source gpio_v2_realtime
+  assert_ready_value edge_gpio_chip "${pwm_edge_gpio_chip}"
+  assert_ready_value edge_gpio_offset "${pwm_edge_gpio_offset}"
+  assert_ready_value edge_buffer_path "${pwm_edge_buffer_path}"
   assert_ready_process
 
   [[ "$(read_value "${pwm_path}/period")" == "${pwm_period_ns}" ]] || \
@@ -172,13 +193,20 @@ show_pin32_status() {
   [[ "$(read_value "${pwm_path}/polarity")" == "${pwm_polarity}" ]] || \
     die "Pin32 PWM极性不符合配置"
   [[ "$(read_value "${pwm_path}/enable")" == "1" ]] || die "Pin32 PWM尚未使能"
+  [[ -r "${pwm_edge_buffer_path}" ]] || die "Pin33物理沿缓冲不可读"
+
+  local expected_edges
+  expected_edges=$((1000000000 / pwm_period_ns))
+  [[ "$(ready_value edges_previous_second)" == "${expected_edges}" ]] || \
+    die "最近一个PPS周期的物理沿数不等于${expected_edges}"
 
   echo "当前后端：pin32_pwm"
   echo "相机触发输出：40Pin物理Pin 32（PWM6）"
-  echo "PPS对相：初始PPS启动10 Hz PWM，后续连续监测PPS"
+  echo "物理沿回采：40Pin物理Pin 33（GPIO357，内核CLOCK_REALTIME时间戳）"
+  echo "PPS对相：每个PPS前预关断并在PPS后重启，严格保持每秒${expected_edges}沿"
   echo "最近PPS序号：$(ready_value pps_sequence)"
-  echo "初始对相延迟：$(ready_value initial_enable_latency_us) us"
-  echo "最近PPS监测延迟：$(ready_value last_pps_latency_us) us"
+  echo "最近物理沿相位误差：$(ready_value edge_phase_error_us) us"
+  echo "最近一秒物理沿数：$(ready_value edges_previous_second)"
 }
 
 verify_lpwm_device() {
@@ -244,6 +272,24 @@ read_pinmux_register() {
   [[ "${value}" =~ ^0[xX][0-9a-fA-F]+$ || "${value}" =~ ^[0-9]+$ ]] || \
     die "TIME_SYNC2复用寄存器返回值无效：${value}"
   printf '%s\n' "$((value))"
+}
+
+set_pin33_gpio_mux() {
+  command -v "${devmem_command}" >/dev/null 2>&1 || \
+    [[ -x "${devmem_command}" ]] || die "未找到devmem命令：${devmem_command}"
+  local current mask updated verified
+  current="$(read_pinmux_register)"
+  mask=$(( ((1 << lpwm_pinmux_width) - 1) << lpwm_pinmux_shift ))
+  updated=$(( (current & ~mask) | (pwm_edge_gpio_pinmux_value << lpwm_pinmux_shift) ))
+  if (( updated != current )); then
+    "${devmem_command}" "${lpwm_pinmux_register}" 32 \
+      "$(printf '0x%08X' "${updated}")" >/dev/null
+  fi
+  verified="$(read_pinmux_register)"
+  (( ((verified >> lpwm_pinmux_shift) & ((1 << lpwm_pinmux_width) - 1)) == \
+    pwm_edge_gpio_pinmux_value )) || die "物理Pin 33未成功切换为GPIO输入"
+  printf 'Pin33 GPIO输入复用已就绪：寄存器=%s\n' \
+    "$(printf '0x%08X' "${verified}")"
 }
 
 set_timesync2_mux() {

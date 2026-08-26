@@ -81,6 +81,7 @@ const TIME_SYNC_ROWS = [
 const TIME_VALUE_LABELS = {
   device: "设备采样时间",
   device_affine: "设备时钟映射",
+  physical_trigger_edge: "Pin33物理触发沿",
   gnss_measurement: "GNSS测量时间",
   receipt: "接收时间",
   hardware_trigger: "硬件触发",

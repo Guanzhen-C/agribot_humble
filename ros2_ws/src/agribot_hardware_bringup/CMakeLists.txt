@@ -8,6 +8,7 @@ endif()
 add_compile_options(-Wall -Wextra -Wpedantic)
 
 find_package(ament_cmake REQUIRED)
+find_package(agribot_time_sync REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geographic_msgs REQUIRED)
@@ -173,6 +174,8 @@ add_executable(
   camera_trigger_pps_lock
   time_sync/src/camera_trigger_pps_lock.cpp
 )
+ament_target_dependencies(camera_trigger_pps_lock agribot_time_sync)
+target_link_libraries(camera_trigger_pps_lock pthread)
 
 add_executable(
   rtk_eskf_localization
