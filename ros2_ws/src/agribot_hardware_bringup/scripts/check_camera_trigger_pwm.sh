@@ -24,7 +24,7 @@ lpwm_helper="/usr/local/sbin/agribot-camera-trigger-lpwm"
 }
 
 systemctl is-active --quiet agribot-camera-trigger.service
-/usr/local/sbin/agribot-camera-trigger-pwm status
+sudo /usr/local/sbin/agribot-camera-trigger-pwm status
 echo "相机触发：RTK PPS -> Pin 33/TIME_SYNC2 -> LPWM1 -> J14 Pin 18"
 
 get_camera_parameter() {

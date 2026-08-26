@@ -221,6 +221,7 @@ def test_camera_trigger_service_uses_continuous_hardware_pps_retrigger():
     ).read_text()
     assert 'LPWM_DEVICE:-/dev/hobot-lpwm1' in checker
     assert "TIME_SYNC2" in checker
+    assert "sudo /usr/local/sbin/agribot-camera-trigger-pwm status" in checker
 
     configurator = LPWM_SCRIPT.read_text()
     assert '[[ -d "/proc/${pid}" ]]' in configurator
