@@ -134,6 +134,24 @@ def decode_motor_feedback(payload: bytes) -> MotorFeedback | None:
     )
 
 
+def chassis_fault_reason(feedback: ChassisFeedback) -> str:
+    reasons = []
+    if feedback.emergency_stop:
+        reasons.append("底盘急停已按下")
+    names = (
+        "遥控器通信故障",
+        "无人化通信故障",
+        "电机驱动通信故障",
+        "BMS通信故障",
+    )
+    reasons.extend(
+        name
+        for bit, name in enumerate(names)
+        if feedback.fault_bits & (1 << bit)
+    )
+    return "；".join(reasons)
+
+
 @dataclass(frozen=True)
 class Motion:
     name: str
@@ -591,10 +609,9 @@ class DifferentialControlGui:
         chassis = self._chassis_feedback()
         if chassis is None:
             return "底盘状态帧缺失或校验错误"
-        if chassis.emergency_stop:
-            return "底盘急停已按下"
-        if chassis.has_fault:
-            return f"底盘通信故障 0x{chassis.fault_bits:02X}"
+        chassis_fault = chassis_fault_reason(chassis)
+        if chassis_fault:
+            return chassis_fault
         for can_id, side in (
             (LEFT_MOTOR_STATE_ID, "左电机"),
             (RIGHT_MOTOR_STATE_ID, "右电机"),
@@ -607,16 +624,23 @@ class DifferentialControlGui:
                 return f"{side}故障 0x{motor.fault_bits:02X}"
         return ""
 
+    def _show_arm_block(self, reason: str) -> None:
+        self.arm_button.configure(
+            text="禁止启用\n检查底盘状态",
+            bg=self.DANGER,
+        )
+        self.error_label.configure(text=f"解锁被拒绝：{reason}")
+
     def toggle_arm(self) -> None:
         if self.armed:
             self.emergency_stop("控制已锁定")
             return
         if not self._all_feedback_alive():
-            self.error_label.configure(text="无法启用：三条底盘反馈未全部就绪")
+            self._show_arm_block("三条底盘反馈未全部就绪")
             return
         fault = "" if self.args.dry_run else self._fault_reason()
         if fault:
-            self.error_label.configure(text=f"无法启用：{fault}")
+            self._show_arm_block(fault)
             return
         self.armed = True
         self.last_activity = time.monotonic()
@@ -788,8 +812,16 @@ class DifferentialControlGui:
         )
         if self.link.last_error:
             self.error_label.configure(text=self.link.last_error)
-        elif complete and not self.armed:
-            self.error_label.configure(text="")
+        elif complete and not self.armed and not self.args.dry_run:
+            fault = self._fault_reason()
+            if fault:
+                self._show_arm_block(fault)
+            else:
+                self.arm_button.configure(
+                    text="控制锁定\n点击启用",
+                    bg=self.WARNING,
+                )
+                self.error_label.configure(text="")
         self._refresh_feedback()
 
     def tick(self) -> None:

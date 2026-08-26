@@ -89,6 +89,16 @@ def test_chassis_and_motor_feedback_decoding():
     assert decoded_motor.temperature_c == 30
 
 
+def test_captured_feedback_explains_why_unlock_is_rejected():
+    gui = load_gui_module()
+    payload = bytes.fromhex("040077000100097b")
+    feedback = gui.decode_chassis_feedback(payload)
+    assert feedback is not None
+    assert gui.chassis_fault_reason(feedback) == (
+        "底盘急停已按下；遥控器通信故障"
+    )
+
+
 def test_dry_run_transport_uses_differential_command_id():
     gui = load_gui_module()
     link = gui.CanLink(
