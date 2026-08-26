@@ -382,10 +382,11 @@ using the normal TAI offset would make cloud timestamps 37 seconds fast in
 
 The current `pin32_pwm` backend connects Hikrobot `Line0` to RDK X5 physical
 pin 32 and a confirmed common ground. Physical pin 36 remains the RTK PPS input
-for `/dev/pps-rtk`. The daemon stops PWM6 10 ms before each predicted PPS edge,
-then starts the 10 Hz, 1 ms active-high waveform on the actual PPS event. This
-re-aligns the phase every second and fails closed when PPS disappears. It is a
-real-time software re-phase operation, not a direct SoC hardware route.
+for `/dev/pps-rtk`. The daemon starts the continuous 10 Hz, 1 ms active-high
+waveform on the first fresh PPS and keeps monitoring every following PPS. It
+fails closed when PPS disappears. Ordinary Pin32 PWM cannot be hardware-
+retriggered every second; stopping it at each PPS drops one camera frame per
+second, so this temporary backend uses initial PPS alignment only.
 
 The `j14_lpwm` backend is retained for a future 22-pin breakout. With the
 vehicle powered off, split PPS to physical pins 36 and 33, connect `Line0` to
@@ -412,7 +413,8 @@ source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 run agribot_hardware_bringup check_camera_trigger_pwm.sh
 ```
 
-The current checker must report `pin32_pwm`, continuous PPS re-phase, and an
+The current checker must report `pin32_pwm`, initial PPS alignment, continuous
+PPS monitoring, and an
 actual image rate near 10 Hz. For the future J14 backend it must report LPWM
 driver source 6 and `occupied=CAMSYS`. Neither backend falls back to a
 free-running trigger. Do not reconnect J14, the 40-pin header, or camera Line0

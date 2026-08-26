@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 #include <cerrno>
-#include <chrono>
 #include <cmath>
 #include <csignal>
 #include <cstdint>
@@ -32,7 +31,6 @@ struct Options
   std::string polarity{"normal"};
   double timeout_sec{2.5};
   double maximum_latency_ms{5.0};
-  double guard_ms{10.0};
 };
 
 volatile std::sig_atomic_t stop_requested = 0;
@@ -72,7 +70,7 @@ Options parse_options(int argc, char ** argv)
         "用法: camera_trigger_pps_lock [--pps-device PATH] "
         "[--pwm-enable-path PATH] [--ready-file PATH] "
         "[--period-ns N] [--duty-cycle-ns N] [--polarity VALUE] "
-        "[--timeout-sec SEC] [--maximum-latency-ms MS] [--guard-ms MS]\n";
+        "[--timeout-sec SEC] [--maximum-latency-ms MS]\n";
       std::exit(0);
     }
     if (index + 1 >= argc) {
@@ -95,8 +93,6 @@ Options parse_options(int argc, char ** argv)
       options.timeout_sec = parse_positive_double(argument, value);
     } else if (argument == "--maximum-latency-ms") {
       options.maximum_latency_ms = parse_positive_double(argument, value);
-    } else if (argument == "--guard-ms") {
-      options.guard_ms = parse_positive_double(argument, value);
     } else {
       throw std::invalid_argument("未知参数: " + argument);
     }
@@ -106,9 +102,6 @@ Options parse_options(int argc, char ** argv)
   }
   if (options.polarity != "normal" && options.polarity != "inversed") {
     throw std::invalid_argument("polarity必须是normal或inversed");
-  }
-  if (options.guard_ms >= 1000.0) {
-    throw std::invalid_argument("guard-ms必须小于1000");
   }
   return options;
 }
@@ -176,37 +169,6 @@ double timespec_seconds(const timespec & value)
   return static_cast<double>(value.tv_sec) + static_cast<double>(value.tv_nsec) * 1.0e-9;
 }
 
-timespec next_guard_time(const pps_fdata & event, const double guard_ms)
-{
-  std::int64_t nanoseconds = static_cast<std::int64_t>(event.info.assert_tu.nsec) +
-    1000000000LL - static_cast<std::int64_t>(std::llround(guard_ms * 1.0e6));
-  timespec target{};
-  target.tv_sec = static_cast<time_t>(event.info.assert_tu.sec);
-  while (nanoseconds >= 1000000000LL) {
-    ++target.tv_sec;
-    nanoseconds -= 1000000000LL;
-  }
-  while (nanoseconds < 0) {
-    --target.tv_sec;
-    nanoseconds += 1000000000LL;
-  }
-  target.tv_nsec = static_cast<long>(nanoseconds);
-  return target;
-}
-
-void sleep_until(const timespec & target)
-{
-  while (stop_requested == 0) {
-    const int result = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &target, nullptr);
-    if (result == 0) {
-      return;
-    }
-    if (result != EINTR) {
-      throw std::runtime_error("等待下一次PPS保护窗口失败: " + std::string(std::strerror(result)));
-    }
-  }
-}
-
 pps_fdata fetch_pps(const int file_descriptor, const double timeout_sec)
 {
   pps_fdata data{};
@@ -260,7 +222,9 @@ void request_realtime_scheduling()
 }
 
 void write_ready_file(
-  const Options & options, const pps_fdata & event, const double latency_ms)
+  const Options & options, const pps_fdata & event,
+  const std::uint32_t initial_sequence, const double initial_enable_latency_ms,
+  const double last_pps_latency_ms)
 {
   const std::string temporary = options.ready_file + ".tmp";
   std::ofstream output(temporary, std::ios::trunc);
@@ -272,13 +236,15 @@ void write_ready_file(
          << "period_ns=" << options.period_ns << '\n'
          << "duty_cycle_ns=" << options.duty_cycle_ns << '\n'
          << "polarity=" << options.polarity << '\n'
-         << "pps_rephase=continuous\n"
+         << "pps_alignment=initial\n"
+         << "pps_monitoring=continuous\n"
+         << "initial_pps_sequence=" << initial_sequence << '\n'
+         << std::fixed << std::setprecision(3)
+         << "initial_enable_latency_us=" << initial_enable_latency_ms * 1.0e3 << '\n'
          << "pps_sequence=" << event.info.assert_sequence << '\n'
          << "pps_sec=" << event.info.assert_tu.sec << '\n'
          << "pps_nsec=" << event.info.assert_tu.nsec << '\n'
-         << std::fixed << std::setprecision(3)
-         << "last_latency_us=" << latency_ms * 1.0e3 << '\n'
-         << "guard_ms=" << options.guard_ms << '\n'
+         << "last_pps_latency_us=" << last_pps_latency_ms * 1.0e3 << '\n'
          << "pid=" << getpid() << '\n';
   output.close();
   if (!output) {
@@ -330,38 +296,34 @@ void run(const Options & options)
   bool enabled = false;
   try {
     pps_fdata event = fetch_pps(pps.get(), options.timeout_sec);
-    double latency_ms = require_fresh_pps(event, 0U, options.maximum_latency_ms);
+    require_fresh_pps(event, 0U, options.maximum_latency_ms);
     write_pwm_enable(pwm.get(), true);
     enabled = true;
-    latency_ms = event_age_ms(event, realtime_now());
-    write_ready_file(options, event, latency_ms);
+    const double initial_enable_latency_ms = event_age_ms(event, realtime_now());
+    if (initial_enable_latency_ms > options.maximum_latency_ms) {
+      throw std::runtime_error(
+              "使能Pin32 PWM后的初始对相延迟超限: " +
+              std::to_string(initial_enable_latency_ms) + " ms");
+    }
+    const std::uint32_t initial_sequence = event.info.assert_sequence;
+    write_ready_file(
+      options, event, initial_sequence, initial_enable_latency_ms,
+      initial_enable_latency_ms);
     std::cout << "Pin32相机触发已启动: 10 Hz, initial_pps="
               << event.info.assert_sequence << ", latency="
-              << latency_ms * 1.0e3 << " us" << std::endl;
+              << initial_enable_latency_ms * 1.0e3 << " us" << std::endl;
 
     std::uint32_t last_sequence = event.info.assert_sequence;
     while (stop_requested == 0) {
-      sleep_until(next_guard_time(event, options.guard_ms));
-      if (stop_requested != 0) {
-        break;
-      }
-      write_pwm_enable(pwm.get(), false);
-      enabled = false;
-
       event = fetch_pps(pps.get(), options.timeout_sec);
       if (stop_requested != 0) {
         break;
       }
-      latency_ms = require_fresh_pps(event, last_sequence, options.maximum_latency_ms);
-      write_pwm_enable(pwm.get(), true);
-      enabled = true;
-      latency_ms = event_age_ms(event, realtime_now());
-      if (latency_ms > options.maximum_latency_ms) {
-        throw std::runtime_error(
-                "使能Pin32 PWM后的校相延迟超限: " + std::to_string(latency_ms) + " ms");
-      }
+      const double latency_ms = require_fresh_pps(
+        event, last_sequence, options.timeout_sec * 1.0e3);
       last_sequence = event.info.assert_sequence;
-      write_ready_file(options, event, latency_ms);
+      write_ready_file(
+        options, event, initial_sequence, initial_enable_latency_ms, latency_ms);
     }
   } catch (...) {
     if (enabled) {

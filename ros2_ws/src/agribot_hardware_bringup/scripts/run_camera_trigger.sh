@@ -17,8 +17,7 @@ case "${backend}" in
       --duty-cycle-ns "${PWM_DUTY_CYCLE_NS:-1000000}" \
       --polarity "${PWM_POLARITY:-normal}" \
       --timeout-sec "${timeout_sec}" \
-      --maximum-latency-ms "${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}" \
-      --guard-ms "${PWM_PPS_GUARD_MS:-10.0}"
+      --maximum-latency-ms "${PWM_PPS_MAXIMUM_LATENCY_MS:-5.0}"
     ;;
   j14_lpwm)
     exec /usr/local/sbin/agribot-camera-trigger-lpwm \

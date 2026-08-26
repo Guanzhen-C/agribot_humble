@@ -49,7 +49,8 @@ def _validate_pin32_trigger(ready, pwm_path, period_ns, duty_ns):
         "period_ns": str(period_ns),
         "duty_cycle_ns": str(duty_ns),
         "polarity": "normal",
-        "pps_rephase": "continuous",
+        "pps_alignment": "initial",
+        "pps_monitoring": "continuous",
     }
     expected_pwm = {
         "period": str(period_ns),

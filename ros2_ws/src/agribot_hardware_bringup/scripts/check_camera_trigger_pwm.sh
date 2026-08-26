@@ -16,7 +16,7 @@ pps_device="${CAMERA_TRIGGER_PPS_DEVICE:-/dev/pps-rtk}"
 case "${backend}" in
   pin32_pwm)
     helper="/usr/local/sbin/agribot-camera-trigger-pps-lock"
-    description="RTK PPS -> Pin 32/PWM6（逐PPS软件校相）"
+    description="RTK PPS -> Pin 32/PWM6（初始对相+持续PPS监测）"
     ;;
   j14_lpwm)
     helper="/usr/local/sbin/agribot-camera-trigger-lpwm"

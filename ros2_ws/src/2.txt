@@ -888,15 +888,15 @@ ros2 topic echo /diagnostics diagnostic_msgs/msg/DiagnosticArray \
   --filter "any(s.name in ['hipnuc_imu/time_sync', 'hikrobot_mvs/time_sync', 'rtk_nmea/time_sync'] for s in m.status)"
 
 # C16通过RDK以太网gPTP取得UTC；相机当前由RDK物理Pin 32的PWM6经Line0触发
-# PWM6在每个RTK PPS周期重新校相；后续接入J14转接板后可切换为纯硬件LPWM锁相
+# PWM6在初始RTK PPS处对相并持续监测PPS；后续接入J14转接板后可切换为逐PPS硬件LPWM锁相
 # 首次部署或重新安装系统后执行以下两条安装命令；只需执行一次
 source /opt/ros/humble/setup.bash
 source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
 ros2 run agribot_hardware_bringup install_c16_gptp.sh eth0
 ros2 run agribot_hardware_bringup install_camera_trigger_pwm.sh
 
-# 相机触发服务必须在下一次RTK PPS边沿到来后才使能10Hz PWM，并在每个PPS前后重新校相
-# 日志中必须出现PPS序号和校相延迟；没有PPS时服务会关闭输出并自动重试，不会自由运行
+# 相机触发服务必须在下一次RTK PPS边沿到来后才使能连续10Hz PWM
+# 日志中必须出现PPS序号和初始对相延迟；后续PPS丢失时服务会关闭输出并自动重试
 sudo journalctl -b -u agribot-camera-trigger.service --no-pager
 
 # C16扫描相位只需配置一次：先关闭所有C16驱动，保证UDP 2369端口未被占用

@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+config_file="${AGRIBOT_CAMERA_TRIGGER_CONFIG:-/etc/default/agribot-camera-trigger}"
+if [[ -z "${CAMERA_TRIGGER_BACKEND+x}" && \
+  "${AGRIBOT_PWM_SYSFS_ROOT:-/sys/class/pwm}" == "/sys/class/pwm" && \
+  -r "${config_file}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${config_file}"
+  set +a
+fi
+
 action="${1:-status}"
 backend="${CAMERA_TRIGGER_BACKEND:-pin32_pwm}"
 sysfs_root="${AGRIBOT_PWM_SYSFS_ROOT:-/sys/class/pwm}"
@@ -151,7 +161,8 @@ show_pin32_status() {
   assert_ready_value period_ns "${pwm_period_ns}"
   assert_ready_value duty_cycle_ns "${pwm_duty_ns}"
   assert_ready_value polarity "${pwm_polarity}"
-  assert_ready_value pps_rephase continuous
+  assert_ready_value pps_alignment initial
+  assert_ready_value pps_monitoring continuous
   assert_ready_process
 
   [[ "$(read_value "${pwm_path}/period")" == "${pwm_period_ns}" ]] || \
@@ -164,9 +175,10 @@ show_pin32_status() {
 
   echo "当前后端：pin32_pwm"
   echo "相机触发输出：40Pin物理Pin 32（PWM6）"
-  echo "PPS校相：每个PPS周期重新启动10 Hz PWM"
+  echo "PPS对相：初始PPS启动10 Hz PWM，后续连续监测PPS"
   echo "最近PPS序号：$(ready_value pps_sequence)"
-  echo "最近校相延迟：$(ready_value last_latency_us) us"
+  echo "初始对相延迟：$(ready_value initial_enable_latency_us) us"
+  echo "最近PPS监测延迟：$(ready_value last_pps_latency_us) us"
 }
 
 verify_lpwm_device() {
