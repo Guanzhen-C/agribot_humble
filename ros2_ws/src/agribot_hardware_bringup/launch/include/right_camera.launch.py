@@ -55,7 +55,8 @@ def _validate_hardware_trigger(context):
             raise ValueError("LPWM周期和高电平必须是整数微秒")
         ready = _read_key_values(ready_path)
         process_id = int(ready["pid"])
-        os.kill(process_id, 0)
+        if not Path(f"/proc/{process_id}").is_dir():
+            raise OSError(f"LPWM服务进程{process_id}不存在")
         rows = [
             line.split()
             for line in (lpwm_device_path / "lpwm_config_info")

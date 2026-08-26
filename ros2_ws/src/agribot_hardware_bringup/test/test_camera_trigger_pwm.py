@@ -222,6 +222,10 @@ def test_camera_trigger_service_uses_continuous_hardware_pps_retrigger():
     assert 'LPWM_DEVICE:-/dev/hobot-lpwm1' in checker
     assert "TIME_SYNC2" in checker
 
+    configurator = LPWM_SCRIPT.read_text()
+    assert '[[ -d "/proc/${pid}" ]]' in configurator
+    assert 'kill -0 "${pid}"' not in configurator
+
     environment = (
         PACKAGE_ROOT / "config" / "time_sync" / "camera_trigger_pwm.env"
     ).read_text()
@@ -237,3 +241,6 @@ def test_camera_trigger_service_uses_continuous_hardware_pps_retrigger():
     assert "kLpwmInit == 0x40784c12UL" in helper
     assert "kLpwmClose == 0x40044c13UL" in helper
     assert "RTK PPS序号在超时时间内没有递增" in helper
+
+    camera_launch = RIGHT_CAMERA_LAUNCH.read_text()
+    assert 'Path(f"/proc/{process_id}").is_dir()' in camera_launch

@@ -156,7 +156,7 @@ show_status() {
   local pid row expected_period expected_duty
   pid="$(ready_value pid)"
   [[ "${pid}" =~ ^[0-9]+$ ]] || die "LPWM服务PID无效"
-  kill -0 "${pid}" 2>/dev/null || die "LPWM服务进程${pid}不存在"
+  [[ -d "/proc/${pid}" ]] || die "LPWM服务进程${pid}不存在"
 
   row="$(awk -v selected="${channel}" '$1 == selected {print; exit}' "${config_info}")"
   [[ -n "${row}" ]] || die "未找到LPWM通道${channel}状态"
