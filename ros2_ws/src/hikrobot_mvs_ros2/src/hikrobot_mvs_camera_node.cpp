@@ -69,6 +69,8 @@ public:
       declare_parameter<std::string>("camera_info_topic", "/camera/rgb/camera_info");
     const auto frame_stamp_topic =
       declare_parameter<std::string>("frame_stamp_topic", "/camera/rgb/frame_stamp");
+    const auto physical_trigger_edge_stamp_topic = declare_parameter<std::string>(
+      "physical_trigger_edge_stamp_topic", "/camera/trigger/physical_edge_stamp");
     const auto camera_name =
       declare_parameter<std::string>("camera_name", "agribot_hikrobot_right_camera");
     const auto camera_info_url = declare_parameter<std::string>("camera_info_url", "");
@@ -113,6 +115,8 @@ public:
     }
     if (trigger_enable_ && use_physical_trigger_timestamp_) {
       trigger_edge_reader_.open_path(trigger_edge_buffer_path_);
+      trigger_edge_publish_generation_ = trigger_edge_reader_.generation();
+      last_published_trigger_edge_sequence_ = trigger_edge_reader_.latest_sequence();
       trigger_edge_matcher_ = std::make_unique<agribot_time_sync::TriggerEdgeMatcher>(
         static_cast<std::int64_t>(trigger_edge_max_receipt_delay_ms * 1.0e6),
         static_cast<std::int64_t>(trigger_edge_max_future_ms * 1.0e6));
@@ -153,6 +157,10 @@ public:
       create_publisher<sensor_msgs::msg::CameraInfo>(camera_info_topic, publisher_qos);
     frame_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
       frame_stamp_topic, rclcpp::SensorDataQoS());
+    if (trigger_enable_ && use_physical_trigger_timestamp_) {
+      physical_trigger_edge_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
+        physical_trigger_edge_stamp_topic, rclcpp::SensorDataQoS());
+    }
     const auto state_qos = rclcpp::QoS(1).reliable().transient_local();
     connected_pub_ = create_publisher<std_msgs::msg::Bool>("~/connected", state_qos);
     frame_rate_pub_ = create_publisher<std_msgs::msg::Float32>("~/frame_rate_hz", state_qos);
@@ -170,6 +178,11 @@ public:
     publish_connected(true);
     diagnostics_timer_ = create_wall_timer(
       std::chrono::seconds(1), std::bind(&HikrobotMvsCameraNode::publish_diagnostics, this));
+    if (physical_trigger_edge_stamp_pub_) {
+      physical_trigger_edge_timer_ = create_wall_timer(
+        std::chrono::milliseconds(10),
+        std::bind(&HikrobotMvsCameraNode::publish_physical_trigger_edges, this));
+    }
     running_.store(true);
     grab_thread_ = std::thread(&HikrobotMvsCameraNode::grab_loop, this);
   }
@@ -184,6 +197,44 @@ public:
   }
 
 private:
+  void publish_physical_trigger_edges()
+  {
+    const std::uint64_t generation = trigger_edge_reader_.generation();
+    if (generation == 0U) {
+      return;
+    }
+    if (trigger_edge_publish_generation_ != generation) {
+      trigger_edge_publish_generation_ = generation;
+      last_published_trigger_edge_sequence_ = trigger_edge_reader_.latest_sequence();
+      return;
+    }
+
+    const std::uint64_t latest = trigger_edge_reader_.latest_sequence();
+    if (latest <= last_published_trigger_edge_sequence_) {
+      return;
+    }
+    const std::uint64_t oldest = latest > agribot_time_sync::kTriggerEdgeRingCapacity ?
+      latest - agribot_time_sync::kTriggerEdgeRingCapacity + 1U : 1U;
+    std::uint64_t next = last_published_trigger_edge_sequence_ + 1U;
+    if (next < oldest) {
+      physical_edge_publish_overruns_ += oldest - next;
+      next = oldest;
+    }
+
+    for (std::uint64_t sequence = next; sequence <= latest; ++sequence) {
+      agribot_time_sync::TriggerEdge edge{};
+      if (!trigger_edge_reader_.read(sequence, edge)) {
+        break;
+      }
+      std_msgs::msg::Header message;
+      message.stamp = rclcpp::Time(edge.timestamp_ns, RCL_SYSTEM_TIME);
+      message.frame_id = "camera_trigger_pin33";
+      physical_trigger_edge_stamp_pub_->publish(std::move(message));
+      last_published_trigger_edge_sequence_ = sequence;
+      ++physical_edge_published_count_;
+    }
+  }
+
   void require_ok(int result, const std::string & operation)
   {
     if (result != MV_OK) {
@@ -535,6 +586,12 @@ private:
       status.values.push_back(diagnostic_value(
         "trigger_to_receipt_ms",
         std::to_string(static_cast<double>(last_physical_receipt_delay_ns_.load()) * 1.0e-6)));
+      status.values.push_back(diagnostic_value(
+        "physical_edges_published",
+        std::to_string(physical_edge_published_count_)));
+      status.values.push_back(diagnostic_value(
+        "physical_edge_publish_overruns",
+        std::to_string(physical_edge_publish_overruns_)));
     }
     array.status.push_back(std::move(status));
     diagnostics_pub_->publish(std::move(array));
@@ -624,15 +681,21 @@ private:
   std::atomic<std::uint32_t> last_physical_kernel_sequence_{0U};
   std::atomic<std::int64_t> last_physical_edge_timestamp_ns_{0};
   std::atomic<std::int64_t> last_physical_receipt_delay_ns_{0};
+  std::uint64_t trigger_edge_publish_generation_{0U};
+  std::uint64_t last_published_trigger_edge_sequence_{0U};
+  std::uint64_t physical_edge_published_count_{0U};
+  std::uint64_t physical_edge_publish_overruns_{0U};
 
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_pub_;
   rclcpp::Publisher<std_msgs::msg::Header>::SharedPtr frame_stamp_pub_;
+  rclcpp::Publisher<std_msgs::msg::Header>::SharedPtr physical_trigger_edge_stamp_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr connected_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr frame_rate_pub_;
   std::unique_ptr<camera_info_manager::CameraInfoManager> camera_info_manager_;
   rclcpp::TimerBase::SharedPtr diagnostics_timer_;
+  rclcpp::TimerBase::SharedPtr physical_trigger_edge_timer_;
 };
 
 int main(int argc, char ** argv)
