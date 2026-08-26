@@ -41,6 +41,29 @@ MAX_STEERING_RAD = 0.30
 DEFAULT_STEERING_RAD = 0.30
 
 
+def make_zqwl_can_parameter_packet(bitrate: int) -> bytes:
+    bitrate_codes = {250000: 0x45, 1000000: 0x03}
+    if bitrate not in bitrate_codes:
+        raise ValueError("ZQWL bitrate must be 250000 or 1000000")
+    packet = bytearray.fromhex(
+        "493b425700000000000000000000000000000000452e"
+    )
+    packet[6] = bitrate_codes[bitrate]
+    return bytes(packet)
+
+
+def make_zqwl_channel_control_packet(
+    enabled: bool,
+    persist_parameters: bool,
+) -> bytes:
+    packet = bytearray.fromhex(
+        "493b445700000000000000000000000000000000452e"
+    )
+    packet[4] = 0x01 if persist_parameters else 0x00
+    packet[6] = 0x01 if enabled else 0x00
+    return bytes(packet)
+
+
 def clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
@@ -145,6 +168,7 @@ class CanLink:
         command_id: int = COMMAND_ID,
         telemetry_ids: set[int] | None = None,
         telemetry_timeout_sec: float = 0.6,
+        bitrate: int | None = None,
     ) -> None:
         self.port = port
         self.dry_run = dry_run
@@ -153,6 +177,9 @@ class CanLink:
             TELEMETRY_IDS if telemetry_ids is None else telemetry_ids
         )
         self.telemetry_timeout_sec = telemetry_timeout_sec
+        if bitrate is not None:
+            make_zqwl_can_parameter_packet(bitrate)
+        self.bitrate = bitrate
         self.fd: int | None = None
         self.decoder = ZqwlFrameDecoder()
         self.last_error = ""
@@ -197,10 +224,26 @@ class CanLink:
             termios.tcsetattr(fd, termios.TCSANOW, attributes)
             termios.tcflush(fd, termios.TCIOFLUSH)
             self.fd = fd
-            self._write_all(ZQWL_STOP_PACKET)
-            time.sleep(0.1)
-            termios.tcflush(fd, termios.TCIFLUSH)
-            self._write_all(ZQWL_START_PACKET)
+            if self.bitrate is None:
+                self._write_all(ZQWL_STOP_PACKET)
+                time.sleep(0.1)
+                termios.tcflush(fd, termios.TCIFLUSH)
+                self._write_all(ZQWL_START_PACKET)
+            else:
+                self._write_all(
+                    make_zqwl_channel_control_packet(False, False)
+                )
+                time.sleep(0.1)
+                termios.tcflush(fd, termios.TCIFLUSH)
+                self._write_all(
+                    make_zqwl_can_parameter_packet(self.bitrate)
+                )
+                time.sleep(0.1)
+                self._write_all(
+                    make_zqwl_channel_control_packet(True, True)
+                )
+                time.sleep(0.1)
+                termios.tcflush(fd, termios.TCIFLUSH)
             self.decoder = ZqwlFrameDecoder()
             self.connection_seen_ids.clear()
             self.latest_payloads.clear()
@@ -251,7 +294,12 @@ class CanLink:
                 for _ in range(8):
                     self._write_all(zero_packet)
                     time.sleep(0.01)
-                self._write_all(ZQWL_STOP_PACKET)
+                if self.bitrate is None:
+                    self._write_all(ZQWL_STOP_PACKET)
+                else:
+                    self._write_all(
+                        make_zqwl_channel_control_packet(False, False)
+                    )
         except (OSError, RuntimeError):
             pass
         self.fd = None

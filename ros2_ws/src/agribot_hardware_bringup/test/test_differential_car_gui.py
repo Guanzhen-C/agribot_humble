@@ -96,9 +96,11 @@ def test_dry_run_transport_uses_differential_command_id():
         dry_run=True,
         command_id=gui.COMMAND_ID,
         telemetry_ids=gui.TELEMETRY_IDS,
+        bitrate=gui.CAN_BITRATE,
     )
     assert link.command_id == 0x514
     assert link.telemetry_ids == {0x532, 0x533, 0x534}
+    assert link.bitrate == 250000
     assert link.connect()
     payload = gui.encode_command(300, 300)
     assert link.send(payload)

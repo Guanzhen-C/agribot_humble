@@ -26,6 +26,22 @@ def test_c50c_command_and_zqwl_packet_encoding():
     )
 
 
+def test_zqwl_explicit_bitrate_packets_match_shared_cpp_transport():
+    gui = load_gui_module()
+    assert gui.make_zqwl_can_parameter_packet(250000).hex() == (
+        "493b425700004500000000000000000000000000452e"
+    )
+    assert gui.make_zqwl_can_parameter_packet(1000000).hex() == (
+        "493b425700000300000000000000000000000000452e"
+    )
+    assert gui.make_zqwl_channel_control_packet(False, False).hex() == (
+        "493b445700000000000000000000000000000000452e"
+    )
+    assert gui.make_zqwl_channel_control_packet(True, True).hex() == (
+        "493b445701000100000000000000000000000000452e"
+    )
+
+
 def test_gui_defaults_and_command_limits():
     gui = load_gui_module()
     assert gui.DEFAULT_SPEED_MPS == 0.30

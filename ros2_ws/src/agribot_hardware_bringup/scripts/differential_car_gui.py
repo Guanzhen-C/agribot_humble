@@ -23,6 +23,7 @@ TELEMETRY_IDS = {
     LEFT_MOTOR_STATE_ID,
     RIGHT_MOTOR_STATE_ID,
 }
+CAN_BITRATE = 250000
 
 # The chassis command frame carries signed PWM percentage. The controller's
 # 3000 rpm calibration point corresponds to 100 percent and 1.1 m/s.
@@ -175,6 +176,7 @@ class DifferentialControlGui:
             command_id=COMMAND_ID,
             telemetry_ids=TELEMETRY_IDS,
             telemetry_timeout_sec=FEEDBACK_TIMEOUT_SEC,
+            bitrate=CAN_BITRATE,
         )
         self.armed = False
         self.drive_level = DEFAULT_DRIVE_LEVEL
@@ -943,6 +945,7 @@ def run_link_test(port: str, duration: float) -> int:
         command_id=COMMAND_ID,
         telemetry_ids=TELEMETRY_IDS,
         telemetry_timeout_sec=FEEDBACK_TIMEOUT_SEC,
+        bitrate=CAN_BITRATE,
     )
     if not link.connect():
         print(f"LINK_TEST_FAIL connect: {link.last_error}")
