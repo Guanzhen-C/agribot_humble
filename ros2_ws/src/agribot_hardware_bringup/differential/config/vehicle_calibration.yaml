@@ -22,7 +22,7 @@ geometry:
 drivetrain:
   invert_left_motor: false
   invert_right_motor: false
-  # These empirical scales avoid assuming a motor RPM/reduction-ratio model.
+  # These empirical scales avoid assuming a motor-RPM/reduction-ratio model.
   command_full_scale_wheel_speed_mps: 0.80
   feedback_wheel_speed_mps_per_speed_unit: 0.000436332313
 

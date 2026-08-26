@@ -8,7 +8,7 @@
 - 规划：Nav2 Smac State Lattice，使用 ROS 2 Humble 官方 5 cm 差速运动基元。
 - 控制：Nav2 MPPI，运动模型为 `DiffDrive`，允许原地旋转和倒车。
 - 避障：C16 `/lidar/points` 直接进入 STVL，不生成或订阅 `/scan`。
-- 底盘：严格使用 `主控到分控数据格式V2.4.xlsx` 的“伽马底盘”协议，
+- 底盘：严格使用 `主控到分控数据格式V2.4.xlsx` 的“三合一底盘”Intel协议，
   `0x514` 控制，`0x532/0x533/0x534` 反馈，默认 `250 kbit/s`，支持
   ZQWL USB-CAN 和 SocketCAN。
 
@@ -18,9 +18,11 @@ Nav2 输出路径为：
 /nav2/cmd_vel -> differential_chassis_can_node -> 0x514
 ```
 
-`0x532` 的电池电压是 Byte2 单字节实际值；`0x533/0x534` 的速度是
-16 位无符号幅值，方向由 Reverse 位给出，运行电流是 16 位有符号整数。
-不存在旧实现中的通信故障字节、电机电压或电机温度字段。
+`0x514` 的 Byte1/Byte2 是左右电机有符号 PWM 百分比，Byte3 bit0 是大灯；
+该协议没有独立刹车位，安全停止使用左右 PWM 同时归零。`0x532` 的电池
+电压是 Byte2-3 的 Intel 16 位无符号值，分辨率为 `0.1 V`。
+`0x533/0x534` 的 Byte1 是有符号温度，Byte2-3 是 Intel 16 位有符号转速，
+Byte4-5 是 Intel 16 位有符号电流。
 
 底盘反馈生成 `/wheel/odometry` 和 `/scout_status`。导航定位使用
 `/fastlivo_rtk/odometry`，轮速里程计只用于底盘状态和验收，不替代激光惯性定位。
@@ -92,4 +94,4 @@ ros2 launch agribot_hardware_bringup \
   zqwl_port:=/dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
 ```
 
-任何反馈超时、定位就绪超时、急停、非自动模式、底盘故障或命令超时都会触发零速制动。
+任何反馈超时、定位就绪超时、急停、非自动模式、底盘故障或命令超时都会触发左右 PWM 归零。

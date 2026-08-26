@@ -110,8 +110,8 @@ public:
     update.valid = true;
 
     if (left_motor_updated_ && right_motor_updated_) {
-      int32_t left_speed = left_motor_state_->signedSpeed();
-      int32_t right_speed = right_motor_state_->signedSpeed();
+      int32_t left_speed = left_motor_state_->speed;
+      int32_t right_speed = right_motor_state_->speed;
       if (invert_left_motor_) {
         left_speed = -left_speed;
       }
@@ -166,8 +166,8 @@ public:
 
     const auto fillMotor = [&](std::size_t index, const differential_can::MotorState & motor) {
       status.motor_states[index].current = static_cast<double>(motor.running_current);
-      status.motor_states[index].rpm = static_cast<double>(motor.signedSpeed());
-      status.motor_states[index].temperature = 0.0;
+      status.motor_states[index].rpm = static_cast<double>(motor.speed);
+      status.motor_states[index].temperature = static_cast<double>(motor.temperature);
       status.motor_states[index].motor_pose = 0.0;
     };
     if (left_motor_state_.has_value()) {

@@ -38,35 +38,29 @@ int8_t percentToByte(double percent)
   return static_cast<int8_t>(std::lround(std::clamp(percent, -100.0, 100.0)));
 }
 
+int8_t decodeInt8(uint8_t value)
+{
+  const int16_t signed_value = value < 0x80U ?
+    static_cast<int16_t>(value) : static_cast<int16_t>(value) - 0x100;
+  return static_cast<int8_t>(signed_value);
+}
+
 }  // namespace
 
 bool MotorState::hasFault() const
 {
-  return hall_fault || controller_fault || phase_loss || under_voltage_protection ||
-         over_current_protection || locked_rotor_protection || runaway_protection ||
-         other_controller_protection;
-}
-
-int32_t MotorState::signedSpeed() const
-{
-  const int32_t magnitude = static_cast<int32_t>(speed);
-  return reverse ? -magnitude : magnitude;
+  return over_current_protection || load_fault || over_temperature_protection ||
+         over_voltage_protection || under_voltage_protection ||
+         locked_rotor_protection || hall_fault || shake_fault;
 }
 
 chassis_can::Frame encodeCommand(const Command & command, uint8_t rolling_counter)
 {
   chassis_can::Frame frame;
   frame.id = kCommandId;
-  frame.data[0] = static_cast<uint8_t>(
-    (command.left_brake ? 0x01U : 0x00U) |
-    (command.right_brake ? 0x02U : 0x00U));
-  frame.data[1] = static_cast<uint8_t>(
-    percentToByte(command.left_brake ? 0.0 : command.left_percent));
-  frame.data[2] = static_cast<uint8_t>(
-    percentToByte(command.right_brake ? 0.0 : command.right_percent));
-  frame.data[3] = static_cast<uint8_t>(
-    (command.headlight ? 0x01U : 0x00U) |
-    ((static_cast<uint8_t>(command.turn_light) & 0x03U) << 1U));
+  frame.data[1] = static_cast<uint8_t>(percentToByte(command.left_percent));
+  frame.data[2] = static_cast<uint8_t>(percentToByte(command.right_percent));
+  frame.data[3] = command.headlight ? 0x01U : 0x00U;
   frame.data[6] = rolling_counter & 0x0fU;
   frame.data[7] = chassis_can::xorChecksum(frame.data);
   return frame;
@@ -83,9 +77,9 @@ std::optional<ChassisState> decodeChassisState(const chassis_can::Frame & frame)
   state.emergency_stop = ((frame.data[0] >> 2U) & 0x01U) != 0U;
   state.running = ((frame.data[0] >> 3U) & 0x01U) != 0U;
   state.remote_connection_status = (frame.data[0] >> 4U) & 0x03U;
-  state.turn_light = static_cast<TurnLight>(frame.data[1] & 0x03U);
   state.headlight = ((frame.data[1] >> 2U) & 0x01U) != 0U;
-  state.battery_voltage = static_cast<double>(frame.data[2]);
+  state.battery_voltage =
+    static_cast<double>(chassis_can::getUint16Le(frame.data, 2)) * 0.1;
   state.rolling_counter = chassis_can::rollingCounter(frame.data);
   return state;
 }
@@ -100,19 +94,16 @@ std::optional<MotorState> decodeMotorState(const chassis_can::Frame & frame)
 
   MotorState state;
   state.frame_id = frame.id;
-  state.hall_fault = (frame.data[0] & 0x01U) != 0U;
-  state.controller_fault = (frame.data[0] & 0x02U) != 0U;
-  state.phase_loss = (frame.data[0] & 0x04U) != 0U;
-  state.under_voltage_protection = (frame.data[0] & 0x08U) != 0U;
-  state.over_current_protection = (frame.data[0] & 0x10U) != 0U;
+  state.over_current_protection = (frame.data[0] & 0x01U) != 0U;
+  state.load_fault = (frame.data[0] & 0x02U) != 0U;
+  state.over_temperature_protection = (frame.data[0] & 0x04U) != 0U;
+  state.over_voltage_protection = (frame.data[0] & 0x08U) != 0U;
+  state.under_voltage_protection = (frame.data[0] & 0x10U) != 0U;
   state.locked_rotor_protection = (frame.data[0] & 0x20U) != 0U;
-  state.runaway_protection = (frame.data[0] & 0x40U) != 0U;
-  state.other_controller_protection = (frame.data[0] & 0x80U) != 0U;
-  state.pwm_output = (frame.data[1] & 0x10U) != 0U;
-  state.reverse = (frame.data[1] & 0x20U) != 0U;
-  state.brake = (frame.data[1] & 0x40U) != 0U;
-  state.electronic_brake = (frame.data[1] & 0x80U) != 0U;
-  state.speed = chassis_can::getUint16Le(frame.data, 2);
+  state.hall_fault = (frame.data[0] & 0x40U) != 0U;
+  state.shake_fault = (frame.data[0] & 0x80U) != 0U;
+  state.temperature = decodeInt8(frame.data[1]);
+  state.speed = chassis_can::getInt16Le(frame.data, 2);
   state.running_current = chassis_can::getInt16Le(frame.data, 4);
   state.rolling_counter = chassis_can::rollingCounter(frame.data);
   return state;
@@ -150,10 +141,8 @@ Command fromTwist(
   };
 
   Command command;
-  command.left_percent = speedToPercent(left_speed);
-  command.right_percent = speedToPercent(right_speed);
-  command.left_brake = brake;
-  command.right_brake = brake;
+  command.left_percent = brake ? 0.0 : speedToPercent(left_speed);
+  command.right_percent = brake ? 0.0 : speedToPercent(right_speed);
   command.headlight = headlight;
   return command;
 }

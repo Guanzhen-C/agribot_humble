@@ -14,22 +14,11 @@ constexpr uint32_t kChassisStateId = 0x532;
 constexpr uint32_t kLeftMotorStateId = 0x533;
 constexpr uint32_t kRightMotorStateId = 0x534;
 
-enum class TurnLight : uint8_t
-{
-  kOff = 0,
-  kLeft = 1,
-  kRight = 2,
-  kHazard = 3,
-};
-
 struct Command
 {
   double left_percent{0.0};
   double right_percent{0.0};
-  bool left_brake{true};
-  bool right_brake{true};
   bool headlight{false};
-  TurnLight turn_light{TurnLight::kOff};
 };
 
 struct Kinematics
@@ -47,7 +36,6 @@ struct ChassisState
   bool emergency_stop{false};
   bool running{false};
   uint8_t remote_connection_status{0};
-  TurnLight turn_light{TurnLight::kOff};
   bool headlight{false};
   double battery_voltage{0.0};
   uint8_t rolling_counter{0};
@@ -56,24 +44,20 @@ struct ChassisState
 struct MotorState
 {
   uint32_t frame_id{0};
-  bool hall_fault{false};
-  bool controller_fault{false};
-  bool phase_loss{false};
-  bool under_voltage_protection{false};
   bool over_current_protection{false};
+  bool load_fault{false};
+  bool over_temperature_protection{false};
+  bool over_voltage_protection{false};
+  bool under_voltage_protection{false};
   bool locked_rotor_protection{false};
-  bool runaway_protection{false};
-  bool other_controller_protection{false};
-  bool pwm_output{false};
-  bool reverse{false};
-  bool brake{false};
-  bool electronic_brake{false};
-  uint16_t speed{0};
+  bool hall_fault{false};
+  bool shake_fault{false};
+  int8_t temperature{0};
+  int16_t speed{0};
   int16_t running_current{0};
   uint8_t rolling_counter{0};
 
   bool hasFault() const;
-  int32_t signedSpeed() const;
 };
 
 chassis_can::Frame encodeCommand(const Command & command, uint8_t rolling_counter);

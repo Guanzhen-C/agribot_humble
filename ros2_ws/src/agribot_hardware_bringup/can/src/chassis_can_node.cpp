@@ -105,7 +105,7 @@ public:
     context_ = get_node_base_interface()->get_context();
     pre_shutdown_callback_ = context_->add_pre_shutdown_callback(
       [this]() {
-        RCLCPP_WARN(get_logger(), "ROS shutdown requested; transmitting CAN brake frames");
+        RCLCPP_WARN(get_logger(), "ROS shutdown requested; transmitting CAN safe-stop frames");
         sendStopFrames();
       });
     pre_shutdown_callback_registered_ = true;

@@ -18,7 +18,7 @@ vehicles:
 
   differential:
     label: 四轮差速车
-    description: Smac State Lattice、MPPI DiffDrive和伽马CAN底盘
+    description: Smac State Lattice、MPPI DiffDrive和三合一Intel CAN底盘
     footprint:
       - [0.49152525, 0.485974]
       - [0.49152525, -0.485974]
