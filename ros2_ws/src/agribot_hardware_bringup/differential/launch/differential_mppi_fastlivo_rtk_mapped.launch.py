@@ -147,13 +147,16 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
+            DeclareLaunchArgument(
+                "lidar_forward_point_offset_sec", default_value="0.05004"
+            ),
             DeclareLaunchArgument("start_camera", default_value="true"),
             DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
             DeclareLaunchArgument(
                 "hikrobot_camera_serial", default_value="DB0447659"
             ),
             DeclareLaunchArgument(
-                "hikrobot_trigger_enable", default_value="false"
+                "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument(
                 "allow_uncalibrated_camera", default_value="false"
@@ -228,6 +231,9 @@ def generate_launch_description():
                             "use_sim_time": use_sim_time,
                             "start_sensors": LaunchConfiguration("start_sensors"),
                             "start_rtk": LaunchConfiguration("start_rtk"),
+                            "lidar_forward_point_offset_sec": LaunchConfiguration(
+                                "lidar_forward_point_offset_sec"
+                            ),
                             "start_camera": LaunchConfiguration("start_camera"),
                             "camera_driver": LaunchConfiguration("camera_driver"),
                             "hikrobot_camera_serial": LaunchConfiguration(

@@ -209,6 +209,9 @@ def generate_launch_description():
                     "start_lidar": "true",
                     "start_imu": "true",
                     "start_rtk": LaunchConfiguration("start_rtk"),
+                    "lidar_forward_point_offset_sec": LaunchConfiguration(
+                        "lidar_forward_point_offset_sec"
+                    ),
                     "rviz": "false",
                     "lidar_config": LaunchConfiguration("lidar_config"),
                     "imu_config": LaunchConfiguration("imu_config"),
@@ -603,6 +606,9 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
+            DeclareLaunchArgument(
+                "lidar_forward_point_offset_sec", default_value="0.02504"
+            ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(

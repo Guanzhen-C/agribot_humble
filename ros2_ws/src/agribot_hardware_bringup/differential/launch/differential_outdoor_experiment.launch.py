@@ -118,6 +118,9 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument(
+                "lidar_forward_point_offset_sec", default_value="0.05004"
+            ),
+            DeclareLaunchArgument(
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
             DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
@@ -125,7 +128,7 @@ def generate_launch_description():
                 "hikrobot_camera_serial", default_value="DB0447659"
             ),
             DeclareLaunchArgument(
-                "hikrobot_trigger_enable", default_value="false"
+                "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument(
                 "allow_uncalibrated_camera", default_value="false"
@@ -170,6 +173,9 @@ def generate_launch_description():
                             "start_navigation": "true",
                             "rviz": LaunchConfiguration("rviz"),
                             "enable_ntrip": LaunchConfiguration("enable_ntrip"),
+                            "lidar_forward_point_offset_sec": LaunchConfiguration(
+                                "lidar_forward_point_offset_sec"
+                            ),
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
                             ),

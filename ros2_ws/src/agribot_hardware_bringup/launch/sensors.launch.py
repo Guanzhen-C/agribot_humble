@@ -7,6 +7,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _static_transform(parent, child, xyz, rpy):
@@ -47,6 +48,9 @@ def generate_launch_description():
             DeclareLaunchArgument("start_imu", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="false"),
             DeclareLaunchArgument("start_time_sync_monitor", default_value="true"),
+            DeclareLaunchArgument(
+                "lidar_forward_point_offset_sec", default_value="0.02504"
+            ),
             DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument(
                 "lidar_config", default_value=os.path.join(share, "config", "c16.yaml")
@@ -111,9 +115,12 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        # C16 frame header is scan start; the +X forward sector
-                        # is measured one quarter-turn later.
-                        "lidar_forward_point_offset_sec": 0.02504,
+                        # C16 frame header is scan start. Vehicle launch files
+                        # provide the time of their forward sector within it.
+                        "lidar_forward_point_offset_sec": ParameterValue(
+                            LaunchConfiguration("lidar_forward_point_offset_sec"),
+                            value_type=float,
+                        ),
                         "pair_maximum_match_sec": 0.040,
                         "pair_minimum_match_ratio": 0.80,
                         "lidar_camera_tolerance_sec": 0.010,

@@ -398,8 +398,10 @@ not fall back to a free-running trigger.
 
 Configure the C16 rotation phase once, with the lidar driver stopped so UDP
 port 2369 is free. Read the status before writing, preview the requested value,
-then apply the `90 degree` target that corresponds to vehicle-forward `+X` in
-the current C16 mounting and driver coordinate convention:
+then apply the target for the vehicle mounting. The Ackermann installation has
+the side outlet along vehicle `+Y`, so vehicle-forward `+X` is C16 `90 deg`.
+The differential installation has the side outlet along vehicle `-X`, so
+vehicle-forward `+X` is C16 `180 deg`:
 
 ```bash
 ros2 run agribot_hardware_bringup c16_pps_phase_tool.py --samples 5
@@ -407,11 +409,15 @@ ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
   --target-angle-deg 90
 ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
   --target-angle-deg 90 --apply --samples 10
+
+# Current differential/tracked vehicle only
+ros2 run agribot_hardware_bringup c16_pps_phase_tool.py \
+  --target-angle-deg 180 --apply --samples 10
 ```
 
 The write tool backs up both the received device packet and the transmitted
 configuration packet under `~/.local/state/agribot/c16`. After applying it,
-restart the C16 and verify that the target remains `90.00 deg`, PPS is valid,
+restart the C16 and verify that the selected target remains unchanged, PPS is valid,
 and the angle error converges near zero. A full-cloud ROS header marks a scan
 boundary; its difference from an image timestamp is not the exposure-to-front
 point error. Validate synchronization from the locked PPS phases and per-point

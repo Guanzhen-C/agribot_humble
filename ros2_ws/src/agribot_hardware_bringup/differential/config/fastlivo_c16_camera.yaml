@@ -42,7 +42,8 @@
       dynamic_imu_sync_en: false
       # Provisional extrinsics remain vehicle-specific, but both real vehicles
       # use the scan-start C16 stamp and PPS-locked camera trigger. The shared
-      # hardware phase test measured camera minus C16 +X point as -3.263 ms.
+      # hardware phase test measured camera minus the PPS-aligned sector as
+      # -3.263 ms. The differential mounting aligns its -Y sector with +X.
       # FAST-LIVO2 computes corrected_time = image_stamp - img_time_offset.
       img_time_offset: -0.0033
       exposure_time_init: 0.0

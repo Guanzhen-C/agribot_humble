@@ -21,13 +21,16 @@ def generate_launch_description():
             DeclareLaunchArgument("start_lidar", default_value="true"),
             DeclareLaunchArgument("start_imu", default_value="true"),
             DeclareLaunchArgument("start_rtk", default_value="true"),
+            DeclareLaunchArgument(
+                "lidar_forward_point_offset_sec", default_value="0.05004"
+            ),
             DeclareLaunchArgument("start_camera", default_value="true"),
             DeclareLaunchArgument("camera_driver", default_value="hikrobot_mvs"),
             DeclareLaunchArgument(
                 "hikrobot_camera_serial", default_value="DB0447659"
             ),
             DeclareLaunchArgument(
-                "hikrobot_trigger_enable", default_value="false"
+                "hikrobot_trigger_enable", default_value="true"
             ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
@@ -43,6 +46,9 @@ def generate_launch_description():
                             "start_lidar": LaunchConfiguration("start_lidar"),
                             "start_imu": LaunchConfiguration("start_imu"),
                             "start_rtk": LaunchConfiguration("start_rtk"),
+                            "lidar_forward_point_offset_sec": LaunchConfiguration(
+                                "lidar_forward_point_offset_sec"
+                            ),
                             "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                             "mount_config": mount_config,
                             "rtk_config": os.path.join(

@@ -141,6 +141,21 @@ def test_physical_ackermann_camera_defaults_to_hardware_trigger():
         assert '"hikrobot_trigger_enable", default_value="true"' in source
 
 
+def test_physical_differential_camera_defaults_to_hardware_trigger():
+    launch_files = (
+        "differential_fastlivo_rtk_localization.launch.py",
+        "differential_mppi_fastlivo_rtk_mapped.launch.py",
+        "differential_outdoor_experiment.launch.py",
+        "differential_sensor_data_collection.launch.py",
+        "differential_sensor_validation.launch.py",
+        "differential_3d_mapping.launch.py",
+    )
+    for name in launch_files:
+        source = (PACKAGE_ROOT / "differential" / "launch" / name).read_text()
+        assert '"hikrobot_trigger_enable", default_value="true"' in source
+        assert '"lidar_forward_point_offset_sec", default_value="0.05004"' in source
+
+
 def test_camera_trigger_service_has_symmetric_cleanup():
     service = (
         PACKAGE_ROOT / "systemd" / "agribot-camera-trigger.service"
