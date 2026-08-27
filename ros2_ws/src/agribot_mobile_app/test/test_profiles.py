@@ -151,3 +151,20 @@ def test_production_profiles_dispatch_to_each_chassis_stack(tmp_path):
     assert "allow_uncalibrated_camera:=true" in differential_observe
     assert "allow_uncalibrated_camera:=false" in differential
     assert "motion_authorization:=ENABLE_DIFFERENTIAL_MOTION" in differential
+
+
+def test_differential_outdoor_uses_rtk_map_without_visual_index(tmp_path):
+    profiles = RuntimeProfiles(
+        Path(__file__).parents[1] / "config" / "runtime_profiles.yaml"
+    )
+    map_base = tmp_path / "outdoor"
+    for suffix in (".yaml", ".pgm", ".pcd", "_georeference.yaml"):
+        Path(f"{map_base}{suffix}").write_bytes(b"test")
+
+    command = profiles.command(
+        "differential_outdoor", map_base, False, "differential"
+    )
+
+    assert "differential_outdoor_experiment.launch.py" in command
+    assert "initialization_source:=rtk" in command
+    assert "enable_chassis_output:=false" in command

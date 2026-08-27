@@ -17,13 +17,13 @@ vehicles:
         record_bag: true
 
   differential:
-    label: 四轮差速车
+    label: 履带差速农机
     description: Smac State Lattice、MPPI DiffDrive和三合一Intel CAN底盘
     footprint:
-      - [0.49152525, 0.485974]
-      - [0.49152525, -0.485974]
-      - [-0.49079275, -0.485974]
-      - [-0.49079275, 0.485974]
+      - [0.70, 0.53]
+      - [0.70, -0.53]
+      - [-0.70, -0.53]
+      - [-0.70, 0.53]
     collection:
       launch_package: agribot_hardware_bringup
       launch_file: differential_sensor_data_collection.launch.py
@@ -108,7 +108,7 @@ profiles:
     launch_package: agribot_hardware_bringup
     launch_file: differential_outdoor_experiment.launch.py
     map_argument: map_base
-    required_suffixes: [.yaml, .pgm, .pcd, _visual_index.npz]
+    required_suffixes: [.yaml, .pgm, .pcd]
     requires_georeference: true
     fixed_args:
       initialization_source: rtk
