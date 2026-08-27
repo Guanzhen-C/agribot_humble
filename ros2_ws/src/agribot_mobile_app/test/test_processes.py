@@ -121,3 +121,37 @@ def test_stopping_runtime_clears_stale_navigation_state():
         "goal": None,
         "route": [],
     }
+
+
+def test_cancel_response_releases_goal_and_reports_canceled():
+    callbacks = []
+
+    class CancelFuture:
+        def add_done_callback(self, callback):
+            callbacks.append(callback)
+
+        @staticmethod
+        def result():
+            return SimpleNamespace(goals_canceling=[object()])
+
+    handle = SimpleNamespace(cancel_goal_async=lambda: CancelFuture())
+    gateway = object.__new__(MobileGateway)
+    gateway._lock = threading.RLock()
+    gateway._goal_handle = handle
+    gateway._state = {
+        "navigation": {
+            "kind": "route",
+            "status": "executing",
+            "feedback": {},
+            "goal": None,
+            "route": [],
+        }
+    }
+    gateway._touch = lambda: None
+
+    assert gateway.cancel_navigation({}) == {"status": "canceling"}
+    assert gateway._state["navigation"]["status"] == "canceling"
+    callbacks[0](CancelFuture())
+
+    assert gateway._goal_handle is None
+    assert gateway._state["navigation"]["status"] == "canceled"

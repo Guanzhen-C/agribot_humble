@@ -1514,6 +1514,27 @@ class MobileGateway(Node):
             self._state["navigation"]["status"] = status
         self._touch()
 
+    def _cancel_response_callback(self, future, handle):
+        try:
+            response = future.result()
+            accepted = bool(response.goals_canceling)
+        except Exception as error:  # pragma: no cover - rclpy boundary
+            accepted = False
+            detail = str(error)
+        else:
+            detail = "Nav2拒绝取消当前导航任务"
+
+        with self._lock:
+            if self._goal_handle is not handle:
+                return
+            self._goal_handle = None
+            self._state["navigation"]["status"] = (
+                "canceled" if accepted else "failed"
+            )
+            if not accepted:
+                self._state["navigation"]["feedback"] = {"message": detail}
+        self._touch()
+
     def cancel_navigation(self, _body: dict) -> dict:
         handle = self._goal_handle
         if handle is None:
@@ -1528,10 +1549,15 @@ class MobileGateway(Node):
                 )
             self._touch()
             return {"status": "canceling" if requested else "idle"}
-        handle.cancel_goal_async()
         with self._lock:
             self._state["navigation"]["status"] = "canceling"
         self._touch()
+        future = handle.cancel_goal_async()
+        future.add_done_callback(
+            lambda response, active_handle=handle: self._cancel_response_callback(
+                response, active_handle
+            )
+        )
         return {"status": "canceling"}
 
     def clear_costmaps(self, _body: dict) -> dict:
