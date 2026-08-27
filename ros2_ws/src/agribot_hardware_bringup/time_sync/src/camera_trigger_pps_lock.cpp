@@ -230,20 +230,24 @@ double timespec_seconds(const timespec & value)
   return static_cast<double>(value.tv_sec) + static_cast<double>(value.tv_nsec) * 1.0e-9;
 }
 
-pps_fdata fetch_pps(const int file_descriptor, const double timeout_sec)
+bool fetch_pps(
+  const int file_descriptor, const double timeout_sec, pps_fdata & data)
 {
-  pps_fdata data{};
+  data = {};
   data.timeout.sec = static_cast<std::int64_t>(timeout_sec);
   data.timeout.nsec = static_cast<std::int32_t>(
     (timeout_sec - static_cast<double>(data.timeout.sec)) * 1.0e9);
   data.timeout.flags = ~PPS_TIME_INVALID;
   if (ioctl(file_descriptor, PPS_FETCH, &data) != 0) {
+    if (errno == ETIMEDOUT) {
+      return false;
+    }
     if (errno == EINTR && stop_requested != 0) {
-      return data;
+      return false;
     }
     throw std::runtime_error("等待RTK PPS失败: " + std::string(std::strerror(errno)));
   }
-  return data;
+  return true;
 }
 
 double event_age_ms(const pps_fdata & event, const timespec & now)
@@ -502,7 +506,7 @@ void write_ready_file(
   const std::uint32_t initial_sequence, const double initial_edge_phase_ms,
   const double last_pps_latency_ms, const double edge_phase_ms,
   const std::uint64_t edges_previous_second, const std::uint64_t applied_period_ns,
-  const EdgeSnapshot & edge)
+  const EdgeSnapshot & edge, const bool pps_locked = true)
 {
   const std::string temporary = options.ready_file + ".tmp";
   std::ofstream output(temporary, std::ios::trunc);
@@ -515,9 +519,11 @@ void write_ready_file(
          << "period_ns=" << options.period_ns << '\n'
          << "duty_cycle_ns=" << options.duty_cycle_ns << '\n'
          << "polarity=" << options.polarity << '\n'
-         << "pps_alignment=every_pps\n"
+         << "pps_alignment=" << (pps_locked ? "every_pps" : "holdover") << '\n'
          << "pps_monitoring=continuous\n"
-         << "pwm_phase_control=period_adjust_each_pps\n"
+         << "pps_lock_state=" << (pps_locked ? "locked" : "holdover") << '\n'
+         << "pwm_phase_control=" <<
+    (pps_locked ? "period_adjust_each_pps" : "nominal_period") << '\n'
          << "pulses_per_pps=" << 1000000000ULL / options.period_ns << '\n'
          << "nominal_period_ns=" << options.period_ns << '\n'
          << "applied_period_ns=" << applied_period_ns << '\n'
@@ -599,54 +605,106 @@ void run(const Options & options)
 
   bool enabled = false;
   try {
-    pps_fdata event = fetch_pps(pps.get(), options.timeout_sec);
-    require_fresh_pps(event, 0U, options.maximum_latency_ms);
-    EdgeSnapshot before_enable = edge_capture.snapshot();
-    write_pwm_enable(pwm.get(), true);
-    enabled = true;
-    const std::uint32_t initial_sequence = event.info.assert_sequence;
-    const std::uint64_t expected_edges = 1000000000ULL / options.period_ns;
-    std::cout << "Pin32相机触发已启动并由Pin33回采: 10 Hz, initial_pps="
-              << initial_sequence << "；等待下一个PPS完成首个整秒验收" << std::endl;
-
-    std::uint32_t last_sequence = initial_sequence;
-    event = fetch_pps(pps.get(), options.timeout_sec);
-    double latency_ms = require_fresh_pps(event, last_sequence, options.maximum_latency_ms);
-    if (event.info.assert_sequence != last_sequence + 1U) {
-      throw std::runtime_error("初始锁相期间检测到PPS序号跳变");
+    pps_fdata event{};
+    const bool initial_pps_available = fetch_pps(
+      pps.get(), options.timeout_sec, event);
+    if (stop_requested != 0) {
+      return;
     }
-    last_sequence = event.info.assert_sequence;
-    EdgeSnapshot edge = match_pps_edge(
-      edge_capture, event, before_enable.count, expected_edges, options.maximum_latency_ms);
-    const double initial_edge_phase_ms = physical_phase_ms(edge, event);
-    std::uint64_t applied_period_ns = calculate_locked_period(options, edge, event);
-    write_pwm_period(pwm_period.get(), applied_period_ns);
-    write_ready_file(
-      options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
-      initial_edge_phase_ms, expected_edges, applied_period_ns, edge);
-    std::uint64_t previous_pps_edge_count = edge.count;
-
-    while (stop_requested == 0) {
-      event = fetch_pps(pps.get(), options.timeout_sec);
-      if (stop_requested != 0) {
-        break;
+    if (!initial_pps_available) {
+      const std::uint64_t expected_edges = 1000000000ULL / options.period_ns;
+      EdgeSnapshot edge = edge_capture.snapshot();
+      const std::uint64_t initial_edge_count = edge.count;
+      write_pwm_enable(pwm.get(), true);
+      enabled = true;
+      for (std::uint64_t index = 0; index < expected_edges; ++index) {
+        edge = edge_capture.wait_after(
+          edge.count, static_cast<double>(options.period_ns) * 2.0e-6);
       }
-      latency_ms = require_fresh_pps(
-        event, last_sequence, options.maximum_latency_ms);
+      if (edge.count - initial_edge_count != expected_edges) {
+        throw std::runtime_error("PPS保持模式未检测到完整的10 Hz物理触发沿");
+      }
+      pps_fdata empty_event{};
+      write_ready_file(
+        options, empty_event, 0U, 0.0, 0.0, 0.0, expected_edges,
+        options.period_ns, edge, false);
+      std::cout << "RTK PPS暂不可用，Pin32相机触发进入10 Hz保持模式；"
+                << "继续发布Pin33物理沿时间戳并等待PPS恢复" << std::endl;
+
+      while (stop_requested == 0) {
+        pps_fdata restored_event{};
+        if (fetch_pps(pps.get(), options.timeout_sec, restored_event)) {
+          throw std::runtime_error("检测到RTK PPS恢复，重启触发服务以重新进入逐PPS锁相");
+        }
+        if (stop_requested != 0) {
+          break;
+        }
+        edge = edge_capture.snapshot();
+        const double edge_age_ms =
+          (timespec_seconds(realtime_now()) -
+          static_cast<double>(edge.timestamp_ns) * 1.0e-9) * 1.0e3;
+        if (edge_age_ms < 0.0 ||
+          edge_age_ms > static_cast<double>(options.period_ns) * 2.0e-6)
+        {
+          throw std::runtime_error("PPS保持模式的Pin33物理触发沿已停止");
+        }
+        write_ready_file(
+          options, empty_event, 0U, 0.0, 0.0, 0.0, expected_edges,
+          options.period_ns, edge, false);
+      }
+    } else {
+      require_fresh_pps(event, 0U, options.maximum_latency_ms);
+      EdgeSnapshot before_enable = edge_capture.snapshot();
+      write_pwm_enable(pwm.get(), true);
+      enabled = true;
+      const std::uint32_t initial_sequence = event.info.assert_sequence;
+      const std::uint64_t expected_edges = 1000000000ULL / options.period_ns;
+      std::cout << "Pin32相机触发已启动并由Pin33回采: 10 Hz, initial_pps="
+                << initial_sequence << "；等待下一个PPS完成首个整秒验收" << std::endl;
+
+      std::uint32_t last_sequence = initial_sequence;
+      if (!fetch_pps(pps.get(), options.timeout_sec, event)) {
+        throw std::runtime_error("初始锁相期间RTK PPS丢失");
+      }
+      double latency_ms = require_fresh_pps(event, last_sequence, options.maximum_latency_ms);
       if (event.info.assert_sequence != last_sequence + 1U) {
-        throw std::runtime_error("逐PPS校相期间检测到PPS序号跳变");
+        throw std::runtime_error("初始锁相期间检测到PPS序号跳变");
       }
       last_sequence = event.info.assert_sequence;
-      edge = match_pps_edge(
-        edge_capture, event, previous_pps_edge_count, expected_edges,
-        options.maximum_latency_ms);
-      const double edge_phase_ms = physical_phase_ms(edge, event);
-      applied_period_ns = calculate_locked_period(options, edge, event);
+      EdgeSnapshot edge = match_pps_edge(
+        edge_capture, event, before_enable.count, expected_edges, options.maximum_latency_ms);
+      const double initial_edge_phase_ms = physical_phase_ms(edge, event);
+      std::uint64_t applied_period_ns = calculate_locked_period(options, edge, event);
       write_pwm_period(pwm_period.get(), applied_period_ns);
       write_ready_file(
         options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
-        edge_phase_ms, expected_edges, applied_period_ns, edge);
-      previous_pps_edge_count = edge.count;
+        initial_edge_phase_ms, expected_edges, applied_period_ns, edge);
+      std::uint64_t previous_pps_edge_count = edge.count;
+
+      while (stop_requested == 0) {
+        if (!fetch_pps(pps.get(), options.timeout_sec, event)) {
+          throw std::runtime_error("逐PPS校相期间RTK PPS丢失，切换保持模式");
+        }
+        if (stop_requested != 0) {
+          break;
+        }
+        latency_ms = require_fresh_pps(
+          event, last_sequence, options.maximum_latency_ms);
+        if (event.info.assert_sequence != last_sequence + 1U) {
+          throw std::runtime_error("逐PPS校相期间检测到PPS序号跳变");
+        }
+        last_sequence = event.info.assert_sequence;
+        edge = match_pps_edge(
+          edge_capture, event, previous_pps_edge_count, expected_edges,
+          options.maximum_latency_ms);
+        const double edge_phase_ms = physical_phase_ms(edge, event);
+        applied_period_ns = calculate_locked_period(options, edge, event);
+        write_pwm_period(pwm_period.get(), applied_period_ns);
+        write_ready_file(
+          options, event, initial_sequence, initial_edge_phase_ms, latency_ms,
+          edge_phase_ms, expected_edges, applied_period_ns, edge);
+        previous_pps_edge_count = edge.count;
+      }
     }
   } catch (...) {
     if (enabled) {

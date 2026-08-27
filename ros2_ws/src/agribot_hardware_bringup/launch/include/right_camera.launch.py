@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import time
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -45,6 +46,7 @@ def _validate_pin32_trigger(
         name: (pwm_path / name).read_text().strip()
         for name in ("period", "duty_cycle", "polarity", "enable")
     }
+    lock_state = ready.get("pps_lock_state")
     expected_ready = {
         "backend": "pin32_pwm",
         "pwm_enable_path": str(pwm_path / "enable"),
@@ -52,9 +54,7 @@ def _validate_pin32_trigger(
         "period_ns": str(period_ns),
         "duty_cycle_ns": str(duty_ns),
         "polarity": "normal",
-        "pps_alignment": "every_pps",
         "pps_monitoring": "continuous",
-        "pwm_phase_control": "period_adjust_each_pps",
         "physical_edge_capture": "pin33_gpio",
         "edge_timestamp_source": "gpio_v2_realtime",
         "edge_gpio_chip": "/dev/gpiochip5",
@@ -70,14 +70,43 @@ def _validate_pin32_trigger(
     mismatches = _mismatches(ready, expected_ready, "ready") + _mismatches(
         actual_pwm, expected_pwm, "pwm"
     )
+    if lock_state == "locked":
+        mismatches += _mismatches(
+            ready,
+            {
+                "pps_alignment": "every_pps",
+                "pwm_phase_control": "period_adjust_each_pps",
+            },
+            "ready",
+        )
+        if int(ready.get("pps_sequence", "0")) <= 0:
+            mismatches.append("ready.pps_sequence无效")
+        if abs(float(ready.get("edge_phase_error_us", "inf"))) > 5000.0:
+            mismatches.append("ready.edge_phase_error_us超出5ms")
+    elif lock_state == "holdover":
+        mismatches += _mismatches(
+            ready,
+            {
+                "pps_alignment": "holdover",
+                "pwm_phase_control": "nominal_period",
+                "pps_sequence": "0",
+            },
+            "ready",
+        )
+    else:
+        mismatches.append(f"ready.pps_lock_state={lock_state or '缺失'}")
     expected_edges = 1_000_000_000 // period_ns
     if int(ready.get("edges_previous_second", "-1")) != expected_edges:
         mismatches.append(
             "ready.edges_previous_second="
             f"{ready.get('edges_previous_second', '缺失')}(期望{expected_edges})"
         )
-    if abs(float(ready.get("edge_phase_error_us", "inf"))) > 5000.0:
-        mismatches.append("ready.edge_phase_error_us超出5ms")
+    try:
+        edge_age_ns = time.time_ns() - int(ready.get("edge_timestamp_ns", "0"))
+        if edge_age_ns < 0 or edge_age_ns > period_ns * 3:
+            mismatches.append("ready.edge_timestamp_ns不是最近的物理触发沿")
+    except ValueError:
+        mismatches.append("ready.edge_timestamp_ns无效")
     if not edge_buffer_path.is_file():
         mismatches.append(f"物理沿缓冲不存在：{edge_buffer_path}")
     return mismatches
@@ -176,13 +205,13 @@ def _validate_hardware_trigger(context):
         process_id = int(ready["pid"])
         if not Path(f"/proc/{process_id}").is_dir():
             raise OSError(f"触发服务进程{process_id}不存在")
-        if int(ready["pps_sequence"]) <= 0:
-            raise ValueError("PPS序号无效")
         if backend == "pin32_pwm":
             mismatches = _validate_pin32_trigger(
                 ready, pwm_path, edge_buffer_path, period_ns, duty_ns
             )
         else:
+            if int(ready["pps_sequence"]) <= 0:
+                raise ValueError("PPS序号无效")
             mismatches = _validate_j14_trigger(
                 ready, lpwm_device_path, period_ns, duty_ns
             )

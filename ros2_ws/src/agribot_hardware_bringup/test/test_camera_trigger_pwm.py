@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -93,7 +94,7 @@ def base_environment(tmp_path, ready_file):
     return environment
 
 
-def write_pin32_ready(path, pwm):
+def write_pin32_ready(path, pwm, lock_state="locked"):
     edge_buffer = path.parent / "physical_edges.bin"
     edge_buffer.write_bytes(b"physical-edge-ring")
     path.write_text(
@@ -103,22 +104,23 @@ def write_pin32_ready(path, pwm):
         "period_ns=100000000\n"
         "duty_cycle_ns=1000000\n"
         "polarity=normal\n"
-        "pps_alignment=every_pps\n"
+        f"pps_alignment={'every_pps' if lock_state == 'locked' else 'holdover'}\n"
         "pps_monitoring=continuous\n"
-        "pwm_phase_control=period_adjust_each_pps\n"
+        f"pps_lock_state={lock_state}\n"
+        f"pwm_phase_control={'period_adjust_each_pps' if lock_state == 'locked' else 'nominal_period'}\n"
         "physical_edge_capture=pin33_gpio\n"
         "edge_timestamp_source=gpio_v2_realtime\n"
         "edge_gpio_chip=/dev/gpiochip5\n"
         "edge_gpio_offset=10\n"
         f"edge_buffer_path={edge_buffer}\n"
         "edge_sequence=101\n"
-        "edge_timestamp_ns=1787738000000123456\n"
+        f"edge_timestamp_ns={time.time_ns()}\n"
         "edge_count=101\n"
         "edges_previous_second=10\n"
         "edge_phase_error_us=123.0\n"
         "applied_period_ns=100000000\n"
         "initial_edge_phase_us=123.0\n"
-        "pps_sequence=42\n"
+        f"pps_sequence={42 if lock_state == 'locked' else 0}\n"
         "last_pps_latency_us=123.0\n"
         f"pid={os.getpid()}\n"
     )
@@ -242,6 +244,19 @@ def test_camera_launch_accepts_ready_pin32_trigger(tmp_path):
     ) == []
 
 
+def test_camera_launch_accepts_pin32_holdover_without_pps(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    ready = tmp_path / "ready"
+    (pwm / "period").write_text("100000000\n")
+    (pwm / "duty_cycle").write_text("1000000\n")
+    (pwm / "enable").write_text("1\n")
+    write_pin32_ready(ready, pwm, lock_state="holdover")
+    assert RIGHT_CAMERA._validate_hardware_trigger(
+        trigger_context(pwm, device, ready)
+    ) == []
+
+
 def test_camera_launch_accepts_retained_j14_trigger(tmp_path):
     pwm = make_pwm_tree(tmp_path)
     device = make_lpwm_tree(tmp_path)
@@ -327,7 +342,8 @@ def test_service_dispatches_exclusive_trigger_backends():
     pin32_helper = (
         PACKAGE_ROOT / "time_sync" / "src" / "camera_trigger_pps_lock.cpp"
     ).read_text()
-    assert "pps_alignment=every_pps" in pin32_helper
+    assert "pps_alignment=\" << (pps_locked ? \"every_pps\" : \"holdover\")" in pin32_helper
+    assert "检测到RTK PPS恢复" in pin32_helper
     assert "pps_monitoring=continuous" in pin32_helper
     assert "GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME" in pin32_helper
     assert "edge.count - previous_pps_edge_count != expected_edges" in pin32_helper

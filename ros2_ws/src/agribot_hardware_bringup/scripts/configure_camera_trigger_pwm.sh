@@ -177,9 +177,7 @@ show_pin32_status() {
   assert_ready_value period_ns "${pwm_period_ns}"
   assert_ready_value duty_cycle_ns "${pwm_duty_ns}"
   assert_ready_value polarity "${pwm_polarity}"
-  assert_ready_value pps_alignment every_pps
   assert_ready_value pps_monitoring continuous
-  assert_ready_value pwm_phase_control period_adjust_each_pps
   assert_ready_value physical_edge_capture pin33_gpio
   assert_ready_value edge_timestamp_source gpio_v2_realtime
   assert_ready_value edge_gpio_chip "${pwm_edge_gpio_chip}"
@@ -199,17 +197,36 @@ show_pin32_status() {
   [[ "$(read_value "${pwm_path}/enable")" == "1" ]] || die "Pin32 PWM尚未使能"
   [[ -r "${pwm_edge_buffer_path}" ]] || die "Pin33物理沿缓冲不可读"
 
-  local expected_edges
+  local expected_edges lock_state
   expected_edges=$((1000000000 / pwm_period_ns))
+  lock_state="$(ready_value pps_lock_state)"
+  case "${lock_state}" in
+    locked)
+      assert_ready_value pps_alignment every_pps
+      assert_ready_value pwm_phase_control period_adjust_each_pps
+      ;;
+    holdover)
+      assert_ready_value pps_alignment holdover
+      assert_ready_value pwm_phase_control nominal_period
+      assert_ready_value pps_sequence 0
+      ;;
+    *)
+      die "未知PPS锁相状态：${lock_state}"
+      ;;
+  esac
   [[ "$(ready_value edges_previous_second)" == "${expected_edges}" ]] || \
     die "最近一个PPS周期的物理沿数不等于${expected_edges}"
 
   echo "当前后端：pin32_pwm"
   echo "相机触发输出：40Pin物理Pin 32（PWM6）"
   echo "物理沿回采：40Pin物理Pin 33（GPIO357，内核CLOCK_REALTIME时间戳）"
-  echo "PPS对相：每个PPS按Pin33实测相位调整下一秒周期，严格保持每秒${expected_edges}沿"
-  echo "最近PPS序号：$(ready_value pps_sequence)"
-  echo "最近物理沿相位误差：$(ready_value edge_phase_error_us) us"
+  if [[ "${lock_state}" == "locked" ]]; then
+    echo "PPS对相：每个PPS按Pin33实测相位调整下一秒周期，严格保持每秒${expected_edges}沿"
+    echo "最近PPS序号：$(ready_value pps_sequence)"
+    echo "最近物理沿相位误差：$(ready_value edge_phase_error_us) us"
+  else
+    echo "PPS对相：RTK PPS暂不可用，使用10 Hz保持模式并等待自动恢复锁相"
+  fi
   echo "最近一秒物理沿数：$(ready_value edges_previous_second)"
 }
 
