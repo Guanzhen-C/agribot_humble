@@ -103,7 +103,12 @@ def _validate_pin32_trigger(
         )
     try:
         edge_age_ns = time.time_ns() - int(ready.get("edge_timestamp_ns", "0"))
-        if edge_age_ns < 0 or edge_age_ns > period_ns * 3:
+        maximum_edge_age_ns = (
+            1_000_000_000 + period_ns * 3
+            if lock_state == "locked"
+            else period_ns * 3
+        )
+        if edge_age_ns < 0 or edge_age_ns > maximum_edge_age_ns:
             mismatches.append("ready.edge_timestamp_ns不是最近的物理触发沿")
     except ValueError:
         mismatches.append("ready.edge_timestamp_ns无效")

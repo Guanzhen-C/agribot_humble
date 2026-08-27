@@ -94,7 +94,7 @@ def base_environment(tmp_path, ready_file):
     return environment
 
 
-def write_pin32_ready(path, pwm, lock_state="locked"):
+def write_pin32_ready(path, pwm, lock_state="locked", edge_age_sec=0.0):
     edge_buffer = path.parent / "physical_edges.bin"
     edge_buffer.write_bytes(b"physical-edge-ring")
     path.write_text(
@@ -114,7 +114,7 @@ def write_pin32_ready(path, pwm, lock_state="locked"):
         "edge_gpio_offset=10\n"
         f"edge_buffer_path={edge_buffer}\n"
         "edge_sequence=101\n"
-        f"edge_timestamp_ns={time.time_ns()}\n"
+        f"edge_timestamp_ns={time.time_ns() - int(edge_age_sec * 1e9)}\n"
         "edge_count=101\n"
         "edges_previous_second=10\n"
         "edge_phase_error_us=123.0\n"
@@ -255,6 +255,33 @@ def test_camera_launch_accepts_pin32_holdover_without_pps(tmp_path):
     assert RIGHT_CAMERA._validate_hardware_trigger(
         trigger_context(pwm, device, ready)
     ) == []
+
+
+def test_camera_launch_accepts_previous_pps_edge_while_locked(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    ready = tmp_path / "ready"
+    (pwm / "period").write_text("100000000\n")
+    (pwm / "duty_cycle").write_text("1000000\n")
+    (pwm / "enable").write_text("1\n")
+    write_pin32_ready(ready, pwm, edge_age_sec=0.8)
+    assert RIGHT_CAMERA._validate_hardware_trigger(
+        trigger_context(pwm, device, ready)
+    ) == []
+
+
+def test_camera_launch_rejects_stale_holdover_edge(tmp_path):
+    pwm = make_pwm_tree(tmp_path)
+    device = make_lpwm_tree(tmp_path)
+    ready = tmp_path / "ready"
+    (pwm / "period").write_text("100000000\n")
+    (pwm / "duty_cycle").write_text("1000000\n")
+    (pwm / "enable").write_text("1\n")
+    write_pin32_ready(ready, pwm, lock_state="holdover", edge_age_sec=0.8)
+    with pytest.raises(RuntimeError, match="不是最近的物理触发沿"):
+        RIGHT_CAMERA._validate_hardware_trigger(
+            trigger_context(pwm, device, ready)
+        )
 
 
 def test_camera_launch_accepts_retained_j14_trigger(tmp_path):
