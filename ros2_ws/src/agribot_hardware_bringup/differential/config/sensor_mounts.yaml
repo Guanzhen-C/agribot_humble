@@ -2,8 +2,8 @@
 # FLU at the ground projection of the nominal skid-steer center. Translation
 # is in meters and RPY is in radians; RPY maps each child frame into base_link.
 calibration:
-  complete: false
-  source: tracked_vehicle_manual_measurement_2026_08_26
+  complete: true
+  source: tracked_vehicle_manual_measurement_accepted_2026_08_27
   base_link_reference: tracked_contact_patch_center
 imu:
   child_frame: imu_link

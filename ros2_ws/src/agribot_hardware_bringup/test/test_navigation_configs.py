@@ -369,8 +369,11 @@ def test_differential_localization_extrinsics_share_one_measured_source():
         )
     ]
 
-    assert mounts["calibration"]["complete"] is False
-    assert calibration["calibration_complete"] is False
+    assert mounts["calibration"]["complete"] is True
+    assert calibration["calibration_complete"] is True
+    assert calibration["calibration_source"] == (
+        "provisional_manual_measurements_accepted_2026_08_27"
+    )
     assert calibration["base_link_reference"] == "tracked_contact_patch_center"
     assert mounts["imu"]["xyz"] == pytest.approx([0.0, 0.0, 0.64])
     assert mounts["imu"]["rpy"] == pytest.approx([0.0, 0.0, 0.0])

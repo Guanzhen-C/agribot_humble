@@ -1,6 +1,7 @@
 schema_version: 1
 vehicle_type: differential
-calibration_complete: false
+calibration_complete: true
+calibration_source: provisional_manual_measurements_accepted_2026_08_27
 base_link_reference: tracked_contact_patch_center
 
 # Physical body extents measured from base_link on 2026-08-26. Safety margins
@@ -35,7 +36,7 @@ motion:
   commissioning_reverse_velocity_mps: 0.15
   commissioning_angular_velocity_radps: 0.80
 
-required_measurements:
+recommended_refinements:
   - motor_direction_signs
   - command_curve_left_right_reverse_validation
   - feedback_speed_unit_to_wheel_speed_scale_for_optional_wheel_odometry

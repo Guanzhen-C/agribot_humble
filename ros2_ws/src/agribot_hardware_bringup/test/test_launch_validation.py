@@ -184,7 +184,20 @@ def test_differential_full_stack_requires_explicit_motion_authorization():
         )
 
 
-def test_differential_full_stack_rejects_provisional_calibration():
+def test_differential_full_stack_accepts_current_commissioning_calibration():
+    assert DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
+        differential_full_context(
+            enable_chassis_output="true",
+            motion_authorization=DIFFERENTIAL_FULL_LAUNCH.MOTION_AUTHORIZATION,
+        )
+    ) == []
+
+
+def test_differential_full_stack_rejects_incomplete_calibration(tmp_path):
+    calibration = tmp_path / "vehicle_calibration.yaml"
+    calibration.write_text(
+        "vehicle_type: differential\ncalibration_complete: false\n"
+    )
     with pytest.raises(RuntimeError, match="尚未标定"):
         DIFFERENTIAL_FULL_LAUNCH._validate_arguments(
             differential_full_context(
@@ -192,6 +205,7 @@ def test_differential_full_stack_rejects_provisional_calibration():
                 motion_authorization=(
                     DIFFERENTIAL_FULL_LAUNCH.MOTION_AUTHORIZATION
                 ),
+                vehicle_calibration=str(calibration),
             )
         )
 
