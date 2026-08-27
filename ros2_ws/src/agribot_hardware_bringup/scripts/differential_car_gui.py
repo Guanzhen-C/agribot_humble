@@ -25,15 +25,13 @@ TELEMETRY_IDS = {
 }
 CAN_BITRATE = 250000
 
-# The chassis command frame carries signed PWM percentage. The controller's
-# 3000 rpm calibration point corresponds to 100 percent and 1.1 m/s.
+# The chassis command frame carries signed PWM percentage. Keep its full-scale
+# level independent from the measured level-to-ground-speed calibration.
 MAX_DRIVE_LEVEL = 3000
-MAX_SPEED_MPS = 1.10
 SPEED_CALIBRATION = (
     (0, 0.0),
     (800, 0.42),
     (1600, 0.78),
-    (MAX_DRIVE_LEVEL, MAX_SPEED_MPS),
 )
 DEFAULT_DRIVE_LEVEL = 800
 DRIVE_LEVEL_STEP = 100
@@ -77,7 +75,11 @@ def drive_level_to_speed(level: float) -> float:
             )
             speed = lower_speed + ratio * (upper_speed - lower_speed)
             return direction * speed
-    return direction * MAX_SPEED_MPS
+    lower_level, lower_speed = SPEED_CALIBRATION[-2]
+    upper_level, upper_speed = SPEED_CALIBRATION[-1]
+    slope = (upper_speed - lower_speed) / (upper_level - lower_level)
+    extrapolated_speed = upper_speed + slope * (magnitude - upper_level)
+    return direction * extrapolated_speed
 
 
 def encode_command(
@@ -958,8 +960,11 @@ def run_self_test() -> int:
         if actual != expected:
             print(f"SELF_TEST_FAIL {values}: {actual} != {expected}")
             return 1
-    if drive_level_to_speed(MAX_DRIVE_LEVEL) != MAX_SPEED_MPS:
-        print("SELF_TEST_FAIL maximum speed calibration")
+    if (
+        drive_level_to_speed(800) != 0.42
+        or drive_level_to_speed(1600) != 0.78
+    ):
+        print("SELF_TEST_FAIL measured speed calibration")
         return 1
     if drive_level_to_percent(MAX_DRIVE_LEVEL + 1) != 100:
         print("SELF_TEST_FAIL command saturation")

@@ -30,13 +30,13 @@ def with_checksum(gui, values):
     return bytes(payload)
 
 
-def test_3000_level_maps_to_protocol_percentage_and_1_1_mps():
+def test_3000_level_only_defines_protocol_full_scale():
     gui = load_gui_module()
     assert gui.MAX_DRIVE_LEVEL == 3000
-    assert gui.MAX_SPEED_MPS == 1.10
     assert gui.drive_level_to_percent(3000) == 100
     assert gui.drive_level_to_percent(-3000) == -100
-    assert gui.drive_level_to_speed(3000) == 1.10
+    assert math.isclose(gui.drive_level_to_speed(3000), 1.41)
+    assert not math.isclose(gui.drive_level_to_speed(3000), 1.10)
     assert gui.encode_command(3000, -3000, 2).hex() == (
         "00649c00000002fa"
     )
@@ -49,6 +49,7 @@ def test_measured_speed_curve_and_interpolation():
     assert gui.drive_level_to_speed(1600) == 0.78
     assert gui.drive_level_to_speed(-800) == -0.42
     assert gui.drive_level_to_speed(1200) == 0.60
+    assert math.isclose(gui.drive_level_to_speed(2000), 0.96)
 
 
 def test_command_is_saturated_and_has_rolling_counter_and_checksum():
