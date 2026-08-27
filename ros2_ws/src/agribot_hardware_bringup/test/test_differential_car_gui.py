@@ -95,8 +95,19 @@ def test_captured_feedback_explains_why_unlock_is_rejected():
     feedback = gui.decode_chassis_feedback(payload)
     assert feedback is not None
     assert gui.chassis_fault_reason(feedback) == (
-        "底盘急停已按下；遥控器通信故障"
+        "底盘未切换到无人模式；底盘急停已按下；遥控器通信故障"
     )
+
+
+def test_autonomous_mode_without_faults_is_allowed():
+    gui = load_gui_module()
+    payload = with_checksum(
+        gui,
+        [0x01, 0x00, 0x77, 0x00, 0x00, 0x00, 0x04, 0x00],
+    )
+    feedback = gui.decode_chassis_feedback(payload)
+    assert feedback is not None
+    assert gui.chassis_fault_reason(feedback) == ""
 
 
 def test_dry_run_transport_uses_differential_command_id():

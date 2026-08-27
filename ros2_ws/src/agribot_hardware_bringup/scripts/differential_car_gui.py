@@ -136,6 +136,8 @@ def decode_motor_feedback(payload: bytes) -> MotorFeedback | None:
 
 def chassis_fault_reason(feedback: ChassisFeedback) -> str:
     reasons = []
+    if feedback.work_mode != 1:
+        reasons.append("底盘未切换到无人模式")
     if feedback.emergency_stop:
         reasons.append("底盘急停已按下")
     names = (
@@ -855,9 +857,14 @@ class DifferentialControlGui:
             left, right = self._current_levels()
             if not self.link.send(self._next_payload(left, right)):
                 self.emergency_stop("CAN 发送失败")
-        elif self.stop_burst_remaining > 0:
+        elif self.link.fd is not None or self.args.dry_run:
+            # The controller declares AUTO_COMM_FLT after 500 ms without
+            # 0x514. Keep the watchdog healthy with a strictly zero command
+            # while the GUI remains locked.
             self.link.send(self._next_payload(0, 0))
-            self.stop_burst_remaining -= 1
+            self.stop_burst_remaining = max(
+                0, self.stop_burst_remaining - 1
+            )
 
         self._refresh_status(now)
         self.root.after(TICK_MS, self.tick)
