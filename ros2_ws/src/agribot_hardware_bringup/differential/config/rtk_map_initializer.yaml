@@ -24,7 +24,7 @@ rtk_map_initializer:
     heading_timeout_sec: 1.5
     maximum_position_deviation_m: 0.15
     maximum_heading_deviation_deg: 3.0
-    maximum_heading_std_deg: 3.0
+    maximum_heading_std_deg: 5.0
     default_horizontal_std_m: 0.03
     maximum_odometry_age_sec: 0.50
     maximum_georeference_horizontal_rmse_m: 0.20

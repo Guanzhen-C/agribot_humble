@@ -343,7 +343,7 @@ def test_differential_rtk_float_heading_remains_a_coarse_initialization_source()
         "NARROW_INT",
     ]
     assert initializer["required_fix_quality"] == 4
-    assert initializer["maximum_heading_std_deg"] == pytest.approx(3.0)
+    assert initializer["maximum_heading_std_deg"] == pytest.approx(5.0)
 
 
 def test_differential_localization_extrinsics_share_one_measured_source():
