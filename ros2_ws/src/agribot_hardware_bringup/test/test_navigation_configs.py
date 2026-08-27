@@ -270,6 +270,11 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     behavior = config["behavior_server"]["ros__parameters"]
     assert "spin" in behavior["behavior_plugins"]
     assert "backup" in behavior["behavior_plugins"]
+    bt_plugins = config["bt_navigator"]["ros__parameters"][
+        "plugin_lib_names"
+    ]
+    assert "nav2_back_up_action_bt_node" in bt_plugins
+    assert "nav2_back_up_cancel_bt_node" in bt_plugins
 
 
 def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
