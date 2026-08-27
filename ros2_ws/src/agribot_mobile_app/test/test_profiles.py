@@ -153,7 +153,7 @@ def test_production_profiles_dispatch_to_each_chassis_stack(tmp_path):
     assert "motion_authorization:=ENABLE_DIFFERENTIAL_MOTION" in differential
 
 
-def test_differential_outdoor_uses_rtk_map_without_visual_index(tmp_path):
+def test_differential_outdoor_uses_auto_fallback_without_visual_index(tmp_path):
     profiles = RuntimeProfiles(
         Path(__file__).parents[1] / "config" / "runtime_profiles.yaml"
     )
@@ -166,5 +166,7 @@ def test_differential_outdoor_uses_rtk_map_without_visual_index(tmp_path):
     )
 
     assert "differential_outdoor_experiment.launch.py" in command
-    assert "initialization_source:=rtk" in command
+    assert "initialization_source:=auto" in command
+    assert "enable_rtk_initialization:=true" in command
+    assert "enable_visual_initialization:=true" in command
     assert "enable_chassis_output:=false" in command

@@ -12,6 +12,17 @@ ACKERMANN_LOCALIZATION_LAUNCH = (
     PACKAGE_ROOT
     / "ackermann/launch/ackermann_fastlivo_rtk_localization.launch.py"
 )
+DIFFERENTIAL_LOCALIZATION_LAUNCH = (
+    PACKAGE_ROOT
+    / "differential/launch/differential_fastlivo_rtk_localization.launch.py"
+)
+DIFFERENTIAL_FULL_LAUNCH = (
+    PACKAGE_ROOT
+    / "differential/launch/differential_mppi_fastlivo_rtk_mapped.launch.py"
+)
+DIFFERENTIAL_OUTDOOR_LAUNCH = (
+    PACKAGE_ROOT / "differential/launch/differential_outdoor_experiment.launch.py"
+)
 
 
 def load_parameters(filename, node_name):
@@ -91,6 +102,23 @@ def test_live_launch_starts_fastlivo_rtk_fusion_and_disables_localizer_tf():
     # Delayed actions lose child launch configurations after a scoped include.
     # These nodes already wait for their input topics, so they must start directly.
     assert "TimerAction" not in common_source
+
+
+def test_differential_outdoor_restores_rtk_visual_manual_priority():
+    localization_source = DIFFERENTIAL_LOCALIZATION_LAUNCH.read_text()
+    full_source = DIFFERENTIAL_FULL_LAUNCH.read_text()
+    outdoor_source = DIFFERENTIAL_OUTDOOR_LAUNCH.read_text()
+
+    for source in (localization_source, full_source):
+        assert '"enable_rtk_initialization": LaunchConfiguration(' in source
+        assert '"enable_visual_initialization": LaunchConfiguration(' in source
+        assert '"visual_database_file": LaunchConfiguration(' in source
+    assert '"initialization_source": "auto"' in outdoor_source
+    assert 'DeclareLaunchArgument("initialization_source", default_value="auto")' in (
+        outdoor_source
+    )
+    assert '"enable_rtk_initialization": "true"' in outdoor_source
+    assert '"enable_visual_initialization": "true"' in outdoor_source
 
 
 def test_no_rtk_mode_keeps_manual_ndt_gicp_and_freezes_global_correction():

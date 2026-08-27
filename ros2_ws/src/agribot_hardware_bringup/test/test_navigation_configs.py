@@ -421,6 +421,7 @@ def test_differential_localization_extrinsics_share_one_measured_source():
     )
     assert localizer["base_to_body_xyz"] == pytest.approx(mounts["lidar"]["xyz"])
     assert localizer["base_to_body_rpy"] == pytest.approx(mounts["lidar"]["rpy"])
+    assert localizer["maximum_inlier_rmse"] == pytest.approx(0.30)
 
 
 def test_ackermann_configs_use_mppi_and_ackermann_motion_model():

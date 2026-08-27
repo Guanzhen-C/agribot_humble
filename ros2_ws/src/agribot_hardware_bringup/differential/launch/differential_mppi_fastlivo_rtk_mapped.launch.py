@@ -12,7 +12,7 @@ from launch.actions import (
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -172,6 +172,26 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "initialization_source", default_value="manual"
             ),
+            DeclareLaunchArgument(
+                "enable_rtk_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "enable_visual_initialization", default_value="true"
+            ),
+            DeclareLaunchArgument(
+                "visual_model_file",
+                default_value=os.path.join(
+                    hardware_share,
+                    "models",
+                    "eigenplaces_r18_512_480x640_bayes_e.bin",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "visual_database_file",
+                default_value=PythonExpression(
+                    ["'", LaunchConfiguration("map_base"), "_visual_index.npz'"]
+                ),
+            ),
             DeclareLaunchArgument("enable_fpfh", default_value="false"),
             DeclareLaunchArgument(
                 "allow_missing_georeference", default_value="true"
@@ -251,6 +271,18 @@ def generate_launch_description():
                             "enable_ntrip": LaunchConfiguration("enable_ntrip"),
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
+                            ),
+                            "enable_rtk_initialization": LaunchConfiguration(
+                                "enable_rtk_initialization"
+                            ),
+                            "enable_visual_initialization": LaunchConfiguration(
+                                "enable_visual_initialization"
+                            ),
+                            "visual_model_file": LaunchConfiguration(
+                                "visual_model_file"
+                            ),
+                            "visual_database_file": LaunchConfiguration(
+                                "visual_database_file"
                             ),
                             "enable_fpfh": LaunchConfiguration("enable_fpfh"),
                             "allow_missing_georeference": LaunchConfiguration(

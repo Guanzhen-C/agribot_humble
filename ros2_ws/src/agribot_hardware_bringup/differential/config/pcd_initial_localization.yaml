@@ -57,4 +57,4 @@ pcd_initial_localizer:
     gicp_correspondence_randomness: 20
 
     overlap_distance: 0.50
-    maximum_inlier_rmse: 0.20
+    maximum_inlier_rmse: 0.30

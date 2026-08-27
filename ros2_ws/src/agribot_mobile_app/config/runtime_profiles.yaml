@@ -104,14 +104,16 @@ profiles:
   differential_outdoor:
     label: 室外地图
     vehicle_type: differential
-    description: RTK粗定位、NDT/GICP、FAST-LIVO2固定解融合与差速Nav2
+    description: RTK、视觉、手动依次初始化，NDT/GICP验收并运行差速Nav2
     launch_package: agribot_hardware_bringup
     launch_file: differential_outdoor_experiment.launch.py
     map_argument: map_base
     required_suffixes: [.yaml, .pgm, .pcd]
     requires_georeference: true
     fixed_args:
-      initialization_source: rtk
+      initialization_source: auto
+      enable_rtk_initialization: true
+      enable_visual_initialization: true
       enable_fpfh: false
       allow_missing_georeference: false
       rviz: false
