@@ -4,7 +4,7 @@ serial_number: DB0447659
 lens_installed: true
 intrinsics_calibrated: true
 intrinsics_source: checkerboard_46_frames_rms_0.418px
-lidar_camera_extrinsics_calibrated: false
-lidar_camera_extrinsics_source: manual_measurement_pending_target_validation
+lidar_camera_extrinsics_calibrated: true
+lidar_camera_extrinsics_source: manual_measurement_accepted_for_commissioning_2026_08_27
 image_time_offset_calibrated: true
 image_time_offset_source: pps_locked_pwm_physical_edge_2026_08_26

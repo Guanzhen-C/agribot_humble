@@ -66,7 +66,7 @@ def test_ackermann_status_enables_only_completed_camera_calibrations():
     )
 
 
-def test_differential_status_keeps_visual_motion_blocked_until_extrinsic_validation():
+def test_differential_status_accepts_manual_extrinsic_for_commissioning():
     status = load_yaml(
         HARDWARE_PACKAGE
         / "differential"
@@ -78,5 +78,8 @@ def test_differential_status_keeps_visual_motion_blocked_until_extrinsic_validat
     assert status["serial_number"] == "DB0447659"
     assert status["lens_installed"] is True
     assert status["intrinsics_calibrated"] is True
-    assert status["lidar_camera_extrinsics_calibrated"] is False
+    assert status["lidar_camera_extrinsics_calibrated"] is True
+    assert status["lidar_camera_extrinsics_source"] == (
+        "manual_measurement_accepted_for_commissioning_2026_08_27"
+    )
     assert status["image_time_offset_calibrated"] is True

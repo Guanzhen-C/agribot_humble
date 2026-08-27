@@ -56,8 +56,9 @@ ROS 坐标为 `+X` 向前、`+Y` 向左、`+Z` 向上。2026-08-26 已录入以�
 - `config/rtk_map_initializer.yaml`、`config/fastlivo_rtk_fusion.yaml`：RTK 杆臂和 IMU 姿态外参。
 - `config/chassis_can.yaml`：左右控制方向、百分比到轮组速度的实测比例、底盘限速及通信安全参数。
 
-平移和名义轴向已不再使用阿克曼占位值，但履带有效轮距、速度比例及雷达-相机
-精配准仍待运动验收，因此保持 `calibration_complete: false`。完整启动文件默认
+平移和名义轴向已不再使用阿克曼占位值，当前雷达-相机手工外参已被接受用于调试
+运行，后续仍可通过靶标精配准优化。但履带有效轮距和完整速度控制曲线仍待运动
+验收，因此保持 `calibration_complete: false`。完整启动文件默认
 `enable_chassis_output:=false`；即使手动打开输出，标定未完成或缺少显式授权字符串时
 也会拒绝创建底盘节点。
 

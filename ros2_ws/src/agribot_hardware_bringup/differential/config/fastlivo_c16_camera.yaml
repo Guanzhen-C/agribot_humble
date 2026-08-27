@@ -31,8 +31,9 @@
                      0.0, 0.0, 1.0]
 
       # p_camera_optical = Rcl * p_lidar + Pcl.
-      # Translation is measured; validate the nominal axis alignment with a
-      # lidar-camera target before authorizing autonomous motion.
+      # Translation and nominal axis alignment come from manual measurement.
+      # The owner accepted this provisional extrinsic for commissioning on
+      # 2026-08-27; a target calibration can refine it later.
       Rcl: [-1.0, 0.0, 0.0,
              0.0, 0.0, -1.0,
              0.0, -1.0, 0.0]
