@@ -138,7 +138,8 @@ driver. The driver publishes:
 
 Important dimensions and drivetrain values are in
 `differential/config/chassis_can.yaml`:
-`track_width_m`, `command_full_scale_wheel_speed_mps`, and
+`track_width_m`, `command_full_scale_level`,
+`command_calibration_levels`, `command_calibration_wheel_speeds_mps`, and
 `feedback_wheel_speed_mps_per_speed_unit`. Measure and verify them before
 physical motion because motor RPM still requires the vehicle's reduction ratio
 and track geometry to convert it into ground speed, and the PWM-to-speed

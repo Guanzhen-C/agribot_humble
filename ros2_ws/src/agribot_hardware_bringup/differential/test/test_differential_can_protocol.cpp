@@ -186,20 +186,36 @@ TEST(DifferentialCanKinematics, RoundTrip)
     2.0 * config.feedback_wheel_speed_mps_per_speed_unit / config.track_width_m);
 }
 
-TEST(DifferentialCanKinematics, MapsWheelSpeedDirectlyToCommandPercent)
+TEST(DifferentialCanKinematics, UsesMeasuredPiecewiseCommandCalibration)
 {
   differential::Kinematics config;
-  config.max_linear_velocity = config.command_full_scale_wheel_speed_mps;
-  const auto command = differential::fromTwist(
-    config.command_full_scale_wheel_speed_mps * 0.25, 0.0, config);
-  EXPECT_DOUBLE_EQ(command.left_percent, 25.0);
-  EXPECT_DOUBLE_EQ(command.right_percent, 25.0);
+  config.max_linear_velocity = 2.0;
+
+  const auto level_800 = differential::fromTwist(0.42, 0.0, config);
+  EXPECT_NEAR(level_800.left_percent, 800.0 / 3000.0 * 100.0, 1e-12);
+  EXPECT_NEAR(level_800.right_percent, 800.0 / 3000.0 * 100.0, 1e-12);
+
+  const auto level_1200 = differential::fromTwist(0.60, 0.0, config);
+  EXPECT_NEAR(level_1200.left_percent, 40.0, 1e-12);
+  EXPECT_NEAR(level_1200.right_percent, 40.0, 1e-12);
+
+  const auto level_1600 = differential::fromTwist(-0.78, 0.0, config);
+  EXPECT_NEAR(level_1600.left_percent, -1600.0 / 3000.0 * 100.0, 1e-12);
+  EXPECT_NEAR(level_1600.right_percent, -1600.0 / 3000.0 * 100.0, 1e-12);
+
+  const auto full_scale = differential::fromTwist(1.41, 0.0, config);
+  EXPECT_NEAR(full_scale.left_percent, 100.0, 1e-12);
+  EXPECT_NEAR(full_scale.right_percent, 100.0, 1e-12);
 }
 
 TEST(DifferentialCanKinematics, RejectsInvalidConfiguration)
 {
   differential::Kinematics config;
   config.track_width_m = 0.0;
+  EXPECT_THROW(differential::fromTwist(0.1, 0.0, config), std::invalid_argument);
+
+  config = differential::Kinematics{};
+  config.command_calibration_levels = {0.0, 1600.0, 800.0};
   EXPECT_THROW(differential::fromTwist(0.1, 0.0, config), std::invalid_argument);
 }
 

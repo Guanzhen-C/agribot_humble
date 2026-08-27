@@ -252,8 +252,14 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert chassis["zqwl_bitrate"] == 250000
     assert chassis["send_rate_hz"] == 5.0
     assert chassis["require_sequential_feedback_counter"] is False
-    assert chassis["command_full_scale_wheel_speed_mps"] == drivetrain[
-        "command_full_scale_wheel_speed_mps"
+    assert chassis["command_full_scale_level"] == drivetrain[
+        "command_full_scale_level"
+    ]
+    assert chassis["command_calibration_levels"] == drivetrain[
+        "command_calibration_levels"
+    ]
+    assert chassis["command_calibration_wheel_speeds_mps"] == drivetrain[
+        "command_calibration_wheel_speeds_mps"
     ]
     assert chassis["feedback_wheel_speed_mps_per_speed_unit"] == drivetrain[
         "feedback_wheel_speed_mps_per_speed_unit"

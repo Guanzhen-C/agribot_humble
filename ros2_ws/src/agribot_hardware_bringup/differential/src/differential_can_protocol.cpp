@@ -17,17 +17,81 @@ void requirePositive(double value, const char * name)
   }
 }
 
+void validateCalibration(const Kinematics & config)
+{
+  const auto & levels = config.command_calibration_levels;
+  const auto & speeds = config.command_calibration_wheel_speeds_mps;
+  if (levels.size() < 2U || levels.size() != speeds.size()) {
+    throw std::invalid_argument(
+            "command calibration arrays must have the same size >= 2");
+  }
+  if (levels.front() != 0.0 || speeds.front() != 0.0) {
+    throw std::invalid_argument("command calibration must start at (0, 0)");
+  }
+  for (std::size_t index = 0; index < levels.size(); ++index) {
+    if (!std::isfinite(levels[index]) || !std::isfinite(speeds[index]) ||
+      levels[index] < 0.0 || speeds[index] < 0.0)
+    {
+      throw std::invalid_argument(
+              "command calibration values must be finite and nonnegative");
+    }
+    if (index > 0U &&
+      (levels[index] <= levels[index - 1U] || speeds[index] <= speeds[index - 1U]))
+    {
+      throw std::invalid_argument(
+              "command calibration levels and speeds must increase strictly");
+    }
+  }
+  if (levels.back() > config.command_full_scale_level) {
+    throw std::invalid_argument(
+            "last command calibration level exceeds full-scale level");
+  }
+}
+
 void validateConfig(const Kinematics & config)
 {
   requirePositive(config.track_width_m, "track_width_m");
-  requirePositive(
-    config.command_full_scale_wheel_speed_mps,
-    "command_full_scale_wheel_speed_mps");
+  requirePositive(config.command_full_scale_level, "command_full_scale_level");
+  validateCalibration(config);
   requirePositive(
     config.feedback_wheel_speed_mps_per_speed_unit,
     "feedback_wheel_speed_mps_per_speed_unit");
   requirePositive(config.max_linear_velocity, "max_linear_velocity");
   requirePositive(config.max_angular_velocity, "max_angular_velocity");
+}
+
+double interpolateOrExtrapolate(
+  double value,
+  const std::vector<double> & input,
+  const std::vector<double> & output)
+{
+  std::size_t upper = 1U;
+  while (upper + 1U < input.size() && value > input[upper]) {
+    ++upper;
+  }
+  const std::size_t lower = upper - 1U;
+  const double ratio =
+    (value - input[lower]) / (input[upper] - input[lower]);
+  return output[lower] + ratio * (output[upper] - output[lower]);
+}
+
+double maximumCommandWheelSpeed(const Kinematics & config)
+{
+  return interpolateOrExtrapolate(
+    config.command_full_scale_level,
+    config.command_calibration_levels,
+    config.command_calibration_wheel_speeds_mps);
+}
+
+double wheelSpeedToPercent(double speed, const Kinematics & config)
+{
+  const double level = interpolateOrExtrapolate(
+    std::abs(speed),
+    config.command_calibration_wheel_speeds_mps,
+    config.command_calibration_levels);
+  const double percent = std::clamp(
+    level / config.command_full_scale_level * 100.0, 0.0, 100.0);
+  return std::copysign(percent, speed);
 }
 
 int8_t percentToByte(double percent)
@@ -138,7 +202,7 @@ Command fromTwist(
   double left_speed = linear - angular * config.track_width_m * 0.5;
   double right_speed = linear + angular * config.track_width_m * 0.5;
 
-  const double maximum_wheel_speed = config.command_full_scale_wheel_speed_mps;
+  const double maximum_wheel_speed = maximumCommandWheelSpeed(config);
   const double requested_max = std::max(std::abs(left_speed), std::abs(right_speed));
   if (requested_max > maximum_wheel_speed) {
     const double scale = maximum_wheel_speed / requested_max;
@@ -146,13 +210,9 @@ Command fromTwist(
     right_speed *= scale;
   }
 
-  const auto speedToPercent = [&](double speed) {
-    return std::clamp(speed / maximum_wheel_speed * 100.0, -100.0, 100.0);
-  };
-
   Command command;
-  command.left_percent = brake ? 0.0 : speedToPercent(left_speed);
-  command.right_percent = brake ? 0.0 : speedToPercent(right_speed);
+  command.left_percent = brake ? 0.0 : wheelSpeedToPercent(left_speed, config);
+  command.right_percent = brake ? 0.0 : wheelSpeedToPercent(right_speed, config);
   command.headlight = headlight;
   return command;
 }
