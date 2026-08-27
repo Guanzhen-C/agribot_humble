@@ -1,0 +1,86 @@
+/**:
+  ros__parameters:
+    pointCloudTopic: /lio_sam/points
+    imuTopic: /imu/data
+    odomTopic: /lio_sam/odometry/imu
+    gpsTopic: /lio_sam/odometry/gps
+
+    lidarFrame: lidar_link
+    baselinkFrame: base_link
+    odometryFrame: map
+    mapFrame: map
+
+    useImuHeadingInitialization: false
+    useGpsElevation: false
+    gpsCovThreshold: 0.25
+    poseCovThreshold: 0.0
+    gpsFactorMinDistance: 1.0
+    gpsHorizontalCovarianceFloor: 0.01
+    gpsRobustKernelDelta: 1.345
+
+    useGravityAttitudeFactor: true
+    gravityAttitudeSigma: 0.017453292519943295
+    gravityAttitudeRobustKernelDelta: 1.345
+    initialRollPitchSigma: 0.008726646259971648
+    initialZSigma: 0.10
+
+    savePCD: false
+    savePCDDirectory: /agribot_maps/lio_sam/
+
+    sensor: velodyne
+    N_SCAN: 16
+    Horizon_SCAN: 1800
+    downsampleRate: 1
+    lidarMinRange: 0.30
+    lidarMaxRange: 60.0
+
+    imuAccNoise: 0.08
+    imuGyrNoise: 0.001745329252
+    imuAccBiasN: 0.00010
+    imuGyrBiasN: 0.00010
+    imuGravity: 9.80665
+    imuRPYWeight: 0.01
+
+    # The IMU origin expressed in the C16 point-cloud frame. The cable outlet
+    # is C16 +Y and faces vehicle rearward, so C16 +X faces vehicle-left.
+    extrinsicTrans: [0.0, 0.47, -0.27]
+    # extrinsicRot maps IMU vectors into lidar; extrinsicRPY is its inverse for
+    # converting the IMU orientation to the lidar orientation.
+    extrinsicRot: [0.0, 1.0, 0.0,
+                   -1.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0]
+    extrinsicRPY: [0.0, -1.0, 0.0,
+                    1.0,  0.0, 0.0,
+                    0.0, 0.0, 1.0]
+
+    edgeThreshold: 1.0
+    surfThreshold: 0.1
+    edgeFeatureMinValidNum: 10
+    surfFeatureMinValidNum: 100
+
+    odometrySurfLeafSize: 0.20
+    mappingCornerLeafSize: 0.10
+    mappingSurfLeafSize: 0.20
+
+    z_tollerance: 2.0
+    rotation_tollerance: 1.0
+
+    numberOfCores: 8
+    mappingProcessInterval: 0.15
+
+    surroundingkeyframeAddingDistThreshold: 0.50
+    surroundingkeyframeAddingAngleThreshold: 0.10
+    surroundingKeyframeDensity: 1.0
+    surroundingKeyframeSearchRadius: 50.0
+
+    loopClosureEnableFlag: true
+    loopClosureFrequency: 1.0
+    surroundingKeyframeSize: 50
+    historyKeyframeSearchRadius: 15.0
+    historyKeyframeSearchTimeDiff: 30.0
+    historyKeyframeSearchNum: 25
+    historyKeyframeFitnessScore: 0.30
+
+    globalMapVisualizationSearchRadius: 1000.0
+    globalMapVisualizationPoseDensity: 5.0
+    globalMapVisualizationLeafSize: 0.50

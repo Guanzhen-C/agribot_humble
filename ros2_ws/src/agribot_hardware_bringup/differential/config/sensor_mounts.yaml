@@ -13,8 +13,9 @@ imu:
 lidar:
   child_frame: lidar_link
   xyz: [0.47, 0.0, 0.91]
-  # C16 native +X follows the cable outlet, which points vehicle rearward.
-  rpy: [0.0, 0.0, 3.141592654]
+  # The C16 cable outlet is scan azimuth 0 / point-cloud +Y. With the outlet
+  # facing vehicle rearward, point-cloud +X faces vehicle-left (+Y in FLU).
+  rpy: [0.0, 0.0, 1.570796327]
 camera:
   child_frame: right_camera_optical_frame
   xyz: [0.4735, 0.0, 0.96]

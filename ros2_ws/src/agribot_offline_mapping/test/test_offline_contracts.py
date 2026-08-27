@@ -115,6 +115,39 @@ def test_lio_sam_rotation_uses_calibrated_vector_and_pose_conventions():
             )
 
 
+def test_differential_lio_sam_uses_c16_point_axes_not_cable_outlet_axis():
+    mounts = yaml.safe_load(
+        (
+            HARDWARE_ROOT / "differential" / "config" / "sensor_mounts.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    lio_sam = parameters(
+        PACKAGE_ROOT / "config" / "lio_sam_c16_differential.yaml"
+    )
+    lidar_to_imu_base = [
+        mounts["imu"]["xyz"][index] - mounts["lidar"]["xyz"][index]
+        for index in range(3)
+    ]
+    lidar_from_base = transpose(rpy_matrix(mounts["lidar"]["rpy"]))
+    lidar_from_imu = matmul(
+        lidar_from_base, rpy_matrix(mounts["imu"]["rpy"])
+    )
+    imu_from_lidar = transpose(lidar_from_imu)
+
+    assert mounts["lidar"]["rpy"] == pytest.approx(
+        [0.0, 0.0, math.pi / 2.0], abs=1.0e-8
+    )
+    assert lio_sam["extrinsicTrans"] == pytest.approx(
+        matvec(lidar_from_base, lidar_to_imu_base), abs=1.0e-8
+    )
+    assert lio_sam["extrinsicRot"] == pytest.approx(
+        flatten(lidar_from_imu), abs=1.0e-8
+    )
+    assert lio_sam["extrinsicRPY"] == pytest.approx(
+        flatten(imu_from_lidar), abs=1.0e-8
+    )
+
+
 def test_official_lio_sam_uses_only_rtk_horizontal_position():
     mounts = yaml.safe_load(
         (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
@@ -257,6 +290,13 @@ def test_georeference_uses_final_optimized_key_pose_path():
         ),
         abs=1.0e-8,
     )
+    lidar_to_base = rpy_matrix(exporter["lidar_to_base_rpy"])
+    expected_lidar_to_base = transpose(rpy_matrix(mounts["lidar"]["rpy"]))
+    for row in range(3):
+        for column in range(3):
+            assert lidar_to_base[row][column] == pytest.approx(
+                expected_lidar_to_base[row][column], abs=1.0e-8
+            )
     assert "map_odometry_topic" not in exporter
     assert exporter["maximum_horizontal_rmse_m"] == pytest.approx(0.20)
     assert exporter["maximum_yaw_rmse_deg"] == pytest.approx(2.0)
@@ -270,6 +310,7 @@ def test_georeference_uses_final_optimized_key_pose_path():
         "horizontal georeference RMSE exceeds the acceptance limit"
         not in exporter_source
     )
+    assert "poseYaw(map_to_lidar * lidar_to_base_)" in exporter_source
 
 
 def test_upstream_lio_sam_revision_is_pinned():
@@ -298,8 +339,8 @@ def test_standard_pipeline_pairs_map_trajectory_bag_and_rviz():
     assert '"lio_sam_rtk_gravity_robust_xy_v2"' in pipeline
     assert '"lio_sam_gravity_indoor_v1"' in pipeline
     assert '"rtk_mode": "required" if rtk_enabled else "disabled"' in pipeline
-    assert '"gravity_attitude_factor": True' in pipeline
-    assert '"initial_roll_pitch_sigma_deg": 0.5' in pipeline
+    assert '"gravity_attitude_factor": bool(' in pipeline
+    assert '"initial_roll_pitch_sigma_deg": float(' in pipeline
     assert '"/lio_sam/mapping/path"' in pipeline
     assert '"/lio_sam/odometry/rtk_antenna"' in pipeline
     assert 'f"{map_base.name}_result"' in pipeline
@@ -326,18 +367,10 @@ def test_offline_tf_publishers_use_the_measured_sensor_rotations():
     launch_source = (
         PACKAGE_ROOT / "launch" / "lio_sam_rtk_offline.launch.py"
     ).read_text(encoding="utf-8")
-    mounts = yaml.safe_load(
-        (HARDWARE_ROOT / "config" / "sensor_mounts.yaml").read_text(
-            encoding="utf-8"
-        )
-    )
 
-    for value in mounts["imu"]["rpy"]:
-        assert f'"{value:.9f}"' in launch_source
-    inverse_lidar_rpy = [
-        0.007648487,
-        0.001835661,
-        0.000007020,
-    ]
-    for value in inverse_lidar_rpy:
-        assert f'"{value:.9f}"' in launch_source
+    assert 'mounts["imu"]["rpy"]' in launch_source
+    assert 'mounts["lidar"]["rpy"]' in launch_source
+    assert 'mounts["rtk"]["xyz"]' in launch_source
+    assert "lidar_to_base_xyz, lidar_to_base_rpy = _inverse_mount(" in launch_source
+    assert '"lidar_to_antenna_m": list(lidar_to_antenna)' in launch_source
+    assert '"lidar_to_base_rpy": list(lidar_to_base_rpy)' in launch_source

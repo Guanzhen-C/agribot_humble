@@ -515,6 +515,20 @@ def load_kf_gins_base_path(comparison_bag, georeference, flatten):
     )
 
 
+def load_map_base_path(bag, topic_name, flatten):
+    path = PathMessage()
+    path.header.frame_id = "map"
+    for _, message in topic_messages(bag, topic_name):
+        source = PoseStamped()
+        source.header = message.header
+        path.poses.append(
+            pose_stamped(source, *odometry_pose(message), flatten)
+        )
+    if not path.poses:
+        raise RuntimeError(f"odometry topic contains no poses: {topic_name}")
+    return path
+
+
 class MappingResultTrajectoryPublisher(Node):
     def __init__(self):
         super().__init__("mapping_result_trajectory_publisher")
@@ -533,6 +547,9 @@ class MappingResultTrajectoryPublisher(Node):
         comparison_bag_value = str(
             self.declare_parameter("comparison_bag", "").value
         ).strip()
+        fastlio_bag_value = str(
+            self.declare_parameter("fastlio_bag", "").value
+        ).strip()
         source_bag_value = str(
             self.declare_parameter("source_bag", "").value
         ).strip()
@@ -546,6 +563,21 @@ class MappingResultTrajectoryPublisher(Node):
         ).strip()
         if not fastlivo_topic.startswith("/"):
             raise RuntimeError("fastlivo_topic must be an absolute topic name")
+        kf_gins_bag_value = str(
+            self.declare_parameter("kf_gins_bag", "").value
+        ).strip()
+        fastlivo_rtk_bag_value = str(
+            self.declare_parameter("fastlivo_rtk_bag", "").value
+        ).strip()
+        fastlivo_rtk_topic = str(
+            self.declare_parameter(
+                "fastlivo_rtk_topic", "/fastlivo_rtk/odometry"
+            ).value
+        ).strip()
+        if not fastlivo_rtk_topic.startswith("/"):
+            raise RuntimeError(
+                "fastlivo_rtk_topic must be an absolute topic name"
+            )
         flatten = bool(self.declare_parameter("flatten_z", True).value)
         if not (result_bag / "metadata.yaml").is_file():
             raise RuntimeError(f"invalid result bag: {result_bag}")
@@ -565,32 +597,63 @@ class MappingResultTrajectoryPublisher(Node):
         self.fastlivo_path = None
         self.kf_gins_path = None
         self.rtk_float_path = None
-        if comparison_bag_value:
-            comparison_bag = Path(comparison_bag_value).expanduser()
-            if not (comparison_bag / "metadata.yaml").is_file():
-                raise RuntimeError(f"invalid comparison bag: {comparison_bag}")
-            fastlivo_bag = (
-                Path(fastlivo_bag_value).expanduser()
-                if fastlivo_bag_value
-                else comparison_bag
+        self.fastlivo_rtk_path = None
+        if any((comparison_bag_value, fastlio_bag_value, fastlivo_bag_value,
+                kf_gins_bag_value, fastlivo_rtk_bag_value)):
+            comparison_bag = (
+                Path(comparison_bag_value).expanduser()
+                if comparison_bag_value
+                else None
             )
-            if not (fastlivo_bag / "metadata.yaml").is_file():
-                raise RuntimeError(f"invalid FAST-LIVO2 bag: {fastlivo_bag}")
+            if (comparison_bag is not None and
+                not (comparison_bag / "metadata.yaml").is_file()):
+                raise RuntimeError(f"invalid comparison bag: {comparison_bag}")
+
+            def estimator_bag(value, fallback, name):
+                bag = Path(value).expanduser() if value else fallback
+                if bag is None or not (bag / "metadata.yaml").is_file():
+                    raise RuntimeError(f"invalid {name} bag: {bag}")
+                return bag
+
+            fastlio_bag = estimator_bag(
+                fastlio_bag_value, comparison_bag, "FAST-LIO2"
+            )
+            fastlivo_bag = estimator_bag(
+                fastlivo_bag_value, comparison_bag, "FAST-LIVO2"
+            )
+            kf_gins_bag = estimator_bag(
+                kf_gins_bag_value, comparison_bag, "KF-GINS"
+            )
             self.fastlio_path = load_fastlio_base_path(
-                comparison_bag, self.lio_path, flatten
+                fastlio_bag, self.lio_path, flatten
             )
             self.fastlivo_path = load_fastlivo_base_path(
                 fastlivo_bag, self.lio_path, mounts, flatten, fastlivo_topic
             )
             self.kf_gins_path = load_kf_gins_base_path(
-                comparison_bag, georeference, flatten
+                kf_gins_bag, georeference, flatten
             )
-            source_bag = Path(source_bag_value).expanduser()
-            if not (source_bag / "metadata.yaml").is_file():
-                raise RuntimeError(f"invalid source bag: {source_bag}")
-            self.rtk_float_path = load_final_float_rtk_base_path(
-                source_bag, mounts, georeference, flatten
-            )
+            if fastlivo_rtk_bag_value:
+                fastlivo_rtk_bag = Path(fastlivo_rtk_bag_value).expanduser()
+                if not (fastlivo_rtk_bag / "metadata.yaml").is_file():
+                    raise RuntimeError(
+                        f"invalid FAST-LIVO2+RTK bag: {fastlivo_rtk_bag}"
+                    )
+                self.fastlivo_rtk_path = load_map_base_path(
+                    fastlivo_rtk_bag, fastlivo_rtk_topic, flatten
+                )
+            if source_bag_value:
+                source_bag = Path(source_bag_value).expanduser()
+                if not (source_bag / "metadata.yaml").is_file():
+                    raise RuntimeError(f"invalid source bag: {source_bag}")
+                try:
+                    self.rtk_float_path = load_final_float_rtk_base_path(
+                        source_bag, mounts, georeference, flatten
+                    )
+                except RuntimeError as error:
+                    self.get_logger().warning(
+                        f"Optional RTK float path is unavailable: {error}"
+                    )
 
         qos = QoSProfile(
             depth=1,
@@ -607,18 +670,26 @@ class MappingResultTrajectoryPublisher(Node):
         self.fastlivo_publisher = None
         self.kf_gins_publisher = None
         self.rtk_float_publisher = None
+        self.fastlivo_rtk_publisher = None
         if self.fastlio_path is not None:
             self.fastlio_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/fastlio_path", qos
             )
+        if self.fastlivo_path is not None:
             self.fastlivo_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/fastlivo_path", qos
             )
+        if self.kf_gins_path is not None:
             self.kf_gins_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/kf_gins_path", qos
             )
+        if self.rtk_float_path is not None:
             self.rtk_float_publisher = self.create_publisher(
                 PathMessage, "/mapping_result/rtk_float_path", qos
+            )
+        if self.fastlivo_rtk_path is not None:
+            self.fastlivo_rtk_publisher = self.create_publisher(
+                PathMessage, "/mapping_result/fastlivo_rtk_path", qos
             )
         self.publish_timer = self.create_timer(0.5, self.publish_once)
         counts = (
@@ -633,8 +704,13 @@ class MappingResultTrajectoryPublisher(Node):
                 f"{len(self.fastlivo_path.poses)} poses, "
                 f"recomputed KF-GINS={len(self.kf_gins_path.poses)} poses, "
                 "final contiguous RTK float="
-                f"{len(self.rtk_float_path.poses)} poses"
+                f"{len(self.rtk_float_path.poses) if self.rtk_float_path else 0} poses"
             )
+            if self.fastlivo_rtk_path is not None:
+                counts += (
+                    ", recomputed FAST-LIVO2+RTK="
+                    f"{len(self.fastlivo_rtk_path.poses)} poses"
+                )
         self.get_logger().info("Loaded rear-axle paths: " + counts)
 
     def publish_once(self):
@@ -643,15 +719,16 @@ class MappingResultTrajectoryPublisher(Node):
         self.rtk_path.header.stamp = stamp
         self.lio_publisher.publish(self.lio_path)
         self.rtk_publisher.publish(self.rtk_path)
-        if self.fastlio_path is not None:
-            self.fastlio_path.header.stamp = stamp
-            self.fastlivo_path.header.stamp = stamp
-            self.kf_gins_path.header.stamp = stamp
-            self.rtk_float_path.header.stamp = stamp
-            self.fastlio_publisher.publish(self.fastlio_path)
-            self.fastlivo_publisher.publish(self.fastlivo_path)
-            self.kf_gins_publisher.publish(self.kf_gins_path)
-            self.rtk_float_publisher.publish(self.rtk_float_path)
+        for publisher, path in (
+            (self.fastlio_publisher, self.fastlio_path),
+            (self.fastlivo_publisher, self.fastlivo_path),
+            (self.kf_gins_publisher, self.kf_gins_path),
+            (self.rtk_float_publisher, self.rtk_float_path),
+            (self.fastlivo_rtk_publisher, self.fastlivo_rtk_path),
+        ):
+            if publisher is not None and path is not None:
+                path.header.stamp = stamp
+                publisher.publish(path)
         self.publish_timer.cancel()
         self.get_logger().info("Published transient-local mapping result paths")
 

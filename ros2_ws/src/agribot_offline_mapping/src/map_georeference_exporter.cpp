@@ -100,6 +100,12 @@ public:
       "antenna_frame", "rtk_master_antenna");
     lidar_to_antenna_ = vector3Parameter(
       *this, "lidar_to_antenna_m", {-0.336484515, 0.291027414, 0.554620722});
+    const Eigen::Vector3d lidar_to_base_rpy = vector3Parameter(
+      *this, "lidar_to_base_rpy", {0.0, 0.0, 0.0});
+    lidar_to_base_.linear() =
+      (Eigen::AngleAxisd(lidar_to_base_rpy.z(), Eigen::Vector3d::UnitZ()) *
+      Eigen::AngleAxisd(lidar_to_base_rpy.y(), Eigen::Vector3d::UnitY()) *
+      Eigen::AngleAxisd(lidar_to_base_rpy.x(), Eigen::Vector3d::UnitX())).toRotationMatrix();
     output_file_ = declare_parameter<std::string>(
       "output_file", "/tmp/agribot_map_georeference.yaml");
     map_pcd_file_ = declare_parameter<std::string>(
@@ -290,7 +296,7 @@ private:
           maximum_heading_sync_offset_sec_)
         {
           sample.enu_yaw = heading_history[heading_index].enu_yaw;
-          sample.map_yaw = poseYaw(map_to_lidar);
+          sample.map_yaw = poseYaw(map_to_lidar * lidar_to_base_);
           sample.has_yaw = true;
         }
         samples.push_back(sample);
@@ -447,6 +453,7 @@ private:
   std::string enu_frame_;
   std::string antenna_frame_;
   Eigen::Vector3d lidar_to_antenna_{Eigen::Vector3d::Zero()};
+  Eigen::Isometry3d lidar_to_base_{Eigen::Isometry3d::Identity()};
   std::string output_file_;
   std::string map_pcd_file_;
   std::string map_id_;

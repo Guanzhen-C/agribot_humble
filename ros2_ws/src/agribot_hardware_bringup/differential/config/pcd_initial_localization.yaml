@@ -18,7 +18,7 @@ pcd_initial_localizer:
     # The live FAST-LIVO2 initializer consumes raw lidar_link points, so this is
     # base_link -> lidar_link and must match sensor_mounts.yaml.
     base_to_body_xyz: [0.47, 0.0, 0.91]
-    base_to_body_rpy: [0.0, 0.0, 3.141592654]
+    base_to_body_rpy: [0.0, 0.0, 1.570796327]
 
     map_voxel_size: 0.15
     coarse_voxel_size: 0.30

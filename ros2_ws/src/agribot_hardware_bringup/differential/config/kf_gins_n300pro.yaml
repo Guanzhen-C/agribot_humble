@@ -1,0 +1,8 @@
+# Differential tracked-vehicle lever arms layered after the shared N300Pro
+# KF-GINS noise and estimator settings.
+rtk_eskf_localization:
+  ros__parameters:
+    base_to_imu_m: [0.0, 0.0, 0.64]
+    base_to_imu_rpy_rad: [0.0, 0.0, 0.0]
+    # ROS FLU vector from IMU center to the left master RTK antenna.
+    antlever_m: [-0.48, 0.35, 0.108]

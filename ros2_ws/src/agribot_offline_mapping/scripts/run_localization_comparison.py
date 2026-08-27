@@ -14,20 +14,32 @@ from ament_index_python.packages import get_package_share_directory
 import yaml
 
 
-RAW_TOPICS = (
-    "/lidar/points",
-    "/imu/data",
-    "/camera/rgb/image_raw",
-    "/rtk/fix",
-    "/rtk/fix_quality",
-    "/rtk/heading_with_covariance",
-    "/rtk/heading_solution",
-)
 FASTLIO_TOPIC = "/comparison/fastlio/odometry"
 FASTLIVO_TOPIC = "/comparison/fastlivo/odometry"
 KF_GINS_TOPIC = "/comparison/kf_gins/odometry"
+ESTIMATOR_TOPICS = {
+    "fastlio": FASTLIO_TOPIC,
+    "fastlivo": FASTLIVO_TOPIC,
+    "kf_gins": KF_GINS_TOPIC,
+}
+ESTIMATOR_INPUT_TOPICS = {
+    "fastlio": ("/lidar/points", "/imu/data"),
+    "fastlivo": (
+        "/lidar/points",
+        "/imu/data",
+        "/camera/rgb/image_raw",
+    ),
+    "kf_gins": (
+        "/imu/data",
+        "/rtk/fix",
+        "/rtk/fix_quality",
+        "/rtk/heading_with_covariance",
+        "/rtk/heading_solution",
+    ),
+}
 COMPARISON_SUFFIX = "_comparison"
 GEOREFERENCE_SUFFIX = "_georeference.yaml"
+VEHICLE_PROFILES = ("ackermann", "differential")
 
 
 class ComparisonError(RuntimeError):
@@ -93,8 +105,8 @@ def topic_counts(bag):
 def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(
         description=(
-            "Recompute FAST-LIO2, FAST-LIVO2 and KF-GINS from raw sensor "
-            "topics in one ROS bag"
+            "Recompute exactly one localization trajectory from raw sensor "
+            "topics. Run this command separately for each estimator."
         )
     )
     parser.add_argument("source_bag", type=Path)
@@ -102,6 +114,18 @@ def parse_arguments(argv=None):
     parser.add_argument("--domain-id", type=int, default=74)
     parser.add_argument("--playback-rate", type=float, default=0.5)
     parser.add_argument("--settle-seconds", type=float, default=3.0)
+    parser.add_argument(
+        "--estimator",
+        choices=tuple(ESTIMATOR_TOPICS),
+        required=True,
+        help="the only estimator started during this replay",
+    )
+    parser.add_argument(
+        "--vehicle-profile",
+        choices=VEHICLE_PROFILES,
+        default="ackermann",
+        help="physical sensor geometry used by all recomputed estimators",
+    )
     parser.add_argument(
         "--fastlivo-profile",
         choices=("indoor", "outdoor"),
@@ -143,7 +167,10 @@ def validate(arguments):
     if not 0 <= arguments.domain_id <= 232:
         raise ComparisonError("domain_id must be in [0, 232]")
     source_counts = topic_counts(source_bag)
-    missing = [topic for topic in RAW_TOPICS if source_counts.get(topic, 0) < 1]
+    required_topics = ESTIMATOR_INPUT_TOPICS[arguments.estimator]
+    missing = [
+        topic for topic in required_topics if source_counts.get(topic, 0) < 1
+    ]
     if missing:
         raise ComparisonError(
             "source bag is missing required raw topics:\n  " + "\n  ".join(missing)
@@ -190,40 +217,80 @@ def resolve_kf_reference(arguments):
     return georeference, latitude, longitude, altitude
 
 
+def resolve_estimator_configs(arguments, hardware_share, fastlivo_share):
+    common_config = hardware_share / "config"
+    differential_config = hardware_share / "differential" / "config"
+    if arguments.vehicle_profile == "differential":
+        fastlio_config = differential_config / "fast_lio_c16.yaml"
+        bridge_config = differential_config / "fastlio_bridge.yaml"
+        kf_gins_configs = [
+            common_config / "kf_gins_n300pro.yaml",
+            differential_config / "kf_gins_n300pro.yaml",
+        ]
+        vehicle_fastlivo_config = (
+            differential_config / "fastlivo_sensor_calibration.yaml"
+        )
+    else:
+        fastlio_config = common_config / "fast_lio_c16.yaml"
+        bridge_config = common_config / "fastlio_bridge.yaml"
+        kf_gins_configs = [common_config / "kf_gins_n300pro.yaml"]
+        vehicle_fastlivo_config = None
+
+    fastlivo_parameter_files = [
+        fastlivo_share / "config" / "agribot_c16_astra.yaml"
+    ]
+    if arguments.fastlivo_profile == "outdoor":
+        fastlivo_parameter_files.append(
+            fastlivo_share / "config" / "agribot_c16_astra_outdoor.yaml"
+        )
+    if vehicle_fastlivo_config is not None:
+        fastlivo_parameter_files.append(vehicle_fastlivo_config)
+    fastlivo_parameter_files.append(
+        common_config / "fastlivo_hikrobot_mv_cu013.yaml"
+    )
+
+    paths = [
+        fastlio_config,
+        bridge_config,
+        *kf_gins_configs,
+        *fastlivo_parameter_files,
+    ]
+    missing = [path for path in paths if not path.is_file()]
+    if missing:
+        raise ComparisonError(
+            "configuration files not found:\n  "
+            + "\n  ".join(str(path) for path in missing)
+        )
+    return {
+        "fastlio": fastlio_config,
+        "bridge": bridge_config,
+        "kf_gins": kf_gins_configs,
+        "fastlivo": fastlivo_parameter_files,
+    }
+
+
 def main(argv=None):
     arguments = parse_arguments(argv)
     processes = []
     recorder = None
     try:
-        kf_reference = resolve_kf_reference(arguments)
+        kf_reference = (
+            resolve_kf_reference(arguments)
+            if arguments.estimator == "kf_gins"
+            else None
+        )
         source_bag, output_bag = validate(arguments)
         hardware_share = Path(
             get_package_share_directory("agribot_hardware_bringup")
         )
-        fastlio_config = hardware_share / "config" / "fast_lio_c16.yaml"
-        bridge_config = hardware_share / "config" / "fastlio_bridge.yaml"
-        kf_gins_config = hardware_share / "config" / "kf_gins_n300pro.yaml"
         fastlivo_share = Path(get_package_share_directory("fast_livo"))
-        fastlivo_config = (
-            fastlivo_share / "config" / "agribot_c16_astra.yaml"
+        configs = resolve_estimator_configs(
+            arguments, hardware_share, fastlivo_share
         )
-        fastlivo_camera_config = (
-            hardware_share / "config" / "fastlivo_hikrobot_mv_cu013.yaml"
-        )
-        fastlivo_parameter_files = [fastlivo_config]
-        if arguments.fastlivo_profile == "outdoor":
-            fastlivo_parameter_files.append(
-                fastlivo_share / "config" / "agribot_c16_astra_outdoor.yaml"
-            )
-        fastlivo_parameter_files.append(fastlivo_camera_config)
-        for path in (
-            fastlio_config,
-            bridge_config,
-            kf_gins_config,
-            *fastlivo_parameter_files,
-        ):
-            if not path.is_file():
-                raise ComparisonError(f"configuration file not found: {path}")
+        fastlio_config = configs["fastlio"]
+        bridge_config = configs["bridge"]
+        kf_gins_configs = configs["kf_gins"]
+        fastlivo_parameter_files = configs["fastlivo"]
 
         environment = os.environ.copy()
         environment.update(
@@ -233,76 +300,82 @@ def main(argv=None):
                 "ROS2CLI_NO_DAEMON": "1",
             }
         )
-        processes.append((start(
-            [
-                "ros2", "run", "fast_lio", "fastlio_mapping", "--ros-args",
-                "--params-file", fastlio_config, "-p", "use_sim_time:=true",
-            ],
-            environment,
-        ), "FAST-LIO2"))
-        processes.append((start(
-            [
+        if arguments.estimator == "fastlio":
+            processes.append((start(
+                [
+                    "ros2", "run", "fast_lio", "fastlio_mapping", "--ros-args",
+                    "--params-file", fastlio_config, "-p", "use_sim_time:=true",
+                ],
+                environment,
+            ), "FAST-LIO2"))
+            processes.append((start(
+                [
+                    "ros2", "run", "agribot_hardware_bringup",
+                    "fastlio_odom_bridge.py", "--ros-args", "--params-file",
+                    bridge_config, "-p", "use_sim_time:=true", "-p",
+                    f"output_odom_topic:={FASTLIO_TOPIC}", "-p",
+                    "publish_tf:=false",
+                ],
+                environment,
+            ), "FAST-LIO2 odometry bridge"))
+        elif arguments.estimator == "fastlivo":
+            processes.append((start(
+                [
+                    "ros2", "run", "fast_livo", "fastlivo_mapping",
+                    "--ros-args", "-r", "__node:=fastlivo_comparison",
+                    *[
+                        item
+                        for path in fastlivo_parameter_files
+                        for item in ("--params-file", path)
+                    ],
+                    "-p", "use_sim_time:=true",
+                    "-r", f"/aft_mapped_to_init:={FASTLIVO_TOPIC}",
+                    "-r", "/path:=/comparison/fastlivo/path",
+                    "-r",
+                    "/cloud_registered:=/comparison/fastlivo/cloud_registered",
+                    "-r", "/rgb_img:=/comparison/fastlivo/rgb_img",
+                ],
+                environment,
+            ), "FAST-LIVO2"))
+        else:
+            kf_gins_command = [
                 "ros2", "run", "agribot_hardware_bringup",
-                "fastlio_odom_bridge.py", "--ros-args", "--params-file",
-                bridge_config, "-p", "use_sim_time:=true", "-p",
-                f"output_odom_topic:={FASTLIO_TOPIC}", "-p", "publish_tf:=false",
-            ],
-            environment,
-        ), "FAST-LIO2 odometry bridge"))
-        processes.append((start(
-            [
-                "ros2", "run", "fast_livo", "fastlivo_mapping", "--ros-args",
-                "-r", "__node:=fastlivo_comparison",
+                "rtk_eskf_localization", "--ros-args",
                 *[
                     item
-                    for path in fastlivo_parameter_files
+                    for path in kf_gins_configs
                     for item in ("--params-file", path)
                 ],
-                "-p", "use_sim_time:=true",
-                "-r", f"/aft_mapped_to_init:={FASTLIVO_TOPIC}",
-                "-r", "/path:=/comparison/fastlivo/path",
-                "-r",
-                "/cloud_registered:=/comparison/fastlivo/cloud_registered",
-                "-r", "/rgb_img:=/comparison/fastlivo/rgb_img",
-            ],
-            environment,
-        ), "FAST-LIVO2"))
-        kf_gins_command = [
-            "ros2", "run", "agribot_hardware_bringup",
-            "rtk_eskf_localization", "--ros-args", "--params-file",
-            kf_gins_config, "-p", "use_sim_time:=true", "-p",
-            f"output_odom_topic:={KF_GINS_TOPIC}", "-p",
-            "raw_pose_topic:=/comparison/kf_gins/raw_pose",
-        ]
-        if kf_reference is not None:
-            georeference, latitude, longitude, altitude = kf_reference
-            print(
-                "KF-GINS ENU reference fixed from "
-                f"{georeference}: {latitude:.10f}, {longitude:.10f}, "
-                f"{altitude:.3f} m",
-                flush=True,
-            )
-            kf_gins_command.extend(
-                [
-                    "-p", "auto_reference_from_first_navsat_fix:=false",
-                    "-p", f"reference_lat_deg:={latitude:.12f}",
-                    "-p", f"reference_lon_deg:={longitude:.12f}",
-                    "-p", f"reference_alt_m:={altitude:.6f}",
-                ]
-            )
-        processes.append((start(kf_gins_command, environment), "KF-GINS"))
+                "-p", "use_sim_time:=true", "-p",
+                f"output_odom_topic:={KF_GINS_TOPIC}", "-p",
+                "raw_pose_topic:=/comparison/kf_gins/raw_pose", "-p",
+                "imu_processing_delay_sec:=0.20",
+            ]
+            if kf_reference is not None:
+                georeference, latitude, longitude, altitude = kf_reference
+                print(
+                    "KF-GINS ENU reference fixed from "
+                    f"{georeference}: {latitude:.10f}, {longitude:.10f}, "
+                    f"{altitude:.3f} m",
+                    flush=True,
+                )
+                kf_gins_command.extend(
+                    [
+                        "-p", "auto_reference_from_first_navsat_fix:=false",
+                        "-p", f"reference_lat_deg:={latitude:.12f}",
+                        "-p", f"reference_lon_deg:={longitude:.12f}",
+                        "-p", f"reference_alt_m:={altitude:.6f}",
+                    ]
+                )
+            processes.append((start(kf_gins_command, environment), "KF-GINS"))
         time.sleep(3.0)
         failed = [name for process, name in processes if process.poll() is not None]
         if failed:
             raise ComparisonError("process exited during startup: " + ", ".join(failed))
 
+        output_topic = ESTIMATOR_TOPICS[arguments.estimator]
         recorder = start(
-            [
-                "ros2", "bag", "record", "-o", output_bag,
-                FASTLIO_TOPIC,
-                FASTLIVO_TOPIC,
-                KF_GINS_TOPIC,
-            ],
+            ["ros2", "bag", "record", "-o", output_bag, output_topic],
             environment,
         )
         time.sleep(2.0)
@@ -313,7 +386,8 @@ def main(argv=None):
             [
                 "ros2", "bag", "play", source_bag, "--clock", "100",
                 "--rate", str(arguments.playback_rate),
-                "--read-ahead-queue-size", "1000", "--topics", *RAW_TOPICS,
+                "--read-ahead-queue-size", "1000", "--topics",
+                *ESTIMATOR_INPUT_TOPICS[arguments.estimator],
             ],
             environment,
         )
@@ -322,21 +396,14 @@ def main(argv=None):
         recorder = None
 
         counts = topic_counts(output_bag)
-        missing = [
-            topic for topic in (
-                FASTLIO_TOPIC, FASTLIVO_TOPIC, KF_GINS_TOPIC,
-            )
-            if counts.get(topic, 0) < 1
-        ]
-        if missing:
+        if counts.get(output_topic, 0) < 1:
             raise ComparisonError(
-                "recomputed output is missing topics:\n  " + "\n  ".join(missing)
+                f"recomputed output is missing topic: {output_topic}"
             )
-        print("\nLocalization recomputation completed:", flush=True)
+        print("\nSingle-estimator recomputation completed:", flush=True)
+        print(f"  estimator: {arguments.estimator}", flush=True)
         print(f"  output_bag: {output_bag}", flush=True)
-        print(f"  FAST-LIO2 poses: {counts[FASTLIO_TOPIC]}", flush=True)
-        print(f"  FAST-LIVO2 poses: {counts[FASTLIVO_TOPIC]}", flush=True)
-        print(f"  KF-GINS poses: {counts[KF_GINS_TOPIC]}", flush=True)
+        print(f"  poses: {counts[output_topic]}", flush=True)
         return 0
     except KeyboardInterrupt:
         print("\nInterrupted by user", file=sys.stderr)

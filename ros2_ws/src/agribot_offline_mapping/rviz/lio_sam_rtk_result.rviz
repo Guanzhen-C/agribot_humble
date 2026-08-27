@@ -10,7 +10,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz_default_plugins/Grid
       Color: 130; 130; 130
-      Enabled: true
+      Enabled: false
       Name: 网格
       Plane: XY
       Plane Cell Count: 80
@@ -63,7 +63,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz_default_plugins/Path
       Color: 255; 35; 35
-      Enabled: true
+      Enabled: false
       Line Style: Lines
       Line Width: 0.16
       Name: RTK后轴中心轨迹（红）
@@ -126,12 +126,28 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
+      Color: 255; 60; 220
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.20
+      Name: FAST-LIVO2加RTK融合后轴中心轨迹（品红）
+      Offset: {X: 0, Y: 0, Z: 0.28}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mapping_result/fastlivo_rtk_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
       Color: 255; 210; 35
       Enabled: true
       Line Style: Lines
       Line Width: 0.18
       Name: 重算KF-GINS后轴中心轨迹（黄）
-      Offset: {X: 0, Y: 0, Z: 0.28}
+      Offset: {X: 0, Y: 0, Z: 0.33}
       Pose Style: None
       Topic:
         Depth: 1
@@ -143,11 +159,11 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz_default_plugins/Path
       Color: 255; 135; 25
-      Enabled: true
+      Enabled: false
       Line Style: Lines
       Line Width: 0.18
       Name: 后半程RTK浮点解后轴中心轨迹（橙）
-      Offset: {X: 0, Y: 0, Z: 0.33}
+      Offset: {X: 0, Y: 0, Z: 0.38}
       Pose Style: None
       Topic:
         Depth: 1

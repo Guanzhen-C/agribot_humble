@@ -116,3 +116,18 @@ def test_fastlivo_imu_mount_rotation_is_removed_from_vehicle_orientation():
 
     assert position == pytest.approx((9.0, 0.0, 0.0), abs=1.0e-12)
     assert orientation == pytest.approx((0.0, 0.0, 0.0, 1.0), abs=1.0e-12)
+
+
+def test_result_viewer_declares_the_fused_fastlivo_rtk_path():
+    package = SCRIPT.parents[1]
+    publisher_source = SCRIPT.read_text(encoding="utf-8")
+    launch_source = (
+        package / "launch" / "lio_sam_rtk_result.launch.py"
+    ).read_text(encoding="utf-8")
+    rviz_source = (
+        package / "rviz" / "lio_sam_rtk_result.rviz"
+    ).read_text(encoding="utf-8")
+
+    assert "/mapping_result/fastlivo_rtk_path" in publisher_source
+    assert "fastlivo_rtk_bag" in launch_source
+    assert "/mapping_result/fastlivo_rtk_path" in rviz_source

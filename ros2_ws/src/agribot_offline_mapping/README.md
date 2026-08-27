@@ -41,6 +41,18 @@ ros2 run agribot_offline_mapping run_rtk_mapping_pipeline.py \
   --playback-rate 0.5
 ```
 
+For the tracked differential vehicle, select its measured sensor geometry.
+This changes only the adapter/configuration layer; the LIO-SAM source remains
+unchanged:
+
+```bash
+ros2 run agribot_offline_mapping run_rtk_mapping_pipeline.py \
+  /path/to/map_diff_outdoor_BAG \
+  /path/to/map_diff_outdoor_MAP \
+  --vehicle-profile differential \
+  --domain-id 71 --playback-rate 0.5
+```
+
 The command creates one coherent result family: `MAP_NAME.pcd`, `MAP_NAME.pgm`,
 `MAP_NAME.yaml`, `MAP_NAME_georeference.yaml`, `MAP_NAME_result/` and
 `MAP_NAME_manifest.yaml`. Existing output is rejected unless `--force` is
@@ -104,6 +116,27 @@ ros2 run agribot_offline_mapping run_localization_comparison.py \
 ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   map_base:=/home/cgz/agribot_maps/test_site/MAP_NAME \
   show_comparison_paths:=true
+```
+
+Pass `--vehicle-profile differential` for the tracked vehicle. This selects
+its FAST-LIO2/bridge/KF-GINS lever arms and layers its lidar/camera calibration
+after the shared validated FAST-LIVO2 tuning.
+
+Recompute the production FAST-LIVO2+RTK trajectory separately so NDT/GICP
+initialization and fixed-lag fusion are not competing with the other three
+estimators for CPU time:
+
+```bash
+ros2 run agribot_offline_mapping run_fastlivo_rtk_comparison.py \
+  /path/to/INPUT_BAG /path/to/MAP_NAME \
+  /path/to/MAP_NAME_fastlivo_rtk \
+  --vehicle-profile differential \
+  --domain-id 75 --playback-rate 0.5
+
+ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
+  map_base:=/path/to/MAP_NAME \
+  show_comparison_paths:=true \
+  fastlivo_rtk_bag:=/path/to/MAP_NAME_fastlivo_rtk
 ```
 
 When FAST-LIVO2 is recomputed independently, keep the other trajectories

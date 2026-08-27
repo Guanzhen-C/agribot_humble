@@ -1,0 +1,28 @@
+# Differential tracked-vehicle sensor calibration layered after the shared
+# validated FAST-LIVO2 parameter group during offline comparisons.
+/**:
+  ros__parameters:
+    extrin_calib:
+      # p_imu = extrinsic_R * p_lidar + extrinsic_T
+      extrinsic_T: [0.47, 0.0, 0.27]
+      extrinsic_R: [0.0, -1.0, 0.0,
+                    1.0,  0.0, 0.0,
+                     0.0, 0.0, 1.0]
+
+      # p_camera_optical = Rcl * p_lidar + Pcl.
+      Rcl: [-1.0, 0.0, 0.0,
+             0.0, 0.0, -1.0,
+             0.0, -1.0, 0.0]
+      Pcl: [0.0, 0.05, -0.0035]
+
+    time_offset:
+      imu_time_offset: 0.0
+      dynamic_imu_sync_en: false
+      img_time_offset: -0.0033
+      exposure_time_init: 0.0
+
+    lio:
+      # The tracked vehicle outdoor data previously showed under-constrained
+      # scan matching with the 0.3 m indoor voxel. Validate the established
+      # 1.0 m sparse-scene setting without changing the Ackermann profile.
+      voxel_size: 1.0

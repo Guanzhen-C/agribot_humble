@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 
+from ament_index_python.packages import get_package_share_directory
 import yaml
 
 
@@ -36,12 +37,68 @@ RTK_RESULT_TOPICS = (
     "/lio_sam/rtk_reference",
 )
 RESULT_TOPICS = LOCAL_RESULT_TOPICS + RTK_RESULT_TOPICS
+VEHICLE_PROFILES = ("ackermann", "differential")
 
 
 def playback_topics(without_rtk):
     if without_rtk:
         return LOCAL_INPUT_TOPICS
     return LOCAL_INPUT_TOPICS + RTK_INPUT_TOPICS
+
+
+def resolve_profile_paths(
+    vehicle_profile, offline_share=None, hardware_share=None
+):
+    if vehicle_profile not in VEHICLE_PROFILES:
+        raise PipelineError(f"unsupported vehicle profile: {vehicle_profile}")
+    offline_share = Path(offline_share or Path(__file__).resolve().parents[1])
+    if hardware_share is None:
+        source_candidate = offline_share.parent / "agribot_hardware_bringup"
+        hardware_share = (
+            source_candidate
+            if source_candidate.is_dir()
+            else Path(get_package_share_directory("agribot_hardware_bringup"))
+        )
+    else:
+        hardware_share = Path(hardware_share)
+
+    suffix = "_differential" if vehicle_profile == "differential" else ""
+    mounts = (
+        hardware_share / "differential" / "config" / "sensor_mounts.yaml"
+        if vehicle_profile == "differential"
+        else hardware_share / "config" / "sensor_mounts.yaml"
+    )
+    paths = {
+        "lio_sam": offline_share / "config" / f"lio_sam_c16{suffix}.yaml",
+        "point_adapter": (
+            offline_share
+            / "config"
+            / f"lslidar_lio_sam_adapter{suffix}.yaml"
+        ),
+        "rtk_adapter": (
+            offline_share / "config" / f"rtk_odometry_adapter{suffix}.yaml"
+        ),
+        "georeference": (
+            offline_share / "config" / "map_georeference_exporter.yaml"
+        ),
+        "sensor_mounts": mounts,
+    }
+    missing = [path for path in paths.values() if not path.is_file()]
+    if missing:
+        raise PipelineError(
+            "vehicle profile configuration is incomplete:\n"
+            + "\n".join(f"  - {path}" for path in missing)
+        )
+    return paths
+
+
+def ros_parameters(path, node_name=None):
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if "/**" in document:
+        return document["/**"]["ros__parameters"]
+    if node_name is not None and node_name in document:
+        return document[node_name]["ros__parameters"]
+    raise PipelineError(f"ROS parameter document has an unexpected root: {path}")
 
 
 class PipelineError(RuntimeError):
@@ -173,8 +230,23 @@ def remove_existing(paths, work_directory, force):
             path.unlink()
 
 
-def write_manifest(path, bag, map_base, work_directory, paths, arguments):
+def write_manifest(
+    path, bag, map_base, work_directory, paths, arguments, profile_paths=None
+):
     rtk_enabled = not arguments.without_rtk
+    profile_paths = profile_paths or resolve_profile_paths(
+        arguments.vehicle_profile
+    )
+    lio_parameters = ros_parameters(profile_paths["lio_sam"])
+    point_parameters = ros_parameters(
+        profile_paths["point_adapter"], "lslidar_lio_sam_adapter"
+    )
+    rtk_parameters = ros_parameters(
+        profile_paths["rtk_adapter"], "rtk_odometry_adapter"
+    )
+    mounts = yaml.safe_load(
+        profile_paths["sensor_mounts"].read_text(encoding="utf-8")
+    )
     artifacts = {
         key: str(paths[key]) for key in ("pcd", "pgm", "yaml")
     }
@@ -188,6 +260,7 @@ def write_manifest(path, bag, map_base, work_directory, paths, arguments):
             else "lio_sam_gravity_indoor_v1"
         ),
         "rtk_mode": "required" if rtk_enabled else "disabled",
+        "vehicle_profile": arguments.vehicle_profile,
         "source_bag": str(bag),
         "map_base": str(map_base),
         "work_directory": str(work_directory),
@@ -195,30 +268,62 @@ def write_manifest(path, bag, map_base, work_directory, paths, arguments):
         "artifacts": artifacts,
         "rtk_factor": {
             "enabled": rtk_enabled,
-            "horizontal_variance_floor_m2": 0.01,
-            "horizontal_standard_deviation_floor_m": 0.1,
-            "factor_minimum_distance_m": 1.0,
-            "use_gps_elevation": False,
-            "huber_delta": 1.345,
+            "horizontal_variance_floor_m2": float(
+                lio_parameters["gpsHorizontalCovarianceFloor"]
+            ),
+            "horizontal_standard_deviation_floor_m": float(
+                lio_parameters["gpsHorizontalCovarianceFloor"]
+            ) ** 0.5,
+            "factor_minimum_distance_m": float(
+                lio_parameters["gpsFactorMinDistance"]
+            ),
+            "use_gps_elevation": bool(lio_parameters["useGpsElevation"]),
+            "huber_delta": float(lio_parameters["gpsRobustKernelDelta"]),
+            "antenna_to_lidar_flu_m": list(
+                rtk_parameters["antenna_to_lidar_flu_m"]
+            ),
         },
         "map_leveling": {
-            "gravity_attitude_factor": True,
-            "gravity_attitude_sigma_deg": 1.0,
-            "gravity_attitude_huber_delta": 1.345,
-            "initial_roll_pitch_sigma_deg": 0.5,
-            "initial_z_sigma_m": 0.1,
+            "gravity_attitude_factor": bool(
+                lio_parameters["useGravityAttitudeFactor"]
+            ),
+            "gravity_attitude_sigma_deg": float(
+                lio_parameters["gravityAttitudeSigma"]
+            ) * 180.0 / 3.141592653589793,
+            "gravity_attitude_huber_delta": float(
+                lio_parameters["gravityAttitudeRobustKernelDelta"]
+            ),
+            "initial_roll_pitch_sigma_deg": float(
+                lio_parameters["initialRollPitchSigma"]
+            ) * 180.0 / 3.141592653589793,
+            "initial_z_sigma_m": float(lio_parameters["initialZSigma"]),
         },
         "point_exclusion": {
             "rear_person_region_base_link": {
-                "minimum_x_m": -4.0,
-                "maximum_x_m": -0.1275,
-                "half_width_m": 0.60,
+                "minimum_x_m": float(point_parameters["rear_exclusion_min_x"]),
+                "maximum_x_m": float(point_parameters["rear_exclusion_max_x"]),
+                "half_width_m": float(
+                    point_parameters["rear_exclusion_half_width"]
+                ),
             },
             "rtk_antenna_boxes_base_link": {
-                "left_center_xyz_m": [0.1425, 0.2952585, 0.78476],
-                "right_center_xyz_m": [0.1425, -0.2952585, 0.78476],
-                "half_extent_xyz_m": [0.08, 0.08, 0.60],
+                "left_center_xyz_m": list(
+                    point_parameters["left_antenna_center_xyz"]
+                ),
+                "right_center_xyz_m": list(
+                    point_parameters["right_antenna_center_xyz"]
+                ),
+                "half_extent_xyz_m": list(
+                    point_parameters["antenna_exclusion_half_extent_xyz"]
+                ),
             },
+        },
+        "sensor_mounts": mounts,
+        "input_stamp_is_scan_end": bool(
+            point_parameters["input_stamp_is_scan_end"]
+        ),
+        "configuration_files": {
+            key: value.name for key, value in profile_paths.items()
         },
         "playback_rate": arguments.playback_rate,
         "level_horizontal_trajectory": False,
@@ -244,6 +349,12 @@ def parse_arguments(argv=None):
         "map_base", type=Path, help="absolute output map path without an extension"
     )
     parser.add_argument("--domain-id", type=int, default=71)
+    parser.add_argument(
+        "--vehicle-profile",
+        choices=VEHICLE_PROFILES,
+        default="ackermann",
+        help="physical sensor geometry used by mapping and trajectory export",
+    )
     parser.add_argument("--playback-rate", type=float, default=0.5)
     parser.add_argument("--settle-seconds", type=float, default=10.0)
     parser.add_argument("--save-resolution", type=float, default=0.1)
@@ -273,6 +384,11 @@ def main(argv=None):
     try:
         bag, map_base = validate_inputs(arguments)
         paths = output_paths(map_base)
+        profile_paths = resolve_profile_paths(
+            arguments.vehicle_profile,
+            Path(get_package_share_directory("agribot_offline_mapping")),
+            Path(get_package_share_directory("agribot_hardware_bringup")),
+        )
         work_directory = arguments.work_root.expanduser().resolve() / map_base.name
         try:
             work_relative_to_home = work_directory.relative_to(Path.home().resolve())
@@ -299,6 +415,11 @@ def main(argv=None):
                 f"source_bag:={bag}",
                 "use_sim_time:=true",
                 f"start_rtk_components:={'false' if arguments.without_rtk else 'true'}",
+                f"lio_sam_parameters:={profile_paths['lio_sam']}",
+                f"point_adapter_parameters:={profile_paths['point_adapter']}",
+                f"rtk_adapter_parameters:={profile_paths['rtk_adapter']}",
+                f"georeference_parameters:={profile_paths['georeference']}",
+                f"sensor_mounts_file:={profile_paths['sensor_mounts']}",
             ],
             environment,
         )
@@ -387,7 +508,8 @@ def main(argv=None):
                 + "\n".join(f"  - {path}" for path in missing)
             )
         write_manifest(
-            paths["manifest"], bag, map_base, work_directory, paths, arguments
+            paths["manifest"], bag, map_base, work_directory, paths, arguments,
+            profile_paths,
         )
         print("\nPipeline completed successfully:", flush=True)
         output_keys = ["pcd", "pgm", "yaml"]

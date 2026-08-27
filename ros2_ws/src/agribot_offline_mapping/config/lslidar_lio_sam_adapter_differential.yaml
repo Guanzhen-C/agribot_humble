@@ -1,0 +1,25 @@
+lslidar_lio_sam_adapter:
+  ros__parameters:
+    input_topic: /lidar/points
+    output_topic: /lio_sam/points
+    output_frame: lidar_link
+    # The 2026-08-27 differential bag already uses scan-start cloud stamps.
+    input_stamp_is_scan_end: false
+    maximum_scan_duration: 0.20
+    maximum_ring: 15
+
+    # Remove a following operator behind the measured rear body edge.
+    rear_exclusion_enabled: true
+    rear_exclusion_min_x: -4.0
+    rear_exclusion_max_x: -0.60
+    rear_exclusion_half_width: 0.60
+
+    # Remove both rear-mounted RTK antennas and their vertical supports before
+    # scan matching and map accumulation.
+    antenna_exclusion_enabled: true
+    left_antenna_center_xyz: [-0.48, 0.35, 0.748]
+    right_antenna_center_xyz: [-0.48, -0.35, 0.748]
+    antenna_exclusion_half_extent_xyz: [0.08, 0.08, 0.60]
+
+    base_to_lidar_xyz: [0.47, 0.0, 0.91]
+    base_to_lidar_rpy: [0.0, 0.0, 1.570796327]

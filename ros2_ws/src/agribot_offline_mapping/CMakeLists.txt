@@ -74,6 +74,7 @@ install(PROGRAMS
   scripts/publish_semantic_route.py
   scripts/refine_semantic_navigation_graph.py
   scripts/run_indoor_fastlivo_fusion_validation.py
+  scripts/run_fastlivo_rtk_comparison.py
   scripts/run_localization_comparison.py
   scripts/run_rtk_mapping_pipeline.py
   scripts/semantic_graph_neo4j.py
@@ -105,6 +106,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_indoor_fastlivo_fusion_validation
     test/test_indoor_fastlivo_fusion_validation.py
+  )
+  ament_add_pytest_test(
+    test_fastlivo_rtk_comparison
+    test/test_fastlivo_rtk_comparison.py
   )
   ament_add_pytest_test(
     test_localization_comparison_runner

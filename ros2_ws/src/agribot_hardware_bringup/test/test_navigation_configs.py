@@ -376,7 +376,7 @@ def test_differential_localization_extrinsics_share_one_measured_source():
     assert mounts["imu"]["rpy"] == pytest.approx([0.0, 0.0, 0.0])
     assert mounts["lidar"]["xyz"] == pytest.approx([0.47, 0.0, 0.91])
     assert mounts["lidar"]["rpy"] == pytest.approx(
-        [0.0, 0.0, math.pi], abs=1.0e-8
+        [0.0, 0.0, math.pi / 2.0], abs=1.0e-8
     )
     assert mounts["camera"]["xyz"] == pytest.approx([0.4735, 0.0, 0.96])
     assert mounts["rtk"]["xyz"] == pytest.approx([-0.48, 0.35, 0.748])

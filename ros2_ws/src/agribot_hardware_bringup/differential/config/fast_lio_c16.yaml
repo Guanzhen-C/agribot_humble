@@ -35,8 +35,8 @@
       extrinsic_est_en: false
       # FAST-LIO maps points with p_imu = extrinsic_R * p_lidar + extrinsic_T.
       extrinsic_T: [0.47, 0.0, 0.27]
-      extrinsic_R: [-1.0, 0.0, 0.0,
-                     0.0, -1.0, 0.0,
+      extrinsic_R: [0.0, -1.0, 0.0,
+                    1.0,  0.0, 0.0,
                      0.0, 0.0, 1.0]
 
     publish:

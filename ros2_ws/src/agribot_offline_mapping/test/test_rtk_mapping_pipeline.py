@@ -96,6 +96,45 @@ def test_without_rtk_manifest_omits_georeference_artifact(tmp_path):
     assert "georeference" not in document["artifacts"]
 
 
+def test_differential_profile_records_measured_mounts_and_filters(tmp_path):
+    map_base = tmp_path / "map_diff"
+    paths = MODULE.output_paths(map_base)
+    arguments = MODULE.parse_arguments(
+        [
+            str(tmp_path / "bag"),
+            str(map_base),
+            "--vehicle-profile",
+            "differential",
+        ]
+    )
+    profile_paths = MODULE.resolve_profile_paths("differential")
+
+    MODULE.write_manifest(
+        paths["manifest"],
+        tmp_path / "bag",
+        map_base,
+        tmp_path / "work" / "map_diff",
+        paths,
+        arguments,
+        profile_paths,
+    )
+
+    document = yaml.safe_load(paths["manifest"].read_text(encoding="utf-8"))
+    assert document["vehicle_profile"] == "differential"
+    assert document["input_stamp_is_scan_end"] is False
+    assert document["sensor_mounts"]["imu"]["xyz"] == [0.0, 0.0, 0.64]
+    assert document["sensor_mounts"]["lidar"]["xyz"] == [0.47, 0.0, 0.91]
+    assert document["sensor_mounts"]["rtk"]["xyz"] == [-0.48, 0.35, 0.748]
+    assert document["rtk_factor"]["antenna_to_lidar_flu_m"] == [
+        0.95,
+        -0.35,
+        0.162,
+    ]
+    assert document["point_exclusion"]["rear_person_region_base_link"][
+        "maximum_x_m"
+    ] == -0.60
+
+
 def test_validate_inputs_rejects_unsafe_map_name(tmp_path):
     bag = tmp_path / "bag"
     bag.mkdir()

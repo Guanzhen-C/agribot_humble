@@ -26,16 +26,16 @@
     extrin_calib:
       # p_imu = extrinsic_R * p_lidar + extrinsic_T
       extrinsic_T: [0.47, 0.0, 0.27]
-      extrinsic_R: [-1.0, 0.0, 0.0,
-                     0.0, -1.0, 0.0,
+      extrinsic_R: [0.0, -1.0, 0.0,
+                    1.0,  0.0, 0.0,
                      0.0, 0.0, 1.0]
 
       # p_camera_optical = Rcl * p_lidar + Pcl.
       # Translation is measured; validate the nominal axis alignment with a
       # lidar-camera target before authorizing autonomous motion.
-      Rcl: [0.0, 1.0, 0.0,
-            0.0, 0.0, -1.0,
-            -1.0, 0.0, 0.0]
+      Rcl: [-1.0, 0.0, 0.0,
+             0.0, 0.0, -1.0,
+             0.0, -1.0, 0.0]
       Pcl: [0.0, 0.05, -0.0035]
 
     time_offset:
@@ -62,9 +62,10 @@
     vio:
       max_iterations: 5
       outlier_threshold: 100
-      # Outdoor full-route validation: 800/10 reduced horizontal RMSE versus
-      # FAST-LIO2 while remaining stable through both turns.
-      img_point_cov: 800
+      # Use the selected default visual profile for the new differential
+      # platform. Outdoor changes require a separate validation before they
+      # may replace this 200/10 baseline.
+      img_point_cov: 200
       grid_size: 5
       grid_n_height: 17
       patch_size: 8
@@ -91,8 +92,9 @@
       dept_err: 0.02
       beam_err: 0.05
       min_eigen_value: 0.0025
-      # A 1 m root voxel keeps enough C16 returns on outdoor planes to avoid
-      # false yaw updates; smaller 0.3-0.5 m voxels degenerate on sparse scenes.
+      # The differential outdoor replay on 2026-08-27 showed that the 0.3 m
+      # indoor voxel under-constrained this sparse scene. The 1.0 m setting
+      # restored the full 101.8 m trajectory without divergence.
       voxel_size: 1.0
       max_layer: 2
       max_points_num: 50

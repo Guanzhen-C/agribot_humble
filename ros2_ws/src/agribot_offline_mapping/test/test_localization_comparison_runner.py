@@ -36,7 +36,9 @@ def test_matching_georeference_is_inferred_from_comparison_output(tmp_path):
     output = tmp_path / "map_casia_comparison"
     georeference = tmp_path / "map_casia_georeference.yaml"
     write_georeference(georeference)
-    arguments = MODULE.parse_arguments([str(tmp_path / "bag"), str(output)])
+    arguments = MODULE.parse_arguments(
+        [str(tmp_path / "bag"), str(output), "--estimator", "kf_gins"]
+    )
 
     result = MODULE.resolve_kf_reference(arguments)
 
@@ -48,7 +50,12 @@ def test_matching_georeference_is_inferred_from_comparison_output(tmp_path):
 
 def test_missing_inferred_georeference_is_rejected(tmp_path):
     arguments = MODULE.parse_arguments(
-        [str(tmp_path / "bag"), str(tmp_path / "map_casia_comparison")]
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "map_casia_comparison"),
+            "--estimator",
+            "kf_gins",
+        ]
     )
 
     with pytest.raises(MODULE.ComparisonError, match="georeference file not found"):
@@ -57,7 +64,12 @@ def test_missing_inferred_georeference_is_rejected(tmp_path):
 
 def test_nonstandard_output_keeps_legacy_automatic_reference(tmp_path):
     arguments = MODULE.parse_arguments(
-        [str(tmp_path / "bag"), str(tmp_path / "standalone_result")]
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "standalone_result"),
+            "--estimator",
+            "kf_gins",
+        ]
     )
 
     assert MODULE.resolve_kf_reference(arguments) is None
@@ -65,7 +77,12 @@ def test_nonstandard_output_keeps_legacy_automatic_reference(tmp_path):
 
 def test_default_playback_rate_prioritizes_complete_estimator_output(tmp_path):
     arguments = MODULE.parse_arguments(
-        [str(tmp_path / "bag"), str(tmp_path / "standalone_result")]
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "standalone_result"),
+            "--estimator",
+            "fastlivo",
+        ]
     )
 
     assert arguments.playback_rate == pytest.approx(0.5)
@@ -77,6 +94,8 @@ def test_outdoor_fastlivo_profile_is_selectable(tmp_path):
         [
             str(tmp_path / "bag"),
             str(tmp_path / "standalone_result"),
+            "--estimator",
+            "fastlivo",
             "--fastlivo-profile",
             "outdoor",
         ]
@@ -86,10 +105,68 @@ def test_outdoor_fastlivo_profile_is_selectable(tmp_path):
 
 
 def test_fastlivo_inputs_and_output_are_part_of_the_comparison():
-    assert "/camera/rgb/image_raw" in MODULE.RAW_TOPICS
+    assert (
+        "/camera/rgb/image_raw"
+        in MODULE.ESTIMATOR_INPUT_TOPICS["fastlivo"]
+    )
     assert MODULE.FASTLIVO_TOPIC == "/comparison/fastlivo/odometry"
 
 
+def test_each_replay_requires_exactly_one_estimator(tmp_path):
+    with pytest.raises(SystemExit):
+        MODULE.parse_arguments(
+            [str(tmp_path / "bag"), str(tmp_path / "output")]
+        )
+
+    arguments = MODULE.parse_arguments(
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "output"),
+            "--estimator",
+            "fastlio",
+        ]
+    )
+    assert arguments.estimator == "fastlio"
+    assert MODULE.ESTIMATOR_INPUT_TOPICS["fastlio"] == (
+        "/lidar/points",
+        "/imu/data",
+    )
+
+
+def test_differential_profile_layers_measured_geometry_after_shared_tuning(tmp_path):
+    arguments = MODULE.parse_arguments(
+        [
+            str(tmp_path / "bag"),
+            str(tmp_path / "output"),
+            "--estimator",
+            "fastlivo",
+            "--vehicle-profile",
+            "differential",
+        ]
+    )
+    package_root = SCRIPT.parents[2]
+    hardware = package_root / "agribot_hardware_bringup"
+    fastlivo = package_root / "FAST-LIVO2"
+
+    configs = MODULE.resolve_estimator_configs(arguments, hardware, fastlivo)
+
+    assert configs["fastlio"] == (
+        hardware / "differential" / "config" / "fast_lio_c16.yaml"
+    )
+    assert configs["bridge"] == (
+        hardware / "differential" / "config" / "fastlio_bridge.yaml"
+    )
+    assert configs["kf_gins"][-1].name == "kf_gins_n300pro.yaml"
+    assert configs["kf_gins"][-1].parent.name == "config"
+    assert configs["fastlivo"][0].name == "agribot_c16_astra.yaml"
+    assert any(
+        path.name == "fastlivo_sensor_calibration.yaml"
+        for path in configs["fastlivo"]
+    )
+    assert not any(
+        path.name == "agribot_c16_astra_outdoor.yaml"
+        for path in configs["fastlivo"]
+    )
 def test_current_hikrobot_camera_and_outdoor_override_are_used():
     source = SCRIPT.read_text(encoding="utf-8")
 

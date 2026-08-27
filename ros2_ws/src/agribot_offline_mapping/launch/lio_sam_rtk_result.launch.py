@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -30,15 +31,36 @@ def launch_setup(context):
         "result_bag": map_base.parent / f"{map_base.name}_result",
     }
     comparison_bag_value = LaunchConfiguration("comparison_bag").perform(context)
+    fastlio_bag_value = LaunchConfiguration("fastlio_bag").perform(context)
+    fastlivo_bag_value = LaunchConfiguration("fastlivo_bag").perform(context)
+    kf_gins_bag_value = LaunchConfiguration("kf_gins_bag").perform(context)
+    fastlivo_rtk_bag_value = LaunchConfiguration(
+        "fastlivo_rtk_bag"
+    ).perform(context)
+
+    estimator_values = (
+        fastlio_bag_value, fastlivo_bag_value, kf_gins_bag_value
+    )
+    needs_legacy_comparison = comparison_bag_value or not all(estimator_values)
     comparison_bag = (
         Path(comparison_bag_value).expanduser()
         if comparison_bag_value
-        else map_base.parent / f"{map_base.name}_comparison"
+        else (
+            map_base.parent / f"{map_base.name}_comparison"
+            if needs_legacy_comparison
+            else None
+        )
     )
-    fastlivo_bag_value = LaunchConfiguration("fastlivo_bag").perform(context)
-    fastlivo_bag = (
-        Path(fastlivo_bag_value).expanduser()
-        if fastlivo_bag_value
+
+    def estimator_bag(value):
+        return Path(value).expanduser() if value else comparison_bag
+
+    fastlio_bag = estimator_bag(fastlio_bag_value)
+    fastlivo_bag = estimator_bag(fastlivo_bag_value)
+    kf_gins_bag = estimator_bag(kf_gins_bag_value)
+    fastlivo_rtk_bag = (
+        Path(fastlivo_rtk_bag_value).expanduser()
+        if fastlivo_rtk_bag_value
         else None
     )
     show_comparison_paths = LaunchConfiguration(
@@ -49,9 +71,16 @@ def launch_setup(context):
         paths["result_bag"] / "metadata.yaml",
     ]
     if show_comparison_paths:
-        required.append(comparison_bag / "metadata.yaml")
-        if fastlivo_bag is not None:
-            required.append(fastlivo_bag / "metadata.yaml")
+        for estimator_name, estimator_path in (
+            ("FAST-LIO2", fastlio_bag),
+            ("FAST-LIVO2", fastlivo_bag),
+            ("KF-GINS", kf_gins_bag),
+        ):
+            if estimator_path is None:
+                raise RuntimeError(f"{estimator_name} result bag was not provided")
+            required.append(estimator_path / "metadata.yaml")
+        if fastlivo_rtk_bag is not None:
+            required.append(fastlivo_rtk_bag / "metadata.yaml")
     missing = [path for path in required if not path.is_file()]
     if missing:
         raise RuntimeError(
@@ -69,6 +98,29 @@ def launch_setup(context):
     for key in ("pcd", "yaml", "georeference"):
         if Path(artifacts.get(key, "")) != paths[key]:
             raise RuntimeError(f"manifest {key} does not match the requested map")
+    mounts_override = LaunchConfiguration("sensor_mounts_file").perform(context)
+    if mounts_override:
+        sensor_mounts_file = Path(mounts_override).expanduser()
+    else:
+        hardware_share = Path(
+            get_package_share_directory("agribot_hardware_bringup")
+        )
+        vehicle_profile = manifest.get("vehicle_profile", "ackermann")
+        if vehicle_profile == "differential":
+            sensor_mounts_file = (
+                hardware_share
+                / "differential"
+                / "config"
+                / "sensor_mounts.yaml"
+            )
+        elif vehicle_profile == "ackermann":
+            sensor_mounts_file = hardware_share / "config" / "sensor_mounts.yaml"
+        else:
+            raise RuntimeError(
+                f"unsupported vehicle profile in manifest: {vehicle_profile}"
+            )
+    if not sensor_mounts_file.is_file():
+        raise RuntimeError(f"sensor mounts file not found: {sensor_mounts_file}")
     georeference = yaml.safe_load(
         paths["georeference"].read_text(encoding="utf-8")
     )
@@ -105,15 +157,36 @@ def launch_setup(context):
                 "georeference_file": str(paths["georeference"]),
                 "flatten_z": LaunchConfiguration("flatten_z"),
                 "comparison_bag": (
-                    str(comparison_bag) if show_comparison_paths else ""
+                    str(comparison_bag)
+                    if show_comparison_paths and comparison_bag is not None
+                    else ""
                 ),
                 "source_bag": str(source_bag) if show_comparison_paths else "",
+                "fastlio_bag": (
+                    str(fastlio_bag)
+                    if show_comparison_paths and fastlio_bag is not None
+                    else ""
+                ),
                 "fastlivo_bag": (
                     str(fastlivo_bag)
                     if show_comparison_paths and fastlivo_bag is not None
                     else ""
                 ),
                 "fastlivo_topic": LaunchConfiguration("fastlivo_topic"),
+                "fastlivo_rtk_bag": (
+                    str(fastlivo_rtk_bag)
+                    if show_comparison_paths and fastlivo_rtk_bag is not None
+                    else ""
+                ),
+                "kf_gins_bag": (
+                    str(kf_gins_bag)
+                    if show_comparison_paths and kf_gins_bag is not None
+                    else ""
+                ),
+                "fastlivo_rtk_topic": LaunchConfiguration(
+                    "fastlivo_rtk_topic"
+                ),
+                "sensor_mounts_file": str(sensor_mounts_file),
             }],
         ),
         Node(
@@ -153,10 +226,14 @@ def generate_launch_description():
             "comparison_bag",
             default_value="",
             description=(
-                "Recomputed FAST-LIO2/FAST-LIVO2/KF-GINS and final RTK FLOAT "
-                "bag; defaults to MAP_NAME_comparison when comparison paths "
-                "are enabled"
+                "Legacy combined FAST-LIO2/FAST-LIVO2/KF-GINS bag; used as "
+                "fallback for estimator bags that are not specified"
             ),
+        ),
+        DeclareLaunchArgument(
+            "fastlio_bag",
+            default_value="",
+            description="Optional independently recomputed FAST-LIO2 bag",
         ),
         DeclareLaunchArgument(
             "fastlivo_bag",
@@ -171,7 +248,30 @@ def generate_launch_description():
             default_value="/comparison/fastlivo/odometry",
             description="Odometry topic stored in fastlivo_bag",
         ),
+        DeclareLaunchArgument(
+            "kf_gins_bag",
+            default_value="",
+            description="Optional independently recomputed KF-GINS bag",
+        ),
+        DeclareLaunchArgument(
+            "fastlivo_rtk_bag",
+            default_value="",
+            description="Optional independently recomputed FAST-LIVO2+RTK bag",
+        ),
+        DeclareLaunchArgument(
+            "fastlivo_rtk_topic",
+            default_value="/fastlivo_rtk/odometry",
+            description="Fused base_link odometry topic stored in fastlivo_rtk_bag",
+        ),
         DeclareLaunchArgument("flatten_z", default_value="true"),
+        DeclareLaunchArgument(
+            "sensor_mounts_file",
+            default_value="",
+            description=(
+                "Optional sensor-mount override; otherwise selected from the "
+                "map manifest vehicle_profile"
+            ),
+        ),
         DeclareLaunchArgument(
             "rviz_config",
             default_value=str(package_share / "rviz" / "lio_sam_rtk_result.rviz"),

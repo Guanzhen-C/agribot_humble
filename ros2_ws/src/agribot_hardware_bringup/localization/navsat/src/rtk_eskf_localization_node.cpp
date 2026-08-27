@@ -174,6 +174,14 @@ public:
         if (!std::isfinite(max_imu_gap_sec_) || max_imu_gap_sec_ <= 0.0) {
             throw std::runtime_error("max_imu_gap_sec must be finite and positive");
         }
+        imu_processing_delay_sec_ =
+            declare_parameter<double>("imu_processing_delay_sec", 0.0);
+        if (!std::isfinite(imu_processing_delay_sec_) ||
+            imu_processing_delay_sec_ < 0.0 ||
+            imu_processing_delay_sec_ > 1.0) {
+            throw std::runtime_error(
+                "imu_processing_delay_sec must be finite and in [0, 1]");
+        }
         rtk_heading_std_rad_ =
             declare_parameter<double>("rtk_heading_std_deg", 1.0) * D2R;
         auto_reference_from_first_navsat_fix_ =
@@ -268,7 +276,7 @@ public:
 
         RCLCPP_INFO(
             get_logger(),
-            "RTK ESKF ready: imu=%s pose=%s(%s) heading=%s(%s) odom_out=%s",
+            "RTK ESKF ready: imu=%s pose=%s(%s) heading=%s(%s) odom_out=%s imu_delay=%.3fs",
             imu_topic_.c_str(),
             pose_topic_.c_str(),
             pose_message_type_.c_str(),
@@ -278,7 +286,8 @@ public:
             use_rtk_heading_
                 ? (use_rtk_heading_covariance_ ? "covariance" : "legacy")
                 : "disabled",
-            output_odom_topic_.c_str());
+            output_odom_topic_.c_str(),
+            imu_processing_delay_sec_);
     }
 
 private:
@@ -557,7 +566,11 @@ private:
         }
 
         const bool had_engine = static_cast<bool>(engine_);
-        latest_measurement_for_init_ = aligned;
+        if (!engine_ &&
+            (initial_pose_queue_.empty() ||
+             aligned.time > initial_pose_queue_.back().time)) {
+            initial_pose_queue_.push_back(aligned);
+        }
         tryInitializeEngine();
 
         if (!engine_) {
@@ -658,6 +671,33 @@ private:
     }
 
     void handleImu(const sensor_msgs::msg::Imu::SharedPtr msg) {
+
+        if (imu_processing_delay_sec_ <= 0.0) {
+            processImu(msg);
+            return;
+        }
+
+        const double newest_time = rclcpp::Time(msg->header.stamp).seconds();
+        if (!std::isfinite(newest_time)) {
+            processImu(msg);
+            return;
+        }
+        delayed_imu_queue_.push_back(msg);
+        constexpr double time_tolerance_sec = 1.0e-6;
+        while (!delayed_imu_queue_.empty()) {
+            const double oldest_time = rclcpp::Time(
+                delayed_imu_queue_.front()->header.stamp).seconds();
+            if (newest_time - oldest_time + time_tolerance_sec <
+                imu_processing_delay_sec_) {
+                break;
+            }
+            auto oldest = delayed_imu_queue_.front();
+            delayed_imu_queue_.pop_front();
+            processImu(oldest);
+        }
+    }
+
+    void processImu(const sensor_msgs::msg::Imu::SharedPtr msg) {
 
         const double time = rclcpp::Time(msg->header.stamp).seconds();
         Eigen::Vector3d gyro(
@@ -794,6 +834,8 @@ private:
         engine_.reset();
         imu_primed_ = false;
         pose_queue_.clear();
+        initial_pose_queue_.clear();
+        delayed_imu_queue_.clear();
         last_processed_imu_time_.reset();
         latest_measurement_for_init_.reset();
         last_used_rtk_heading_time_.reset();
@@ -805,10 +847,23 @@ private:
 
     bool tryInitializeEngine() {
 
-        if (engine_ || !have_converted_imu_ || !latest_measurement_for_init_.has_value() ||
+        if (engine_ || !have_converted_imu_ || !latest_imu_sample_.has_value() ||
             !reference_blh_initialized_) {
             return false;
         }
+
+        std::optional<PoseSample> selected_measurement;
+        constexpr double time_tolerance_sec = 0.001;
+        while (!initial_pose_queue_.empty() &&
+               initial_pose_queue_.front().time <=
+                   latest_imu_sample_->time + time_tolerance_sec) {
+            selected_measurement = initial_pose_queue_.front();
+            initial_pose_queue_.pop_front();
+        }
+        if (!selected_measurement.has_value()) {
+            return false;
+        }
+        latest_measurement_for_init_ = *selected_measurement;
 
         GINSOptions options = buildOptions(*latest_measurement_for_init_);
         engine_ = std::make_unique<RtkGIEngine>(options);
@@ -817,6 +872,7 @@ private:
         imu_primed_ = true;
         last_processed_imu_time_ = latest_imu_sample_->time;
         pose_queue_.clear();
+        initial_pose_queue_.clear();
 
         RCLCPP_INFO(
             get_logger(),
@@ -1078,6 +1134,7 @@ private:
     double default_yaw_std_rad_ = 0.0;
     double rtk_heading_timeout_sec_ = 0.0;
     double max_imu_gap_sec_ = 0.0;
+    double imu_processing_delay_sec_ = 0.0;
     double rtk_heading_std_rad_ = 0.0;
     double reference_alt_param_m_ = 0.0;
     double map_to_ned_yaw_rad_ = 0.0;
@@ -1125,6 +1182,8 @@ private:
     std::unique_ptr<RtkGIEngine> engine_;
     bool imu_primed_ = false;
     std::deque<RtkPoseMeasurement> pose_queue_;
+    std::deque<PoseSample> initial_pose_queue_;
+    std::deque<sensor_msgs::msg::Imu::SharedPtr> delayed_imu_queue_;
 };
 
 int main(int argc, char **argv) {
