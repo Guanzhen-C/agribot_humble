@@ -17,7 +17,8 @@ rtk_map_initializer:
     odom_frame: odom
     base_frame: base_link
     required_fix_quality: 4
-    allowed_heading_solutions: [L1_INT, NARROW_INT]
+    # A float heading is only a coarse prior; covariance and NDT/GICP still gate readiness.
+    allowed_heading_solutions: [L1_FLOAT, L1_INT, NARROW_INT]
     required_sample_count: 10
     minimum_inlier_count: 7
     heading_timeout_sec: 1.5

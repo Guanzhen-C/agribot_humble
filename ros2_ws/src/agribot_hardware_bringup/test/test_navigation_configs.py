@@ -333,6 +333,19 @@ def test_differential_lattice_matches_costmap_and_supports_in_place_rotation():
     )
 
 
+def test_differential_rtk_float_heading_remains_a_coarse_initialization_source():
+    initializer = load_config("rtk_map_initializer.yaml", "differential")[
+        "rtk_map_initializer"
+    ]["ros__parameters"]
+    assert initializer["allowed_heading_solutions"] == [
+        "L1_FLOAT",
+        "L1_INT",
+        "NARROW_INT",
+    ]
+    assert initializer["required_fix_quality"] == 4
+    assert initializer["maximum_heading_std_deg"] == pytest.approx(3.0)
+
+
 def test_differential_localization_extrinsics_share_one_measured_source():
     mounts = load_config("sensor_mounts.yaml", "differential")
     fastlio = load_config("fast_lio_c16.yaml", "differential")["/**"][
