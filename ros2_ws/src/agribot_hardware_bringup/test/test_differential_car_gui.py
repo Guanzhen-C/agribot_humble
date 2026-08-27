@@ -1,4 +1,5 @@
 import importlib.util
+import math
 import sys
 from pathlib import Path
 
@@ -39,6 +40,15 @@ def test_3000_level_maps_to_protocol_percentage_and_1_1_mps():
     assert gui.encode_command(3000, -3000, 2).hex() == (
         "00649c00000002fa"
     )
+
+
+def test_measured_speed_curve_and_interpolation():
+    gui = load_gui_module()
+    assert gui.drive_level_to_speed(0) == 0.0
+    assert gui.drive_level_to_speed(800) == 0.42
+    assert gui.drive_level_to_speed(1600) == 0.78
+    assert gui.drive_level_to_speed(-800) == -0.42
+    assert gui.drive_level_to_speed(1200) == 0.60
 
 
 def test_command_is_saturated_and_has_rolling_counter_and_checksum():
@@ -84,7 +94,7 @@ def test_chassis_and_motor_feedback_decoding():
     decoded_motor = gui.decode_motor_feedback(motor)
     assert decoded_motor is not None
     assert decoded_motor.speed_rpm == 1500
-    assert decoded_motor.speed_mps == 0.55
+    assert math.isclose(decoded_motor.speed_mps, 0.735)
     assert decoded_motor.current == -8
     assert decoded_motor.temperature_c == 30
 

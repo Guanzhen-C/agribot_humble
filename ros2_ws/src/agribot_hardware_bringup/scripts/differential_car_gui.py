@@ -29,6 +29,12 @@ CAN_BITRATE = 250000
 # 3000 rpm calibration point corresponds to 100 percent and 1.1 m/s.
 MAX_DRIVE_LEVEL = 3000
 MAX_SPEED_MPS = 1.10
+SPEED_CALIBRATION = (
+    (0, 0.0),
+    (800, 0.42),
+    (1600, 0.78),
+    (MAX_DRIVE_LEVEL, MAX_SPEED_MPS),
+)
 DEFAULT_DRIVE_LEVEL = 800
 DRIVE_LEVEL_STEP = 100
 INNER_TRACK_RATIO = 0.35
@@ -59,7 +65,19 @@ def drive_level_to_percent(level: float) -> int:
 
 def drive_level_to_speed(level: float) -> float:
     limited = clamp(level, -MAX_DRIVE_LEVEL, MAX_DRIVE_LEVEL)
-    return limited / MAX_DRIVE_LEVEL * MAX_SPEED_MPS
+    direction = -1.0 if limited < 0.0 else 1.0
+    magnitude = abs(limited)
+    for (lower_level, lower_speed), (upper_level, upper_speed) in zip(
+        SPEED_CALIBRATION,
+        SPEED_CALIBRATION[1:],
+    ):
+        if magnitude <= upper_level:
+            ratio = (magnitude - lower_level) / (
+                upper_level - lower_level
+            )
+            speed = lower_speed + ratio * (upper_speed - lower_speed)
+            return direction * speed
+    return direction * MAX_SPEED_MPS
 
 
 def encode_command(
