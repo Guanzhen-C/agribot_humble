@@ -344,6 +344,7 @@ def test_service_dispatches_exclusive_trigger_backends():
     ).read_text()
     assert "pps_alignment=\" << (pps_locked ? \"every_pps\" : \"holdover\")" in pin32_helper
     assert "检测到RTK PPS恢复" in pin32_helper
+    assert "holdover_poll_sec" in pin32_helper
     assert "pps_monitoring=continuous" in pin32_helper
     assert "GPIO_V2_LINE_FLAG_EVENT_CLOCK_REALTIME" in pin32_helper
     assert "edge.count - previous_pps_edge_count != expected_edges" in pin32_helper

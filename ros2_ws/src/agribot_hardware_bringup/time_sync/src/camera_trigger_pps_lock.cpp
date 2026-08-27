@@ -631,9 +631,11 @@ void run(const Options & options)
       std::cout << "RTK PPS暂不可用，Pin32相机触发进入10 Hz保持模式；"
                 << "继续发布Pin33物理沿时间戳并等待PPS恢复" << std::endl;
 
+      const double holdover_poll_sec = std::min(
+        options.timeout_sec, static_cast<double>(options.period_ns) * 1.0e-9);
       while (stop_requested == 0) {
         pps_fdata restored_event{};
-        if (fetch_pps(pps.get(), options.timeout_sec, restored_event)) {
+        if (fetch_pps(pps.get(), holdover_poll_sec, restored_event)) {
           throw std::runtime_error("检测到RTK PPS恢复，重启触发服务以重新进入逐PPS锁相");
         }
         if (stop_requested != 0) {
