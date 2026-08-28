@@ -15,7 +15,9 @@
 
     # “三合一底盘”控制报文的规定周期为 200 ms。
     send_rate_hz: 5.0
-    command_timeout_sec: 0.25
+    # The chassis command itself is sent every 200 ms. Keep three periods of
+    # margin so one delayed Nav2 update does not alternate motion and braking.
+    command_timeout_sec: 0.60
     feedback_timeout_sec: 0.6
     recover_zqwl_startup: true
     startup_feedback_timeout_sec: 1.0
@@ -25,7 +27,7 @@
     require_sequential_feedback_counter: false
     require_localization_ready: false
     localization_ready_topic: /localization/ready
-    localization_ready_timeout_sec: 0.5
+    localization_ready_timeout_sec: 1.0
     headlight: false
 
     invert_left_motor: false

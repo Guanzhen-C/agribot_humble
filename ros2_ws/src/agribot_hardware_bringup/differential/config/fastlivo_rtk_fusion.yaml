@@ -29,8 +29,9 @@ fastlivo_rtk_fusion:
     required_consecutive_fixed: 3
     quality_timeout_sec: 0.30
     fixed_recent_timeout_sec: 0.50
-    # Bottom-level motion authorization is revoked if FAST-LIVO2 odometry stalls.
-    odom_ready_timeout_sec: 0.50
+    # The full RDK stack showed occasional 1.37 s odometry gaps while the
+    # estimator remained healthy. Revoke motion only after a sustained stall.
+    odom_ready_timeout_sec: 1.50
     rtk_sync_tolerance_sec: 0.15
     imu_sync_tolerance_sec: 0.08
     seed_sync_tolerance_sec: 0.30

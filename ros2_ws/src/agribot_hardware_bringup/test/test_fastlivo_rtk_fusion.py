@@ -121,6 +121,17 @@ def test_differential_outdoor_restores_rtk_visual_manual_priority():
     assert '"enable_visual_initialization": "true"' in outdoor_source
 
 
+def test_differential_navigation_uses_continuous_control_behavior_trees():
+    source = DIFFERENTIAL_FULL_LAUNCH.read_text()
+
+    assert (
+        "nav_to_pose_with_consistent_replanning_and_if_path_becomes_invalid.xml"
+        in source
+    )
+    assert "navigate_through_poses_w_replanning_differential.xml" in source
+    assert '"localization_ready_timeout_sec": 1.0' in source
+
+
 def test_no_rtk_mode_keeps_manual_ndt_gicp_and_freezes_global_correction():
     launch_source = COMMON_LOCALIZATION_LAUNCH.read_text()
     fusion_source = (

@@ -307,6 +307,25 @@ def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
         assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
 
 
+def test_differential_runtime_tolerates_measured_rdk_scheduling_gaps():
+    navigation = load_config(
+        "nav2_params_differential_fastlivo_mapped.yaml", "differential"
+    )
+    chassis = load_config("chassis_can.yaml", "differential")["/**"][
+        "ros__parameters"
+    ]
+    fusion = load_config("fastlivo_rtk_fusion.yaml", "differential")[
+        "fastlivo_rtk_fusion"
+    ]["ros__parameters"]
+
+    assert navigation["planner_server"]["ros__parameters"][
+        "expected_planner_frequency"
+    ] == pytest.approx(0.333)
+    assert chassis["command_timeout_sec"] >= 3.0 / chassis["send_rate_hz"]
+    assert chassis["localization_ready_timeout_sec"] == pytest.approx(1.0)
+    assert fusion["odom_ready_timeout_sec"] == pytest.approx(1.5)
+
+
 def test_differential_lattice_matches_costmap_and_supports_in_place_rotation():
     config = load_config(
         "nav2_params_differential_fastlivo_mapped.yaml", "differential"

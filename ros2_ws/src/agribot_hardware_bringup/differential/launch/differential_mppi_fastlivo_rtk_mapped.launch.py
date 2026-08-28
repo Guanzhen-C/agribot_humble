@@ -102,12 +102,12 @@ def generate_launch_description():
                     "default_nav_to_pose_bt_xml": os.path.join(
                         nav2_bt_share,
                         "behavior_trees",
-                        "navigate_to_pose_w_replanning_and_recovery.xml",
+                        "nav_to_pose_with_consistent_replanning_and_if_path_becomes_invalid.xml",
                     ),
                     "default_nav_through_poses_bt_xml": os.path.join(
-                        nav2_bt_share,
+                        differential_share,
                         "behavior_trees",
-                        "navigate_through_poses_w_replanning_and_recovery.xml",
+                        "navigate_through_poses_w_replanning_differential.xml",
                     ),
                 }.items(),
             )
@@ -132,7 +132,7 @@ def generate_launch_description():
                 "command_topic": "/nav2/cmd_vel",
                 "require_localization_ready": True,
                 "localization_ready_topic": "/fastlivo_rtk/ready",
-                "localization_ready_timeout_sec": 0.5,
+                "localization_ready_timeout_sec": 1.0,
             },
         ],
         condition=IfCondition(LaunchConfiguration("enable_chassis_output")),

@@ -120,8 +120,25 @@ def test_migrated_runtime_resources_exist_and_parse():
     for relative_path in obsolete:
         assert not (PACKAGE_ROOT / relative_path).exists()
 
-    for path in (PACKAGE_ROOT / "ackermann" / "behavior_trees").glob("*.xml"):
-        element_tree.parse(path)
+    for vehicle in ("ackermann", "differential"):
+        for path in (PACKAGE_ROOT / vehicle / "behavior_trees").glob("*.xml"):
+            element_tree.parse(path)
+
+
+def test_differential_route_tree_limits_expensive_global_replanning():
+    path = (
+        PACKAGE_ROOT
+        / "differential"
+        / "behavior_trees"
+        / "navigate_through_poses_w_replanning_differential.xml"
+    )
+    tree = element_tree.parse(path)
+    rate = tree.find(".//RateController")
+
+    assert rate is not None
+    assert float(rate.attrib["hz"]) <= 0.333
+    assert tree.find(".//ComputePathThroughPoses") is not None
+    assert tree.find(".//FollowPath") is not None
 
 
 def test_navsat_wrapper_converts_kf_gins_state_to_rear_axle_base_link():

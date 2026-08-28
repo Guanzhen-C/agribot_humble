@@ -339,6 +339,7 @@ install(DIRECTORY config launch meshes models rviz systemd udev urdf DESTINATION
 )
 install(DIRECTORY
   differential/config
+  differential/behavior_trees
   DESTINATION share/${PROJECT_NAME}/differential
 )
 install(DIRECTORY
