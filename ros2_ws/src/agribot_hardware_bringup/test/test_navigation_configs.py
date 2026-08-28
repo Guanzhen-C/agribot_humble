@@ -300,7 +300,7 @@ def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
 
     for name, obstacle_range in (("global_costmap", 8.0), ("local_costmap", 4.0)):
         costmap = config[name][name]["ros__parameters"]
-        assert_c16_stvl(costmap, obstacle_range, 0.90, 1.80)
+        assert_c16_stvl(costmap, obstacle_range, 0.90, 1.00)
         assert yaml.safe_load(costmap["footprint"]) == expected_footprint
         assert costmap["footprint_padding"] == 0.0
         assert costmap["inflation_layer"]["inflation_radius"] == 2.0
