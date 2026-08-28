@@ -208,10 +208,30 @@ TEST(DifferentialCanKinematics, UsesMeasuredPiecewiseCommandCalibration)
   EXPECT_NEAR(full_scale.right_percent, 100.0, 1e-12);
 }
 
+TEST(DifferentialCanKinematics, CapsEachTrackAtConfiguredCommandLevel)
+{
+  differential::Kinematics config;
+  config.max_linear_velocity = 2.0;
+  config.max_command_level = 800.0;
+
+  const auto straight = differential::fromTwist(0.42, 0.0, config);
+  EXPECT_NEAR(straight.left_percent, 800.0 / 3000.0 * 100.0, 1e-12);
+  EXPECT_NEAR(straight.right_percent, 800.0 / 3000.0 * 100.0, 1e-12);
+
+  const auto turning = differential::fromTwist(0.42, 0.8, config);
+  EXPECT_LE(std::abs(turning.left_percent), 800.0 / 3000.0 * 100.0);
+  EXPECT_NEAR(
+    std::abs(turning.right_percent), 800.0 / 3000.0 * 100.0, 1e-12);
+}
+
 TEST(DifferentialCanKinematics, RejectsInvalidConfiguration)
 {
   differential::Kinematics config;
   config.track_width_m = 0.0;
+  EXPECT_THROW(differential::fromTwist(0.1, 0.0, config), std::invalid_argument);
+
+  config = differential::Kinematics{};
+  config.max_command_level = config.command_full_scale_level + 1.0;
   EXPECT_THROW(differential::fromTwist(0.1, 0.0, config), std::invalid_argument);
 
   config = differential::Kinematics{};

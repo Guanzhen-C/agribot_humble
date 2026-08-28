@@ -86,9 +86,9 @@ controller_server:
       vx_std: 0.12
       vy_std: 0.0
       wz_std: 0.20
-      # Provisional commissioning limits. Keep chassis output disabled until the
-      # measured vehicle limits have replaced these values.
-      vx_max: 0.20
+      # 800 command level measured with the desktop GUI corresponds to 0.42 m/s.
+      # The CAN adapter also caps each track at level 800 during combined motion.
+      vx_max: 0.42
       vx_min: -0.15
       vy_max: 0.0
       wz_max: 0.80

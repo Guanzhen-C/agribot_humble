@@ -255,6 +255,10 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert chassis["command_full_scale_level"] == drivetrain[
         "command_full_scale_level"
     ]
+    assert chassis["max_command_level"] == drivetrain["max_command_level"] == 800.0
+    assert chassis["max_linear_velocity"] == calibration["motion"][
+        "commissioning_linear_velocity_mps"
+    ] == 0.42
     assert chassis["command_calibration_levels"] == drivetrain[
         "command_calibration_levels"
     ]

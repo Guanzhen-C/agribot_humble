@@ -37,10 +37,13 @@
     # Initial geometric value; refine from an in-place-turn test for track slip.
     track_width_m: 0.60
     command_full_scale_level: 3000.0
+    # 与桌面GUI默认档位一致；直行时对应约0.42 m/s。转弯时同样限制
+    # 任一履带的最终命令不超过该档位。
+    max_command_level: 800.0
     command_calibration_levels: [0.0, 800.0, 1600.0]
     command_calibration_wheel_speeds_mps: [0.0, 0.42, 0.78]
     # 实车0x533/0x534反馈的Byte1-2是电机RPM；该临时比例只用于可选
     # 轮速里程计，不参与导航定位或控制指令换算，需结合减速比实测标定。
     feedback_wheel_speed_mps_per_speed_unit: 0.000436332313
-    max_linear_velocity: 0.20
+    max_linear_velocity: 0.42
     max_angular_velocity: 0.80

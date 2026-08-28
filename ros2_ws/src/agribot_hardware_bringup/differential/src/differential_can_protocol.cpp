@@ -52,6 +52,11 @@ void validateConfig(const Kinematics & config)
 {
   requirePositive(config.track_width_m, "track_width_m");
   requirePositive(config.command_full_scale_level, "command_full_scale_level");
+  requirePositive(config.max_command_level, "max_command_level");
+  if (config.max_command_level > config.command_full_scale_level) {
+    throw std::invalid_argument(
+            "max_command_level exceeds command_full_scale_level");
+  }
   validateCalibration(config);
   requirePositive(
     config.feedback_wheel_speed_mps_per_speed_unit,
@@ -78,7 +83,7 @@ double interpolateOrExtrapolate(
 double maximumCommandWheelSpeed(const Kinematics & config)
 {
   return interpolateOrExtrapolate(
-    config.command_full_scale_level,
+    config.max_command_level,
     config.command_calibration_levels,
     config.command_calibration_wheel_speeds_mps);
 }

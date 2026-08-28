@@ -25,6 +25,7 @@ drivetrain:
   # Ground-speed measurements made with the desktop GUI. Level 3000 remains
   # only the protocol's 100 percent point; its ground speed has not been measured.
   command_full_scale_level: 3000.0
+  max_command_level: 800.0
   command_calibration_levels: [0.0, 800.0, 1600.0]
   command_calibration_wheel_speeds_mps: [0.0, 0.42, 0.78]
   # This feedback scale is still provisional and does not affect commands.
@@ -32,7 +33,7 @@ drivetrain:
 
 motion:
   reverse_enabled: true
-  commissioning_linear_velocity_mps: 0.20
+  commissioning_linear_velocity_mps: 0.42
   commissioning_reverse_velocity_mps: 0.15
   commissioning_angular_velocity_radps: 0.80
 

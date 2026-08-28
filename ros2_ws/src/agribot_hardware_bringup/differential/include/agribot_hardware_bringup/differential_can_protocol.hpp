@@ -26,6 +26,7 @@ struct Kinematics
 {
   double track_width_m{0.60};
   double command_full_scale_level{3000.0};
+  double max_command_level{3000.0};
   std::vector<double> command_calibration_levels{0.0, 800.0, 1600.0};
   std::vector<double> command_calibration_wheel_speeds_mps{0.0, 0.42, 0.78};
   double feedback_wheel_speed_mps_per_speed_unit{0.000436332313};

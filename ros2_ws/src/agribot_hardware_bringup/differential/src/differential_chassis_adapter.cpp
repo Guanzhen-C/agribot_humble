@@ -24,6 +24,8 @@ public:
     config_.track_width_m = node.declare_parameter<double>("track_width_m", 0.60);
     config_.command_full_scale_level =
       node.declare_parameter<double>("command_full_scale_level", 3000.0);
+    config_.max_command_level =
+      node.declare_parameter<double>("max_command_level", 3000.0);
     config_.command_calibration_levels =
       node.declare_parameter<std::vector<double>>(
         "command_calibration_levels", {0.0, 800.0, 1600.0});
