@@ -115,6 +115,20 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("start_navigation")),
     )
 
+    obstacle_height_filter = Node(
+        package="agribot_hardware_bringup",
+        executable="differential_obstacle_height_filter",
+        name="differential_obstacle_height_filter",
+        output="screen",
+        parameters=[
+            os.path.join(
+                differential_share, "config", "obstacle_height_filter.yaml"
+            ),
+            {"use_sim_time": use_sim_time},
+        ],
+        condition=IfCondition(LaunchConfiguration("start_navigation")),
+    )
+
     chassis = Node(
         package="agribot_hardware_bringup",
         executable="differential_chassis_can_node",
@@ -295,6 +309,7 @@ def generate_launch_description():
                     )
                 ],
             ),
+            obstacle_height_filter,
             navigation,
             chassis,
             Node(

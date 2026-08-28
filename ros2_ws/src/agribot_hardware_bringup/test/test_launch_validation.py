@@ -157,6 +157,12 @@ def test_differential_full_stack_is_read_only_by_default():
     ) == []
 
 
+def test_differential_full_stack_filters_obstacles_relative_to_base_link():
+    source = DIFFERENTIAL_FULL_LAUNCH_PATH.read_text(encoding="utf-8")
+    assert 'executable="differential_obstacle_height_filter"' in source
+    assert '"config", "obstacle_height_filter.yaml"' in source
+
+
 def test_uncalibrated_camera_is_allowed_only_without_chassis_output():
     assert ACKERMANN_FASTLIVO_FULL_LAUNCH._validate_arguments(
         ackermann_fastlivo_full_context(allow_uncalibrated_camera="true")

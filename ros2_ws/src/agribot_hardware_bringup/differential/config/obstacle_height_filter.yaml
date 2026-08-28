@@ -1,0 +1,9 @@
+differential_obstacle_height_filter:
+  ros__parameters:
+    input_topic: /lidar/points
+    output_topic: /navigation/obstacle_points
+    base_frame: base_link
+    # Heights are relative to the ground-level base_link, not the map origin.
+    min_height: 0.90
+    max_height: 1.00
+    transform_timeout_sec: 0.05

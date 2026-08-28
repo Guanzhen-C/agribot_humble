@@ -180,6 +180,7 @@ def assert_c16_stvl(
     obstacle_range,
     min_obstacle_height=0.08,
     max_obstacle_height=1.8,
+    marking_topic="/lidar/points",
 ):
     assert "obstacle_layer" not in costmap
     assert "stvl_layer" in costmap["plugins"]
@@ -192,7 +193,7 @@ def assert_c16_stvl(
     assert layer["observation_sources"] == "lidar_mark lidar_clear"
 
     marking = layer["lidar_mark"]
-    assert marking["topic"] == "/lidar/points"
+    assert marking["topic"] == marking_topic
     assert marking["data_type"] == "PointCloud2"
     assert marking["marking"] is True
     assert marking["clearing"] is False
@@ -287,6 +288,9 @@ def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
     )
     calibration = load_config("vehicle_calibration.yaml", "differential")
     geometry = calibration["geometry"]
+    height_filter = load_config("obstacle_height_filter.yaml", "differential")[
+        "differential_obstacle_height_filter"
+    ]["ros__parameters"]
     expected_footprint = [
         [geometry["body_front_m"] + geometry["safety_front_m"],
          geometry["body_left_m"] + geometry["safety_left_m"]],
@@ -300,11 +304,23 @@ def test_differential_config_uses_c16_stvl_and_full_buffered_footprint():
 
     for name, obstacle_range in (("global_costmap", 8.0), ("local_costmap", 4.0)):
         costmap = config[name][name]["ros__parameters"]
-        assert_c16_stvl(costmap, obstacle_range, 0.90, 1.00)
+        assert_c16_stvl(
+            costmap,
+            obstacle_range,
+            -100.0,
+            100.0,
+            "/navigation/obstacle_points",
+        )
         assert yaml.safe_load(costmap["footprint"]) == expected_footprint
         assert costmap["footprint_padding"] == 0.0
         assert costmap["inflation_layer"]["inflation_radius"] == 2.0
         assert costmap["inflation_layer"]["cost_scaling_factor"] == 1.0
+
+    assert height_filter["input_topic"] == "/lidar/points"
+    assert height_filter["output_topic"] == "/navigation/obstacle_points"
+    assert height_filter["base_frame"] == "base_link"
+    assert height_filter["min_height"] == pytest.approx(0.90)
+    assert height_filter["max_height"] == pytest.approx(1.00)
 
 
 def test_differential_runtime_tolerates_measured_rdk_scheduling_gaps():

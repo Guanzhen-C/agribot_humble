@@ -125,6 +125,17 @@ target_link_libraries(
 )
 
 add_executable(
+  differential_obstacle_height_filter
+  differential/src/differential_obstacle_height_filter.cpp
+)
+target_link_libraries(differential_obstacle_height_filter Eigen3::Eigen)
+ament_target_dependencies(differential_obstacle_height_filter
+  rclcpp
+  sensor_msgs
+  tf2_ros
+)
+
+add_executable(
   ackermann_chassis_can_node
   ackermann/src/ackermann_chassis_main.cpp
 )
@@ -386,6 +397,7 @@ install(TARGETS
 )
 install(TARGETS
   differential_chassis_can_node
+  differential_obstacle_height_filter
   ackermann_chassis_can_node
   ackermann_chassis_serial_node
   ackermann_joint_state_publisher

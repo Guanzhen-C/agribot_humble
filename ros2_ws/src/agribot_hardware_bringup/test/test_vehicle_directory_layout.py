@@ -35,6 +35,7 @@ def test_vehicle_specific_code_is_separated():
             "config/motion_primitives/diff_5cm.json",
             "config/nav2_params_differential_fastlivo_mapped.yaml",
             "config/nav2_params_differential_planner_only.yaml",
+            "config/obstacle_height_filter.yaml",
             "config/pcd_initial_localization.yaml",
             "config/pcd_mapping.yaml",
             "config/rtk_map_initializer.yaml",
@@ -51,6 +52,7 @@ def test_vehicle_specific_code_is_separated():
             "src/differential_can_protocol.cpp",
             "src/differential_chassis_adapter.cpp",
             "src/differential_chassis_main.cpp",
+            "src/differential_obstacle_height_filter.cpp",
             "test/test_differential_can_protocol.cpp",
         ),
         "ackermann": (
