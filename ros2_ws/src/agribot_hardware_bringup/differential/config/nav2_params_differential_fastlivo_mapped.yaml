@@ -61,7 +61,10 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     odom_topic: /fastlivo_rtk/odometry
-    controller_frequency: 10.0
+    # The chassis applies 0x514 commands at 5 Hz. Keep MPPI on the same clock
+    # so the CAN adapter does not sample every other, potentially opposite,
+    # angular correction.
+    controller_frequency: 5.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.0
     min_theta_velocity_threshold: 0.001
@@ -80,14 +83,16 @@ controller_server:
       stateful: true
     FollowPath:
       plugin: nav2_mppi_controller::MPPIController
-      time_steps: 40
-      model_dt: 0.1
+      # Twenty 200 ms steps preserve the existing four-second horizon while
+      # matching the measured chassis command period.
+      time_steps: 20
+      model_dt: 0.2
       batch_size: 1200
       vx_std: 0.12
       vy_std: 0.0
       # Keep angular exploration conservative on the tracked chassis. Its
       # steering response is slower than the controller update rate.
-      wz_std: 0.10
+      wz_std: 0.08
       # 800 command level measured with the desktop GUI corresponds to 0.42 m/s.
       # The CAN adapter also caps each track at level 800 during combined motion.
       vx_max: 0.42
@@ -98,7 +103,7 @@ controller_server:
       ax_min: -0.5
       ay_min: 0.0
       ay_max: 0.0
-      az_max: 0.4
+      az_max: 0.3
       iteration_count: 1
       temperature: 0.3
       gamma: 0.015
@@ -146,7 +151,7 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 3.5
+        cost_weight: 2.5
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
@@ -161,7 +166,7 @@ controller_server:
       PathAngleCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 3.0
+        cost_weight: 2.0
         offset_from_furthest: 8
         threshold_to_consider: 0.5
         max_angle_to_furthest: 1.0

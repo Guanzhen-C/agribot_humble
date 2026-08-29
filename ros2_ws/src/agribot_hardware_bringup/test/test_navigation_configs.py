@@ -237,10 +237,16 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert follow_path["vy_max"] == 0.0
     assert follow_path["vy_std"] == 0.0
     assert follow_path["wz_max"] == chassis["max_angular_velocity"]
-    assert follow_path["wz_std"] == pytest.approx(0.10)
-    assert follow_path["az_max"] == pytest.approx(0.40)
+    assert controller["controller_frequency"] == pytest.approx(
+        chassis["send_rate_hz"]
+    )
+    assert follow_path["model_dt"] == pytest.approx(1.0 / chassis["send_rate_hz"])
+    assert follow_path["time_steps"] * follow_path["model_dt"] == pytest.approx(4.0)
+    assert follow_path["wz_std"] == pytest.approx(0.08)
+    assert follow_path["az_max"] == pytest.approx(0.30)
     assert follow_path["enforce_path_inversion"] is True
-    assert follow_path["PathAngleCritic"]["cost_weight"] == pytest.approx(3.0)
+    assert follow_path["PathAlignCritic"]["cost_weight"] == pytest.approx(2.5)
+    assert follow_path["PathAngleCritic"]["cost_weight"] == pytest.approx(2.0)
     assert follow_path["PathAngleCritic"]["forward_preference"] is False
     assert "AckermannConstraints" not in follow_path
     assert "PreferForwardCritic" not in follow_path
