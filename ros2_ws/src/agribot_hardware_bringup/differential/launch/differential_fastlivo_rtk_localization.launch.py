@@ -44,6 +44,7 @@ def generate_launch_description():
                 "allow_uncalibrated_camera", default_value="false"
             ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
+            DeclareLaunchArgument("fastlivo_dense_map", default_value="false"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
@@ -105,6 +106,9 @@ def generate_launch_description():
                                 "allow_uncalibrated_camera"
                             ),
                             "start_fastlivo": LaunchConfiguration("start_fastlivo"),
+                            "fastlivo_dense_map": LaunchConfiguration(
+                                "fastlivo_dense_map"
+                            ),
                             "start_initial_localizer": LaunchConfiguration(
                                 "start_initial_localizer"
                             ),

@@ -43,6 +43,7 @@ def test_fixed_rtk_position_only_policy_and_gravity_constraint():
     assert parameters["auto_initialize_from_fixed_rtk"] is False
     assert parameters["rtk_horizontal_sigma_floor_m"] == pytest.approx(0.10)
     assert parameters["gravity_sigma_rad"] == pytest.approx(0.017453292519943295)
+    assert parameters["preserve_local_vertical"] is True
     assert parameters["correction_time_constant_sec"] == pytest.approx(2.0)
     assert parameters["odom_ready_timeout_sec"] == pytest.approx(0.50)
     assert "HorizontalAntennaFactor" in source
@@ -52,6 +53,9 @@ def test_fixed_rtk_position_only_policy_and_gravity_constraint():
     assert "-std::expm1(-dt / correction_time_constant_sec_)" in source
     assert "refreshLatestOptimizedPose();" in source
     assert "if (!fixedRecentlyActive())" in source
+    assert "preserveLocalVertical(odom_from_base);" in source
+    assert "localVerticalZ(odom_from_base)" in source
+    assert "translation_delta.z() = 0.0;" in source
     assert "localizationHealthy()" in source
     assert '"odometry_fresh"' in source
     assert "std::chrono::milliseconds(100)" in source
@@ -83,6 +87,14 @@ def test_live_launch_starts_fastlivo_rtk_fusion_and_disables_localizer_tf():
     assert '"start_camera", default_value="true"' in wrapper_source
     assert '"initialization_source", default_value="auto"' in wrapper_source
     assert 'executable="rtk_map_initializer"' in common_source
+    assert 'DeclareLaunchArgument("fastlivo_dense_map", default_value="false")' in (
+        common_source
+    )
+    assert '"publish.dense_map_en": ParameterValue(' in common_source
+    assert 'DeclareLaunchArgument("fastlivo_dense_map", default_value="false")' in (
+        wrapper_source
+    )
+    assert '"fastlivo_dense_map": LaunchConfiguration(' in wrapper_source
     assert 'executable="visual_place_recognizer.py"' in common_source
     assert 'executable="initialization_coordinator.py"' in common_source
     assert '"initial_pose_topic": PythonExpression(' in common_source

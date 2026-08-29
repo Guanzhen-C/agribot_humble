@@ -131,3 +131,5 @@ def test_result_viewer_declares_the_fused_fastlivo_rtk_path():
     assert "/mapping_result/fastlivo_rtk_path" in publisher_source
     assert "fastlivo_rtk_bag" in launch_source
     assert "/mapping_result/fastlivo_rtk_path" in rviz_source
+    assert "show_visual_map" in launch_source
+    assert "/fastlivo_rtk_visual_map" in rviz_source

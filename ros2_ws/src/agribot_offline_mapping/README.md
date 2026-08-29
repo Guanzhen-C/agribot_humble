@@ -109,13 +109,26 @@ configurations:
 
 ```bash
 ros2 run agribot_offline_mapping run_localization_comparison.py \
-  /home/cgz/agribot_bags/INPUT_BAG \
-  /home/cgz/agribot_maps/test_site/MAP_NAME_comparison \
+  /path/to/INPUT_BAG /path/to/MAP_NAME_fastlio \
+  --estimator fastlio --vehicle-profile differential \
+  --domain-id 74 --playback-rate 0.5
+
+ros2 run agribot_offline_mapping run_localization_comparison.py \
+  /path/to/INPUT_BAG /path/to/MAP_NAME_fastlivo \
+  --estimator fastlivo --vehicle-profile differential \
+  --domain-id 74 --playback-rate 0.5
+
+ros2 run agribot_offline_mapping run_localization_comparison.py \
+  /path/to/INPUT_BAG /path/to/MAP_NAME_kf_gins \
+  --estimator kf_gins --vehicle-profile differential \
+  --georeference /path/to/MAP_NAME_georeference.yaml \
   --domain-id 74 --playback-rate 0.5
 
 ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
-  map_base:=/home/cgz/agribot_maps/test_site/MAP_NAME \
-  show_comparison_paths:=true
+  map_base:=/path/to/MAP_NAME show_comparison_paths:=true \
+  fastlio_bag:=/path/to/MAP_NAME_fastlio \
+  fastlivo_bag:=/path/to/MAP_NAME_fastlivo \
+  kf_gins_bag:=/path/to/MAP_NAME_kf_gins
 ```
 
 Pass `--vehicle-profile differential` for the tracked vehicle. This selects
@@ -130,14 +143,23 @@ estimators for CPU time:
 ros2 run agribot_offline_mapping run_fastlivo_rtk_comparison.py \
   /path/to/INPUT_BAG /path/to/MAP_NAME \
   /path/to/MAP_NAME_fastlivo_rtk \
+  --visual-map /path/to/MAP_NAME_fastlivo_rtk_visual.pcd \
   --vehicle-profile differential \
   --domain-id 75 --playback-rate 0.5
 
 ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   map_base:=/path/to/MAP_NAME \
   show_comparison_paths:=true \
-  fastlivo_rtk_bag:=/path/to/MAP_NAME_fastlivo_rtk
+  fastlivo_rtk_bag:=/path/to/MAP_NAME_fastlivo_rtk \
+  visual_map:=/path/to/MAP_NAME_fastlivo_rtk_visual.pcd \
+  show_visual_map:=true
 ```
+
+The optional visual PCD uses dense RGB-projected FAST-LIVO2 clouds. For every
+cloud it computes `map <- base(fused) * inverse(odom <- base(local))`, so the
+fixed-RTK factor graph's time-varying correction is applied before 0.10 m
+colored-voxel accumulation. The production localization default remains sparse
+and does not publish dense clouds unless this offline option is requested.
 
 When FAST-LIVO2 is recomputed independently, keep the other trajectories
 from the comparison bag and replace only its path with:
@@ -164,8 +186,8 @@ FAST-LIVO2, yellow for recomputed KF-GINS and orange for the final contiguous
 quality-5 RTK interval. Both RTK paths apply the measured master-antenna lever
 arm and represent the rear-axle center; the float path is not connected across
 lower-quality intervals.
-The conservative 0.5 playback rate keeps all estimators from dropping input
-while they run together on the Jetson.
+The conservative 0.5 playback rate keeps each independently run estimator from
+dropping input on the Jetson.
 
 The pipeline records RTK quality 4 antenna positions independently of heading.
 It converts the C16 scan-end cloud stamp and point timing to the start-referenced

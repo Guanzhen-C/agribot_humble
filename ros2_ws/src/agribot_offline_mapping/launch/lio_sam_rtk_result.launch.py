@@ -37,6 +37,10 @@ def launch_setup(context):
     fastlivo_rtk_bag_value = LaunchConfiguration(
         "fastlivo_rtk_bag"
     ).perform(context)
+    visual_map_value = LaunchConfiguration("visual_map").perform(context)
+    show_visual_map = LaunchConfiguration("show_visual_map").perform(
+        context
+    ).lower() in ("1", "true", "yes", "on")
 
     estimator_values = (
         fastlio_bag_value, fastlivo_bag_value, kf_gins_bag_value
@@ -63,6 +67,7 @@ def launch_setup(context):
         if fastlivo_rtk_bag_value
         else None
     )
+    visual_map = Path(visual_map_value).expanduser() if visual_map_value else None
     show_comparison_paths = LaunchConfiguration(
         "show_comparison_paths"
     ).perform(context).lower() in ("1", "true", "yes", "on")
@@ -81,6 +86,10 @@ def launch_setup(context):
             required.append(estimator_path / "metadata.yaml")
         if fastlivo_rtk_bag is not None:
             required.append(fastlivo_rtk_bag / "metadata.yaml")
+    if show_visual_map:
+        if visual_map is None:
+            raise RuntimeError("show_visual_map requires visual_map")
+        required.append(visual_map)
     missing = [path for path in required if not path.is_file()]
     if missing:
         raise RuntimeError(
@@ -203,6 +212,19 @@ def launch_setup(context):
             condition=IfCondition(LaunchConfiguration("show_3d_map")),
         ),
         Node(
+            package="pcl_ros",
+            executable="pcd_to_pointcloud",
+            name="fastlivo_rtk_visual_map_publisher",
+            output="screen",
+            parameters=[{
+                "file_name": str(visual_map) if visual_map is not None else "",
+                "tf_frame": "map",
+                "publishing_period_ms": 10000,
+            }],
+            remappings=[("cloud_pcd", "/fastlivo_rtk_visual_map")],
+            condition=IfCondition(LaunchConfiguration("show_visual_map")),
+        ),
+        Node(
             package="rviz2",
             executable="rviz2",
             name="mapping_result_rviz",
@@ -222,6 +244,8 @@ def generate_launch_description():
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("show_3d_map", default_value="true"),
         DeclareLaunchArgument("show_comparison_paths", default_value="false"),
+        DeclareLaunchArgument("visual_map", default_value=""),
+        DeclareLaunchArgument("show_visual_map", default_value="false"),
         DeclareLaunchArgument(
             "comparison_bag",
             default_value="",

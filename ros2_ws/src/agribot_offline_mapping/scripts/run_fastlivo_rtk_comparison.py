@@ -42,6 +42,7 @@ VEHICLE_LAUNCHES = {
     "ackermann": "ackermann_fastlivo_rtk_localization.launch.py",
     "differential": "differential_fastlivo_rtk_localization.launch.py",
 }
+VISUAL_MAP_SERVICE = "/fastlivo_rtk_visual_mapper/save"
 
 
 class FusionError(RuntimeError):
@@ -83,6 +84,56 @@ def stop(process, name, timeout=30.0):
         except ProcessLookupError:
             return
         process.wait(timeout=5.0)
+
+
+def wait_for_service(service_name, environment, timeout=20.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["ros2", "service", "type", service_name],
+            env=environment,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return
+        time.sleep(0.25)
+    raise FusionError(f"service did not become ready: {service_name}")
+
+
+def save_visual_map(environment):
+    result = subprocess.run(
+        [
+            "ros2", "service", "call", VISUAL_MAP_SERVICE,
+            "std_srvs/srv/Trigger", "{}",
+        ],
+        env=environment,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=120.0,
+    )
+    if result.stdout:
+        print(result.stdout.rstrip(), flush=True)
+    normalized = " ".join((result.stdout or "").lower().split())
+    if result.returncode != 0 or not (
+        "success=true" in normalized or "success: true" in normalized
+    ):
+        raise FusionError("FAST-LIVO2+RTK visual map save service failed")
+
+
+def pcd_point_count(path):
+    with path.open("rb") as stream:
+        for _ in range(64):
+            line = stream.readline().decode("ascii", errors="strict").strip()
+            if line.startswith("POINTS "):
+                return int(line.split()[1])
+            if line.startswith("DATA "):
+                break
+    raise FusionError(f"visual PCD header has no POINTS field: {path}")
 
 
 def bag_information(path):
@@ -142,6 +193,18 @@ def parse_arguments(argv=None):
     parser.add_argument("--domain-id", type=int, default=75)
     parser.add_argument("--playback-rate", type=float, default=0.5)
     parser.add_argument("--settle-seconds", type=float, default=8.0)
+    parser.add_argument(
+        "--visual-map",
+        type=Path,
+        help=(
+            "optional colored PCD built from dense FAST-LIVO2 clouds after "
+            "the time-varying RTK fusion correction"
+        ),
+    )
+    parser.add_argument("--visual-voxel-size", type=float, default=0.10)
+    parser.add_argument(
+        "--visual-sync-tolerance-sec", type=float, default=0.12
+    )
     parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
@@ -180,10 +243,26 @@ def validate_inputs(arguments):
         raise FusionError("source and output bags must differ")
     if arguments.playback_rate <= 0.0 or arguments.settle_seconds < 0.0:
         raise FusionError("playback and settle durations are invalid")
+    if arguments.visual_voxel_size <= 0.0:
+        raise FusionError("visual voxel size must be positive")
+    if arguments.visual_sync_tolerance_sec <= 0.0:
+        raise FusionError("visual synchronization tolerance must be positive")
     if not 0 <= arguments.domain_id <= 232:
         raise FusionError("domain_id must be in [0, 232]")
     output_bag.parent.mkdir(parents=True, exist_ok=True)
-    return source_bag, map_base, output_bag
+    visual_map = None
+    if arguments.visual_map is not None:
+        visual_map = arguments.visual_map.expanduser().resolve()
+        if visual_map.suffix.lower() != ".pcd":
+            raise FusionError("visual map output must use the .pcd extension")
+        if visual_map == map_base.with_suffix(".pcd"):
+            raise FusionError("visual map must not overwrite the localization PCD")
+        if visual_map.exists():
+            if not arguments.force:
+                raise FusionError(f"visual map already exists: {visual_map}")
+            visual_map.unlink()
+        visual_map.parent.mkdir(parents=True, exist_ok=True)
+    return source_bag, map_base, output_bag, visual_map
 
 
 def validate_output(output_bag):
@@ -224,9 +303,9 @@ def validate_output(output_bag):
 
 def main(argv=None):
     arguments = parse_arguments(argv)
-    launch_process = recorder = player = None
+    launch_process = recorder = player = visual_mapper = None
     try:
-        source_bag, map_base, output_bag = validate_inputs(arguments)
+        source_bag, map_base, output_bag, visual_map = validate_inputs(arguments)
         environment = os.environ.copy()
         environment.update(
             {
@@ -251,12 +330,32 @@ def main(argv=None):
                 "enable_fpfh:=false",
                 "allow_missing_georeference:=false",
                 "allow_uncalibrated_camera:=true",
+                f"fastlivo_dense_map:={'true' if visual_map else 'false'}",
             ],
             environment,
         )
         time.sleep(5.0)
         if launch_process.poll() is not None:
             raise FusionError("localization launch exited during startup")
+
+        if visual_map is not None:
+            visual_mapper = start(
+                [
+                    "ros2", "run", "agribot_offline_mapping",
+                    "fastlivo_rtk_visual_mapper", "--ros-args",
+                    "-p", "use_sim_time:=true",
+                    "-p", f"output_file:={visual_map}",
+                    "-p", f"voxel_size:={arguments.visual_voxel_size}",
+                    "-p",
+                    "sync_tolerance_sec:="
+                    f"{arguments.visual_sync_tolerance_sec}",
+                    "-p", f"allow_overwrite:={str(arguments.force).lower()}",
+                ],
+                environment,
+            )
+            wait_for_service(VISUAL_MAP_SERVICE, environment)
+            if visual_mapper.poll() is not None:
+                raise FusionError("visual mapper exited during startup")
 
         recorder = start(
             ["ros2", "bag", "record", "-o", output_bag, *OUTPUT_TOPICS],
@@ -288,6 +387,16 @@ def main(argv=None):
             raise FusionError("source bag playback failed")
         player = None
         time.sleep(arguments.settle_seconds)
+        visual_points = None
+        if visual_map is not None:
+            save_visual_map(environment)
+            if not visual_map.is_file():
+                raise FusionError(f"visual map was not created: {visual_map}")
+            visual_points = pcd_point_count(visual_map)
+            if visual_points < 1000:
+                raise FusionError(
+                    f"visual map contains too few colored points: {visual_points}"
+                )
         stop(recorder, "FAST-LIVO2+RTK recorder")
         recorder = None
 
@@ -298,6 +407,9 @@ def main(argv=None):
         print(f"  fused poses: {counts['/fastlivo_rtk/odometry']}", flush=True)
         print(f"  fixed RTK factors: {fixed_factors}", flush=True)
         print(f"  gravity factors: {gravity_factors}", flush=True)
+        if visual_map is not None:
+            print(f"  visual map: {visual_map}", flush=True)
+            print(f"  colored voxels: {visual_points}", flush=True)
         return 0
     except KeyboardInterrupt:
         print("\nInterrupted by user", file=sys.stderr)
@@ -308,6 +420,7 @@ def main(argv=None):
     finally:
         stop(player, "source bag playback")
         stop(recorder, "FAST-LIVO2+RTK recorder")
+        stop(visual_mapper, "FAST-LIVO2+RTK visual mapper")
         stop(launch_process, "FAST-LIVO2+RTK localization launch")
 
 

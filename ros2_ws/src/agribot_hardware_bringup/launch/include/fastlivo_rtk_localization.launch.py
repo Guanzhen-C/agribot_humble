@@ -15,6 +15,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def _validate_paths(context):
@@ -182,6 +183,7 @@ def generate_launch_description():
                 "hikrobot_trigger_enable", default_value="false"
             ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
+            DeclareLaunchArgument("fastlivo_dense_map", default_value="false"),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
@@ -372,7 +374,13 @@ def generate_launch_description():
                 parameters=[
                     LaunchConfiguration("fastlivo_lidar_config"),
                     LaunchConfiguration("fastlivo_camera_config"),
-                    {"use_sim_time": use_sim_time},
+                    {
+                        "use_sim_time": use_sim_time,
+                        "publish.dense_map_en": ParameterValue(
+                            LaunchConfiguration("fastlivo_dense_map"),
+                            value_type=bool,
+                        ),
+                    },
                 ],
                 condition=IfCondition(LaunchConfiguration("start_fastlivo")),
             ),

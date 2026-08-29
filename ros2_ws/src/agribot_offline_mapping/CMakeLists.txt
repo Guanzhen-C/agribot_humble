@@ -12,6 +12,8 @@ find_package(agribot_hardware_bringup REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io)
+find_package(pcl_conversions REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -50,7 +52,25 @@ ament_target_dependencies(
   std_srvs
 )
 
+add_executable(
+  fastlivo_rtk_visual_mapper
+  src/fastlivo_rtk_visual_mapper.cpp
+)
+target_include_directories(
+  fastlivo_rtk_visual_mapper PRIVATE ${PCL_INCLUDE_DIRS}
+)
+target_link_libraries(fastlivo_rtk_visual_mapper Eigen3::Eigen ${PCL_LIBRARIES})
+ament_target_dependencies(
+  fastlivo_rtk_visual_mapper
+  nav_msgs
+  pcl_conversions
+  rclcpp
+  sensor_msgs
+  std_srvs
+)
+
 install(TARGETS
+  fastlivo_rtk_visual_mapper
   lslidar_lio_sam_adapter
   rtk_odometry_adapter
   map_georeference_exporter

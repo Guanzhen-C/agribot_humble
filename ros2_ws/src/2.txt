@@ -403,19 +403,52 @@ ros2 launch agribot_hardware_bringup \
   show_3d_map:=true \
   rviz:=true
 
-# 第5步（Jetson）：只重放原始传感器，重新计算FAST-LIO2、FAST-LIVO2和KF-GINS轨迹
-# 原始bag中旧的/Odometry和/fastlio/odometry不会参与这次计算
-# FAST-LIVO2会使用/lidar/points、/imu/data和/camera/rgb/image_raw重新计算
-# 默认使用已验证的室内参数；只有专项对照时才显式追加--fastlivo-profile outdoor
+# 第5步（Jetson）：三种算法必须逐一回放，避免同时争抢CPU导致输入积压
+# 履带差速车使用differential；阿克曼车改为ackermann
+export VEHICLE_PROFILE=differential
+
+# 重算FAST-LIO2
 ros2 run agribot_offline_mapping run_localization_comparison.py \
   "$BAG_PATH" \
-  "${MAP_BASE}_comparison" \
+  "${MAP_BASE}_fastlio" \
+  --estimator fastlio \
+  --vehicle-profile "$VEHICLE_PROFILE" \
   --domain-id 74 \
   --playback-rate 0.5
 
-# 第6步（Jetson）：显示同名二维图、三维图和六条后轴中心定位轨迹
-# 红：RTK；绿：强约束LIO-SAM；蓝：重算FAST-LIO2；青：重算FAST-LIVO2
-# 黄：重算KF-GINS；紫：robot_localization
+# 重算FAST-LIVO2；默认使用当前验证过的参数组合
+ros2 run agribot_offline_mapping run_localization_comparison.py \
+  "$BAG_PATH" \
+  "${MAP_BASE}_fastlivo" \
+  --estimator fastlivo \
+  --vehicle-profile "$VEHICLE_PROFILE" \
+  --domain-id 74 \
+  --playback-rate 0.5
+
+# 重算KF-GINS，并固定到同一份地图地理参考原点
+ros2 run agribot_offline_mapping run_localization_comparison.py \
+  "$BAG_PATH" \
+  "${MAP_BASE}_kf_gins" \
+  --estimator kf_gins \
+  --vehicle-profile "$VEHICLE_PROFILE" \
+  --georeference "${MAP_BASE}_georeference.yaml" \
+  --domain-id 74 \
+  --playback-rate 0.5
+
+# 第6步（Jetson）：单独重算正式FAST-LIVO2加RTK融合轨迹和视觉彩色三维图
+# 每帧彩色点云应用同一时刻的因子图修正后，再以10厘米体素累积到map坐标系
+ros2 run agribot_offline_mapping run_fastlivo_rtk_comparison.py \
+  "$BAG_PATH" \
+  "$MAP_BASE" \
+  "${MAP_BASE}_fastlivo_rtk" \
+  --vehicle-profile "$VEHICLE_PROFILE" \
+  --visual-map "${MAP_BASE}_fastlivo_rtk_visual.pcd" \
+  --domain-id 75 \
+  --playback-rate 0.5
+
+# 第7步（Jetson）：显示二维图、LIO-SAM三维图、视觉彩色图和六条后轴中心轨迹
+# 红：RTK；绿：强约束LIO-SAM；蓝：FAST-LIO2；青：FAST-LIVO2
+# 品红：FAST-LIVO2加RTK；黄：KF-GINS；橙：连续RTK浮点解
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 export DISPLAY=:1
@@ -424,9 +457,15 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   map_base:=$MAP_BASE \
   rviz:=true \
   show_3d_map:=true \
-  show_comparison_paths:=true
+  show_comparison_paths:=true \
+  fastlio_bag:=${MAP_BASE}_fastlio \
+  fastlivo_bag:=${MAP_BASE}_fastlivo \
+  kf_gins_bag:=${MAP_BASE}_kf_gins \
+  fastlivo_rtk_bag:=${MAP_BASE}_fastlivo_rtk \
+  visual_map:=${MAP_BASE}_fastlivo_rtk_visual.pcd \
+  show_visual_map:=true
 
-# 显示设备资源不足时使用show_3d_map:=false，只显示二维地图和六条定位轨迹
+# 显示资源不足时使用show_3d_map:=false和show_visual_map:=false
 
 # 地理基准服务必须返回success: true；水平RMSE超过0.20米时记录警告并保留结果供检查
 # 航向RMSE不大于2度时yaw_validation_passed为true；超限时同样保留为警告，

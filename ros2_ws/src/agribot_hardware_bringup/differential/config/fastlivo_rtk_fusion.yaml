@@ -60,6 +60,9 @@ fastlivo_rtk_fusion:
     odom_yaw_sigma_rad: 0.017453292519943295
     odom_horizontal_sigma_m: 0.03
     odom_vertical_sigma_m: 0.05
+    # RTK only constrains XY. Keep FAST-LIVO2 relative height instead of
+    # allowing the fixed-lag graph's unobservable Z translation to wander.
+    preserve_local_vertical: true
     seed_rotation_sigma_rad: 0.08726646259971647
     seed_position_sigma_m: 0.20
     automatic_yaw_sigma_rad: 0.7853981633974483

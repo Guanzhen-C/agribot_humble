@@ -219,6 +219,8 @@ private:
     initial_map_from_odom_yaw_rad_ = declare_parameter<double>(
       "initial_map_from_odom_yaw_rad", 0.0);
     initial_base_z_m_ = declare_parameter<double>("initial_base_z_m", 0.0);
+    preserve_local_vertical_ = declare_parameter<bool>(
+      "preserve_local_vertical", true);
     required_fix_quality_ = declare_parameter<int>("required_fix_quality", 4);
     required_consecutive_fixed_ = declare_parameter<int>(
       "required_consecutive_fixed", 3);
@@ -707,6 +709,8 @@ private:
       odom_sample.odom_from_base.inverse());
     applied_map_from_odom_ = target_map_from_odom_;
     initial_map_from_odom_ = target_map_from_odom_;
+    initial_odom_base_z_m_ = odom_sample.odom_from_base.z();
+    initial_map_base_z_m_ = map_from_base.z();
     applied_correction_stamp_sec_ = odom_sample.stamp_sec;
     initialized_ = true;
     initialization_status_ = automatic_seed ?
@@ -917,12 +921,14 @@ private:
       stamp_sec - *applied_correction_stamp_sec_, 0.0, 0.25);
     applied_correction_stamp_sec_ = stamp_sec;
     if (dt <= 0.0) {
+      preserveLocalVertical(odom_from_base);
       return;
     }
 
     // Without a new absolute position observation, map->odom is unobservable.
     // Keep the last accepted global correction and propagate only local odometry.
     if (!fixedRecentlyActive()) {
+      preserveLocalVertical(odom_from_base);
       last_applied_translation_step_m_ = 0.0;
       last_applied_rotation_step_rad_ = 0.0;
       return;
@@ -936,12 +942,19 @@ private:
 
     gtsam::Vector3 translation_delta = filter_fraction * (
       target_map_from_base.translation() - applied_map_from_base.translation());
+    if (preserve_local_vertical_) {
+      translation_delta.z() = 0.0;
+    }
     const double maximum_translation = correction_translation_rate_mps_ * dt;
     if (translation_delta.norm() > maximum_translation) {
       translation_delta *= maximum_translation / translation_delta.norm();
     }
-    const gtsam::Point3 translation =
+    gtsam::Point3 translation =
       applied_map_from_base.translation() + translation_delta;
+    if (preserve_local_vertical_) {
+      translation = gtsam::Point3(
+        translation.x(), translation.y(), localVerticalZ(odom_from_base));
+    }
 
     gtsam::Vector3 rotation_delta = filter_fraction * gtsam::Rot3::Logmap(
       applied_map_from_base.rotation().between(target_map_from_base.rotation()));
@@ -956,6 +969,23 @@ private:
       odom_from_base.inverse());
     last_applied_translation_step_m_ = translation_delta.norm();
     last_applied_rotation_step_rad_ = rotation_delta.norm();
+  }
+
+  double localVerticalZ(const gtsam::Pose3 & odom_from_base) const
+  {
+    return initial_map_base_z_m_ + odom_from_base.z() - initial_odom_base_z_m_;
+  }
+
+  void preserveLocalVertical(const gtsam::Pose3 & odom_from_base)
+  {
+    if (!preserve_local_vertical_) {
+      return;
+    }
+    const gtsam::Pose3 map_from_base = applied_map_from_odom_.compose(odom_from_base);
+    const gtsam::Point3 translation(
+      map_from_base.x(), map_from_base.y(), localVerticalZ(odom_from_base));
+    applied_map_from_odom_ = gtsam::Pose3(map_from_base.rotation(), translation).compose(
+      odom_from_base.inverse());
   }
 
   void publishCurrentEstimate(const OdomSample & sample)
@@ -1162,6 +1192,8 @@ private:
   int path_max_poses_{6000};
   double initial_map_from_odom_yaw_rad_{0.0};
   double initial_base_z_m_{0.0};
+  double initial_odom_base_z_m_{0.0};
+  double initial_map_base_z_m_{0.0};
   double quality_timeout_sec_{0.30};
   double rtk_sync_tolerance_sec_{0.15};
   double imu_sync_tolerance_sec_{0.08};
@@ -1211,6 +1243,7 @@ private:
   std::size_t rejected_gravity_count_{0U};
   bool initialized_{false};
   bool flatten_visualization_paths_{true};
+  bool preserve_local_vertical_{true};
 
   gtsam::Point3 base_to_antenna_{0.1425, 0.2952585, 0.78476};
   gtsam::Rot3 base_from_imu_;
