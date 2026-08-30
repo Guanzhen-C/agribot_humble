@@ -33,6 +33,17 @@ sudo cp -a "$work_dir"/. /opt/MVS/
 sudo chown -R root:root /opt/MVS
 sudo chmod -R go-w /opt/MVS
 sudo find /opt/MVS -type d -exec chmod 0755 {} +
+
+# The vendor archive bundles an old libusb with the same SONAME as Ubuntu's
+# system library. Exposing it through ldconfig breaks unrelated consumers such
+# as PCL because the bundled copy lacks newer libusb symbols. MVS is compatible
+# with Ubuntu's ABI-compatible system libusb, so retain the vendor copy only as
+# an offline fallback outside the dynamic linker search paths.
+disabled_library_dir="/opt/MVS/vendor-libs-disabled/$library_dir"
+sudo mkdir -p "$disabled_library_dir"
+sudo find "/opt/MVS/lib/$library_dir" -maxdepth 1 \
+  \( -type f -o -type l \) -name 'libusb-1.0.so*' \
+  -exec mv -f -t "$disabled_library_dir" {} +
 printf '%s\n' \
   "/opt/MVS/lib/$library_dir" \
   "/opt/MVS/lib/$library_dir/ThirdParty" | \
