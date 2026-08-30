@@ -184,6 +184,9 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("fastlivo_dense_map", default_value="false"),
+            DeclareLaunchArgument(
+                "fastlivo_map_sliding_en", default_value="true"
+            ),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
@@ -378,6 +381,10 @@ def generate_launch_description():
                         "use_sim_time": use_sim_time,
                         "publish.dense_map_en": ParameterValue(
                             LaunchConfiguration("fastlivo_dense_map"),
+                            value_type=bool,
+                        ),
+                        "local_map.map_sliding_en": ParameterValue(
+                            LaunchConfiguration("fastlivo_map_sliding_en"),
                             value_type=bool,
                         ),
                     },

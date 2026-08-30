@@ -143,7 +143,8 @@ estimators for CPU time:
 ros2 run agribot_offline_mapping run_fastlivo_rtk_comparison.py \
   /path/to/INPUT_BAG /path/to/MAP_NAME \
   /path/to/MAP_NAME_fastlivo_rtk \
-  --visual-map /path/to/MAP_NAME_fastlivo_rtk_visual.pcd \
+  --visual-map /path/to/MAP_NAME_fastlivo_rtk_dense_visual.pcd \
+  --visual-map-mode dense --rviz \
   --vehicle-profile differential \
   --domain-id 75 --playback-rate 0.5
 
@@ -151,15 +152,23 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   map_base:=/path/to/MAP_NAME \
   show_comparison_paths:=true \
   fastlivo_rtk_bag:=/path/to/MAP_NAME_fastlivo_rtk \
-  visual_map:=/path/to/MAP_NAME_fastlivo_rtk_visual.pcd \
+  visual_map:=/path/to/MAP_NAME_fastlivo_rtk_dense_visual.pcd \
   show_visual_map:=true
 ```
 
-The optional visual PCD uses dense RGB-projected FAST-LIVO2 clouds. For every
-cloud it computes `map <- base(fused) * inverse(odom <- base(local))`, so the
-fixed-RTK factor graph's time-varying correction is applied before 0.10 m
-colored-voxel accumulation. The production localization default remains sparse
-and does not publish dense clouds unless this offline option is requested.
+The visual mapping mode overrides FAST-LIVO2 with the same key map settings as
+the official Avia mapping configuration: `dense_map_en=true`,
+`pub_scan_num=1`, and `map_sliding_en=false`. The output preserves every finite
+RGB point from those full-resolution undistorted clouds. For every cloud it
+computes `map <- base(fused) * inverse(odom <- base(local))`, so the fixed-RTK
+factor graph's time-varying correction is retained in the dense PCD. `--rviz`
+shows the corrected dense cloud, all three live paths, and FAST-LIVO2's
+algorithm-overlay `/rgb_img` output while replay is running. The production
+localization default remains sparse with sliding enabled. Dense mode
+intentionally follows the official all-points behavior and can use substantial
+RAM and disk space;
+use `--visual-map-mode voxel --visual-voxel-size 0.10` only when a bounded
+legacy output is explicitly required.
 
 When FAST-LIVO2 is recomputed independently, keep the other trajectories
 from the comparison bag and replace only its path with:

@@ -111,6 +111,7 @@ public:
     fused_odom_topic_ = declare_parameter<std::string>(
       "fused_odom_topic", "/fastlivo_rtk/odometry");
     output_file_ = declare_parameter<std::string>("output_file", "");
+    map_mode_ = declare_parameter<std::string>("map_mode", "voxel");
     voxel_size_ = declare_parameter<double>("voxel_size", 0.10);
     sync_tolerance_sec_ = declare_parameter<double>(
       "sync_tolerance_sec", 0.12);
@@ -119,9 +120,15 @@ public:
     max_pending_clouds_ = declare_parameter<int>("max_pending_clouds", 8);
     max_voxels_ = declare_parameter<int>("max_voxels", 8000000);
     allow_overwrite_ = declare_parameter<bool>("allow_overwrite", false);
+    publish_live_cloud_ = declare_parameter<bool>("publish_live_cloud", false);
+    live_cloud_topic_ = declare_parameter<std::string>(
+      "live_cloud_topic", "/fastlivo_rtk/dense_cloud");
 
     if (output_file_.empty()) {
       throw std::runtime_error("output_file must not be empty");
+    }
+    if (map_mode_ != "dense" && map_mode_ != "voxel") {
+      throw std::runtime_error("map_mode must be either dense or voxel");
     }
     if (!(voxel_size_ > 0.0) || !(sync_tolerance_sec_ > 0.0)) {
       throw std::runtime_error("voxel_size and sync_tolerance_sec must be positive");
@@ -156,6 +163,10 @@ public:
     process_timer_ = create_wall_timer(
       std::chrono::milliseconds(20),
       [this]() {processPendingClouds();});
+    if (publish_live_cloud_) {
+      live_cloud_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+        live_cloud_topic_, rclcpp::SensorDataQoS().keep_last(1));
+    }
     save_service_ = create_service<std_srvs::srv::Trigger>(
       "~/save",
       [this](
@@ -167,17 +178,19 @@ public:
           const std::size_t points = saveMap();
           response->success = true;
           response->message = "saved " + std::to_string(points) +
-            " colored voxels to " + output_file_;
+            " colored points to " + output_file_;
         } catch (const std::exception & error) {
           response->success = false;
           response->message = error.what();
         }
       });
 
+    const std::string map_description = map_mode_ == "voxel" ?
+      " at " + std::to_string(voxel_size_) + " m resolution" : "";
     RCLCPP_INFO(
       get_logger(),
-      "Accumulating RTK-corrected FAST-LIVO2 color clouds at %.3f m resolution",
-      voxel_size_);
+      "Accumulating RTK-corrected FAST-LIVO2 color clouds in %s mode%s",
+      map_mode_.c_str(), map_description.c_str());
   }
 
 private:
@@ -264,12 +277,23 @@ private:
     pcl::PointCloud<pcl::PointXYZRGB> cloud;
     pcl::fromROSMsg(message, cloud);
     const Eigen::Isometry3d map_from_local = fused_base * local_base.inverse();
+    pcl::PointCloud<pcl::PointXYZRGB> mapped_cloud;
+    mapped_cloud.header.frame_id = "map";
+    mapped_cloud.reserve(cloud.size());
     for (const auto & point : cloud.points) {
       if (!pcl::isFinite(point)) {
         continue;
       }
       const Eigen::Vector3d mapped = map_from_local *
         Eigen::Vector3d(point.x, point.y, point.z);
+      pcl::PointXYZRGB mapped_point = point;
+      mapped_point.x = static_cast<float>(mapped.x());
+      mapped_point.y = static_cast<float>(mapped.y());
+      mapped_point.z = static_cast<float>(mapped.z());
+      mapped_cloud.push_back(mapped_point);
+      if (map_mode_ == "dense") {
+        continue;
+      }
       const VoxelKey key{
         static_cast<std::int32_t>(std::floor(mapped.x() / voxel_size_)),
         static_cast<std::int32_t>(std::floor(mapped.y() / voxel_size_)),
@@ -291,18 +315,53 @@ private:
       accumulator.b += point.b;
       ++accumulator.count;
     }
+    if (map_mode_ == "dense") {
+      dense_points_ += mapped_cloud;
+    }
+    if (live_cloud_publisher_ != nullptr && !mapped_cloud.empty()) {
+      sensor_msgs::msg::PointCloud2 output;
+      pcl::toROSMsg(mapped_cloud, output);
+      output.header = message.header;
+      output.header.frame_id = "map";
+      live_cloud_publisher_->publish(std::move(output));
+    }
     ++processed_clouds_;
     if (processed_clouds_ % 100 == 0) {
       RCLCPP_INFO(
         get_logger(),
-        "Visual map: clouds=%zu voxels=%zu dropped_clouds=%zu",
-        processed_clouds_, voxels_.size(), dropped_clouds_);
+        "Visual map: clouds=%zu stored_points=%zu mode=%s dropped_clouds=%zu",
+        processed_clouds_, storedPointCount(), map_mode_.c_str(), dropped_clouds_);
     }
+  }
+
+  std::size_t storedPointCount() const
+  {
+    return map_mode_ == "dense" ? dense_points_.size() : voxels_.size();
+  }
+
+  std::size_t writeMap(
+    const pcl::PointCloud<pcl::PointXYZRGB> & result,
+    const std::filesystem::path & output)
+  {
+    std::filesystem::path temporary = output;
+    temporary += ".tmp";
+    if (pcl::io::savePCDFileBinary(temporary.string(), result) != 0) {
+      throw std::runtime_error("failed to write visual map: " + temporary.string());
+    }
+    if (std::filesystem::exists(output)) {
+      std::filesystem::remove(output);
+    }
+    std::filesystem::rename(temporary, output);
+    RCLCPP_INFO(
+      get_logger(),
+      "Saved %zu colored points from %zu clouds to %s in %s mode",
+      result.size(), processed_clouds_, output.c_str(), map_mode_.c_str());
+    return result.size();
   }
 
   std::size_t saveMap()
   {
-    if (processed_clouds_ == 0 || voxels_.empty()) {
+    if (processed_clouds_ == 0 || storedPointCount() == 0) {
       throw std::runtime_error("no synchronized colored clouds were accumulated");
     }
     const std::filesystem::path output(output_file_);
@@ -311,6 +370,14 @@ private:
     }
     if (output.has_parent_path()) {
       std::filesystem::create_directories(output.parent_path());
+    }
+
+    if (map_mode_ == "dense") {
+      dense_points_.header.frame_id = "map";
+      dense_points_.width = static_cast<std::uint32_t>(dense_points_.size());
+      dense_points_.height = 1;
+      dense_points_.is_dense = true;
+      return writeMap(dense_points_, output);
     }
 
     pcl::PointCloud<pcl::PointXYZRGB> result;
@@ -340,27 +407,14 @@ private:
     result.width = static_cast<std::uint32_t>(result.size());
     result.height = 1;
     result.is_dense = false;
-
-    std::filesystem::path temporary = output;
-    temporary += ".tmp";
-    if (pcl::io::savePCDFileBinary(temporary.string(), result) != 0) {
-      throw std::runtime_error("failed to write visual map: " + temporary.string());
-    }
-    if (std::filesystem::exists(output)) {
-      std::filesystem::remove(output);
-    }
-    std::filesystem::rename(temporary, output);
-    RCLCPP_INFO(
-      get_logger(),
-      "Saved %zu colored voxels from %zu clouds to %s",
-      result.size(), processed_clouds_, output.c_str());
-    return result.size();
+    return writeMap(result, output);
   }
 
   std::string cloud_topic_;
   std::string local_odom_topic_;
   std::string fused_odom_topic_;
   std::string output_file_;
+  std::string map_mode_{"voxel"};
   double voxel_size_{0.10};
   double sync_tolerance_sec_{0.12};
   int minimum_observations_{1};
@@ -368,10 +422,13 @@ private:
   int max_pending_clouds_{8};
   int max_voxels_{8000000};
   bool allow_overwrite_{false};
+  bool publish_live_cloud_{false};
+  std::string live_cloud_topic_{"/fastlivo_rtk/dense_cloud"};
 
   std::deque<TimedPose> local_poses_;
   std::deque<TimedPose> fused_poses_;
   std::deque<sensor_msgs::msg::PointCloud2::ConstSharedPtr> pending_clouds_;
+  pcl::PointCloud<pcl::PointXYZRGB> dense_points_;
   std::unordered_map<VoxelKey, VoxelAccumulator, VoxelKeyHash> voxels_;
   std::size_t processed_clouds_{0};
   std::size_t dropped_clouds_{0};
@@ -381,6 +438,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr local_odom_subscription_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr fused_odom_subscription_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr live_cloud_publisher_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_service_;
   rclcpp::TimerBase::SharedPtr process_timer_;
 };

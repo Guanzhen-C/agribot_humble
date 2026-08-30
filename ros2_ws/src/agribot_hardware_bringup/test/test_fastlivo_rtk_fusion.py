@@ -91,10 +91,17 @@ def test_live_launch_starts_fastlivo_rtk_fusion_and_disables_localizer_tf():
         common_source
     )
     assert '"publish.dense_map_en": ParameterValue(' in common_source
+    assert (
+        'DeclareLaunchArgument(\n'
+        '                "fastlivo_map_sliding_en", default_value="true"'
+        in common_source
+    )
+    assert '"local_map.map_sliding_en": ParameterValue(' in common_source
     assert 'DeclareLaunchArgument("fastlivo_dense_map", default_value="false")' in (
         wrapper_source
     )
     assert '"fastlivo_dense_map": LaunchConfiguration(' in wrapper_source
+    assert '"fastlivo_map_sliding_en": LaunchConfiguration(' in wrapper_source
     assert 'executable="visual_place_recognizer.py"' in common_source
     assert 'executable="initialization_coordinator.py"' in common_source
     assert '"initial_pose_topic": PythonExpression(' in common_source

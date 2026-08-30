@@ -435,14 +435,20 @@ ros2 run agribot_offline_mapping run_localization_comparison.py \
   --domain-id 74 \
   --playback-rate 0.5
 
-# 第6步（Jetson）：单独重算正式FAST-LIVO2加RTK融合轨迹和视觉彩色三维图
-# 每帧彩色点云应用同一时刻的因子图修正后，再以10厘米体素累积到map坐标系
+# 第6步（Jetson）：单独重算正式FAST-LIVO2加RTK融合轨迹和官方密集视觉彩色三维图
+# 建图时开启官方dense_map_en、关闭滑动地图，完整保留每帧去畸变后的彩色点
+# 每帧点云仍应用同一时刻的RTK因子图修正后写入map坐标系，不会丢失RTK约束
+# RViz会在建图过程中显示密集彩色点云、三条实时轨迹和FAST-LIVO2算法叠加图
+export DISPLAY=:0
+export XAUTHORITY=/home/cgz/.Xauthority
 ros2 run agribot_offline_mapping run_fastlivo_rtk_comparison.py \
   "$BAG_PATH" \
   "$MAP_BASE" \
   "${MAP_BASE}_fastlivo_rtk" \
   --vehicle-profile "$VEHICLE_PROFILE" \
-  --visual-map "${MAP_BASE}_fastlivo_rtk_visual.pcd" \
+  --visual-map "${MAP_BASE}_fastlivo_rtk_dense_visual.pcd" \
+  --visual-map-mode dense \
+  --rviz \
   --domain-id 75 \
   --playback-rate 0.5
 
@@ -462,7 +468,7 @@ ros2 launch agribot_offline_mapping lio_sam_rtk_result.launch.py \
   fastlivo_bag:=${MAP_BASE}_fastlivo \
   kf_gins_bag:=${MAP_BASE}_kf_gins \
   fastlivo_rtk_bag:=${MAP_BASE}_fastlivo_rtk \
-  visual_map:=${MAP_BASE}_fastlivo_rtk_visual.pcd \
+  visual_map:=${MAP_BASE}_fastlivo_rtk_dense_visual.pcd \
   show_visual_map:=true
 
 # 显示资源不足时使用show_3d_map:=false和show_visual_map:=false

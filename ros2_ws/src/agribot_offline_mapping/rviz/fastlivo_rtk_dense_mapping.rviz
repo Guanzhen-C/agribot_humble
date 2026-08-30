@@ -1,0 +1,137 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: 显示
+  - Class: rviz_common/Views
+    Name: 视角
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.45
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: 参考二维地图
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 1
+        Min Value: 0
+        Value: true
+      Channel Name: rgb
+      Class: rviz_default_plugins/PointCloud2
+      Color Transformer: RGB8
+      Decay Time: 3600
+      Enabled: true
+      Name: RTK修正后的FAST-LIVO2密集彩色图
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: false
+      Size (Pixels): 2
+      Size (m): 0.025
+      Style: Points
+      Topic:
+        Depth: 2
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /fastlivo_rtk/dense_cloud
+      Use Fixed Frame: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 255; 70
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.06
+      Name: FAST-LIVO2加RTK融合轨迹
+      Offset: {X: 0, Y: 0, Z: 0.08}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /fastlivo_rtk/path
+    - Alpha: 0.9
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 0; 180; 255
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.04
+      Name: FAST-LIVO2局部轨迹
+      Offset: {X: 0, Y: 0, Z: 0.05}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /fastlivo_rtk/fastlivo_path
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 255; 55; 55
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.04
+      Name: 已接受固定解RTK轨迹
+      Offset: {X: 0, Y: 0, Z: 0.11}
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /fastlivo_rtk/fixed_rtk_path
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: FAST-LIVO2算法叠加图
+      Normalize Range: true
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /rgb_img
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 38
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 18
+      Focal Point: {X: 0, Y: 0, Z: 0}
+      Name: 当前视角
+      Pitch: 0.78
+      Target Frame: base_link
+      Yaw: 0.8
+Window Geometry:
+  Height: 900
+  Width: 1440

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 
+from ament_index_python.packages import get_package_share_directory
 from diagnostic_msgs.msg import DiagnosticArray
 from rclpy.serialization import deserialize_message
 from std_msgs.msg import Bool
@@ -201,10 +202,25 @@ def parse_arguments(argv=None):
             "the time-varying RTK fusion correction"
         ),
     )
+    parser.add_argument(
+        "--visual-map-mode",
+        choices=("dense", "voxel"),
+        default="dense",
+        help=(
+            "dense preserves every RGB point from FAST-LIVO2 official dense "
+            "clouds; voxel keeps the legacy bounded accumulator"
+        ),
+    )
     parser.add_argument("--visual-voxel-size", type=float, default=0.10)
     parser.add_argument(
         "--visual-sync-tolerance-sec", type=float, default=0.12
     )
+    parser.add_argument(
+        "--rviz",
+        action="store_true",
+        help="show the RTK-corrected dense cloud, trajectories, and camera",
+    )
+    parser.add_argument("--rviz-config", type=Path)
     parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
@@ -262,7 +278,20 @@ def validate_inputs(arguments):
                 raise FusionError(f"visual map already exists: {visual_map}")
             visual_map.unlink()
         visual_map.parent.mkdir(parents=True, exist_ok=True)
-    return source_bag, map_base, output_bag, visual_map
+    rviz_config = None
+    if arguments.rviz:
+        if visual_map is None:
+            raise FusionError("--rviz requires --visual-map")
+        rviz_config = (
+            arguments.rviz_config.expanduser().resolve()
+            if arguments.rviz_config is not None
+            else Path(get_package_share_directory("agribot_offline_mapping"))
+            / "rviz"
+            / "fastlivo_rtk_dense_mapping.rviz"
+        )
+        if not rviz_config.is_file():
+            raise FusionError(f"RViz config does not exist: {rviz_config}")
+    return source_bag, map_base, output_bag, visual_map, rviz_config
 
 
 def validate_output(output_bag):
@@ -303,9 +332,11 @@ def validate_output(output_bag):
 
 def main(argv=None):
     arguments = parse_arguments(argv)
-    launch_process = recorder = player = visual_mapper = None
+    launch_process = recorder = player = visual_mapper = rviz_process = None
     try:
-        source_bag, map_base, output_bag, visual_map = validate_inputs(arguments)
+        source_bag, map_base, output_bag, visual_map, rviz_config = (
+            validate_inputs(arguments)
+        )
         environment = os.environ.copy()
         environment.update(
             {
@@ -331,6 +362,7 @@ def main(argv=None):
                 "allow_missing_georeference:=false",
                 "allow_uncalibrated_camera:=true",
                 f"fastlivo_dense_map:={'true' if visual_map else 'false'}",
+                f"fastlivo_map_sliding_en:={'false' if visual_map else 'true'}",
             ],
             environment,
         )
@@ -345,17 +377,28 @@ def main(argv=None):
                     "fastlivo_rtk_visual_mapper", "--ros-args",
                     "-p", "use_sim_time:=true",
                     "-p", f"output_file:={visual_map}",
+                    "-p", f"map_mode:={arguments.visual_map_mode}",
                     "-p", f"voxel_size:={arguments.visual_voxel_size}",
                     "-p",
                     "sync_tolerance_sec:="
                     f"{arguments.visual_sync_tolerance_sec}",
                     "-p", f"allow_overwrite:={str(arguments.force).lower()}",
+                    "-p", f"publish_live_cloud:={str(arguments.rviz).lower()}",
                 ],
                 environment,
             )
             wait_for_service(VISUAL_MAP_SERVICE, environment)
             if visual_mapper.poll() is not None:
                 raise FusionError("visual mapper exited during startup")
+
+        if arguments.rviz:
+            rviz_process = start(
+                ["ros2", "run", "rviz2", "rviz2", "-d", rviz_config],
+                environment,
+            )
+            time.sleep(2.0)
+            if rviz_process.poll() is not None:
+                raise FusionError("mapping RViz exited during startup")
 
         recorder = start(
             ["ros2", "bag", "record", "-o", output_bag, *OUTPUT_TOPICS],
@@ -409,7 +452,8 @@ def main(argv=None):
         print(f"  gravity factors: {gravity_factors}", flush=True)
         if visual_map is not None:
             print(f"  visual map: {visual_map}", flush=True)
-            print(f"  colored voxels: {visual_points}", flush=True)
+            print(f"  visual map mode: {arguments.visual_map_mode}", flush=True)
+            print(f"  colored points: {visual_points}", flush=True)
         return 0
     except KeyboardInterrupt:
         print("\nInterrupted by user", file=sys.stderr)
@@ -420,6 +464,7 @@ def main(argv=None):
     finally:
         stop(player, "source bag playback")
         stop(recorder, "FAST-LIVO2+RTK recorder")
+        stop(rviz_process, "FAST-LIVO2+RTK mapping RViz")
         stop(visual_mapper, "FAST-LIVO2+RTK visual mapper")
         stop(launch_process, "FAST-LIVO2+RTK localization launch")
 

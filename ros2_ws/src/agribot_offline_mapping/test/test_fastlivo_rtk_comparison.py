@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import yaml
+
 
 SCRIPT = (
     Path(__file__).parents[1]
@@ -62,9 +64,13 @@ def test_visual_map_reuses_production_fusion_with_dense_color_clouds(tmp_path):
     source = SCRIPT.read_text(encoding="utf-8")
 
     assert arguments.visual_map == visual_map
+    assert arguments.visual_map_mode == "dense"
     assert arguments.visual_voxel_size == 0.10
     assert arguments.visual_sync_tolerance_sec == 0.12
+    assert arguments.rviz is False
     assert "fastlivo_dense_map:={'true' if visual_map else 'false'}" in source
+    assert "fastlivo_map_sliding_en:={'false' if visual_map else 'true'}" in source
+    assert 'f"map_mode:={arguments.visual_map_mode}"' in source
     assert "fastlivo_rtk_visual_mapper" in source
     assert MODULE.VISUAL_MAP_SERVICE == "/fastlivo_rtk_visual_mapper/save"
 
@@ -87,5 +93,33 @@ def test_visual_mapper_applies_time_varying_fused_pose_correction():
 
     assert "fused_base * local_base.inverse()" in source
     assert 'result.header.frame_id = "map"' in source
+    assert 'map_mode_ == "dense"' in source
+    assert "dense_points_ += mapped_cloud" in source
+    assert '"/fastlivo_rtk/dense_cloud"' in source
     assert "PointXYZRGB" in source
     assert "fastlivo_rtk_visual_mapper" in cmake
+
+
+def test_mapping_rviz_shows_corrected_dense_cloud_and_camera():
+    rviz = (
+        SCRIPT.parents[1] / "rviz" / "fastlivo_rtk_dense_mapping.rviz"
+    ).read_text(encoding="utf-8")
+
+    assert "Value: /fastlivo_rtk/dense_cloud" in rviz
+    assert "Value: /rgb_img" in rviz
+    assert "Value: /fastlivo_rtk/path" in rviz
+
+
+def test_mapping_mode_matches_official_fastlivo2_dense_settings():
+    official = yaml.safe_load(
+        (
+            SCRIPT.parents[2] / "FAST-LIVO2" / "config" / "avia.yaml"
+        ).read_text(encoding="utf-8")
+    )["/**"]["ros__parameters"]
+    runner = SCRIPT.read_text(encoding="utf-8")
+
+    assert official["publish"]["dense_map_en"] is True
+    assert official["publish"]["pub_scan_num"] == 1
+    assert official["local_map"]["map_sliding_en"] is False
+    assert "fastlivo_dense_map:={'true' if visual_map else 'false'}" in runner
+    assert "fastlivo_map_sliding_en:={'false' if visual_map else 'true'}" in runner
