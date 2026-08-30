@@ -29,6 +29,9 @@ test -f "$work_dir/lib/$library_dir/libMvCameraControl.so"
 
 sudo mkdir -p /opt/MVS
 sudo cp -a "$work_dir"/. /opt/MVS/
+# cp -a also preserves mktemp's private top-level mode (0700). Keep the SDK
+# readable by non-root camera nodes while retaining the vendor file modes.
+sudo chmod 0755 /opt/MVS
 printf '%s\n' \
   "/opt/MVS/lib/$library_dir" \
   "/opt/MVS/lib/$library_dir/ThirdParty" | \
