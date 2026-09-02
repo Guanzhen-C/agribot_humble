@@ -220,7 +220,7 @@ class SensorTimeSyncMonitor(Node):
                 qos_profile_sensor_data,
             )
             self.get_logger().warning(
-                "%s无数据，回退订阅完整点云", self.lidar_stamp_topic
+                f"{self.lidar_stamp_topic}无数据，回退订阅完整点云"
             )
         if (
             not self.lightweight_stamp_seen["camera"]
@@ -234,7 +234,7 @@ class SensorTimeSyncMonitor(Node):
                 qos_profile_sensor_data,
             )
             self.get_logger().warning(
-                "%s无数据，回退订阅完整图像", self.camera_stamp_topic
+                f"{self.camera_stamp_topic}无数据，回退订阅完整图像"
             )
 
     @staticmethod
