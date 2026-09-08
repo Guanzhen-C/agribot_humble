@@ -3,6 +3,7 @@ mobile_gateway:
     http_host: 0.0.0.0
     http_port: 8088
     api_token: ""
+    vehicle_webgl_root: /home/sunrise/agribot_webgl/ackermann/WebGL
     map_root: /home/sunrise/agribot_maps/test_site
     bag_root: /mnt/agribot_data/bags
     required_collection_mount: /mnt/agribot_data

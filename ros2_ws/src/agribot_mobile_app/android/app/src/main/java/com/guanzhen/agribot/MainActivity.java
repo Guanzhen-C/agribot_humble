@@ -17,6 +17,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.ServiceWorkerClient;
+import android.webkit.ServiceWorkerController;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -40,13 +43,16 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.json.JSONObject;
+
 public final class MainActivity extends Activity {
     private static final String PREFERENCES = "agribot_mobile";
     private static final String GATEWAY_URL_KEY = "gateway_url";
     private static final int SETTINGS_MENU_ID = 1001;
     private static final long RETRY_DELAY_MS = 5000L;
     private static final int CONNECT_TIMEOUT_MS = 2500;
-    private static final String BUNDLED_UI_URL = "file:///android_asset/web/index.html";
+    private static final String BUNDLED_UI_URL = VehicleAssetStore.BUNDLED_UI_URL;
+    private static final String VEHICLE_ASSET_EVENT = "agribot-vehicle-assets";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService gatewayProbe = Executors.newSingleThreadExecutor();
@@ -54,8 +60,10 @@ public final class MainActivity extends Activity {
     private View offlinePanel;
     private ProgressBar progressBar;
     private TextView offlineMessage;
+    private VehicleAssetStore vehicleAssetStore;
     private String gatewayUrl;
     private boolean showingBundledUi;
+    private boolean vehicleConfigActive;
     private boolean probeInFlight;
     private boolean destroyed;
     private final Runnable retryConnection = this::checkGateway;
@@ -69,6 +77,11 @@ public final class MainActivity extends Activity {
         gatewayUrl = getSharedPreferences(PREFERENCES, MODE_PRIVATE).getString(
             GATEWAY_URL_KEY,
             BuildConfig.DEFAULT_GATEWAY_URL
+        );
+        vehicleAssetStore = new VehicleAssetStore(
+            this,
+            getSharedPreferences(PREFERENCES, MODE_PRIVATE),
+            this::dispatchVehicleAssetState
         );
         bindViews();
         configureWebView();
@@ -95,8 +108,8 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowFileAccessFromFileURLs(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
@@ -104,8 +117,12 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
 
         CookieManager.getInstance().setAcceptCookie(true);
+        webView.addJavascriptInterface(new AndroidBridge(), "AgribotAndroid");
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new GatewayWebViewClient());
+        ServiceWorkerController.getInstance().setServiceWorkerClient(
+            new LocalServiceWorkerClient()
+        );
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
     }
 
@@ -154,7 +171,11 @@ public final class MainActivity extends Activity {
                     return;
                 }
                 if (reachable) {
-                    loadGateway();
+                    if (vehicleConfigActive && showingBundledUi) {
+                        scheduleRetry();
+                    } else {
+                        loadGateway();
+                    }
                 } else {
                     showBundledUi();
                 }
@@ -268,7 +289,7 @@ public final class MainActivity extends Activity {
     }
 
     private static boolean isBundledUrl(String url) {
-        return url != null && url.startsWith("file:///android_asset/web/");
+        return VehicleAssetStore.isBundledUiUrl(url);
     }
 
     private static int effectivePort(Uri uri) {
@@ -284,6 +305,20 @@ public final class MainActivity extends Activity {
         } catch (ActivityNotFoundException exception) {
             Toast.makeText(this, R.string.no_browser, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void dispatchVehicleAssetState(String stateJson) {
+        handler.post(() -> {
+            if (destroyed || webView == null) {
+                return;
+            }
+            String script = "window.dispatchEvent(new CustomEvent('"
+                + VEHICLE_ASSET_EVENT
+                + "',{detail:JSON.parse("
+                + JSONObject.quote(stateJson)
+                + ")}));";
+            webView.evaluateJavascript(script, null);
+        });
     }
 
     @Override
@@ -317,12 +352,22 @@ public final class MainActivity extends Activity {
         destroyed = true;
         handler.removeCallbacksAndMessages(null);
         gatewayProbe.shutdownNow();
+        ServiceWorkerController.getInstance().setServiceWorkerClient(null);
+        vehicleAssetStore.close();
         webView.stopLoading();
         webView.destroy();
         super.onDestroy();
     }
 
     private final class GatewayWebViewClient extends WebViewClient {
+        @Override
+        public WebResourceResponse shouldInterceptRequest(
+            WebView view,
+            WebResourceRequest request
+        ) {
+            return vehicleAssetStore.intercept(request.getUrl());
+        }
+
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             if (!isBundledUrl(url)) {
@@ -374,12 +419,47 @@ public final class MainActivity extends Activity {
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            if (isBundledUrl(request.getUrl().toString()) || belongsToGateway(request.getUrl())) {
+            if (VehicleAssetStore.isAppAssetUrl(request.getUrl())
+                || belongsToGateway(request.getUrl())) {
                 return false;
             }
             openExternal(request.getUrl());
             return true;
         }
 
+    }
+
+    private final class LocalServiceWorkerClient extends ServiceWorkerClient {
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
+            return vehicleAssetStore.intercept(request.getUrl());
+        }
+    }
+
+    private final class AndroidBridge {
+        @JavascriptInterface
+        public String getVehicleAssetState() {
+            return vehicleAssetStore.getStateJson();
+        }
+
+        @JavascriptInterface
+        public void ensureVehicleAssets() {
+            vehicleAssetStore.ensureAssets(gatewayUrl);
+        }
+
+        @JavascriptInterface
+        public void setVehicleConfigActive(boolean active) {
+            handler.post(() -> {
+                if (destroyed) {
+                    return;
+                }
+                vehicleConfigActive = active;
+                if (active) {
+                    vehicleAssetStore.ensureAssets(gatewayUrl);
+                } else if (showingBundledUi) {
+                    checkGateway();
+                }
+            });
+        }
     }
 }

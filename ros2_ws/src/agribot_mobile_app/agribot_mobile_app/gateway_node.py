@@ -64,6 +64,14 @@ from .route_costmap import (
     neutral_route_costmap,
     world_to_grid,
 )
+from .vehicle_webgl import (
+    VehicleWebGlCatalog,
+    VehicleWebGlError,
+    VehicleWebGlNotFound,
+    VehicleWebGlRangeError,
+    plan_asset_response,
+    stream_asset_response,
+)
 
 
 MAX_JSON_BODY = 256 * 1024
@@ -179,8 +187,13 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; connect-src 'self' {}; img-src 'self' data:; "
-            "style-src 'self' 'unsafe-inline'; script-src 'self'".format(
+            "default-src 'self'; connect-src 'self' {} "
+            "https://appassets.androidplatform.net blob:; "
+            "img-src 'self' data: blob: https://appassets.androidplatform.net; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self' "
+            "https://appassets.androidplatform.net 'wasm-unsafe-eval'; "
+            "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+            "frame-ancestors 'none'".format(
                 self.gateway.semantic_service_url
             ),
         )
@@ -189,17 +202,42 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             "public, max-age=31536000, immutable" if cache else "no-store",
         )
 
-    def _json(self, status: int, document: object):
+    def _cors_headers(self, *, preflight=False):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
+        if preflight:
+            self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "X-Agribot-Raw-Asset, Range, If-None-Match, If-Range",
+            )
+            self.send_header("Access-Control-Max-Age", "86400")
+        else:
+            self.send_header(
+                "Access-Control-Expose-Headers",
+                "Accept-Ranges, Content-Length, Content-Range, Content-Encoding, ETag, "
+                "X-Agribot-Stored-Encoding",
+            )
+
+    def _json(self, status: int, document: object, *, head_only=False, cors=False):
         payload = json.dumps(
             document, ensure_ascii=False, separators=(",", ":")
         ).encode("utf-8")
         self.send_response(status)
         self._headers("application/json; charset=utf-8", len(payload))
+        if cors:
+            self._cors_headers()
         self.end_headers()
-        self.wfile.write(payload)
+        if not head_only:
+            self.wfile.write(payload)
 
-    def _error(self, status: int, message: str):
-        self._json(status, {"ok": False, "error": message})
+    def _error(self, status: int, message: str, *, head_only=False, cors=False):
+        self._json(
+            status,
+            {"ok": False, "error": message},
+            head_only=head_only,
+            cors=cors,
+        )
 
     def _body(self) -> dict:
         try:
@@ -239,6 +277,13 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     self.gateway.semantic_public_config(),
                 )
                 return
+            if parsed.path == "/api/v1/vehicle-config/manifest":
+                self._json(
+                    HTTPStatus.OK,
+                    self.gateway.vehicle_webgl.public_manifest(),
+                    cors=True,
+                )
+                return
             if parsed.path == "/api/v1/bags":
                 self._json(HTTPStatus.OK, {"bags": self.gateway.bag_catalog.list()})
                 return
@@ -264,20 +309,100 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 grid = self.gateway.map_catalog.grid(map_id)
                 self._json(HTTPStatus.OK, grid.payload("map"))
                 return
+            vehicle_prefix = "/vehicle-webgl/"
+            if parsed.path.startswith(vehicle_prefix):
+                self._vehicle_webgl(
+                    unquote(parsed.path[len(vehicle_prefix) :]),
+                    raw_download=(
+                        self.headers.get("X-Agribot-Raw-Asset", "").strip() == "1"
+                        or parse_qs(parsed.query).get("download") == ["raw"]
+                    ),
+                )
+                return
             self._static(parsed.path)
         except ApiError as error:
             self._error(error.status, str(error))
+        except VehicleWebGlNotFound as error:
+            self._error(HTTPStatus.NOT_FOUND, str(error), cors=True)
+        except VehicleWebGlError as error:
+            self._error(HTTPStatus.SERVICE_UNAVAILABLE, str(error), cors=True)
         except (
             CatalogError,
             ProfileError,
             ProcessError,
         ) as error:
             self._error(HTTPStatus.BAD_REQUEST, str(error))
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
             return
         except Exception as error:  # pragma: no cover - defensive HTTP boundary
             self.gateway.get_logger().error(f"GET请求处理失败: {error}")
-            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "服务器内部错误")
+
+    def do_HEAD(self):
+        parsed = urlparse(self.path)
+        cors = parsed.path == "/api/v1/vehicle-config/manifest" or parsed.path.startswith(
+            "/vehicle-webgl/"
+        )
+        try:
+            if parsed.path == "/api/v1/vehicle-config/manifest":
+                self._json(
+                    HTTPStatus.OK,
+                    self.gateway.vehicle_webgl.public_manifest(),
+                    head_only=True,
+                    cors=True,
+                )
+                return
+            vehicle_prefix = "/vehicle-webgl/"
+            if parsed.path.startswith(vehicle_prefix):
+                self._vehicle_webgl(
+                    unquote(parsed.path[len(vehicle_prefix) :]),
+                    raw_download=(
+                        self.headers.get("X-Agribot-Raw-Asset", "").strip() == "1"
+                        or parse_qs(parsed.query).get("download") == ["raw"]
+                    ),
+                    head_only=True,
+                )
+                return
+            raise ApiError(HTTPStatus.NOT_FOUND, "文件不存在")
+        except VehicleWebGlNotFound as error:
+            self._error(
+                HTTPStatus.NOT_FOUND,
+                str(error),
+                head_only=True,
+                cors=True,
+            )
+        except VehicleWebGlError as error:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                str(error),
+                head_only=True,
+                cors=True,
+            )
+        except ApiError as error:
+            self._error(error.status, str(error), head_only=True, cors=cors)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            return
+        except Exception as error:  # pragma: no cover - defensive HTTP boundary
+            self.gateway.get_logger().error(f"HEAD请求处理失败: {error}")
+            self._error(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                "服务器内部错误",
+                head_only=True,
+                cors=cors,
+            )
+
+    def do_OPTIONS(self):
+        parsed = urlparse(self.path)
+        if not (
+            parsed.path == "/api/v1/vehicle-config/manifest"
+            or parsed.path.startswith("/vehicle-webgl/")
+        ):
+            self._error(HTTPStatus.NOT_FOUND, "文件不存在")
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self._headers("text/plain; charset=utf-8", 0)
+        self._cors_headers(preflight=True)
+        self.end_headers()
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -296,7 +421,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.BAD_REQUEST, str(error))
         except Exception as error:  # pragma: no cover - defensive HTTP boundary
             self.gateway.get_logger().error(f"POST请求处理失败: {error}")
-            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
+            self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "服务器内部错误")
 
     def _events(self):
         try:
@@ -348,6 +473,64 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _vehicle_webgl(
+        self,
+        relative_path: str,
+        *,
+        raw_download=False,
+        head_only=False,
+    ):
+        asset = self.gateway.vehicle_webgl.asset_descriptor(relative_path)
+        try:
+            response = plan_asset_response(
+                asset,
+                raw_download=raw_download,
+                range_header=self.headers.get("Range"),
+                if_none_match=self.headers.get("If-None-Match"),
+                if_range=self.headers.get("If-Range"),
+            )
+        except VehicleWebGlRangeError as error:
+            payload = json.dumps(
+                {"ok": False, "error": str(error)},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+            self._headers("application/json; charset=utf-8", len(payload))
+            self.send_header("Content-Range", f"bytes */{error.size}")
+            self.send_header("Accept-Ranges", "bytes")
+            self._cors_headers()
+            self.end_headers()
+            if not head_only:
+                self.wfile.write(payload)
+            return
+
+        self.send_response(response.status)
+        length = None if response.status == HTTPStatus.NOT_MODIFIED else response.length
+        self._headers(response.content_type, length, cache=True)
+        if response.content_encoding:
+            self.send_header("Content-Encoding", response.content_encoding)
+        self.send_header("ETag", response.etag)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Vary", "X-Agribot-Raw-Asset")
+        if response.content_range:
+            self.send_header("Content-Range", response.content_range)
+        if raw_download and asset.content_encoding:
+            self.send_header("X-Agribot-Stored-Encoding", asset.content_encoding)
+        self._cors_headers()
+        self.end_headers()
+        if head_only or response.status == HTTPStatus.NOT_MODIFIED:
+            return
+        try:
+            stream_asset_response(response, self.wfile)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            return
+        except (OSError, ValueError) as error:
+            self.close_connection = True
+            self.gateway.get_logger().warning(
+                f"Unity资源传输中断({relative_path}): {error}"
+            )
+
 
 class MobileGateway(Node):
     def __init__(self):
@@ -383,6 +566,16 @@ class MobileGateway(Node):
         )
         self.static_root = Path(
             str(self.declare_parameter("static_root", str(share / "web")).value)
+        )
+        self.vehicle_webgl = VehicleWebGlCatalog(
+            Path(
+                str(
+                    self.declare_parameter(
+                        "vehicle_webgl_root",
+                        str(Path.home() / "agribot_webgl" / "ackermann" / "WebGL"),
+                    ).value
+                )
+            )
         )
         profile_path = Path(
             str(

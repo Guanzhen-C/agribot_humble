@@ -27,13 +27,34 @@ def test_android_package_contains_the_offline_web_interface():
         / "agribot"
         / "MainActivity.java"
     ).read_text(encoding="utf-8")
+    asset_store = (
+        PACKAGE
+        / "android"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "guanzhen"
+        / "agribot"
+        / "VehicleAssetStore.java"
+    ).read_text(encoding="utf-8")
     assert (assets / "index.html").is_file()
     assert list((assets / "assets").glob("*.js"))
     assert list((assets / "assets").glob("*.css"))
-    assert "file:///android_asset/web/index.html" in activity
+    assert "VehicleAssetStore.BUNDLED_UI_URL" in activity
+    assert "https://appassets.androidplatform.net" in asset_store
     assert "gatewayIsReachable" in activity
-    assert "setAllowFileAccessFromFileURLs(true)" in activity
+    assert "setAllowFileAccess(false)" in activity
+    assert "setAllowFileAccessFromFileURLs(false)" in activity
     assert "setAllowUniversalAccessFromFileURLs(false)" in activity
+    assert 'addJavascriptInterface(new AndroidBridge(), "AgribotAndroid")' in activity
+    assert "getVehicleAssetState" in activity
+    assert "ensureVehicleAssets" in activity
+    assert "setVehicleConfigActive" in activity
+    assert "SHA-256" in asset_store
+    assert 'setRequestProperty("X-Agribot-Raw-Asset", "1")' in asset_store
+    assert "FileInputStream" in asset_store
 
 
 def test_frontend_uses_guarded_api_not_raw_velocity():

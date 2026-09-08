@@ -116,7 +116,7 @@ const mockState = {
   },
 };
 
-async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
+async function mockApi(page, { state = mockState, onPost = () => {}, onVehicleManifest = () => {} } = {}) {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -172,6 +172,25 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
           { id: "differential_outdoor", label: "室外地图", vehicle_type: "differential" },
         ],
         processing_enabled: true,
+      }) });
+      return;
+    }
+    if (url.pathname === "/api/v1/vehicle-config/manifest") {
+      onVehicleManifest();
+      const unity = {
+        loader: "Build/vehicle.loader.js",
+        data: "Build/vehicle.data",
+        framework: "Build/vehicle.framework.js",
+        code: "Build/vehicle.wasm",
+      };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({
+        available: true,
+        version: "test-version",
+        asset_base: "/vehicle-webgl",
+        total_bytes: 4096,
+        product: { name: "车辆三维配置", version: "test" },
+        unity,
+        files: Object.values(unity).map((path) => ({ path })),
       }) });
       return;
     }
@@ -424,4 +443,55 @@ test("installed web interface opens after the network is disconnected", async ({
   await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
   await expect(page.getByRole("button", { name: "四轮差速车" })).toBeVisible();
   await context.setOffline(false);
+});
+
+
+test("vehicle configuration loads Unity only on demand and quits it on exit", async ({ page }) => {
+  let manifestRequests = 0;
+  let loaderRequests = 0;
+  await page.addInitScript(() => {
+    window.__unityStarts = 0;
+    window.__unityQuits = 0;
+  });
+  await page.route("**/vehicle-webgl/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/Build/vehicle.loader.js")) {
+      loaderRequests += 1;
+      await route.fulfill({
+        contentType: "application/javascript",
+        body: `window.createUnityInstance = async (_canvas, _config, onProgress) => {
+          window.__unityStarts += 1;
+          onProgress(0.5);
+          return {
+            Quit: async () => { window.__unityQuits += 1; },
+            SetFullscreen: () => {},
+          };
+        };`,
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "not used by mock loader" });
+  });
+  await mockApi(page, { onVehicleManifest: () => { manifestRequests += 1; } });
+  await page.goto("/");
+
+  expect(manifestRequests).toBe(0);
+  expect(loaderRequests).toBe(0);
+  await page.locator(".tabbar").getByRole("button", { name: "配置" }).click();
+  await expect(page.getByRole("heading", { name: "三维配置" })).toBeVisible();
+  await expect(page.locator(".unity-shell")).toHaveAttribute("data-phase", "ready");
+  expect(manifestRequests).toBe(1);
+  expect(loaderRequests).toBe(1);
+  expect(await page.evaluate(() => window.__unityStarts)).toBe(1);
+
+  await page.locator(".tabbar").getByRole("button", { name: "导航" }).click();
+  await expect(page.locator(".unity-shell")).toHaveCount(0);
+  await expect(page.locator(".map-shell")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__unityQuits)).toBe(1);
+
+  await page.locator(".tabbar").getByRole("button", { name: "配置" }).click();
+  await expect(page.locator(".unity-shell")).toHaveAttribute("data-phase", "ready");
+  expect(manifestRequests).toBe(2);
+  expect(loaderRequests).toBe(2);
+  expect(await page.evaluate(() => window.__unityStarts)).toBe(2);
 });

@@ -1,4 +1,12 @@
-const BUNDLED_OFFLINE_UI = window.location.protocol === "file:";
+const ANDROID_ASSET_HOST = "appassets.androidplatform.net";
+
+
+export function isBundledOfflineUi(location = window.location) {
+  return location.protocol === "file:" || location.hostname === ANDROID_ASSET_HOST;
+}
+
+
+const BUNDLED_OFFLINE_UI = isBundledOfflineUi();
 
 async function responseJson(response) {
   const document = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
@@ -8,9 +16,9 @@ async function responseJson(response) {
   return document;
 }
 
-export async function getJson(path) {
+export async function getJson(path, options = {}) {
   if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK");
-  return responseJson(await fetch(path, { cache: "no-store" }));
+  return responseJson(await fetch(path, { cache: "no-store", ...options }));
 }
 
 export async function postJson(path, body = {}) {

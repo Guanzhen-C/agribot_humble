@@ -1,4 +1,4 @@
-const CACHE = "agribot-mobile-v3";
+const CACHE = "agribot-mobile-v4";
 const CORE = ["./manifest.webmanifest", "./icons/agribot.svg"];
 
 async function cacheApplicationShell() {
@@ -29,16 +29,29 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.pathname.startsWith("/api/")) {
+  if (
+    requestUrl.pathname.startsWith("/api/") ||
+    requestUrl.pathname.startsWith("/vehicle-webgl/")
+  ) {
     return;
   }
+  if (event.request.method !== "GET") return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then((response) => response || caches.match("./"))),
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === "navigate") {
+          return (await caches.match("./")) || Response.error();
+        }
+        return Response.error();
+      }),
   );
 });

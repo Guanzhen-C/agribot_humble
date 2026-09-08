@@ -41,8 +41,9 @@ button { color: inherit; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
 .map-region { min-width: 0; min-height: 0; position: relative; }
 .control-panel { display: grid; grid-template-rows: 54px 48px minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--panel); border-left: 1px solid var(--border); }
-.tabbar { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); }
-.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+.tabbar { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; padding: 0 2px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
+.tabbar button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tabbar button.selected { color: var(--green); border-bottom-color: var(--green); background: #f4faf8; }
 .panel-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .section-band { padding: 14px 16px; border-bottom: 1px solid var(--border); }
@@ -148,6 +149,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
 .pose-readout strong { color: #17212b; }
 .map-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #6d7983; font-size: 13px; pointer-events: none; }
 
+.unity-shell { position: absolute; inset: 0; contain: strict; overflow: hidden; background: #252a2d; }
+.unity-canvas { display: block; width: 100%; height: 100%; background: #252a2d; outline: none; touch-action: none; }
+.unity-loading, .unity-unavailable { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; color: #e8edef; background: #252a2d; text-align: center; }
+.unity-loading > svg { color: #e2a23a; }
+.unity-loading strong { font-size: 14px; }
+.unity-loading > span:not(.unity-spinner) { max-width: 440px; color: #aeb9bf; font-size: 11px; line-height: 1.5; word-break: break-word; }
+.unity-loading progress { width: min(300px, 70vw); height: 7px; accent-color: #38a48d; }
+.unity-spinner { width: 28px; height: 28px; border: 3px solid #5b656a; border-top-color: #55b9a3; border-radius: 50%; animation: unity-spin .9s linear infinite; }
+.unity-tools { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; padding: 4px; border: 1px solid rgba(202, 211, 215, .3); border-radius: 7px; background: rgba(24, 29, 32, .8); }
+.unity-tools button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 5px; color: #f4f7f8; background: transparent; cursor: pointer; }
+.unity-tools button:hover { background: rgba(255, 255, 255, .12); }
+.unity-tools button:disabled { opacity: .4; cursor: not-allowed; }
+.unity-resource-size { position: absolute; left: 12px; bottom: 12px; padding: 4px 7px; border-radius: 5px; color: #c9d2d6; background: rgba(24, 29, 32, .76); font-size: 9px; font-variant-numeric: tabular-nums; }
+
+@keyframes unity-spin { to { transform: rotate(360deg); } }
+
 .toast { position: fixed; top: 70px; left: 50%; display: flex; align-items: center; gap: 8px; max-width: min(420px, calc(100vw - 24px)); min-height: 40px; padding: 8px 13px; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 650; transform: translateX(-50%); z-index: 80; box-shadow: 0 8px 24px rgba(20, 30, 40, .2); }
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
@@ -176,6 +193,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
   .section-band { padding: 12px 14px; }
   .segmented { margin: 10px 12px; }
   .route-list { max-height: 120px; }
+  .workspace.vehicle-config-active { grid-template-rows: minmax(320px, 62vh) minmax(0, 1fr); }
+  .unity-tools { top: 8px; right: 8px; }
 }
 
 @media (max-width: 390px) {

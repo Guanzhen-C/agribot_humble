@@ -3,6 +3,7 @@ mobile_gateway:
     http_host: 0.0.0.0
     http_port: 8089
     api_token: ""
+    vehicle_webgl_root: /home/cgz/Builds/WebGL
     map_root: /media/cgz/data/agribot_data/maps
     bag_root: /media/cgz/data/agribot_data/bags
     required_collection_mount: ""

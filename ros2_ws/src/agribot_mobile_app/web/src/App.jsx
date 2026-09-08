@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   BrainCircuit,
+  Box,
   CircleStop,
   Clock3,
   Crosshair,
@@ -26,6 +27,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import MapView from "./MapView";
+import VehicleConfigView from "./VehicleConfigView";
 import {
   formatDuration,
   getJson,
@@ -40,6 +42,7 @@ const TABS = [
   { id: "collect", label: "采集", icon: Database },
   { id: "maps", label: "地图", icon: Map },
   { id: "status", label: "状态", icon: Activity },
+  { id: "vehicle_config", label: "配置", icon: Box },
 ];
 
 const MODES = [
@@ -562,6 +565,46 @@ function StatusPanel({ state }) {
   );
 }
 
+function VehicleConfigPanel({ status, vehicleType, onReload }) {
+  const phaseLabels = {
+    idle: "未加载",
+    downloading: "准备资源",
+    preparing: "准备运行",
+    loading: "加载模型",
+    ready: "已就绪",
+    error: "加载失败",
+  };
+  const sourceLabels = {
+    gateway: "RDK在线资源",
+    android_cache: "App本地资源",
+  };
+  const totalMiB = Number.isFinite(Number(status?.totalBytes))
+    ? `${(Number(status.totalBytes) / (1024 * 1024)).toFixed(1)} MiB`
+    : "--";
+  return (
+    <div className="panel-content">
+      <section className="section-band">
+        <div className="section-heading">
+          <h2>三维配置</h2>
+          <Pill tone={status?.phase === "ready" ? "green" : status?.phase === "error" ? "red" : "blue"}>
+            {phaseLabels[status?.phase] || "未加载"}
+          </Pill>
+        </div>
+        <div className="status-table">
+          <div className="status-row"><StatusDot ok={vehicleType === "ackermann"} /><span>当前车型</span><strong>{vehicleType === "ackermann" ? "阿克曼车" : "暂不支持"}</strong></div>
+          <div className="status-row"><StatusDot ok={status?.phase === "ready"} warning={Boolean(status?.phase)} /><span>资源来源</span><strong>{sourceLabels[status?.source] || "--"}</strong></div>
+          <div className="status-row"><StatusDot ok={Boolean(status?.version)} /><span>资源版本</span><strong>{status?.productVersion || status?.version || "--"}</strong></div>
+          <div className="status-row"><StatusDot ok={Boolean(status?.totalBytes)} /><span>资源大小</span><strong>{totalMiB}</strong></div>
+        </div>
+        {status?.message && <div className={classNames("status-message", status.phase === "error" && "error-message")}>{status.message}</div>}
+      </section>
+      <section className="section-band">
+        <CommandButton icon={RefreshCw} tone="secondary" onClick={onReload}>重新加载三维配置</CommandButton>
+      </section>
+    </div>
+  );
+}
+
 function MotionDialog({ request, onClose, execute }) {
   if (!request) return null;
   const start = async () => {
@@ -606,6 +649,8 @@ export default function App() {
   const [semanticPlanning, setSemanticPlanning] = useState(false);
   const [toast, setToast] = useState(null);
   const [motionRequest, setMotionRequest] = useState(null);
+  const [vehicleConfigStatus, setVehicleConfigStatus] = useState({ phase: "idle" });
+  const [vehicleConfigReload, setVehicleConfigReload] = useState(0);
 
   const refreshCatalogs = async () => {
     const [mapDocument, profileDocument] = await Promise.all([
@@ -666,6 +711,12 @@ export default function App() {
       setSemanticInstruction(instruction);
     }
   }, [state?.semantic?.instruction]);
+
+  useEffect(() => {
+    if (activeTab !== "vehicle_config") {
+      setVehicleConfigStatus({ phase: "idle" });
+    }
+  }, [activeTab]);
 
   const execute = async (path, body) => {
     try {
@@ -746,8 +797,11 @@ export default function App() {
     if (activeTab === "maps") {
       return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} />;
     }
+    if (activeTab === "vehicle_config") {
+      return <VehicleConfigPanel status={vehicleConfigStatus} vehicleType={vehicleType} onReload={() => setVehicleConfigReload((value) => value + 1)} />;
+    }
     return <StatusPanel state={state} />;
-  }, [activeTab, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
+  }, [activeTab, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleConfigStatus, vehicleProfiles, vehicleType]);
 
   const localizationReady = state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
@@ -771,17 +825,27 @@ export default function App() {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className={classNames("workspace", activeTab === "vehicle_config" && "vehicle-config-active")}>
         <div className="map-region">
-          <MapView
-            state={state}
-            selectedMap={selectedMap}
-            interactionMode={interactionMode}
-            route={route}
-            target={target}
-            onPose={poseCommit}
-            onRoutePoint={(pose) => setRoute((current) => [...current, pose].slice(0, 100))}
-          />
+          {activeTab === "vehicle_config" ? (
+            <VehicleConfigView
+              active
+              vehicleType={vehicleType}
+              reloadToken={vehicleConfigReload}
+              onReload={() => setVehicleConfigReload((value) => value + 1)}
+              onStatusChange={setVehicleConfigStatus}
+            />
+          ) : (
+            <MapView
+              state={state}
+              selectedMap={selectedMap}
+              interactionMode={interactionMode}
+              route={route}
+              target={target}
+              onPose={poseCommit}
+              onRoutePoint={(pose) => setRoute((current) => [...current, pose].slice(0, 100))}
+            />
+          )}
         </div>
         <aside className="control-panel">
           <nav className="tabbar" aria-label="功能导航">
