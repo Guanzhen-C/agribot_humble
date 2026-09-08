@@ -3,6 +3,7 @@ from io import BytesIO
 from http import HTTPStatus
 from pathlib import Path
 
+import brotli
 import pytest
 
 from agribot_mobile_app.vehicle_webgl import (
@@ -10,6 +11,7 @@ from agribot_mobile_app.vehicle_webgl import (
     VehicleWebGlError,
     VehicleWebGlNotFound,
     VehicleWebGlRangeError,
+    accepts_content_encoding,
     parse_single_byte_range,
     plan_asset_response,
     stream_asset_response,
@@ -65,6 +67,48 @@ def test_manifest_version_changes_with_content(tmp_path):
     (root / "Build" / "Vehicle.data.br").write_bytes(b"new-data")
 
     assert catalog.manifest()["version"] != first
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        (None, False),
+        ("gzip, deflate", False),
+        ("gzip, br", True),
+        ("br;q=0", False),
+        ("*;q=0.5", True),
+    ],
+)
+def test_accept_encoding_negotiation(header, expected):
+    assert accepts_content_encoding(header, "br") is expected
+
+
+def test_browser_falls_back_to_cached_identity_brotli_asset(tmp_path):
+    root = webgl_build(tmp_path)
+    payload = b"valid wasm bytes" * 128
+    compressed = brotli.compress(payload)
+    (root / "Build" / "Vehicle.wasm.br").write_bytes(compressed)
+    catalog = VehicleWebGlCatalog(root, tmp_path / "decoded-cache")
+
+    compressed_asset = catalog.browser_asset_descriptor(
+        "Build/Vehicle.wasm.br",
+        "gzip, deflate, br",
+    )
+    identity_asset = catalog.browser_asset_descriptor(
+        "Build/Vehicle.wasm.br",
+        "gzip, deflate",
+    )
+    cached_asset = catalog.browser_asset_descriptor(
+        "Build/Vehicle.wasm.br",
+        None,
+    )
+
+    assert compressed_asset.path == root / "Build" / "Vehicle.wasm.br"
+    assert compressed_asset.content_encoding == "br"
+    assert identity_asset.path.read_bytes() == payload
+    assert identity_asset.content_encoding is None
+    assert identity_asset.size == len(payload)
+    assert cached_asset.path == identity_asset.path
 
 
 def test_asset_lookup_rejects_directory_traversal(tmp_path):

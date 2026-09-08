@@ -3,13 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import gzip
 import hashlib
 from http import HTTPStatus
 import mimetypes
+import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import threading
 from typing import BinaryIO
+
+try:
+    import brotli
+except ImportError:  # pragma: no cover - covered by deployment dependency
+    brotli = None
+
+
+MAX_DECODED_ASSET_BYTES = 2 * 1024 * 1024 * 1024
+MIN_CACHE_FREE_BYTES = 128 * 1024 * 1024
 
 
 class VehicleWebGlError(RuntimeError):
@@ -84,6 +96,29 @@ def _content_metadata(relative_path: str) -> tuple[str, str | None]:
         if content_type.startswith("text/"):
             content_type += "; charset=utf-8"
     return content_type, content_encoding
+
+
+def accepts_content_encoding(value: str | None, encoding: str) -> bool:
+    """Return whether an HTTP Accept-Encoding value permits an encoding."""
+    if not value:
+        return False
+    wildcard_quality = None
+    for item in value.split(","):
+        fields = [field.strip() for field in item.split(";")]
+        name = fields[0].lower()
+        quality = 1.0
+        for parameter in fields[1:]:
+            key, separator, raw_value = parameter.partition("=")
+            if separator and key.strip().lower() == "q":
+                try:
+                    quality = float(raw_value.strip())
+                except ValueError:
+                    quality = 0.0
+        if name == encoding.lower():
+            return quality > 0
+        if name == "*":
+            wildcard_quality = quality
+    return wildcard_quality is not None and wildcard_quality > 0
 
 
 def parse_single_byte_range(
@@ -204,9 +239,15 @@ def stream_asset_response(
 class VehicleWebGlCatalog:
     """Indexes a deployed build without copying it into the ROS workspace."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, decoded_cache_root: Path | None = None):
         self.root = root.expanduser()
+        self.decoded_cache_root = (
+            decoded_cache_root
+            or Path.home() / ".cache" / "agribot_mobile_app" / "vehicle-webgl"
+        ).expanduser()
         self._lock = threading.Lock()
+        self._decode_locks_guard = threading.Lock()
+        self._decode_locks: dict[str, threading.Lock] = {}
         self._signature = None
         self._manifest = None
 
@@ -390,6 +431,121 @@ class VehicleWebGlCatalog:
             sha256=entry["sha256"],
             content_type=entry["content_type"],
             content_encoding=entry.get("content_encoding"),
+        )
+
+    def browser_asset_descriptor(
+        self,
+        relative_path: str,
+        accept_encoding: str | None,
+    ) -> VehicleWebGlAsset:
+        """Select compressed or identity content for an HTTP client."""
+        asset = self.asset_descriptor(relative_path)
+        if (
+            asset.content_encoding is None
+            or accepts_content_encoding(
+                accept_encoding,
+                asset.content_encoding,
+            )
+        ):
+            return asset
+        return self._decoded_asset_descriptor(asset)
+
+    def _decoded_asset_descriptor(
+        self,
+        asset: VehicleWebGlAsset,
+    ) -> VehicleWebGlAsset:
+        encoding = asset.content_encoding
+        if encoding not in ("br", "gzip"):
+            raise VehicleWebGlError("Unity资源使用了不支持的压缩格式")
+        if encoding == "br" and brotli is None:
+            raise VehicleWebGlError(
+                "浏览器不支持Brotli传输，RDK还需安装python3-brotli"
+            )
+
+        relative = PurePosixPath(asset.relative_path)
+        decoded_name = relative.name[: -(len(encoding) + 1)]
+        decoded_path = (
+            self.decoded_cache_root
+            / "identity-v1"
+            / encoding
+            / asset.sha256
+            / Path(*relative.parent.parts)
+            / decoded_name
+        )
+        cache_key = f"{encoding}:{asset.sha256}"
+        with self._decode_locks_guard:
+            decode_lock = self._decode_locks.setdefault(
+                cache_key,
+                threading.Lock(),
+            )
+        with decode_lock:
+            if not decoded_path.is_file():
+                decoded_path.parent.mkdir(parents=True, exist_ok=True)
+                available = shutil.disk_usage(decoded_path.parent).free
+                output_limit = min(
+                    MAX_DECODED_ASSET_BYTES,
+                    max(0, available - MIN_CACHE_FREE_BYTES),
+                )
+                if output_limit <= 0:
+                    raise VehicleWebGlError("Unity网页解压缓存空间不足")
+                temporary = decoded_path.with_name(
+                    ".{}.{}.{}.tmp".format(
+                        decoded_path.name,
+                        os.getpid(),
+                        threading.get_ident(),
+                    )
+                )
+                try:
+                    decoded_size = 0
+
+                    def write_checked(target, chunk):
+                        nonlocal decoded_size
+                        decoded_size += len(chunk)
+                        if decoded_size > output_limit:
+                            raise VehicleWebGlError(
+                                "Unity网页解压资源超过大小或磁盘限制"
+                            )
+                        target.write(chunk)
+
+                    if encoding == "br":
+                        decoder = brotli.Decompressor()
+                        with asset.path.open("rb") as source, temporary.open(
+                            "wb"
+                        ) as target:
+                            chunks = iter(
+                                lambda: source.read(1024 * 1024),
+                                b"",
+                            )
+                            for chunk in chunks:
+                                write_checked(target, decoder.process(chunk))
+                        if not decoder.is_finished():
+                            raise VehicleWebGlError("Unity Brotli资源不完整")
+                    else:
+                        with gzip.open(
+                            asset.path,
+                            "rb",
+                        ) as source, temporary.open("wb") as target:
+                            chunks = iter(
+                                lambda: source.read(1024 * 1024),
+                                b"",
+                            )
+                            for chunk in chunks:
+                                write_checked(target, chunk)
+                    with temporary.open("rb+") as target:
+                        target.flush()
+                        os.fsync(target.fileno())
+                    os.replace(temporary, decoded_path)
+                except Exception:
+                    temporary.unlink(missing_ok=True)
+                    raise
+
+        return VehicleWebGlAsset(
+            path=decoded_path,
+            relative_path=asset.relative_path,
+            size=decoded_path.stat().st_size,
+            sha256=f"{asset.sha256}-identity",
+            content_type=asset.content_type,
+            content_encoding=None,
         )
 
     def asset(self, relative_path: str) -> tuple[Path, str, str | None]:

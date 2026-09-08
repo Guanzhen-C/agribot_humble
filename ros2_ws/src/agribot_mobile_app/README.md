@@ -121,6 +121,11 @@ Unity WebGL文件，逐文件验证大小和SHA-256后存入应用私有目录�
 覆盖升级APK不会删除资源，只有卸载App、清除App数据或缓存损坏时需要重新下载。
 首次下载需预留至少约350 MiB可用空间，下载失败不会替换已经可用的旧版本。
 
+Android App通过本地HTTPS资源域直接使用约287.7 MiB的Brotli压缩文件。普通局域网
+HTTP浏览器通常不接受Brotli编码，网关会在首次网页访问时解压到
+`~/.cache/agribot_mobile_app/vehicle-webgl/`并复用该副本；该服务器端缓存约426.8 MiB，
+不进入Git、APK或手机的重复下载内容。RDK需安装`python3-brotli`。
+
 当前外部Unity构建部署在RDK的以下目录：
 
 ```text

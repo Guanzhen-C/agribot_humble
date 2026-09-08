@@ -480,7 +480,13 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         raw_download=False,
         head_only=False,
     ):
-        asset = self.gateway.vehicle_webgl.asset_descriptor(relative_path)
+        if raw_download:
+            asset = self.gateway.vehicle_webgl.asset_descriptor(relative_path)
+        else:
+            asset = self.gateway.vehicle_webgl.browser_asset_descriptor(
+                relative_path,
+                self.headers.get("Accept-Encoding"),
+            )
         try:
             response = plan_asset_response(
                 asset,
@@ -512,7 +518,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Encoding", response.content_encoding)
         self.send_header("ETag", response.etag)
         self.send_header("Accept-Ranges", "bytes")
-        self.send_header("Vary", "X-Agribot-Raw-Asset")
+        self.send_header("Vary", "Accept-Encoding, X-Agribot-Raw-Asset")
         if response.content_range:
             self.send_header("Content-Range", response.content_range)
         if raw_download and asset.content_encoding:
