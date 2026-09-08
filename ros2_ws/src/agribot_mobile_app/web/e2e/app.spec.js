@@ -480,6 +480,7 @@ test("vehicle configuration loads Unity only on demand and quits it on exit", as
   await page.locator(".tabbar").getByRole("button", { name: "配置" }).click();
   await expect(page.getByRole("heading", { name: "三维配置" })).toBeVisible();
   await expect(page.locator(".unity-shell")).toHaveAttribute("data-phase", "ready");
+  await expect(page.locator("canvas.unity-canvas")).toHaveAttribute("id", "unity-canvas");
   expect(manifestRequests).toBe(1);
   expect(loaderRequests).toBe(1);
   expect(await page.evaluate(() => window.__unityStarts)).toBe(1);

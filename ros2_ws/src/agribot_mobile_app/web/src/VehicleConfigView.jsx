@@ -380,7 +380,14 @@ export default function VehicleConfigView({ active, vehicleType, onStatusChange,
 
   return (
     <div className="unity-shell" data-phase={phase} aria-busy={phase !== "ready"}>
-      <canvas ref={canvasRef} className="unity-canvas" width="960" height="600" tabIndex="-1" />
+      <canvas
+        id="unity-canvas"
+        ref={canvasRef}
+        className="unity-canvas"
+        width="960"
+        height="600"
+        tabIndex="-1"
+      />
       {phase !== "ready" && (
         <div className="unity-loading" role="status" aria-live="polite">
           {phase === "error" ? <AlertTriangle size={28} /> : <span className="unity-spinner" />}
