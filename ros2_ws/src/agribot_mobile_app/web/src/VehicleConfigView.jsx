@@ -213,8 +213,9 @@ export default function VehicleConfigView({ active, vehicleType, onStatusChange,
     if (bridge) {
       const handleNativeEvent = (event) => consumeNativeState(event.detail);
       window.addEventListener(NATIVE_EVENT, handleNativeEvent);
-      const alreadyReady = consumeNativeState(nativeState(bridge));
-      if (!alreadyReady) {
+      const initialState = nativeState(bridge);
+      const alreadyReady = consumeNativeState(initialState);
+      if (!alreadyReady || initialState?.status === "error") {
         try {
           const result = bridge.ensureVehicleAssets();
           if (!consumeNativeState(result)) schedulePoll();

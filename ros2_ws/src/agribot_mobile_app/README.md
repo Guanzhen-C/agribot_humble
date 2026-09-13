@@ -106,7 +106,7 @@ journalctl -u agribot-mobile-app.service -f
 Android 8.0及以上设备可直接安装原生壳应用：
 
 ```text
-http://RDK_IP:8088/downloads/agribot-mobile-0.2.0.apk
+http://RDK_IP:8088/downloads/agribot-mobile-0.2.1.apk
 ```
 
 应用默认连接`http://192.168.100.125:8088`。RDK地址变化时，在应用标题栏点击设置图标，
@@ -119,10 +119,12 @@ APK内置完整控制台资源；没有网络或暂时无法连接RDK时仍会�
 Unity WebGL文件，逐文件验证大小和SHA-256后存入应用私有目录。以后无论RDK是否在线，
 都直接使用该本地副本；只有RDK上的Unity构建发生变化时才下载新版本。普通关闭App或
 覆盖升级APK不会删除资源，只有卸载App、清除App数据或缓存损坏时需要重新下载。
-首次下载需预留至少约350 MiB可用空间，下载失败不会替换已经可用的旧版本。
+App会在下载校验后把Brotli资源一次性流式解压到同版本的私有缓存，Unity随后只读取普通
+文件，避免Android WebView误把压缩字节当作JavaScript。首次准备需预留至少约800 MiB
+可用空间；从0.2.0覆盖升级时会直接转换已有下载，不会再次下载287.7 MiB资源。
 
-Android App通过本地HTTPS资源域直接使用约287.7 MiB的Brotli压缩文件。普通局域网
-HTTP浏览器通常不接受Brotli编码，网关会在首次网页访问时解压到
+Android App保留约287.7 MiB的Brotli原文件用于版本和SHA-256校验，同时永久复用一次性
+生成的解压缓存。普通局域网HTTP浏览器通常不接受Brotli编码，网关会在首次网页访问时解压到
 `~/.cache/agribot_mobile_app/vehicle-webgl/`并复用该副本；该服务器端缓存约426.8 MiB，
 不进入Git、APK或手机的重复下载内容。RDK需安装`python3-brotli`。
 

@@ -21,6 +21,9 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
@@ -31,6 +34,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 /** Stores a verified Unity WebGL build in app-private storage. */
 public final class VehicleAssetStore implements AutoCloseable {
@@ -41,15 +45,20 @@ public final class VehicleAssetStore implements AutoCloseable {
     public static final String APP_ASSET_ORIGIN = "https://appassets.androidplatform.net";
     public static final String BUNDLED_UI_URL = APP_ASSET_ORIGIN + "/assets/web/index.html";
 
+    private static final Object PACKAGE_IO_LOCK = new Object();
     private static final String APP_ASSET_HOST = "appassets.androidplatform.net";
     private static final String BUNDLED_PREFIX = "/assets/web/";
-    private static final String VEHICLE_PREFIX = "/vehicle-webgl/";
+    private static final String VEHICLE_PREFIX = "/vehicle-webgl-identity-v1/";
     private static final String MANIFEST_PATH = "/api/v1/vehicle-config/manifest";
     private static final String GATEWAY_ASSET_PREFIX = "/vehicle-webgl/";
     private static final String CACHE_DIRECTORY = "vehicle-assets";
     private static final String VERSIONS_DIRECTORY = "versions";
     private static final String STAGING_DIRECTORY = "staging";
     private static final String STORED_MANIFEST = ".manifest.json";
+    private static final String IDENTITY_DIRECTORY = "_identity";
+    private static final String IDENTITY_STAGING_PREFIX = "_identity-staging-";
+    private static final String IDENTITY_MANIFEST = "manifest.json";
+    private static final int IDENTITY_SCHEMA_VERSION = 1;
     private static final String PREF_ACTIVE_VERSION = "vehicle_assets.active_version";
     private static final String PREF_ACTIVE_MANIFEST = "vehicle_assets.active_manifest";
     private static final int CONNECT_TIMEOUT_MS = 5000;
@@ -58,6 +67,9 @@ public final class VehicleAssetStore implements AutoCloseable {
     private static final int MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
     private static final int MAX_FILE_COUNT = 4096;
     private static final long MAX_TOTAL_BYTES = 4L * 1024L * 1024L * 1024L;
+    private static final long MAX_DECODED_FILE_BYTES = Integer.MAX_VALUE;
+    private static final long MAX_DECODED_TOTAL_BYTES = 4L * 1024L * 1024L * 1024L;
+    private static final long MIN_FREE_AFTER_DECODE_BYTES = 64L * 1024L * 1024L;
     private static final long PROGRESS_INTERVAL_MS = 250L;
 
     private final Object lock = new Object();
@@ -71,6 +83,7 @@ public final class VehicleAssetStore implements AutoCloseable {
     private String activeVersion;
     private JSONObject activeManifest;
     private String stateJson;
+    private boolean activePrepared;
     private boolean ensureInFlight;
     private boolean closed;
 
@@ -86,7 +99,13 @@ public final class VehicleAssetStore implements AutoCloseable {
         versionsRoot = new File(cacheRoot, VERSIONS_DIRECTORY);
         stagingRoot = new File(cacheRoot, STAGING_DIRECTORY);
         loadActivePackage();
-        downloadExecutor.execute(this::cleanupAbandonedStaging);
+        downloadExecutor.execute(() -> {
+            synchronized (PACKAGE_IO_LOCK) {
+                if (!isClosed()) {
+                    cleanupAbandonedStaging();
+                }
+            }
+        });
     }
 
     public String getStateJson() {
@@ -96,17 +115,33 @@ public final class VehicleAssetStore implements AutoCloseable {
     }
 
     public void ensureAssets(String gatewayUrl) {
+        boolean prepareOnly;
         synchronized (lock) {
             if (closed || ensureInFlight) {
                 return;
             }
             ensureInFlight = true;
-            if (activeManifest == null) {
+            prepareOnly = activeManifest != null && !activePrepared;
+            if (prepareOnly) {
+                setStateLocked(status("preparing", 0.0, "正在准备App本地三维资源"));
+            } else if (activeManifest == null) {
                 setStateLocked(status("downloading", 0.0, "正在读取三维配置资源清单"));
+            }
+            try {
+                downloadExecutor.execute(
+                    prepareOnly
+                        ? () -> prepareActivePackage(gatewayUrl)
+                        : () -> refreshFromGateway(gatewayUrl)
+                );
+            } catch (RejectedExecutionException error) {
+                ensureInFlight = false;
+                if (!closed) {
+                    setStateLocked(status("error", 0.0, "无法启动三维配置资源任务"));
+                }
+                return;
             }
         }
         notifyState();
-        downloadExecutor.execute(() -> refreshFromGateway(gatewayUrl));
     }
 
     public boolean handles(Uri uri) {
@@ -172,7 +207,16 @@ public final class VehicleAssetStore implements AutoCloseable {
                 validateCachedPackage(packageRoot, manifest, false);
                 activeVersion = storedVersion;
                 activeManifest = manifest;
-                stateJson = readyState(manifest, storedVersion, null).toString();
+                activePrepared = identityPackageReady(packageRoot, manifest);
+                if (activePrepared) {
+                    stateJson = readyState(manifest, storedVersion, null).toString();
+                    return;
+                }
+                stateJson = status(
+                    "preparing",
+                    0.0,
+                    "正在将已下载的三维资源转换为App可直接读取的格式"
+                ).toString();
                 return;
             } catch (IOException | JSONException | IllegalArgumentException ignored) {
                 preferences.edit()
@@ -181,6 +225,7 @@ public final class VehicleAssetStore implements AutoCloseable {
                     .apply();
             }
         }
+        activePrepared = false;
         stateJson = status("idle", 0.0, "三维配置资源尚未缓存").toString();
     }
 
@@ -188,7 +233,7 @@ public final class VehicleAssetStore implements AutoCloseable {
         boolean hadUsableCache;
         boolean downloadAnnounced = false;
         synchronized (lock) {
-            hadUsableCache = activeManifest != null;
+            hadUsableCache = activeManifest != null && activePrepared;
         }
         try {
             JSONObject manifest = fetchManifest(gatewayUrl);
@@ -197,7 +242,7 @@ public final class VehicleAssetStore implements AutoCloseable {
                 if (closed) {
                     return;
                 }
-                if (activeManifest != null && version.equals(activeVersion)) {
+                if (activeManifest != null && activePrepared && version.equals(activeVersion)) {
                     setStateLocked(readyState(activeManifest, activeVersion, null));
                     return;
                 }
@@ -205,8 +250,7 @@ public final class VehicleAssetStore implements AutoCloseable {
             }
             downloadAnnounced = true;
             notifyState();
-            File packageRoot = downloadPackage(gatewayUrl, manifest);
-            activatePackage(packageRoot, manifest, version);
+            downloadAndActivatePackage(gatewayUrl, manifest, version);
             notifyState();
         } catch (Exception error) {
             boolean shouldNotify;
@@ -238,6 +282,99 @@ public final class VehicleAssetStore implements AutoCloseable {
                 ensureInFlight = false;
             }
         }
+    }
+
+    private void prepareActivePackage(String gatewayUrl) {
+        String version;
+        JSONObject manifest;
+        boolean handedOffToDownload = false;
+        boolean sourceInvalid = false;
+        synchronized (lock) {
+            version = activeVersion;
+            manifest = activeManifest;
+        }
+        try {
+            if (version == null || manifest == null) {
+                throw new IOException("三维配置缓存状态无效");
+            }
+            File packageRoot = versionDirectory(version);
+            synchronized (PACKAGE_IO_LOCK) {
+                if (isClosed()) {
+                    return;
+                }
+                try {
+                    validateCachedPackage(packageRoot, manifest, true);
+                } catch (IOException | JSONException invalidSource) {
+                    invalidateActivePackage(version, packageRoot);
+                    sourceInvalid = true;
+                }
+                if (!sourceInvalid) {
+                    materializeIdentityPackage(packageRoot, manifest);
+                }
+            }
+            if (sourceInvalid) {
+                if (isClosed()) {
+                    return;
+                }
+                synchronized (lock) {
+                    setStateLocked(status(
+                        "downloading",
+                        0.0,
+                        "本地三维资源校验失败，正在重新下载"
+                    ));
+                }
+                notifyState();
+                handedOffToDownload = true;
+                refreshFromGateway(gatewayUrl);
+                return;
+            }
+            synchronized (lock) {
+                if (closed) {
+                    return;
+                }
+                activePrepared = true;
+                setStateLocked(readyState(manifest, version, null));
+            }
+            notifyState();
+            if (!isClosed()) {
+                handedOffToDownload = true;
+                refreshFromGateway(gatewayUrl);
+            }
+        } catch (IOException | JSONException | RuntimeException error) {
+            synchronized (lock) {
+                if (closed) {
+                    return;
+                }
+                activePrepared = false;
+                String message = error.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                    message = "三维配置资源准备失败";
+                }
+                setStateLocked(status("error", 0.0, message));
+            }
+            notifyState();
+        } finally {
+            if (!handedOffToDownload) {
+                synchronized (lock) {
+                    ensureInFlight = false;
+                }
+            }
+        }
+    }
+
+    private void invalidateActivePackage(String version, File packageRoot) {
+        synchronized (lock) {
+            if (version.equals(activeVersion)) {
+                activeVersion = null;
+                activeManifest = null;
+                activePrepared = false;
+            }
+        }
+        preferences.edit()
+            .remove(PREF_ACTIVE_VERSION)
+            .remove(PREF_ACTIVE_MANIFEST)
+            .apply();
+        deleteRecursively(packageRoot);
     }
 
     private JSONObject fetchManifest(String gatewayUrl) throws IOException, JSONException {
@@ -276,7 +413,7 @@ public final class VehicleAssetStore implements AutoCloseable {
         for (int index = 0; index < files.length(); index += 1) {
             JSONObject entry = files.getJSONObject(index);
             String path = entry.getString("path");
-            validateRelativePath(path);
+            validateManifestAssetPath(path);
             if (!paths.add(path)) {
                 throw new IOException("三维配置资源清单包含重复路径");
             }
@@ -303,7 +440,7 @@ public final class VehicleAssetStore implements AutoCloseable {
         JSONObject unity = manifest.getJSONObject("unity");
         for (String role : new String[]{"loader", "data", "framework", "code"}) {
             String path = unity.getString(role);
-            validateRelativePath(path);
+            validateManifestAssetPath(path);
             if (!paths.contains(path)) {
                 throw new IOException("Unity资源清单缺少" + role);
             }
@@ -311,18 +448,48 @@ public final class VehicleAssetStore implements AutoCloseable {
         return manifest;
     }
 
-    private File downloadPackage(String gatewayUrl, JSONObject manifest)
+    private void downloadAndActivatePackage(
+        String gatewayUrl,
+        JSONObject manifest,
+        String version
+    ) throws IOException, JSONException {
+        synchronized (PACKAGE_IO_LOCK) {
+            if (isClosed()) {
+                throw new IOException("三维配置资源下载已取消");
+            }
+            File packageRoot = downloadPackageLocked(gatewayUrl, manifest);
+            if (isClosed()) {
+                throw new IOException("三维配置资源下载已取消");
+            }
+            activatePackageLocked(packageRoot, manifest, version);
+        }
+    }
+
+    private File downloadPackageLocked(String gatewayUrl, JSONObject manifest)
         throws IOException, JSONException {
         ensureDirectory(versionsRoot);
         ensureDirectory(stagingRoot);
         String version = manifest.getString("version");
         File destination = versionDirectory(version);
+        if (destination.exists() && !destination.isDirectory()) {
+            if (!destination.delete()) {
+                throw new IOException("无法清理损坏的三维配置缓存");
+            }
+        }
         if (destination.isDirectory()) {
+            boolean cachedPackageValid = true;
             try {
                 validateCachedPackage(destination, manifest, true);
-                return destination;
             } catch (IOException invalidCache) {
+                cachedPackageValid = false;
                 deleteRecursively(destination);
+            }
+            if (cachedPackageValid) {
+                materializeIdentityPackage(destination, manifest);
+                return destination;
+            }
+            if (destination.exists()) {
+                throw new IOException("无法清理损坏的三维配置缓存");
             }
         }
 
@@ -349,6 +516,7 @@ public final class VehicleAssetStore implements AutoCloseable {
             if (!staging.renameTo(destination)) {
                 throw new IOException("无法原子切换三维配置资源版本");
             }
+            materializeIdentityPackage(destination, manifest);
             return destination;
         } catch (IOException | JSONException error) {
             deleteRecursively(staging);
@@ -422,7 +590,7 @@ public final class VehicleAssetStore implements AutoCloseable {
         }
     }
 
-    private void activatePackage(File packageRoot, JSONObject manifest, String version)
+    private void activatePackageLocked(File packageRoot, JSONObject manifest, String version)
         throws IOException {
         String previousVersion;
         synchronized (lock) {
@@ -440,6 +608,7 @@ public final class VehicleAssetStore implements AutoCloseable {
             }
             activeVersion = version;
             activeManifest = manifest;
+            activePrepared = true;
             setStateLocked(readyState(manifest, version, null));
         }
         cleanupOldVersions(version, previousVersion, packageRoot);
@@ -466,6 +635,245 @@ public final class VehicleAssetStore implements AutoCloseable {
         }
     }
 
+    private boolean identityPackageReady(File packageRoot, JSONObject manifest) {
+        try {
+            validateIdentityPackage(packageRoot, manifest, false);
+            return true;
+        } catch (IOException | JSONException error) {
+            return false;
+        }
+    }
+
+    private void materializeIdentityPackage(File packageRoot, JSONObject manifest)
+        throws IOException, JSONException {
+        int compressedFileCount = compressedFileCount(manifest);
+        if (compressedFileCount == 0 || identityPackageReady(packageRoot, manifest)) {
+            return;
+        }
+
+        cleanupIdentityStaging(packageRoot);
+        File identityRoot = new File(packageRoot, IDENTITY_DIRECTORY);
+        if (identityRoot.exists()) {
+            deleteRecursively(identityRoot);
+        }
+        File staging = new File(
+            packageRoot,
+            IDENTITY_STAGING_PREFIX + UUID.randomUUID()
+        );
+        ensureDirectory(staging);
+
+        JSONObject identityManifest = new JSONObject();
+        JSONArray identityFiles = new JSONArray();
+        Set<String> decodedPaths = new HashSet<>();
+        long decodedTotal = 0L;
+        int compressedIndex = 0;
+        try {
+            JSONArray files = manifest.getJSONArray("files");
+            for (int index = 0; index < files.length(); index += 1) {
+                JSONObject entry = files.getJSONObject(index);
+                String relativePath = entry.getString("path");
+                ContentMetadata metadata = contentMetadata(relativePath);
+                if (metadata.contentEncoding == null) {
+                    continue;
+                }
+                compressedIndex += 1;
+                publishPreparationProgress(
+                    (double) (compressedIndex - 1) / (double) compressedFileCount,
+                    relativePath
+                );
+
+                String decodedRelativePath = decodedRelativePath(
+                    relativePath,
+                    metadata.contentEncoding
+                );
+                if (!decodedPaths.add(decodedRelativePath)) {
+                    throw new IOException("三维配置资源解压路径冲突");
+                }
+                File source = safeChild(packageRoot, relativePath);
+                if (!source.isFile() || source.length() != entry.getLong("size")) {
+                    throw new IOException("三维配置缓存不完整");
+                }
+                File output = safeChild(staging, decodedRelativePath);
+                File parent = output.getParentFile();
+                if (parent == null) {
+                    throw new IOException("三维配置资源解压路径无效");
+                }
+                ensureDirectory(parent);
+
+                AssetDecoder.Result decoded = AssetDecoder.decode(
+                    source,
+                    output,
+                    metadata.contentEncoding,
+                    MAX_DECODED_FILE_BYTES,
+                    MIN_FREE_AFTER_DECODE_BYTES,
+                    this::isClosed
+                );
+                String expectedSourceSha = entry.getString("sha256").toLowerCase(Locale.ROOT);
+                if (decoded.sourceSize != entry.getLong("size")
+                    || !decoded.sourceSha256.equals(expectedSourceSha)) {
+                    throw new IOException("三维配置资源SHA-256校验失败");
+                }
+                if (Long.MAX_VALUE - decodedTotal < decoded.decodedSize) {
+                    throw new IOException("三维配置资源解压后总大小超限");
+                }
+                decodedTotal += decoded.decodedSize;
+                if (decodedTotal > MAX_DECODED_TOTAL_BYTES) {
+                    throw new IOException("三维配置资源解压后总大小超限");
+                }
+
+                JSONObject identityEntry = new JSONObject();
+                identityEntry.put("path", relativePath);
+                identityEntry.put("decoded_path", decodedRelativePath);
+                identityEntry.put("encoding", metadata.contentEncoding);
+                identityEntry.put("source_size", decoded.sourceSize);
+                identityEntry.put("source_sha256", decoded.sourceSha256);
+                identityEntry.put("decoded_size", decoded.decodedSize);
+                identityEntry.put("decoded_sha256", decoded.decodedSha256);
+                identityEntry.put("decoded_last_modified", output.lastModified());
+                identityFiles.put(identityEntry);
+            }
+
+            identityManifest.put("schema", IDENTITY_SCHEMA_VERSION);
+            identityManifest.put("source_version", manifest.getString("version"));
+            identityManifest.put("decoded_total_bytes", decodedTotal);
+            identityManifest.put("files", identityFiles);
+            writeJson(new File(staging, IDENTITY_MANIFEST), identityManifest);
+            validateIdentityDirectory(staging, manifest, false);
+            moveDirectoryAtomically(staging, identityRoot);
+            publishPreparationProgress(1.0, "");
+        } catch (IOException | JSONException | RuntimeException error) {
+            deleteRecursively(staging);
+            throw error;
+        }
+    }
+
+    private void validateIdentityPackage(
+        File packageRoot,
+        JSONObject manifest,
+        boolean verifyChecksum
+    ) throws IOException, JSONException {
+        if (compressedFileCount(manifest) == 0) {
+            return;
+        }
+        validateIdentityDirectory(
+            new File(packageRoot, IDENTITY_DIRECTORY),
+            manifest,
+            verifyChecksum
+        );
+    }
+
+    private void validateIdentityDirectory(
+        File identityRoot,
+        JSONObject sourceManifest,
+        boolean verifyChecksum
+    ) throws IOException, JSONException {
+        if (!identityRoot.isDirectory()) {
+            throw new IOException("三维配置解压缓存不存在");
+        }
+        File manifestFile = new File(identityRoot, IDENTITY_MANIFEST);
+        if (!manifestFile.isFile()) {
+            throw new IOException("三维配置解压缓存清单不存在");
+        }
+        JSONObject identityManifest;
+        try (InputStream stream = new FileInputStream(manifestFile)) {
+            identityManifest = new JSONObject(
+                new String(readLimited(stream, MAX_MANIFEST_BYTES), StandardCharsets.UTF_8)
+            );
+        }
+        if (identityManifest.getInt("schema") != IDENTITY_SCHEMA_VERSION
+            || !sourceManifest.getString("version").equals(
+                identityManifest.getString("source_version")
+            )) {
+            throw new IOException("三维配置解压缓存版本不一致");
+        }
+
+        Map<String, JSONObject> identityEntries = new HashMap<>();
+        JSONArray storedFiles = identityManifest.getJSONArray("files");
+        for (int index = 0; index < storedFiles.length(); index += 1) {
+            JSONObject entry = storedFiles.getJSONObject(index);
+            String path = entry.getString("path");
+            validateManifestAssetPath(path);
+            if (identityEntries.put(path, entry) != null) {
+                throw new IOException("三维配置解压缓存包含重复路径");
+            }
+        }
+
+        long decodedTotal = 0L;
+        int expectedCount = 0;
+        JSONArray sourceFiles = sourceManifest.getJSONArray("files");
+        for (int index = 0; index < sourceFiles.length(); index += 1) {
+            JSONObject sourceEntry = sourceFiles.getJSONObject(index);
+            String path = sourceEntry.getString("path");
+            ContentMetadata metadata = contentMetadata(path);
+            if (metadata.contentEncoding == null) {
+                continue;
+            }
+            expectedCount += 1;
+            JSONObject identityEntry = identityEntries.get(path);
+            if (identityEntry == null) {
+                throw new IOException("三维配置解压缓存不完整");
+            }
+            String expectedDecodedPath = decodedRelativePath(path, metadata.contentEncoding);
+            String decodedPath = identityEntry.getString("decoded_path");
+            validateRelativePath(decodedPath);
+            if (!expectedDecodedPath.equals(decodedPath)
+                || !metadata.contentEncoding.equals(identityEntry.getString("encoding"))
+                || identityEntry.getLong("source_size") != sourceEntry.getLong("size")
+                || !sourceEntry.getString("sha256").equalsIgnoreCase(
+                    identityEntry.getString("source_sha256")
+                )) {
+                throw new IOException("三维配置解压缓存来源不一致");
+            }
+            long decodedSize = identityEntry.getLong("decoded_size");
+            long decodedLastModified = identityEntry.getLong("decoded_last_modified");
+            String decodedSha = identityEntry.getString("decoded_sha256").toLowerCase(Locale.ROOT);
+            if (decodedSize < 0L || decodedSize > MAX_DECODED_FILE_BYTES
+                || decodedLastModified <= 0L
+                || !decodedSha.matches("[0-9a-f]{64}")) {
+                throw new IOException("三维配置解压缓存元数据无效");
+            }
+            if (Long.MAX_VALUE - decodedTotal < decodedSize) {
+                throw new IOException("三维配置解压缓存总大小超限");
+            }
+            decodedTotal += decodedSize;
+            if (decodedTotal > MAX_DECODED_TOTAL_BYTES) {
+                throw new IOException("三维配置解压缓存总大小超限");
+            }
+            File decodedFile = safeChild(identityRoot, decodedPath);
+            if (!decodedFile.isFile()
+                || decodedFile.length() != decodedSize
+                || decodedFile.lastModified() != decodedLastModified) {
+                throw new IOException("三维配置解压缓存不完整");
+            }
+            if (verifyChecksum && !sha256(decodedFile).equals(decodedSha)) {
+                throw new IOException("三维配置解压缓存校验失败");
+            }
+        }
+        if (identityEntries.size() != expectedCount
+            || identityManifest.getLong("decoded_total_bytes") != decodedTotal) {
+            throw new IOException("三维配置解压缓存清单不一致");
+        }
+    }
+
+    private static int compressedFileCount(JSONObject manifest) throws JSONException {
+        int count = 0;
+        JSONArray files = manifest.getJSONArray("files");
+        for (int index = 0; index < files.length(); index += 1) {
+            if (contentMetadata(files.getJSONObject(index).getString("path")).contentEncoding != null) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private static String decodedRelativePath(String path, String encoding) throws IOException {
+        String suffix = "br".equals(encoding) ? ".br" : "gzip".equals(encoding) ? ".gz" : "";
+        if (suffix.isEmpty() || !path.endsWith(suffix) || path.length() <= suffix.length()) {
+            throw new IOException("三维配置资源压缩扩展名无效");
+        }
+        return path.substring(0, path.length() - suffix.length());
+    }
+
     private WebResourceResponse bundledResponse(String relativePath) throws IOException {
         if (relativePath.isEmpty()) {
             relativePath = "index.html";
@@ -474,7 +882,7 @@ public final class VehicleAssetStore implements AutoCloseable {
         AssetManager assets = context.getAssets();
         InputStream stream = assets.open("web/" + relativePath, AssetManager.ACCESS_STREAMING);
         boolean immutable = relativePath.startsWith("assets/") || relativePath.startsWith("icons/");
-        return successResponse(relativePath, stream, immutable, -1L);
+        return successResponse(relativePath, stream, immutable, false);
     }
 
     private WebResourceResponse cachedResponse(String requestPath) throws IOException {
@@ -491,14 +899,30 @@ public final class VehicleAssetStore implements AutoCloseable {
         if (!file.isFile()) {
             throw new IOException("三维配置资源不存在");
         }
-        return successResponse(relativePath, new FileInputStream(file), true, file.length());
+        ContentMetadata metadata = contentMetadata(relativePath);
+        boolean decoded = metadata.contentEncoding != null;
+        if (decoded) {
+            file = safeChild(
+                new File(packageRoot, IDENTITY_DIRECTORY),
+                decodedRelativePath(relativePath, metadata.contentEncoding)
+            );
+            if (!file.isFile()) {
+                throw new IOException("三维配置解压缓存尚未就绪");
+            }
+        }
+        return successResponse(
+            relativePath,
+            new FileInputStream(file),
+            true,
+            decoded
+        );
     }
 
     private WebResourceResponse successResponse(
         String path,
         InputStream stream,
         boolean immutable,
-        long contentLength
+        boolean contentDecoded
     ) {
         ContentMetadata metadata = contentMetadata(path);
         Map<String, String> headers = new HashMap<>();
@@ -509,12 +933,10 @@ public final class VehicleAssetStore implements AutoCloseable {
             "Cache-Control",
             immutable ? "public, max-age=31536000, immutable" : "no-cache"
         );
-        if (metadata.contentEncoding != null) {
+        if (metadata.contentEncoding != null && !contentDecoded) {
             headers.put("Content-Encoding", metadata.contentEncoding);
         }
-        if (contentLength >= 0L) {
-            headers.put("Content-Length", Long.toString(contentLength));
-        }
+        // Chromium derives one Content-Length from FileInputStream.available().
         return new WebResourceResponse(
             metadata.mimeType,
             metadata.characterEncoding,
@@ -576,6 +998,23 @@ public final class VehicleAssetStore implements AutoCloseable {
                 "downloading",
                 Math.max(0.0, Math.min(1.0, progress)),
                 "正在下载 " + relativePath
+            ));
+        }
+        notifyState();
+    }
+
+    private void publishPreparationProgress(double progress, String relativePath) {
+        synchronized (lock) {
+            if (closed) {
+                return;
+            }
+            String message = relativePath.isEmpty()
+                ? "三维配置资源准备完成"
+                : "正在解压 " + relativePath;
+            setStateLocked(status(
+                "preparing",
+                Math.max(0.0, Math.min(1.0, progress)),
+                message
             ));
         }
         notifyState();
@@ -653,6 +1092,15 @@ public final class VehicleAssetStore implements AutoCloseable {
         }
     }
 
+    private static void validateManifestAssetPath(String path) throws IOException {
+        validateRelativePath(path);
+        String firstPart = path.split("/", 2)[0];
+        if (IDENTITY_DIRECTORY.equals(firstPart)
+            || firstPart.startsWith(IDENTITY_STAGING_PREFIX)) {
+            throw new IOException("三维配置资源路径占用App保留目录");
+        }
+    }
+
     private static void ensureDirectory(File directory) throws IOException {
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("无法创建三维配置资源目录");
@@ -695,10 +1143,27 @@ public final class VehicleAssetStore implements AutoCloseable {
     }
 
     private static void writeManifest(File root, JSONObject manifest) throws IOException {
-        File file = new File(root, STORED_MANIFEST);
+        writeJson(new File(root, STORED_MANIFEST), manifest);
+    }
+
+    private static void writeJson(File file, JSONObject value) throws IOException {
         try (FileOutputStream stream = new FileOutputStream(file)) {
-            stream.write(manifest.toString().getBytes(StandardCharsets.UTF_8));
+            stream.write(value.toString().getBytes(StandardCharsets.UTF_8));
             stream.getFD().sync();
+        }
+    }
+
+    private static void moveDirectoryAtomically(File source, File destination) throws IOException {
+        try {
+            Files.move(
+                source.toPath(),
+                destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE
+            );
+        } catch (AtomicMoveNotSupportedException error) {
+            if (!source.renameTo(destination)) {
+                throw new IOException("无法原子切换三维配置解压缓存", error);
+            }
         }
     }
 
@@ -793,6 +1258,18 @@ public final class VehicleAssetStore implements AutoCloseable {
         if (stagingDirectories != null) {
             for (File staging : stagingDirectories) {
                 deleteRecursively(staging);
+            }
+        }
+    }
+
+    private static void cleanupIdentityStaging(File packageRoot) {
+        File[] children = packageRoot.listFiles();
+        if (children == null) {
+            return;
+        }
+        for (File child : children) {
+            if (child.getName().startsWith(IDENTITY_STAGING_PREFIX)) {
+                deleteRecursively(child);
             }
         }
     }
