@@ -5,6 +5,8 @@ log/
 **/build/
 **/install/
 **/log/
+/ros2_ws/build_persistent/
+/ros2_ws/log_persistent/
 
 # Python cache and test artifacts
 __pycache__/
@@ -57,6 +59,10 @@ ros2_ws/protobuf_compat/
 /ros2_ws/rtk_eskf_localization.yaml
 /ros2_ws/src/1.txt
 /ros2_ws/src/2.txt
+
+# Confidential patent and software-copyright application materials
+/ros2_ws/docs/patent/
+/ros2_ws/docs/software_copyright/
 
 # Upstream documentation media not required to build or run
 /SensorInfo/
