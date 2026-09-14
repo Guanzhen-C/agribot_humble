@@ -1,5 +1,3 @@
-import re
-import zipfile
 from pathlib import Path
 
 
@@ -29,73 +27,13 @@ def test_android_package_contains_the_offline_web_interface():
         / "agribot"
         / "MainActivity.java"
     ).read_text(encoding="utf-8")
-    asset_store = (
-        PACKAGE
-        / "android"
-        / "app"
-        / "src"
-        / "main"
-        / "java"
-        / "com"
-        / "guanzhen"
-        / "agribot"
-        / "VehicleAssetStore.java"
-    ).read_text(encoding="utf-8")
     assert (assets / "index.html").is_file()
     assert list((assets / "assets").glob("*.js"))
     assert list((assets / "assets").glob("*.css"))
-    assert "VehicleAssetStore.BUNDLED_UI_URL" in activity
-    assert "https://appassets.androidplatform.net" in asset_store
-    assert '"/vehicle-webgl-identity-v1/"' in asset_store
+    assert "file:///android_asset/web/index.html" in activity
     assert "gatewayIsReachable" in activity
-    assert "setAllowFileAccess(false)" in activity
-    assert "setAllowFileAccessFromFileURLs(false)" in activity
+    assert "setAllowFileAccessFromFileURLs(true)" in activity
     assert "setAllowUniversalAccessFromFileURLs(false)" in activity
-    assert 'addJavascriptInterface(new AndroidBridge(), "AgribotAndroid")' in activity
-    assert "getVehicleAssetState" in activity
-    assert "ensureVehicleAssets" in activity
-    assert "setVehicleConfigActive" in activity
-    assert 'initialState?.status === "error"' in (
-        PACKAGE / "web" / "src" / "VehicleConfigView.jsx"
-    ).read_text(encoding="utf-8")
-    assert "SHA-256" in asset_store
-    assert 'setRequestProperty("X-Agribot-Raw-Asset", "1")' in asset_store
-    assert "FileInputStream" in asset_store
-    assert "materializeIdentityPackage" in asset_store
-    assert "AssetDecoder.decode" in asset_store
-    assert "IDENTITY_STAGING_PREFIX" in asset_store
-    assert "moveDirectoryAtomically" in asset_store
-    assert 'identityEntry.put("decoded_last_modified"' in asset_store
-    assert "new FileInputStream(file)" in asset_store
-    assert 'headers.put("Content-Length"' not in asset_store
-    assert "new BrotliInputStream" not in asset_store
-
-
-def test_published_android_apk_matches_current_source_and_web_bundle():
-    build_gradle = (PACKAGE / "android" / "app" / "build.gradle").read_text(
-        encoding="utf-8"
-    )
-    version_match = re.search(r'versionName\s+"([^"]+)"', build_gradle)
-    assert version_match is not None
-    version = version_match.group(1)
-    public_apk = (
-        PACKAGE / "web" / "public" / "downloads" / f"agribot-mobile-{version}.apk"
-    )
-    dist_apk = (
-        PACKAGE / "web" / "dist" / "downloads" / f"agribot-mobile-{version}.apk"
-    )
-    assert public_apk.is_file()
-    assert public_apk.read_bytes() == dist_apk.read_bytes()
-
-    expected_index = (PACKAGE / "web" / "dist" / "index.html").read_bytes()
-    with zipfile.ZipFile(public_apk) as archive:
-        assert archive.read("assets/web/index.html") == expected_index
-        dex = b"".join(
-            archive.read(name)
-            for name in archive.namelist()
-            if re.fullmatch(r"classes\d*\.dex", name)
-        )
-    assert b"vehicle-webgl-identity-v1" in dex
 
 
 def test_frontend_uses_guarded_api_not_raw_velocity():

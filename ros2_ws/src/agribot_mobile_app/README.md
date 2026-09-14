@@ -19,8 +19,6 @@
 - 显示C16、IMU、单目相机、RTK、定位、底盘反馈以及传感器授时状态。
 - 显示RTK、视觉、手动三级初始定位阶段；自动来源失败前禁止误发手动位姿。
 - 新任务启动前自动停止旧任务，并确认旧ROS进程组完全退出。
-- 在同一控制台内按需打开阿克曼车Unity三维配置界面；普通网页从RDK读取，
-  Android App首次使用时下载到应用私有目录并校验后永久复用。
 
 状态页只通过ROS图查询C16、IMU、单目相机、RTK、定位和底盘话题是否存在发布者，
 并订阅轻量的`/diagnostics`授时结果；不订阅点云、图像或其他原始传感器消息，
@@ -106,7 +104,7 @@ journalctl -u agribot-mobile-app.service -f
 Android 8.0及以上设备可直接安装原生壳应用：
 
 ```text
-http://RDK_IP:8088/downloads/agribot-mobile-0.2.1.apk
+http://RDK_IP:8088/downloads/agribot-mobile-0.1.0.apk
 ```
 
 应用默认连接`http://192.168.100.125:8088`。RDK地址变化时，在应用标题栏点击设置图标，
@@ -114,28 +112,6 @@ http://RDK_IP:8088/downloads/agribot-mobile-0.2.1.apk
 网页和白名单API，不绕过网关的运动授权、定位就绪与底盘安全检查。
 APK内置完整控制台资源；没有网络或暂时无法连接RDK时仍会正常显示界面，并明确显示
 “离线”。后台探测到RDK恢复后会自动切换到实时数据页面。
-
-三维配置资源不放入APK或Git仓库。首次在App中打开“配置”页时，App从当前RDK下载
-Unity WebGL文件，逐文件验证大小和SHA-256后存入应用私有目录。以后无论RDK是否在线，
-都直接使用该本地副本；只有RDK上的Unity构建发生变化时才下载新版本。普通关闭App或
-覆盖升级APK不会删除资源，只有卸载App、清除App数据或缓存损坏时需要重新下载。
-App会在下载校验后把Brotli资源一次性流式解压到同版本的私有缓存，Unity随后只读取普通
-文件，避免Android WebView误把压缩字节当作JavaScript。首次准备需预留至少约800 MiB
-可用空间；从0.2.0覆盖升级时会直接转换已有下载，不会再次下载287.7 MiB资源。
-
-Android App保留约287.7 MiB的Brotli原文件用于版本和SHA-256校验，同时永久复用一次性
-生成的解压缓存。普通局域网HTTP浏览器通常不接受Brotli编码，网关会在首次网页访问时解压到
-`~/.cache/agribot_mobile_app/vehicle-webgl/`并复用该副本；该服务器端缓存约426.8 MiB，
-不进入Git、APK或手机的重复下载内容。RDK需安装`python3-brotli`。
-
-当前外部Unity构建部署在RDK的以下目录：
-
-```text
-/home/sunrise/agribot_webgl/ackermann/WebGL
-```
-
-更新Unity导出文件时，将完整WebGL目录同步到该位置并重启手机网关。网关会根据所有文件
-的SHA-256自动生成新版本号，无需修改项目源码；Android App下次进入“配置”页时自动更新。
 
 Android源码位于`android/`。安装Android SDK 35和JDK 17后可执行：
 
