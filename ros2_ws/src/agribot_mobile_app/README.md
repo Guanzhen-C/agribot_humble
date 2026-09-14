@@ -104,7 +104,7 @@ journalctl -u agribot-mobile-app.service -f
 Android 8.0及以上设备可直接安装原生壳应用：
 
 ```text
-http://RDK_IP:8088/downloads/agribot-mobile-0.1.0.apk
+http://RDK_IP:8088/downloads/agribot-mobile-0.2.2.apk
 ```
 
 应用默认连接`http://192.168.100.125:8088`。RDK地址变化时，在应用标题栏点击设置图标，
