@@ -1,0 +1,26 @@
+image_width: 640
+image_height: 512
+camera_name: agribot_right_camera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [632.90670983, 0.0, 326.36014550,
+         0.0, 632.27554153, 251.54308191,
+         0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.06420938, 0.07455611, -0.00096336, 0.00001838, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [632.90670983, 0.0, 326.36014550, 0.0,
+         0.0, 632.27554153, 251.54308191, 0.0,
+         0.0, 0.0, 1.0, 0.0]

@@ -1,8 +1,16 @@
+import copy
 import os
+import tempfile
+import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
@@ -10,15 +18,43 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
+def _write_sensor_integrated_sdf(ackermann_share):
+    robot_tree = ET.parse(
+        os.path.join(ackermann_share, "models", "ackermann_scout.sdf")
+    )
+    sensor_tree = ET.parse(
+        os.path.join(ackermann_share, "models", "ackermann_scout_sensor.sdf")
+    )
+    robot_model = robot_tree.getroot().find("model")
+    sensor_model = sensor_tree.getroot().find("model")
+    robot_base = robot_model.find("./link[@name='base_link']") if robot_model is not None else None
+    sensor_base = sensor_model.find("./link[@name='base_link']") if sensor_model is not None else None
+    if robot_base is None or sensor_base is None:
+        raise RuntimeError("Robot and sensor SDF files must each contain base_link")
+    for sensor in sensor_base.findall("sensor"):
+        robot_base.append(copy.deepcopy(sensor))
+
+    publish_tf = robot_model.find(".//publish_tf")
+    if publish_tf is not None:
+        publish_tf.text = "false"
+
+    target = os.path.join(
+        tempfile.gettempdir(), "ackermann_orchard_sensor_integrated.generated.sdf"
+    )
+    ET.indent(robot_tree, space="  ")
+    robot_tree.write(target, encoding="unicode", xml_declaration=False)
+    return target
+
+
 def generate_launch_description():
     ackermann_share = get_package_share_directory("agribot_ackermann_rpp")
+    hardware_share = get_package_share_directory("agribot_hardware_bringup")
     scout_gazebo_share = get_package_share_directory("scout_gazebo")
     scout_navigation_share = get_package_share_directory("scout_navigation")
     gazebo_ros_share = get_package_share_directory("gazebo_ros")
     xacro_exec = os.path.join(get_package_prefix("xacro"), "bin", "xacro")
     description_file = os.path.join(ackermann_share, "urdf", "ackermann_scout.urdf.xacro")
-    gazebo_spawn_file = os.path.join(ackermann_share, "models", "ackermann_scout.sdf")
-    sensor_spawn_file = os.path.join(ackermann_share, "models", "ackermann_scout_sensor.sdf")
+    gazebo_spawn_file = _write_sensor_integrated_sdf(ackermann_share)
 
     system_model_paths = [
         model_path
@@ -28,6 +64,7 @@ def generate_launch_description():
             os.path.expanduser("~/.gazebo/models"),
             os.path.dirname(scout_gazebo_share),
             os.path.dirname(ackermann_share),
+            os.path.dirname(hardware_share),
         )
         if os.path.isdir(model_path)
     ]
@@ -39,30 +76,19 @@ def generate_launch_description():
         path
         for path in [
             os.path.join(get_package_prefix("agribot_ackermann_rpp"), "lib"),
+            os.path.join(get_package_prefix("velodyne_gazebo_plugins"), "lib"),
             os.environ.get("GAZEBO_PLUGIN_PATH", ""),
         ]
         if path
     )
 
     robot_description = ParameterValue(
-        Command(
-            [
-                xacro_exec,
-                " ",
-                description_file,
-                " ",
-                "robot_namespace:=",
-                LaunchConfiguration("robot_namespace"),
-                " ",
-                "laser_enabled:=true",
-            ]
-        ),
-        value_type=str,
+        Command([xacro_exec, " ", description_file]), value_type=str
     )
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument("robot_name", default_value="ackermann_scout"),
+            DeclareLaunchArgument("robot_name", default_value="agribot_ackermann"),
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument(
                 "world",
@@ -101,7 +127,7 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_initial_pose", default_value="true"),
             DeclareLaunchArgument("x", default_value="2.0"),
             DeclareLaunchArgument("y", default_value="36.0"),
-            DeclareLaunchArgument("z", default_value="0.24"),
+            DeclareLaunchArgument("z", default_value="0.1275"),
             DeclareLaunchArgument("yaw", default_value="0.0"),
             SetEnvironmentVariable("GAZEBO_MODEL_PATH", gazebo_model_path),
             SetEnvironmentVariable("GAZEBO_PLUGIN_PATH", gazebo_plugin_path),
@@ -127,43 +153,47 @@ def generate_launch_description():
                     }
                 ],
             ),
-            Node(
-                package="gazebo_ros",
-                executable="spawn_entity.py",
-                arguments=[
-                    "-entity",
-                    LaunchConfiguration("robot_name"),
-                    "-file",
-                    gazebo_spawn_file,
-                    "-x",
-                    LaunchConfiguration("x"),
-                    "-y",
-                    LaunchConfiguration("y"),
-                    "-z",
-                    LaunchConfiguration("z"),
-                    "-Y",
-                    LaunchConfiguration("yaw"),
+            TimerAction(
+                period=3.0,
+                actions=[
+                    Node(
+                        package="gazebo_ros",
+                        executable="spawn_entity.py",
+                        arguments=[
+                            "-entity",
+                            LaunchConfiguration("robot_name"),
+                            "-file",
+                            gazebo_spawn_file,
+                            "-x",
+                            LaunchConfiguration("x"),
+                            "-y",
+                            LaunchConfiguration("y"),
+                            "-z",
+                            LaunchConfiguration("z"),
+                            "-Y",
+                            LaunchConfiguration("yaw"),
+                        ],
+                        output="screen",
+                    )
                 ],
-                output="screen",
             ),
             Node(
-                package="gazebo_ros",
-                executable="spawn_entity.py",
-                arguments=[
-                    "-entity",
-                    "ackermann_scout_sensor",
-                    "-file",
-                    sensor_spawn_file,
-                    "-x",
-                    LaunchConfiguration("x"),
-                    "-y",
-                    LaunchConfiguration("y"),
-                    "-z",
-                    LaunchConfiguration("z"),
-                    "-Y",
-                    LaunchConfiguration("yaw"),
-                ],
+                package="agribot_autonomy",
+                executable="pointcloud_ring_to_laserscan",
+                name="c16_horizontal_scan",
                 output="screen",
+                parameters=[
+                    {
+                        "use_sim_time": LaunchConfiguration("use_sim_time"),
+                        "input_cloud_topic": "/lidar/points",
+                        "output_scan_topic": "/scan",
+                        "ring_index": 8,
+                        "beam_count": 2000,
+                        "range_min": 0.3,
+                        "range_max": 100.0,
+                        "scan_time": 0.1,
+                    }
+                ],
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

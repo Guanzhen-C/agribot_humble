@@ -52,15 +52,17 @@ public:
 
     ros_node_ = gazebo_ros::Node::Get(sdf_);
 
-    wheelbase_ = sdf_->Get<double>("wheelbase", 0.498).first;
-    track_width_ = sdf_->Get<double>("track_width", 0.58306).first;
-    wheel_radius_ = sdf_->Get<double>("wheel_radius", 0.16459).first;
-    max_steering_angle_ = sdf_->Get<double>("max_steering_angle", 0.6).first;
+    wheelbase_ = sdf_->Get<double>("wheelbase", 0.5265855).first;
+    const double legacy_track_width = sdf_->Get<double>("track_width", 0.590224).first;
+    front_track_width_ = sdf_->Get<double>("front_track_width", legacy_track_width).first;
+    rear_track_width_ = sdf_->Get<double>("rear_track_width", legacy_track_width).first;
+    wheel_radius_ = sdf_->Get<double>("wheel_radius", 0.1275).first;
+    max_steering_angle_ = sdf_->Get<double>("max_steering_angle", 0.384).first;
     max_steering_rate_ = sdf_->Get<double>("max_steering_rate", 1.2).first;
-    max_speed_ = sdf_->Get<double>("max_speed", 1.0).first;
-    max_accel_ = sdf_->Get<double>("max_accel", 1.5).first;
-    min_speed_for_curvature_ = sdf_->Get<double>("min_speed_for_curvature", 0.05).first;
-    command_timeout_ = sdf_->Get<double>("command_timeout", 1.5).first;
+    max_speed_ = sdf_->Get<double>("max_speed", 0.30).first;
+    max_accel_ = sdf_->Get<double>("max_accel", 0.8).first;
+    min_speed_for_curvature_ = sdf_->Get<double>("min_speed_for_curvature", 0.02).first;
+    command_timeout_ = sdf_->Get<double>("command_timeout", 0.5).first;
     publish_rate_ = sdf_->Get<double>("publish_rate", 30.0).first;
     publish_tf_ = sdf_->Get<bool>("publish_tf", true).first;
     wheel_torque_ = sdf_->Get<double>("wheel_torque", 200.0).first;
@@ -115,8 +117,10 @@ public:
 
     RCLCPP_INFO(
       ros_node_->get_logger(),
-      "AckermannDrivePlugin loaded for model [%s], subscribing to [%s], using wheel joint drive",
-      model_->GetName().c_str(), cmd_vel_topic_.c_str());
+      "AckermannDrivePlugin loaded for [%s]: wheelbase=%.7f m, tracks=%.6f/%.6f m, "
+      "wheel_radius=%.4f m, steering_limit=%.3f rad, cmd=%s",
+      model_->GetName().c_str(), wheelbase_, front_track_width_, rear_track_width_,
+      wheel_radius_, max_steering_angle_, cmd_vel_topic_.c_str());
   }
 
 private:
@@ -196,8 +200,8 @@ private:
 
     const bool turn_left = center_angle > 0.0;
     const double radius = std::abs(wheelbase_ / std::tan(center_angle));
-    const double inner_radius = std::max(radius - track_width_ * 0.5, 1e-4);
-    const double outer_radius = radius + track_width_ * 0.5;
+    const double inner_radius = std::max(radius - front_track_width_ * 0.5, 1e-4);
+    const double outer_radius = radius + front_track_width_ * 0.5;
     const double inner_angle = std::atan(wheelbase_ / inner_radius);
     const double outer_angle = std::atan(wheelbase_ / outer_radius);
 
@@ -258,16 +262,14 @@ private:
   void apply_joint_control(const double left_steer, const double right_steer)
   {
     const double safe_radius = std::max(wheel_radius_, 1e-6);
-    const double left_linear = current_linear_ - current_angular_ * track_width_ * 0.5;
-    const double right_linear = current_linear_ + current_angular_ * track_width_ * 0.5;
+    const double left_linear = current_linear_ - current_angular_ * rear_track_width_ * 0.5;
+    const double right_linear = current_linear_ + current_angular_ * rear_track_width_ * 0.5;
     const double left_wheel_velocity = left_linear / safe_radius;
     const double right_wheel_velocity = right_linear / safe_radius;
 
     front_left_steering_joint_->SetPosition(0, left_steer, true);
     front_right_steering_joint_->SetPosition(0, right_steer, true);
-    set_wheel_drive(front_left_wheel_joint_, left_wheel_velocity);
     set_wheel_drive(rear_left_wheel_joint_, left_wheel_velocity);
-    set_wheel_drive(front_right_wheel_joint_, right_wheel_velocity);
     set_wheel_drive(rear_right_wheel_joint_, right_wheel_velocity);
     update_wheel_joint_positions();
     update_sensor_model_pose();
@@ -363,15 +365,16 @@ private:
   std::string odom_frame_;
   std::string base_frame_;
 
-  double wheelbase_{0.498};
-  double track_width_{0.58306};
-  double wheel_radius_{0.16459};
-  double max_steering_angle_{0.6};
+  double wheelbase_{0.5265855};
+  double front_track_width_{0.589931};
+  double rear_track_width_{0.590517};
+  double wheel_radius_{0.1275};
+  double max_steering_angle_{0.384};
   double max_steering_rate_{1.2};
-  double max_speed_{1.0};
-  double max_accel_{1.5};
-  double min_speed_for_curvature_{0.05};
-  double command_timeout_{1.5};
+  double max_speed_{0.30};
+  double max_accel_{0.8};
+  double min_speed_for_curvature_{0.02};
+  double command_timeout_{0.5};
   double publish_rate_{30.0};
   double wheel_torque_{200.0};
   bool publish_tf_{true};
@@ -379,7 +382,7 @@ private:
 
   double x_{0.0};
   double y_{0.0};
-  double z_{0.24};
+  double z_{0.1275};
   double yaw_{0.0};
   double target_linear_{0.0};
   double target_angular_{0.0};

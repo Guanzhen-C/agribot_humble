@@ -1,0 +1,16 @@
+/**:
+  ros__parameters:
+    camera:
+      model: Pinhole
+      width: 640
+      height: 512
+      scale: 1.0
+      # Exact half-resolution form of the calibrated 1280x1024 camera model.
+      fx: 632.90670983
+      fy: 632.27554153
+      cx: 326.36014550
+      cy: 251.54308191
+      d0: -0.06420938
+      d1: 0.07455611
+      d2: -0.00096336
+      d3: 0.00001838

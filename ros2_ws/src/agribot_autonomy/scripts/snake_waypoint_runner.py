@@ -7,7 +7,12 @@ import rclpy
 import yaml
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, PoseArray, PoseStamped, PoseWithCovarianceStamped
-from nav2_msgs.action import FollowPath, NavigateToPose
+from nav2_msgs.action import (
+    ComputePathThroughPoses,
+    FollowPath,
+    NavigateThroughPoses,
+    NavigateToPose,
+)
 from nav_msgs.msg import Path as NavPath
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -145,6 +150,13 @@ class SnakeWaypointRunner(Node):
         self.startup_delay = float(self.declare_parameter("startup_delay", 5.0).value)
         self.navigation_mode = self.declare_parameter("navigation_mode", "follow_path").value
         self.action_name = self.declare_parameter("action_name", "navigate_to_pose").value
+        self.through_poses_action_name = self.declare_parameter(
+            "through_poses_action_name", "navigate_through_poses"
+        ).value
+        self.planner_action_name = self.declare_parameter(
+            "planner_action_name", "compute_path_through_poses"
+        ).value
+        self.planner_id = self.declare_parameter("planner_id", "GridBased").value
         self.path_action_name = self.declare_parameter("path_action_name", "follow_path").value
         self.controller_id = self.declare_parameter("controller_id", "FollowPath").value
         self.waypoint_file = self.declare_parameter("waypoint_file", "").value
@@ -174,6 +186,15 @@ class SnakeWaypointRunner(Node):
         self.require_pose_before_start = bool(
             self.declare_parameter("require_pose_before_start", False).value
         )
+        self.preplan_display_delay = float(
+            self.declare_parameter("preplan_display_delay", 0.5).value
+        )
+        self.preplan_waypoint_tolerance = float(
+            self.declare_parameter("preplan_waypoint_tolerance", 0.35).value
+        )
+        self.preplan_retry_delay = float(
+            self.declare_parameter("preplan_retry_delay", 0.5).value
+        )
         self._last_wait_log_time = 0.0
 
         latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -183,6 +204,12 @@ class SnakeWaypointRunner(Node):
         self.path_pub = self.create_publisher(NavPath, self.path_topic, latched_qos)
         self.plan_pub = self.create_publisher(NavPath, self.plan_topic, latched_qos)
         self.pose_client = ActionClient(self, NavigateToPose, self.action_name)
+        self.through_poses_client = ActionClient(
+            self, NavigateThroughPoses, self.through_poses_action_name
+        )
+        self.planner_client = ActionClient(
+            self, ComputePathThroughPoses, self.planner_action_name
+        )
         self.path_client = ActionClient(self, FollowPath, self.path_action_name)
         self.timer = self.create_timer(self.startup_delay, self.run_once)
 
@@ -206,6 +233,14 @@ class SnakeWaypointRunner(Node):
         self.active_goal_handle = None
         self.advance_timer = None
         self.path_retry_timer = None
+        self.through_poses_retry_timer = None
+        self.preplan_dispatch_timer = None
+        self.preplan_retry_timer = None
+        self.preplanned_path = None
+        self.preplan_waypoints = []
+        self.preplan_waypoint_path_indices = []
+        self.preplan_progress_index = 0
+        self.preplan_completed_waypoints = 0
         self.ran = False
         self.attempts_remaining = 0
 
@@ -219,6 +254,33 @@ class SnakeWaypointRunner(Node):
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),
         )
         self.pose_received = True
+        self._update_preplanned_progress()
+
+    def _update_preplanned_progress(self) -> None:
+        """Track progress monotonically so retries keep every unvisited waypoint."""
+        if self.preplanned_path is None or not self.preplanned_path.poses:
+            return
+
+        search_start = min(
+            self.preplan_progress_index, len(self.preplanned_path.poses) - 1
+        )
+        search_end = min(search_start + 200, len(self.preplanned_path.poses))
+        nearest_index = min(
+            range(search_start, search_end),
+            key=lambda index: math.hypot(
+                self.preplanned_path.poses[index].pose.position.x - self.robot_x,
+                self.preplanned_path.poses[index].pose.position.y - self.robot_y,
+            ),
+        )
+        self.preplan_progress_index = max(self.preplan_progress_index, nearest_index)
+
+        while (
+            self.preplan_completed_waypoints
+            < len(self.preplan_waypoint_path_indices)
+            and self.preplan_progress_index
+            >= self.preplan_waypoint_path_indices[self.preplan_completed_waypoints]
+        ):
+            self.preplan_completed_waypoints += 1
 
     def _robot_distance_to(self, waypoint) -> float:
         return math.hypot(
@@ -329,6 +391,265 @@ class SnakeWaypointRunner(Node):
         goal.path = self._make_path(waypoints)
         goal.controller_id = self.controller_id
         return goal
+
+    def make_through_poses_goal(self, waypoints):
+        goal = NavigateThroughPoses.Goal()
+        stamp = self.get_clock().now().to_msg()
+        for waypoint in waypoints:
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = self.frame_id
+            pose_stamped.header.stamp = stamp
+            pose_stamped.pose = self._make_pose(waypoint)
+            goal.poses.append(pose_stamped)
+        return goal
+
+    def make_preplan_goal(self, waypoints):
+        goal = ComputePathThroughPoses.Goal()
+        stamp = self.get_clock().now().to_msg()
+        for waypoint in waypoints:
+            pose_stamped = PoseStamped()
+            pose_stamped.header.frame_id = self.frame_id
+            pose_stamped.header.stamp = stamp
+            pose_stamped.pose = self._make_pose(waypoint)
+            goal.goals.append(pose_stamped)
+        goal.planner_id = self.planner_id
+        goal.use_start = False
+        return goal
+
+    def _preplanned_path_waypoint_indices(self, path: NavPath, waypoints):
+        """Verify every authored waypoint occurs in order on the Smac result."""
+        cursor = 0
+        matched_indices = []
+        for waypoint_index, waypoint in enumerate(waypoints, start=1):
+            matched_index = None
+            for path_index in range(cursor, len(path.poses)):
+                position = path.poses[path_index].pose.position
+                distance = math.hypot(
+                    position.x - float(waypoint["x"]),
+                    position.y - float(waypoint["y"]),
+                )
+                if distance <= self.preplan_waypoint_tolerance:
+                    matched_index = path_index
+                    break
+            if matched_index is None:
+                self.get_logger().error(
+                    f"Smac path does not contain key waypoint "
+                    f"{waypoint_index}/{len(waypoints)} within "
+                    f"{self.preplan_waypoint_tolerance:.2f} m; vehicle remains stopped"
+                )
+                return None
+            matched_indices.append(matched_index)
+            cursor = matched_index
+        return matched_indices
+
+    def _request_preplanned_path(self) -> None:
+        if self.preplan_retry_timer is not None:
+            self.destroy_timer(self.preplan_retry_timer)
+            self.preplan_retry_timer = None
+        if not self.preplan_waypoints:
+            self.get_logger().error("Preplanned route is empty; vehicle remains stopped")
+            return
+
+        final_goal = self.preplan_waypoints[-1]
+        final_goal_pose = PoseStamped()
+        final_goal_pose.header.frame_id = self.frame_id
+        final_goal_pose.header.stamp = self.get_clock().now().to_msg()
+        final_goal_pose.pose = self._make_pose(final_goal)
+        self.goal_pub.publish(final_goal_pose)
+        self._publish_current_goal_visual(final_goal)
+        self._publish_key_waypoints(self.key_waypoints)
+
+        self.get_logger().info(
+            f"Preplanning one continuous Smac path through all "
+            f"{len(self.preplan_waypoints)} remaining key waypoints; vehicle remains stopped"
+        )
+        future = self.planner_client.send_goal_async(
+            self.make_preplan_goal(self.preplan_waypoints)
+        )
+        future.add_done_callback(self._on_preplan_goal_response)
+
+    def _schedule_preplan_retry(self) -> None:
+        if self.preplan_retry_timer is not None:
+            return
+        delay = max(self.preplan_retry_delay, 0.1)
+        self.get_logger().info(
+            f"Retrying the complete Smac preplan in {delay:.1f} s "
+            "while the vehicle remains stopped"
+        )
+        self.preplan_retry_timer = self.create_timer(
+            delay, self._request_preplanned_path
+        )
+
+    def _on_preplan_goal_response(self, future) -> None:
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            self.get_logger().error(
+                f"Failed to request Smac preplan: {exc}; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        if goal_handle is None or not goal_handle.accepted:
+            self.get_logger().error(
+                "Smac preplan request was rejected; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._on_preplan_result)
+
+    def _on_preplan_result(self, future) -> None:
+        try:
+            wrapped_result = future.result()
+        except Exception as exc:
+            self.get_logger().error(
+                f"Failed to receive Smac preplan: {exc}; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        if getattr(wrapped_result, "status", None) != GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().error(
+                f"Smac preplan failed with status "
+                f"{getattr(wrapped_result, 'status', None)}; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        path = wrapped_result.result.path
+        if len(path.poses) < 2:
+            self.get_logger().error("Smac returned an empty path; vehicle remains stopped")
+            self._schedule_preplan_retry()
+            return
+        waypoint_path_indices = self._preplanned_path_waypoint_indices(
+            path, self.preplan_waypoints
+        )
+        if waypoint_path_indices is None:
+            self._schedule_preplan_retry()
+            return
+
+        self.preplanned_path = path
+        self.preplan_waypoint_path_indices = waypoint_path_indices
+        self.preplan_progress_index = 0
+        self.preplan_completed_waypoints = 0
+        self._publish_path_visuals(path)
+        duration = wrapped_result.result.planning_time
+        planning_seconds = duration.sec + duration.nanosec / 1e9
+        self.get_logger().info(
+            f"Smac preplan ready: {len(path.poses)} poses, "
+            f"all {len(self.preplan_waypoints)} remaining key waypoints verified in order, "
+            f"planning time {planning_seconds:.3f} s"
+        )
+        self.get_logger().info(
+            f"Published the complete path to RViz; controller dispatch waits "
+            f"{self.preplan_display_delay:.2f} s"
+        )
+        self.preplan_dispatch_timer = self.create_timer(
+            max(self.preplan_display_delay, 0.01), self._dispatch_preplanned_path
+        )
+
+    def _dispatch_preplanned_path(self) -> None:
+        if self.preplan_dispatch_timer is not None:
+            self.destroy_timer(self.preplan_dispatch_timer)
+            self.preplan_dispatch_timer = None
+        if self.preplanned_path is None:
+            self.get_logger().error("No verified Smac path to execute; vehicle remains stopped")
+            return
+
+        goal = FollowPath.Goal()
+        goal.path = self.preplanned_path
+        goal.controller_id = self.controller_id
+        self.get_logger().info(
+            "Complete Smac path is visible and verified; dispatching it to MPPI"
+        )
+        future = self.path_client.send_goal_async(goal)
+        future.add_done_callback(self._on_path_goal_response)
+
+    def _send_through_poses(self) -> None:
+        if not self.key_waypoints:
+            self.get_logger().error("Through-poses route is empty; nothing to send")
+            return
+
+        final_goal = self.key_waypoints[-1]
+        final_goal_pose = PoseStamped()
+        final_goal_pose.header.frame_id = self.frame_id
+        final_goal_pose.header.stamp = self.get_clock().now().to_msg()
+        final_goal_pose.pose = self._make_pose(final_goal)
+        self.goal_pub.publish(final_goal_pose)
+        self._publish_current_goal_visual(final_goal)
+        self._publish_key_waypoints(self.key_waypoints)
+
+        self.get_logger().info(
+            f"Sending {len(self.key_waypoints)} key waypoints to Smac through "
+            f"{self.through_poses_action_name}; final goal "
+            f"({final_goal['x']:.2f}, {final_goal['y']:.2f})"
+        )
+        send_goal_future = self.through_poses_client.send_goal_async(
+            self.make_through_poses_goal(self.key_waypoints)
+        )
+        send_goal_future.add_done_callback(self._on_through_poses_goal_response)
+
+    def _on_through_poses_goal_response(self, future) -> None:
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            self.get_logger().error(f"Failed to send through-poses goal: {exc}")
+            self._handle_through_poses_failure(status=None)
+            return
+
+        if goal_handle is None or not goal_handle.accepted:
+            self.get_logger().warn("Through-poses goal was rejected")
+            self._handle_through_poses_failure(status=None)
+            return
+
+        self.active_goal_handle = goal_handle
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._on_through_poses_result)
+
+    def _on_through_poses_result(self, future) -> None:
+        try:
+            result = future.result()
+        except Exception as exc:
+            self.get_logger().error(f"Failed to receive through-poses result: {exc}")
+            self._handle_through_poses_failure(status=None)
+            return
+
+        status = getattr(result, "status", None)
+        self.active_goal_handle = None
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            if self.through_poses_retry_timer is not None:
+                self.destroy_timer(self.through_poses_retry_timer)
+                self.through_poses_retry_timer = None
+            self.get_logger().info("Smac through-poses route completed successfully")
+            return
+        if status == GoalStatus.STATUS_CANCELED:
+            return
+        self._handle_through_poses_failure(status=status)
+
+    def _handle_through_poses_failure(self, status) -> None:
+        self.active_goal_handle = None
+        self.attempts_remaining -= 1
+        self.get_logger().warn(
+            f"Through-poses route failed with status {status}, "
+            f"remaining retries: {self.attempts_remaining}"
+        )
+        if self.attempts_remaining <= 0 and self.stop_on_failure:
+            self.get_logger().error("Stopping through-poses navigation")
+            return
+        if self.attempts_remaining <= 0:
+            self.attempts_remaining = self.retries_per_waypoint + 1
+        if self.through_poses_retry_timer is None:
+            self.through_poses_retry_timer = self.create_timer(
+                max(self.transition_delay, 0.1), self._retry_through_poses
+            )
+
+    def _retry_through_poses(self) -> None:
+        if self.through_poses_retry_timer is not None:
+            self.destroy_timer(self.through_poses_retry_timer)
+            self.through_poses_retry_timer = None
+        self._send_through_poses()
 
     def _send_current_goal(self) -> None:
         """Send the current navigation target as a goal."""
@@ -517,7 +838,36 @@ class SnakeWaypointRunner(Node):
             self.active_goal_handle = None
             return
 
+        if self.navigation_mode == "plan_then_follow_path":
+            self._handle_preplanned_path_failure(status=status)
+            return
+
         self._handle_path_failure(status=status)
+
+    def _handle_preplanned_path_failure(self, status) -> None:
+        """Replan from the live pose without dropping any unvisited route point."""
+        self.active_goal_handle = None
+        completed = min(
+            self.preplan_completed_waypoints, len(self.preplan_waypoints)
+        )
+        remaining = self.preplan_waypoints[completed:]
+        if not remaining:
+            self.get_logger().info(
+                "Controller ended after every mandatory waypoint was traversed"
+            )
+            return
+
+        self.get_logger().warn(
+            f"Preplanned path failed with status {status}; "
+            f"replanning from the current pose through all {len(remaining)} "
+            "unvisited mandatory waypoints"
+        )
+        self.preplan_waypoints = remaining
+        self.preplanned_path = None
+        self.preplan_waypoint_path_indices = []
+        self.preplan_progress_index = 0
+        self.preplan_completed_waypoints = 0
+        self._schedule_preplan_retry()
 
     def _on_goal_succeeded(self) -> None:
         """Called when nav2 reports the current goal was reached."""
@@ -666,6 +1016,39 @@ class SnakeWaypointRunner(Node):
             self.get_logger().info(f"Waiting for action server {self.path_action_name}")
             self.path_client.wait_for_server()
             self._send_continuous_path(raw_waypoints)
+            return
+
+        if self.navigation_mode == "navigate_through_poses":
+            self._publish_key_waypoints(raw_waypoints)
+            self.get_logger().info(
+                f"Start position ({start_pos_source}): "
+                f"({start_pos['x']:.2f}, {start_pos['y']:.2f}), "
+                f"{len(raw_waypoints)} key waypoints"
+            )
+            self.get_logger().info(
+                f"Waiting for action server {self.through_poses_action_name}"
+            )
+            self.through_poses_client.wait_for_server()
+            self._send_through_poses()
+            return
+
+        if self.navigation_mode == "plan_then_follow_path":
+            self.preplan_waypoints = list(raw_waypoints)
+            self._publish_key_waypoints(raw_waypoints)
+            self.get_logger().info(
+                f"Start position ({start_pos_source}): "
+                f"({start_pos['x']:.2f}, {start_pos['y']:.2f}), "
+                f"{len(raw_waypoints)} mandatory key waypoints"
+            )
+            self.get_logger().info(
+                f"Waiting for planner action server {self.planner_action_name}"
+            )
+            self.planner_client.wait_for_server()
+            self.get_logger().info(
+                f"Waiting for controller action server {self.path_action_name}"
+            )
+            self.path_client.wait_for_server()
+            self._request_preplanned_path()
             return
 
         self.segments = build_segments(raw_waypoints, start_pos, step=2.0)

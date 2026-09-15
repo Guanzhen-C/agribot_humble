@@ -139,7 +139,7 @@ def _write_ackermann_localized_sdf(ackermann_share):
 def generate_launch_description():
     ackermann_share = get_package_share_directory("agribot_ackermann_rpp")
     autonomy_share = get_package_share_directory("agribot_autonomy")
-    rl_nav_share = get_package_share_directory("agribot_rl_nav")
+    hardware_share = get_package_share_directory("agribot_hardware_bringup")
     scout_gazebo_share = get_package_share_directory("scout_gazebo")
     scout_navigation_share = get_package_share_directory("scout_navigation")
     scout_viz_share = get_package_share_directory("scout_viz")
@@ -178,6 +178,7 @@ def generate_launch_description():
             os.path.expanduser("~/.gazebo/models"),
             os.path.dirname(scout_gazebo_share),
             os.path.dirname(ackermann_share),
+            os.path.dirname(hardware_share),
         )
         if os.path.isdir(model_path)
     ]
@@ -196,18 +197,7 @@ def generate_launch_description():
     )
 
     robot_description = ParameterValue(
-        Command(
-            [
-                xacro_exec,
-                " ",
-                description_file,
-                " ",
-                "robot_namespace:=",
-                LaunchConfiguration("robot_namespace"),
-                " ",
-                "laser_enabled:=false",
-            ]
-        ),
+        Command([xacro_exec, " ", description_file]),
         value_type=str,
     )
 
@@ -230,7 +220,8 @@ def generate_launch_description():
         ],
         output="screen",
     )
-    gzclient_after_robot_spawn = IncludeLaunchDescription(
+
+    gzclient = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(gazebo_ros_share, "launch", "gzclient.launch.py")
         ),
@@ -393,7 +384,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument("robot_name", default_value="ackermann_scout"),
+            DeclareLaunchArgument("robot_name", default_value="agribot_ackermann"),
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument(
                 "gazebo_ip",
@@ -401,6 +392,8 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
+            DeclareLaunchArgument("run_waypoints", default_value="true"),
+            DeclareLaunchArgument("robot_spawn_delay", default_value="3.0"),
             DeclareLaunchArgument("rviz_start_delay", default_value="5.0"),
             DeclareLaunchArgument("headless", default_value="false"),
             DeclareLaunchArgument("use_static_map", default_value="true"),
@@ -444,21 +437,23 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "navsat_ekf_params_file",
-                default_value=os.path.join(rl_nav_share, "config", "navsat_kf_gins_map.yaml"),
+                default_value=os.path.join(hardware_share, "config", "kf_gins_n300pro.yaml"),
             ),
             DeclareLaunchArgument(
                 "fastlio_config_file",
-                default_value=os.path.join(autonomy_share, "config", "fast_lio_sim_tuned.yaml"),
+                default_value=os.path.join(
+                    ackermann_share, "config", "fast_lio_c16_physical_sim.yaml"
+                ),
             ),
             DeclareLaunchArgument("fastlio_start_delay", default_value="8.0"),
             DeclareLaunchArgument("fastlio_localization_start_delay", default_value="20.0"),
             DeclareLaunchArgument("fastlio_visualize", default_value="false"),
-            DeclareLaunchArgument("navsat_pose_topic", default_value="/odometry/gps"),
-            DeclareLaunchArgument("navsat_pose_message_type", default_value="odometry"),
-            DeclareLaunchArgument("navsat_imu_topic", default_value="/imu/data_corrected"),
+            DeclareLaunchArgument("navsat_pose_topic", default_value="/navsat/fix"),
+            DeclareLaunchArgument("navsat_pose_message_type", default_value="navsat_fix"),
+            DeclareLaunchArgument("navsat_imu_topic", default_value="/imu/data"),
             DeclareLaunchArgument(
-                "navsat_auto_reference_from_first_noah_gnss",
-                default_value="false",
+                "navsat_auto_reference_from_first_fix",
+                default_value="true",
             ),
             DeclareLaunchArgument(
                 "default_nav_to_pose_bt_xml",
@@ -490,7 +485,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("initial_pose_x", default_value="2.0"),
             DeclareLaunchArgument("initial_pose_y", default_value="36.0"),
-            DeclareLaunchArgument("initial_pose_z", default_value="0.24"),
+            DeclareLaunchArgument("initial_pose_z", default_value="0.1275"),
             DeclareLaunchArgument("initial_pose_yaw", default_value="0.0"),
             DeclareLaunchArgument("waypoint_transform_enabled", default_value="false"),
             DeclareLaunchArgument("navsat_reference_lat", default_value="30.5"),
@@ -500,31 +495,6 @@ def generate_launch_description():
             SetEnvironmentVariable("GAZEBO_IP", LaunchConfiguration("gazebo_ip")),
             SetEnvironmentVariable("GAZEBO_MODEL_PATH", gazebo_model_path),
             SetEnvironmentVariable("GAZEBO_PLUGIN_PATH", gazebo_plugin_path),
-            Node(
-                package="nav2_collision_monitor",
-                executable="collision_monitor",
-                name="ackermann_collision_monitor",
-                output="screen",
-                parameters=[
-                    os.path.join(
-                        autonomy_share, "config", "collision_monitor_ackermann.yaml"
-                    ),
-                    {"use_sim_time": LaunchConfiguration("use_sim_time")},
-                ],
-            ),
-            Node(
-                package="nav2_lifecycle_manager",
-                executable="lifecycle_manager",
-                name="lifecycle_manager_collision_monitor",
-                output="screen",
-                parameters=[
-                    {
-                        "use_sim_time": LaunchConfiguration("use_sim_time"),
-                        "autostart": True,
-                        "node_names": ["ackermann_collision_monitor"],
-                    }
-                ],
-            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     os.path.join(gazebo_ros_share, "launch", "gzserver.launch.py")
@@ -558,18 +528,11 @@ def generate_launch_description():
                     }
                 ],
             ),
-            RegisterEventHandler(
-                OnProcessExit(
-                    target_action=robot_spawn,
-                    on_exit=[
-                        TimerAction(
-                            period=1.0,
-                            actions=[gzclient_after_robot_spawn],
-                        )
-                    ],
-                )
+            gzclient,
+            TimerAction(
+                period=LaunchConfiguration("robot_spawn_delay"),
+                actions=[robot_spawn],
             ),
-            robot_spawn,
             Node(
                 package="agribot_autonomy",
                 executable="pointcloud_ring_to_laserscan",
@@ -578,12 +541,12 @@ def generate_launch_description():
                 parameters=[
                     {
                         "use_sim_time": LaunchConfiguration("use_sim_time"),
-                        "input_cloud_topic": "/points",
+                        "input_cloud_topic": "/lidar/points",
                         "output_scan_topic": "/scan",
                         "ring_index": 8,
-                        "beam_count": 720,
+                        "beam_count": 2000,
                         "range_min": 0.3,
-                        "range_max": 25.0,
+                        "range_max": 100.0,
                         "scan_time": 0.1,
                     }
                 ],
@@ -599,6 +562,7 @@ def generate_launch_description():
                         "odom_topic": "/odom",
                         "ground_truth_topic": "/base_pose_ground_truth",
                         "fix_topic": "/navsat/fix",
+                        "heading_topic": "/rtk/heading_with_covariance",
                         "imu_topic": "/imu/data",
                         "imu_corrected_topic": "/imu/data_corrected",
                         "publish_imu": False,
@@ -609,43 +573,17 @@ def generate_launch_description():
                         "origin_y": LaunchConfiguration("initial_pose_y"),
                         "origin_z": LaunchConfiguration("initial_pose_z"),
                         "origin_yaw": LaunchConfiguration("initial_pose_yaw"),
+                        "base_to_antenna_m": [0.1425, 0.2952585, 0.78476],
+                        "fix_rate_hz": 10.0,
+                        "heading_rate_hz": 1.0,
+                        "fix_covariance_xy": 0.0009,
+                        "fix_covariance_z": 0.0036,
+                        "heading_std_deg": 1.0,
                     }
                 ],
             ),
             Node(
-                package="agribot_autonomy",
-                executable="imu_frame_bridge.py",
-                name="imu_frame_bridge",
-                output="screen",
-                condition=navsat_condition,
-            ),
-            Node(
-                package="agribot_rl_nav",
-                executable="navsat_to_local_odom.py",
-                name="ackermann_navsat_to_local_odom",
-                output="screen",
-                parameters=[
-                    {
-                        "use_sim_time": True,
-                        "fix_topic": "/navsat/fix",
-                        "frame_id": "map",
-                        "child_frame_id": "base_link",
-                        "yaw_source_topic": "/base_pose_ground_truth",
-                        "yaw_source_message_type": "odometry",
-                        "invert_gazebo_axes": True,
-                        "zero_altitude": False,
-                        "publish_pose_and_tf": False,
-                        "yaw_variance": 0.02,
-                        "origin_x": LaunchConfiguration("initial_pose_x"),
-                        "origin_y": LaunchConfiguration("initial_pose_y"),
-                        "origin_z": LaunchConfiguration("initial_pose_z"),
-                        "origin_yaw": LaunchConfiguration("initial_pose_yaw"),
-                    }
-                ],
-                condition=navsat_condition,
-            ),
-            Node(
-                package="agribot_rl_nav",
+                package="agribot_hardware_bringup",
                 executable="rtk_eskf_localization",
                 name="ackermann_rtk_eskf_localization",
                 output="screen",
@@ -671,10 +609,16 @@ def generate_launch_description():
                             LaunchConfiguration("navsat_reference_alt"),
                             value_type=float,
                         ),
-                        "auto_reference_from_first_noah_gnss": ParameterValue(
-                            LaunchConfiguration("navsat_auto_reference_from_first_noah_gnss"),
+                        "auto_reference_from_first_navsat_fix": ParameterValue(
+                            LaunchConfiguration("navsat_auto_reference_from_first_fix"),
                             value_type=bool,
                         ),
+                        "align_measurement_to_initial_pose": True,
+                        "rtk_heading_topic": "/rtk/heading",
+                        "rtk_heading_covariance_topic": "/rtk/heading_with_covariance",
+                        "use_rtk_heading": True,
+                        "use_rtk_heading_covariance": True,
+                        "require_rtk_heading_for_initialization": True,
                         "initial_pose_x": ParameterValue(LaunchConfiguration("initial_pose_x"), value_type=float),
                         "initial_pose_y": ParameterValue(LaunchConfiguration("initial_pose_y"), value_type=float),
                         "initial_pose_z": ParameterValue(LaunchConfiguration("initial_pose_z"), value_type=float),
@@ -684,7 +628,7 @@ def generate_launch_description():
                 condition=navsat_condition,
             ),
             Node(
-                package="agribot_rl_nav",
+                package="agribot_hardware_bringup",
                 executable="navsat_pose_bridge.py",
                 name="ackermann_navsat_pose_bridge",
                 output="screen",
@@ -716,8 +660,15 @@ def generate_launch_description():
                             "fastlio_output_odom_topic": LaunchConfiguration("nav_odom_topic"),
                             "fastlio_output_odom_frame": "odom",
                             "fastlio_output_base_frame": "base_link",
-                            "fastlio_stamp_with_current_time": "true",
+                            "fastlio_stamp_with_current_time": "false",
                             "fastlio_publish_tf": "true",
+                            "imu_frame_bridge_enabled": "false",
+                            "fastlio_base_to_body_x": "0.1425",
+                            "fastlio_base_to_body_y": "0.0",
+                            "fastlio_base_to_body_z": "0.143",
+                            "fastlio_base_to_body_roll": "0.000572424",
+                            "fastlio_base_to_body_pitch": "-0.009139547",
+                            "fastlio_base_to_body_yaw": "-0.000002616",
                         }.items(),
                     )
                 ],
@@ -831,6 +782,7 @@ def generate_launch_description():
                         "require_pose_before_start": True,
                     }
                 ],
+                condition=IfCondition(LaunchConfiguration("run_waypoints")),
             ),
             TimerAction(
                 period=LaunchConfiguration("rviz_start_delay"),

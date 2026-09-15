@@ -99,7 +99,7 @@ cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
-  gui:=false headless:=true rviz:=false use_static_map:=true \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
   localization_mode:=navsat enable_slam_map:=false \
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
@@ -109,7 +109,7 @@ cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_ackermann_rpp ackermann_waypoint_depth_collect_sim.launch.py \
-  gui:=true headless:=false rviz:=true use_static_map:=true \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
   localization_mode:=fast_lio enable_slam_map:=false \
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
@@ -119,7 +119,7 @@ cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
-  gui:=false headless:=true rviz:=false use_static_map:=true \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
   localization_mode:=navsat enable_slam_map:=false \
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
@@ -129,10 +129,19 @@ cd /home/cgz/agribot_ws
 source /opt/ros/humble/setup.bash
 source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
 ros2 launch agribot_ackermann_mppi ackermann_waypoint_depth_collect_sim.launch.py \
-  gui:=true headless:=false rviz:=true use_static_map:=true \
+  gui:=false headless:=true rviz:=true use_static_map:=true \
   localization_mode:=fast_lio enable_slam_map:=false \
   map_file_location:=/home/cgz/agribot_ws/ros2_ws/src/scout_navigation/maps \
   map_file:=orchard_v2_map6.yaml
+
+# 阿克曼真车参数长距离仿真：FAST-LIVO2加固定解RTK、Smac Hybrid-A*和MPPI
+# 使用原果园场景、原蛇形长路线和原RViz布局；Gazebo界面不打开
+cd /home/cgz/agribot_ws
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+ros2 launch agribot_ackermann_mppi \
+  ackermann_long_range_fastlivo_rtk_sim.launch.py \
+  gui:=false rviz:=true run_waypoints:=true
 
 # RDK X5 真机：采集并验证 RTK 原始输出和 RTK+IMU ESKF 导航解
 # 本测试不启动激光雷达、Nav2或 ROS 底盘输出，使用蓝牙遥控低速驾驶

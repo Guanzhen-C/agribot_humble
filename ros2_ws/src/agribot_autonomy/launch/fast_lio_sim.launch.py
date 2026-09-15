@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -6,6 +7,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -16,6 +18,10 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("is_simulation", default_value="false"),
+            DeclareLaunchArgument(
+                "imu_frame_bridge_enabled",
+                default_value=LaunchConfiguration("is_simulation"),
+            ),
             DeclareLaunchArgument(
                 "fastlio_config_file",
                 default_value=os.path.join(agribot_share, "config", "fast_lio_sim.yaml"),
@@ -29,6 +35,12 @@ def generate_launch_description():
             DeclareLaunchArgument("fastlio_output_base_frame", default_value="base_link"),
             DeclareLaunchArgument("fastlio_stamp_with_current_time", default_value="false"),
             DeclareLaunchArgument("fastlio_publish_tf", default_value="true"),
+            DeclareLaunchArgument("fastlio_base_to_body_x", default_value="0.19"),
+            DeclareLaunchArgument("fastlio_base_to_body_y", default_value="0.0"),
+            DeclareLaunchArgument("fastlio_base_to_body_z", default_value="0.149"),
+            DeclareLaunchArgument("fastlio_base_to_body_roll", default_value="0.0"),
+            DeclareLaunchArgument("fastlio_base_to_body_pitch", default_value="0.0"),
+            DeclareLaunchArgument("fastlio_base_to_body_yaw", default_value="0.0"),
             Node(
                 package="fast_lio",
                 executable="fastlio_mapping",
@@ -43,7 +55,7 @@ def generate_launch_description():
                 executable="imu_frame_bridge.py",
                 name="imu_frame_bridge",
                 output="screen",
-                condition=IfCondition(LaunchConfiguration("is_simulation")),
+                condition=IfCondition(LaunchConfiguration("imu_frame_bridge_enabled")),
             ),
             Node(
                 package="agribot_autonomy",
@@ -64,6 +76,22 @@ def generate_launch_description():
                             "fastlio_stamp_with_current_time"
                         ),
                         "publish_tf": LaunchConfiguration("fastlio_publish_tf"),
+                        "base_to_body_xyz": ParameterValue(
+                            [
+                                [LaunchConfiguration("fastlio_base_to_body_x")],
+                                [LaunchConfiguration("fastlio_base_to_body_y")],
+                                [LaunchConfiguration("fastlio_base_to_body_z")],
+                            ],
+                            value_type=List[float],
+                        ),
+                        "base_to_body_rpy": ParameterValue(
+                            [
+                                [LaunchConfiguration("fastlio_base_to_body_roll")],
+                                [LaunchConfiguration("fastlio_base_to_body_pitch")],
+                                [LaunchConfiguration("fastlio_base_to_body_yaw")],
+                            ],
+                            value_type=List[float],
+                        ),
                     }
                 ],
             ),

@@ -18,15 +18,18 @@
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>tf2_ros</depend>
 
   <exec_depend>agribot_autonomy</exec_depend>
-  <exec_depend>agribot_rl_nav</exec_depend>
+  <exec_depend>agribot_hardware_bringup</exec_depend>
+  <exec_depend>fast_livo</exec_depend>
   <exec_depend>fast_lio</exec_depend>
+  <exec_depend>gazebo_plugins</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
-  <exec_depend>nav2_collision_monitor</exec_depend>
   <exec_depend>nav2_behaviors</exec_depend>
   <exec_depend>nav2_controller</exec_depend>
   <exec_depend>nav2_costmap_2d</exec_depend>
@@ -34,15 +37,14 @@
   <exec_depend>nav2_bt_navigator</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
-  <exec_depend>nav2_navfn_planner</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
-  <exec_depend>scout_description</exec_depend>
   <exec_depend>scout_gazebo</exec_depend>
   <exec_depend>scout_navigation</exec_depend>
   <exec_depend>scout_viz</exec_depend>
-  <exec_depend>velodyne_description</exec_depend>
+  <exec_depend>spatio_temporal_voxel_layer</exec_depend>
   <exec_depend>velodyne_gazebo_plugins</exec_depend>
   <exec_depend>xacro</exec_depend>
 
