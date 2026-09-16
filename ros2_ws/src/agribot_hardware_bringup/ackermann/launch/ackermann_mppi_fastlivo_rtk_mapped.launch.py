@@ -40,6 +40,7 @@ def _validate_arguments(context):
 
 def generate_launch_description():
     hardware_share = get_package_share_directory("agribot_hardware_bringup")
+    fastlivo_share = get_package_share_directory("fast_lio")
     use_sim_time = LaunchConfiguration("use_sim_time")
 
     localization_launch = os.path.join(
@@ -59,12 +60,7 @@ def generate_launch_description():
                 launch_arguments={
                     "use_sim_time": use_sim_time,
                     "autostart": LaunchConfiguration("autostart"),
-                    "params_file": os.path.join(
-                        hardware_share,
-                        "ackermann",
-                        "config",
-                        "nav2_params_ackermann_fastlio_mapped.yaml",
-                    ),
+                    "params_file": LaunchConfiguration("nav2_params"),
                     "odom_topic": "/fastlivo_rtk/odometry",
                     "default_nav_to_pose_bt_xml": os.path.join(
                         hardware_share,
@@ -92,12 +88,7 @@ def generate_launch_description():
                 name="ackermann_chassis_can",
                 output="screen",
                 parameters=[
-                    os.path.join(
-                        hardware_share,
-                        "ackermann",
-                        "config",
-                        "chassis_can.yaml",
-                    ),
+                    LaunchConfiguration("chassis_can_config"),
                     {
                         "use_sim_time": use_sim_time,
                         "can_transport": LaunchConfiguration("can_transport"),
@@ -121,12 +112,7 @@ def generate_launch_description():
                 name="ackermann_chassis_serial",
                 output="screen",
                 parameters=[
-                    os.path.join(
-                        hardware_share,
-                        "ackermann",
-                        "config",
-                        "chassis_serial.yaml",
-                    ),
+                    LaunchConfiguration("chassis_serial_config"),
                     {
                         "use_sim_time": use_sim_time,
                         "port": LaunchConfiguration("serial_port"),
@@ -223,6 +209,81 @@ def generate_launch_description():
                 "right_camera_device", default_value="/dev/agribot_right_camera"
             ),
             DeclareLaunchArgument(
+                "nav2_params",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "nav2_params_ackermann_fastlio_mapped.yaml",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "mount_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "sensor_mounts.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "fastlivo_lidar_config",
+                default_value=os.path.join(
+                    fastlivo_share, "config", "agribot_c16_astra.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "fastlivo_bridge_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "fastlivo_bridge.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "pcd_initial_localization_config",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "pcd_initial_localization.yaml",
+                ),
+            ),
+            DeclareLaunchArgument(
+                "rtk_map_initializer_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "rtk_map_initializer.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "fastlivo_rtk_fusion_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "fastlivo_rtk_fusion.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "robot_description_file",
+                default_value=os.path.join(
+                    hardware_share, "urdf", "ackermann_vehicle.urdf"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "chassis_can_config",
+                default_value=os.path.join(
+                    hardware_share, "ackermann", "config", "chassis_can.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "chassis_serial_config",
+                default_value=os.path.join(
+                    hardware_share, "ackermann", "config", "chassis_serial.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
+                "joint_state_config",
+                default_value=os.path.join(
+                    hardware_share,
+                    "ackermann",
+                    "config",
+                    "joint_state_publisher.yaml",
+                ),
+            ),
+            DeclareLaunchArgument(
                 "enable_chassis_output",
                 default_value="false",
                 description="显式开启后才向真车底盘发送Nav2控制命令",
@@ -297,6 +358,25 @@ def generate_launch_description():
                             "right_camera_device": LaunchConfiguration(
                                 "right_camera_device"
                             ),
+                            "mount_config": LaunchConfiguration("mount_config"),
+                            "fastlivo_lidar_config": LaunchConfiguration(
+                                "fastlivo_lidar_config"
+                            ),
+                            "fastlivo_bridge_config": LaunchConfiguration(
+                                "fastlivo_bridge_config"
+                            ),
+                            "pcd_initial_localization_config": LaunchConfiguration(
+                                "pcd_initial_localization_config"
+                            ),
+                            "rtk_map_initializer_config": LaunchConfiguration(
+                                "rtk_map_initializer_config"
+                            ),
+                            "fastlivo_rtk_fusion_config": LaunchConfiguration(
+                                "fastlivo_rtk_fusion_config"
+                            ),
+                            "robot_description_file": LaunchConfiguration(
+                                "robot_description_file"
+                            ),
                         }.items(),
                     )
                 ],
@@ -309,12 +389,7 @@ def generate_launch_description():
                 name="ackermann_joint_state_publisher",
                 output="screen",
                 parameters=[
-                    os.path.join(
-                        hardware_share,
-                        "ackermann",
-                        "config",
-                        "joint_state_publisher.yaml",
-                    ),
+                    LaunchConfiguration("joint_state_config"),
                     {"use_sim_time": use_sim_time},
                 ],
                 condition=IfCondition(

@@ -1,0 +1,3428 @@
+# ROS FLU mesh exported by AgriculturalCar_Interior
+mtllib vehicle_visual.mtl
+o 24V6100mAh磷酸铁锂电池（客户图）.001
+usemtl mat_10_0
+usemtl mat_0_1
+o 24V6100mAh磷酸铁锂电池（客户图）001.001
+usemtl mat_10_0
+usemtl mat_0_1
+o 24V6100mAh磷酸铁锂电池（客户图）002.001
+usemtl mat_10_0
+usemtl mat_0_1
+usemtl mat_11_2
+usemtl mat_12_3
+usemtl mat_13_4
+usemtl mat_14_5
+o 24V继电器模块_1_1_001.001
+usemtl mat_0_1
+o 24V继电器模块_1_1_1.001
+usemtl mat_0_1
+o 24V继电器模块_1_1_002.001
+usemtl mat_0_1
+o 24V继电器模块_1_1_003.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_001.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_1.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_002.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_003.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_004.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_005.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_006.001
+usemtl mat_0_1
+o M4铜柱^卡丁车_2_1_007.001
+usemtl mat_0_1
+o X3派天线_001.001
+usemtl mat_0_1
+o X3派天线_1.001
+usemtl mat_0_1
+o 亚克力板_4_1.001
+usemtl mat_0_1
+o 侧板_001.001
+usemtl mat_0_1
+o 组装-前驱动总成_1_001.001
+usemtl mat_0_1
+o 侧板_1.001
+usemtl mat_0_1
+o 充电口_3_1_2_1_1.001
+usemtl mat_7_6
+o 分线器（2进10出）_2.001
+usemtl mat_0_1
+o 急停开关_1_2_1_2.001
+usemtl mat_3_7
+usemtl mat_4_8
+usemtl mat_5_9
+usemtl mat_6_10
+o 激光雷达驱动板_1_1_2_1_1.001
+usemtl mat_0_1
+o 电源开关_1_1_1_2_1_001.001
+usemtl mat_7_6
+o 电源开关_1_1_1_2_1_1.001
+usemtl mat_7_6
+usemtl mat_1_11
+usemtl mat_8_12
+usemtl mat_9_13
+o 电源模块_2_1.001
+usemtl mat_0_1
+o 电源模块（24V输入8.4V10A输出)_1_1_2.001
+usemtl mat_0_1
+o 直流电机驱动板_3_1_1.001
+usemtl mat_0_1
+o 相机_奥比深度相机_带底座铰链_8.001
+usemtl mat_2_14
+usemtl mat_0_1
+usemtl mat_1_11
+o M3-45六角铜柱_001.001
+usemtl mat_0_1
+usemtl mat_35_15
+o M3-45六角铜柱_002.001
+usemtl mat_0_1
+usemtl mat_35_15
+o M3-45六角铜柱_003.001
+usemtl mat_0_1
+usemtl mat_35_15
+o M3-45六角铜柱_3.001
+usemtl mat_0_1
+usemtl mat_35_15
+o STM32主控_集成主控C50B_1_1.001
+usemtl mat_15_16
+usemtl mat_16_17
+usemtl mat_17_18
+usemtl mat_0_1
+usemtl mat_18_19
+usemtl mat_19_20
+usemtl mat_20_21
+usemtl mat_21_22
+usemtl mat_22_23
+usemtl mat_23_24
+usemtl mat_24_25
+usemtl mat_25_26
+usemtl mat_26_27
+usemtl mat_27_28
+o 中层板_1_1.001
+usemtl mat_0_1
+o 手柄信号接收器_5_3_1.001
+usemtl mat_0_1
+o 拓展坞_自研版_001.001
+usemtl mat_30_29
+o 拓展坞_自研版_002.001
+usemtl mat_30_29
+o 拓展坞_自研版_003.001
+usemtl mat_30_29
+o 拓展坞_自研版_004.001
+usemtl mat_31_30
+usemtl mat_19_20
+usemtl mat_20_21
+usemtl mat_32_31
+usemtl mat_0_1
+usemtl mat_33_32
+usemtl mat_26_27
+usemtl mat_21_22
+usemtl mat_27_28
+usemtl mat_34_33
+o 拓展坞_自研版_5.001
+usemtl mat_27_28
+usemtl mat_0_1
+o 电源模块_2_001.001
+usemtl mat_0_1
+o M2.5-10双通铜柱_1_001.001
+usemtl mat_29_34
+o M2.5-10双通铜柱_1_1.001
+usemtl mat_29_34
+o M2.5-10双通铜柱_1_002.001
+usemtl mat_29_34
+o M2.5-10双通铜柱_1_003.001
+usemtl mat_29_34
+o ROS主控-JetsonNano_1_001.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_1.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_002.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_003.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_004.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_005.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_006.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_007.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_008.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_009.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_010.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_011.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_012.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_013.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_014.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_015.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_016.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_017.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_018.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_019.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_020.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_021.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_022.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_023.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_024.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_025.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_026.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_027.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_028.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_029.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_030.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_031.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_032.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_033.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_034.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_035.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_036.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_037.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_038.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_039.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_040.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_041.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_042.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_043.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_044.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_045.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_046.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_047.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_048.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_049.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_050.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_051.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_052.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_053.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_054.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_055.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_056.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_057.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_058.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_059.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_060.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_061.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_062.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_063.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_064.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_065.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_066.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_067.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_068.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_069.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_070.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_071.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_072.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_073.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_074.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_075.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_076.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_077.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_078.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_079.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_080.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_081.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_082.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_083.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_084.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_085.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_086.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_087.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_088.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_089.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_090.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_091.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_092.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_093.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_094.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_095.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_096.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_097.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_098.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_099.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_100.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_101.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_102.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_103.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_104.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_105.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_106.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_107.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_108.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_109.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_110.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_111.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_112.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_113.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_114.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_115.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_116.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_117.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_118.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_119.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_120.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_121.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_122.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_123.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_124.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_125.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_126.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_127.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_128.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_129.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_130.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_131.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_132.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_133.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_134.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_135.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_136.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_137.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_138.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_139.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_140.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_141.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_142.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_143.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_144.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_145.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_146.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_147.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_148.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_149.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_150.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_151.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_152.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_153.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_154.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_155.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_156.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_157.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_158.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_159.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_160.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_161.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_162.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_163.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_164.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_165.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_166.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_167.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_168.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_169.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_170.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_171.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_172.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_173.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_174.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_175.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_176.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_177.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_178.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_179.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_180.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_181.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_182.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_183.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_184.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_185.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_186.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_187.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_188.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_189.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_190.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_191.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_192.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_193.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_194.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_195.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_196.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_197.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_198.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_199.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_200.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_201.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_202.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_203.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_204.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_205.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_206.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_207.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_208.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_209.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_210.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_211.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_212.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_213.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_214.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_215.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_216.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_217.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_218.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_219.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_220.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_221.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_222.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_223.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_224.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_225.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_226.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_227.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_228.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_229.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_230.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_231.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_232.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_233.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_234.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_235.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_236.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_237.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_238.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_239.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_240.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_241.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_242.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_243.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_244.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_245.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_246.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_247.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_248.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_249.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_250.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_251.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_252.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_253.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_254.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_255.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_256.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_257.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_258.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_259.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_260.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_261.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_262.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_263.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_264.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_265.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_266.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_267.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_268.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_269.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_270.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_271.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_272.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_273.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_274.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_275.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_276.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_277.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_278.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_279.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_280.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_281.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_282.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_283.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_284.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_285.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_286.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_287.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_288.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_289.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_290.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_291.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_292.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_293.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_294.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_295.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_296.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_297.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_298.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_299.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_300.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_301.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_302.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_303.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_304.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_305.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_306.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_307.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_308.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_309.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_310.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_311.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_312.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_313.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_314.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_315.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_316.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_317.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_318.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_319.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_320.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_321.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_322.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_323.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_324.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_325.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_326.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_327.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_328.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_329.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_330.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_331.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_332.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_333.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_334.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_335.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_336.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_337.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_338.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_339.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_340.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_341.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_342.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_343.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_344.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_345.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_346.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_347.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_348.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_349.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_350.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_351.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_352.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_353.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_354.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_355.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_356.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_357.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_358.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_359.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_360.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_361.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_362.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_363.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_364.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_365.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_366.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_367.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_368.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_369.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_370.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_371.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_372.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_373.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_374.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_375.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_376.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_377.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_378.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_379.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_380.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_381.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_382.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_383.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_384.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_385.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_386.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_387.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_388.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_389.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_390.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_391.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_392.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_393.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_394.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_395.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_396.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_397.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_398.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_399.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_400.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_401.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_402.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_403.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_404.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_405.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_406.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_407.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_408.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_409.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_410.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_411.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_412.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_413.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_414.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_415.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_416.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_417.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_418.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_419.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_420.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_421.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_422.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_423.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_424.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_425.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_426.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_427.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_428.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_429.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_430.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_431.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_432.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_433.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_434.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_435.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_436.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_437.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_438.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_439.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_440.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_441.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_442.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_443.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_444.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_445.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_446.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_447.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_448.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_449.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_450.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_451.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_452.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_453.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_454.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_455.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_456.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_457.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_458.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_459.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_460.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_461.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_462.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_463.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_464.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_465.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_466.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_467.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_468.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_469.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_470.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_471.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_472.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_473.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_474.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_475.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_476.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_477.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_478.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_479.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_480.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_481.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_482.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_483.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_484.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_485.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_486.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_487.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_488.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_489.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_490.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_491.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_492.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_493.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_494.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_495.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_496.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_497.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_498.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_499.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_500.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_501.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_502.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_503.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_504.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_505.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_506.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_507.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_508.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_509.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_510.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_511.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_512.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_513.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_514.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_515.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_516.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_517.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_518.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_519.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_520.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_521.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_522.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_523.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_524.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_525.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_526.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_527.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_528.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_529.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_530.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_531.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_532.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_533.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_534.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_535.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_536.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_537.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_538.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_539.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_540.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_541.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_542.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_543.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_544.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_545.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_546.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_547.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_548.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_549.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_550.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_551.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_552.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_553.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_554.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_555.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_556.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_557.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_558.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_559.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_560.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_561.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_562.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_563.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_564.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_565.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_566.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_567.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_568.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_569.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_570.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_571.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_572.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_573.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_574.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_575.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_576.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_577.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_578.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_579.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_580.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_581.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_582.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_583.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_584.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_585.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_586.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_587.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_588.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_589.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_590.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_591.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_592.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_593.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_594.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_595.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_596.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_597.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_598.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_599.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_600.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_601.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_602.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_603.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_604.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_605.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_606.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_607.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_608.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_609.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_610.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_611.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_612.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_613.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_614.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_615.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_616.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_617.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_618.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_619.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_620.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_621.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_622.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_623.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_624.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_625.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_626.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_627.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_628.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_629.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_630.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_631.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_632.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_633.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_634.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_635.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_636.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_637.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_638.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_639.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_640.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_641.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_642.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_643.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_644.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_645.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_646.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_647.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_648.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_649.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_650.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_651.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_652.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_653.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_654.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_655.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_656.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_657.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_658.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_659.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_660.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_661.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_662.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_663.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_664.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_665.001
+usemtl mat_0_1
+o ROS主控-JetsonNano_1_666.001
+usemtl mat_0_1
+o 奥比相机USB_1_001.001
+usemtl mat_0_1
+usemtl mat_5_9
+o 奥比相机USB_1_1.001
+usemtl mat_1_11
+o 奥比相机USB_1_002.001
+usemtl mat_28_35
+o M3-24六角铜柱_001.001
+usemtl mat_0_1
+o M3-24六角铜柱_002.001
+usemtl mat_0_1
+o M3-24六角铜柱_2.001
+usemtl mat_0_1
+o M3-24六角铜柱_003.001
+usemtl mat_0_1
+o SOLID.001
+usemtl mat_0_1
+o 降噪板组件1_001.001
+usemtl mat_0_1
+o 降噪板组件1_002.001
+usemtl mat_0_1
+o 降噪板组件1_003.001
+usemtl mat_0_1
+o 降噪板组件1_3.001
+usemtl mat_0_1
+o 降噪板组件1_004.001
+usemtl mat_0_1
+o 降噪板组件1_005.001
+usemtl mat_0_1
+o 降噪板组件2_001.001
+usemtl mat_0_1
+o 降噪板组件2_002.001
+usemtl mat_0_1
+o 降噪板组件2_003.001
+usemtl mat_0_1
+o 降噪板组件2_3.001
+usemtl mat_0_1
+o 麦克风承接板_3.001
+usemtl mat_0_1
+usemtl mat_35_15
+o 55_默认_按加工__1_2_1_001.001
+usemtl mat_0_1
+o 55_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 55_默认_按加工__1_2_1_002.001
+usemtl mat_0_1
+o 55_默认_按加工__1_2_1_003.001
+usemtl mat_0_1
+o 310_默认_按加工__1_2_1_001.001
+usemtl mat_0_1
+o 310_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 350_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 2020X120_默认_按加工__1_2_1_001.001
+usemtl mat_0_1
+o 2020X120_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]_GY-OB-1020_1_2_1_001.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]_GY-OB-1020_1_2_1_1.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]侧梁_GY-OB-1020_1_2_1_001.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]侧梁_GY-OB-1020_1_2_1_1.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁_GY-OB-1020_1_2_1_001.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁_GY-OB-1020_1_2_1_1.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁_GY-OB-1020_1_2_1_002.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁_GY-OB-1020_1_2_1_003.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁中_GY-OB-1020_1_2_1_001.001
+usemtl mat_0_1
+o GY-OB-1020型材[GY-OB-1020]横梁中_GY-OB-1020_1_2_1_1.001
+usemtl mat_0_1
+o 保险杠2.1_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 前保险杠_2_1_001.001
+usemtl mat_0_1
+o 前保险杠_2_1_1.001
+usemtl mat_0_1
+o 加强板_1_2_1_1.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_001.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_002.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_003.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_004.001
+usemtl mat_0_1
+o 支柱_默认_按加工__1_2_1_005.001
+usemtl mat_0_1
+o 横梁_默认_按加工__1_2_1_001.001
+usemtl mat_0_1
+o 横梁_默认_按加工__1_2_1_1.001
+usemtl mat_0_1
+o 超声_波_2_1_001.001
+usemtl mat_0_1
+o 超声波转接板_2_1_001.001
+usemtl mat_0_1
+o 超声_波_2_1_1.001
+usemtl mat_0_1
+o 超声波转接板_2_1_1.001
+usemtl mat_0_1
+o 超声_波_2_1_002.001
+usemtl mat_0_1
+o 超声波转接板_2_1_002.001
+usemtl mat_0_1
+o 车上板_2_1_1.001
+usemtl mat_0_1
+o 车底板_2_1_2.001
+usemtl mat_0_1
+o 雷达_雷神M10_8.001
+usemtl mat_2_14
+o 风扇80_2_1_1_001.001
+usemtl mat_0_1
+o 风扇80_2_1_1_1.001
+usemtl mat_0_1
+o RTK
+v 0.131625727 0.333532572 0.155784175
+v 0.131625816 -0.336465776 0.154312864
+v 0.131573185 0.3335765 0.135784283
+v 0.13157329 -0.336421847 0.134312987
+v 0.111573257 0.333576381 0.135836825
+v 0.111573353 -0.336421967 0.134365514
+v 0.1116258 0.333532482 0.1558367
+v 0.111625895 -0.336465865 0.1543654
+v 0.131573185 0.3335765 0.135784283
+v 0.13157329 -0.336421847 0.134312987
+v 0.111573257 0.333576381 0.135836825
+v 0.111573353 -0.336421967 0.134365514
+v 0.1116258 0.333532482 0.1558367
+v 0.131625727 0.333532572 0.155784175
+v 0.131625816 -0.336465776 0.154312864
+v 0.111625895 -0.336465865 0.1543654
+v 0.131625816 -0.336465776 0.154312864
+v 0.13157329 -0.336421847 0.134312987
+v 0.111573353 -0.336421967 0.134365514
+v 0.111625895 -0.336465865 0.1543654
+v 0.1116258 0.333532482 0.1558367
+v 0.111573257 0.333576381 0.135836825
+v 0.131573185 0.3335765 0.135784283
+v 0.131625727 0.333532572 0.155784175
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 0
+vt 1 0
+vt 0 0
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn -0.002626905 0.002195968 -0.999994159
+vn -0.002626905 0.002195968 -0.999994159
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.002626905 0.002195968 -0.999994159
+vn -0.002626905 0.002195968 -0.999994159
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+usemtl Default-Material_36
+f 358438/1/1 358441/4/4 358440/3/3
+f 358438/1/1 358439/2/2 358441/4/4
+f 358446/9/9 358443/6/6 358442/5/5
+f 358446/9/9 358447/10/10 358443/6/6
+f 358448/11/11 358445/8/8 358444/7/7
+f 358448/11/11 358449/12/12 358445/8/8
+f 358450/13/13 358452/15/15 358451/14/14
+f 358450/13/13 358453/16/16 358452/15/15
+f 358454/17/17 358456/19/19 358455/18/18
+f 358454/17/17 358457/20/20 358456/19/19
+f 358458/21/21 358460/23/23 358459/22/22
+f 358458/21/21 358461/24/24 358460/23/23
+o Cube1
+v 0.132939085 0.312445849 0.6557442
+v 0.1315731 0.3135898 0.135747179
+v 0.132939085 0.3324458 0.6557881
+v 0.1315731 0.333589762 0.135791108
+v 0.112939149 0.332445681 0.655840635
+v 0.11157316 0.333589643 0.13584365
+v 0.112939157 0.31244573 0.6557967
+v 0.111573167 0.3135897 0.135799721
+v 0.132939085 0.3324458 0.6557881
+v 0.1315731 0.333589762 0.135791108
+v 0.112939149 0.332445681 0.655840635
+v 0.11157316 0.333589643 0.13584365
+v 0.112939157 0.31244573 0.6557967
+v 0.132939085 0.312445849 0.6557442
+v 0.1315731 0.3135898 0.135747179
+v 0.111573167 0.3135897 0.135799721
+v 0.1315731 0.3135898 0.135747179
+v 0.1315731 0.333589762 0.135791108
+v 0.11157316 0.333589643 0.13584365
+v 0.111573167 0.3135897 0.135799721
+v 0.112939157 0.31244573 0.6557967
+v 0.112939149 0.332445681 0.655840635
+v 0.132939085 0.3324458 0.6557881
+v 0.132939085 0.312445849 0.6557442
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 0
+vt 1 0
+vt 0 0
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+usemtl Default-Material_36
+f 358462/25/25 358465/28/28 358464/27/27
+f 358462/25/25 358463/26/26 358465/28/28
+f 358470/33/33 358467/30/30 358466/29/29
+f 358470/33/33 358471/34/34 358467/30/30
+f 358472/35/35 358469/32/32 358468/31/31
+f 358472/35/35 358473/36/36 358469/32/32
+f 358474/37/37 358476/39/39 358475/38/38
+f 358474/37/37 358477/40/40 358476/39/39
+f 358478/41/41 358480/43/43 358479/42/42
+f 358478/41/41 358481/44/44 358480/43/43
+f 358482/45/45 358484/47/47 358483/46/46
+f 358482/45/45 358485/48/48 358484/47/47
+o Cube2
+v 0.13293916 -0.337481618 0.6543175
+v 0.13157317 -0.336337656 0.134320483
+v 0.13293916 -0.317481667 0.6543614
+v 0.13157317 -0.3163377 0.134364411
+v 0.112939231 -0.3174818 0.654413939
+v 0.111573242 -0.316337824 0.134416953
+v 0.112939239 -0.337481737 0.65437
+v 0.111573249 -0.336337775 0.134373024
+v 0.13293916 -0.317481667 0.6543614
+v 0.13157317 -0.3163377 0.134364411
+v 0.112939231 -0.3174818 0.654413939
+v 0.111573242 -0.316337824 0.134416953
+v 0.112939239 -0.337481737 0.65437
+v 0.13293916 -0.337481618 0.6543175
+v 0.13157317 -0.336337656 0.134320483
+v 0.111573249 -0.336337775 0.134373024
+v 0.13157317 -0.336337656 0.134320483
+v 0.13157317 -0.3163377 0.134364411
+v 0.111573242 -0.316337824 0.134416953
+v 0.111573249 -0.336337775 0.134373024
+v 0.112939239 -0.337481737 0.65437
+v 0.112939231 -0.3174818 0.654413939
+v 0.13293916 -0.317481667 0.6543614
+v 0.13293916 -0.337481618 0.6543175
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 0
+vt 1 0
+vt 0 0
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn 0.999996543 5.90849868E-06 -0.00262689847
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -1.39548661E-07 0.9999976 0.002196095
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn -0.999996543 -5.90849868E-06 0.00262689847
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn 1.39548661E-07 -0.9999976 -0.002196095
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn -0.002626905 0.00219608727 -0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+vn 0.002626905 -0.00219608727 0.999994159
+usemtl Default-Material_36
+f 358486/49/49 358489/52/52 358488/51/51
+f 358486/49/49 358487/50/50 358489/52/52
+f 358494/57/57 358491/54/54 358490/53/53
+f 358494/57/57 358495/58/58 358491/54/54
+f 358496/59/59 358493/56/56 358492/55/55
+f 358496/59/59 358497/60/60 358493/56/56
+f 358498/61/61 358500/63/63 358499/62/62
+f 358498/61/61 358501/64/64 358500/63/63
+f 358502/65/65 358504/67/67 358503/66/66
+f 358502/65/65 358505/68/68 358504/67/67
+f 358506/69/69 358508/71/71 358507/70/70
+f 358506/69/69 358509/72/72 358508/71/71
+o Plane1
+v 0.147939757 0.297446758 0.6557861
+v 0.147939757 0.302446753 0.655797064
+v 0.147939757 0.307446748 0.6558081
+v 0.147939757 0.3124467 0.655819058
+v 0.147939757 0.3174467 0.65583
+v 0.147939757 0.3224467 0.655841
+v 0.147939757 0.3274467 0.65585196
+v 0.147939757 0.332446665 0.655863
+v 0.147939742 0.33744666 0.655873954
+v 0.147939742 0.342446655 0.6558849
+v 0.147939742 0.34744665 0.6558959
+v 0.142939776 0.297446728 0.65579927
+v 0.142939776 0.302446723 0.655810237
+v 0.142939776 0.307446718 0.6558212
+v 0.142939776 0.312446684 0.6558322
+v 0.142939776 0.317446679 0.655843139
+v 0.142939776 0.322446674 0.655854166
+v 0.142939761 0.327446669 0.655865133
+v 0.142939761 0.332446635 0.6558761
+v 0.142939761 0.33744663 0.655887067
+v 0.142939761 0.342446625 0.655898035
+v 0.142939761 0.34744662 0.655909061
+v 0.1379398 0.2974467 0.6558124
+v 0.1379398 0.3024467 0.65582335
+v 0.1379398 0.3074467 0.6558343
+v 0.137939781 0.312446654 0.6558453
+v 0.137939781 0.317446649 0.6558563
+v 0.137939781 0.322446644 0.6558673
+v 0.137939781 0.32744664 0.655878246
+v 0.137939781 0.3324466 0.6558892
+v 0.137939781 0.3374466 0.65590024
+v 0.137939781 0.3424466 0.6559112
+v 0.137939781 0.3474466 0.6559222
+v 0.1329398 0.297446668 0.6558255
+v 0.1329398 0.302446663 0.655836463
+v 0.1329398 0.307446659 0.6558475
+v 0.1329398 0.312446654 0.655858457
+v 0.1329398 0.317446619 0.6558694
+v 0.1329398 0.3224466 0.6558804
+v 0.1329398 0.3274466 0.655891359
+v 0.1329398 0.332446575 0.6559024
+v 0.1329398 0.33744657 0.655913353
+v 0.1329398 0.342446566 0.6559243
+v 0.1329398 0.347446561 0.6559353
+v 0.12793982 0.297446638 0.655838668
+v 0.12793982 0.302446634 0.655849636
+v 0.12793982 0.307446629 0.6558606
+v 0.12793982 0.312446624 0.65587157
+v 0.12793982 0.3174466 0.655882537
+v 0.12793982 0.322446585 0.655893564
+v 0.12793982 0.32744658 0.655904531
+v 0.12793982 0.332446545 0.6559155
+v 0.12793982 0.337446541 0.655926466
+v 0.12793982 0.342446536 0.655937433
+v 0.12793982 0.347446531 0.65594846
+v 0.12293984 0.2974466 0.6558518
+v 0.12293984 0.3024466 0.655862749
+v 0.12293984 0.3074466 0.6558737
+v 0.12293984 0.3124466 0.655884743
+v 0.12293984 0.31744656 0.6558957
+v 0.12293984 0.322446555 0.6559067
+v 0.12293984 0.32744655 0.655917645
+v 0.12293984 0.332446516 0.6559286
+v 0.12293984 0.3374465 0.655939639
+v 0.12293984 0.3424465 0.6559506
+v 0.12293984 0.3474465 0.6559616
+v 0.11793986 0.297446579 0.6558649
+v 0.11793986 0.302446574 0.6558759
+v 0.11793986 0.307446569 0.6558869
+v 0.11793986 0.312446564 0.655897856
+v 0.11793986 0.31744653 0.6559088
+v 0.11793986 0.322446525 0.6559198
+v 0.117939852 0.32744652 0.6559308
+v 0.117939852 0.3324465 0.6559418
+v 0.117939852 0.337446481 0.655952752
+v 0.117939852 0.342446476 0.6559637
+v 0.117939852 0.347446471 0.6559747
+v 0.112939879 0.297446549 0.655878067
+v 0.112939879 0.302446544 0.655889034
+v 0.112939879 0.307446539 0.6559
+v 0.112939879 0.312446535 0.655910969
+v 0.112939879 0.3174465 0.655922
+v 0.112939879 0.3224465 0.655932963
+v 0.112939872 0.3274465 0.65594393
+v 0.112939872 0.332446456 0.6559549
+v 0.112939872 0.337446451 0.655965865
+v 0.112939872 0.342446446 0.6559769
+v 0.112939872 0.347446442 0.655987859
+v 0.1079399 0.297446519 0.6558912
+v 0.1079399 0.3024465 0.655902147
+v 0.1079399 0.3074465 0.6559131
+v 0.107939892 0.3124465 0.655924141
+v 0.107939892 0.31744647 0.6559351
+v 0.107939892 0.322446465 0.6559461
+v 0.107939892 0.327446461 0.655957043
+v 0.107939892 0.332446456 0.65596807
+v 0.107939892 0.337446421 0.655979037
+v 0.107939892 0.342446417 0.65599
+v 0.107939892 0.3474464 0.656001
+v 0.102939911 0.2974465 0.6559043
+v 0.102939911 0.302446485 0.6559153
+v 0.102939911 0.30744648 0.6559263
+v 0.102939911 0.312446475 0.655937254
+v 0.102939911 0.31744644 0.6559482
+v 0.102939911 0.322446436 0.6559592
+v 0.102939911 0.327446431 0.6559702
+v 0.102939904 0.332446426 0.6559812
+v 0.102939904 0.3374464 0.65599215
+v 0.102939904 0.3424464 0.6560031
+v 0.102939904 0.347446382 0.6560141
+v 0.09793993 0.29744646 0.655917466
+v 0.09793993 0.302446455 0.655928433
+v 0.09793993 0.30744645 0.6559394
+v 0.09793993 0.312446445 0.655950367
+v 0.09793993 0.3174464 0.6559614
+v 0.09793993 0.3224464 0.655972362
+v 0.09793993 0.3274464 0.6559833
+v 0.09793993 0.3324464 0.6559943
+v 0.09793992 0.337446362 0.656005263
+v 0.09793992 0.342446357 0.6560163
+v 0.09793992 0.347446352 0.656027257
+vt 0 0
+vt 0.1 0
+vt 0.2 0
+vt 0.3 0
+vt 0.4 0
+vt 0.5 0
+vt 0.6 0
+vt 0.7 0
+vt 0.8 0
+vt 0.900000036 0
+vt 1 0
+vt 0 0.1
+vt 0.1 0.1
+vt 0.2 0.1
+vt 0.3 0.1
+vt 0.4 0.1
+vt 0.5 0.1
+vt 0.6 0.1
+vt 0.7 0.1
+vt 0.8 0.1
+vt 0.900000036 0.1
+vt 1 0.1
+vt 0 0.2
+vt 0.1 0.2
+vt 0.2 0.2
+vt 0.3 0.2
+vt 0.4 0.2
+vt 0.5 0.2
+vt 0.6 0.2
+vt 0.7 0.2
+vt 0.8 0.2
+vt 0.900000036 0.2
+vt 1 0.2
+vt 0 0.3
+vt 0.1 0.3
+vt 0.2 0.3
+vt 0.3 0.3
+vt 0.4 0.3
+vt 0.5 0.3
+vt 0.6 0.3
+vt 0.7 0.3
+vt 0.8 0.3
+vt 0.900000036 0.3
+vt 1 0.3
+vt 0 0.4
+vt 0.1 0.4
+vt 0.2 0.4
+vt 0.3 0.4
+vt 0.4 0.4
+vt 0.5 0.4
+vt 0.6 0.4
+vt 0.7 0.4
+vt 0.8 0.4
+vt 0.900000036 0.4
+vt 1 0.4
+vt 0 0.5
+vt 0.1 0.5
+vt 0.2 0.5
+vt 0.3 0.5
+vt 0.4 0.5
+vt 0.5 0.5
+vt 0.6 0.5
+vt 0.7 0.5
+vt 0.8 0.5
+vt 0.900000036 0.5
+vt 1 0.5
+vt 0 0.6
+vt 0.1 0.6
+vt 0.2 0.6
+vt 0.3 0.6
+vt 0.4 0.6
+vt 0.5 0.6
+vt 0.6 0.6
+vt 0.7 0.6
+vt 0.8 0.6
+vt 0.900000036 0.6
+vt 1 0.6
+vt 0 0.7
+vt 0.1 0.7
+vt 0.2 0.7
+vt 0.3 0.7
+vt 0.4 0.7
+vt 0.5 0.7
+vt 0.6 0.7
+vt 0.7 0.7
+vt 0.8 0.7
+vt 0.900000036 0.7
+vt 1 0.7
+vt 0 0.8
+vt 0.1 0.8
+vt 0.2 0.8
+vt 0.3 0.8
+vt 0.4 0.8
+vt 0.5 0.8
+vt 0.6 0.8
+vt 0.7 0.8
+vt 0.8 0.8
+vt 0.900000036 0.8
+vt 1 0.8
+vt 0 0.900000036
+vt 0.1 0.900000036
+vt 0.2 0.900000036
+vt 0.3 0.900000036
+vt 0.4 0.900000036
+vt 0.5 0.900000036
+vt 0.6 0.900000036
+vt 0.7 0.900000036
+vt 0.8 0.900000036
+vt 0.900000036 0.900000036
+vt 1 0.900000036
+vt 0 1
+vt 0.1 1
+vt 0.2 1
+vt 0.3 1
+vt 0.4 1
+vt 0.5 1
+vt 0.6 1
+vt 0.7 1
+vt 0.8 1
+vt 0.900000036 1
+vt 1 1
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+usemtl Default-Material_36
+f 358519/82/82 358520/83/83 358531/94/94
+f 358519/82/82 358531/94/94 358530/93/93
+f 358518/81/81 358519/82/82 358530/93/93
+f 358530/93/93 358531/94/94 358542/105/105
+f 358518/81/81 358530/93/93 358529/92/92
+f 358517/80/80 358518/81/81 358529/92/92
+f 358530/93/93 358542/105/105 358541/104/104
+f 358529/92/92 358530/93/93 358541/104/104
+f 358541/104/104 358542/105/105 358553/116/116
+f 358517/80/80 358529/92/92 358528/91/91
+f 358516/79/79 358517/80/80 358528/91/91
+f 358529/92/92 358541/104/104 358540/103/103
+f 358528/91/91 358529/92/92 358540/103/103
+f 358541/104/104 358553/116/116 358552/115/115
+f 358540/103/103 358541/104/104 358552/115/115
+f 358552/115/115 358553/116/116 358564/127/127
+f 358516/79/79 358528/91/91 358527/90/90
+f 358515/78/78 358516/79/79 358527/90/90
+f 358528/91/91 358540/103/103 358539/102/102
+f 358527/90/90 358528/91/91 358539/102/102
+f 358540/103/103 358552/115/115 358551/114/114
+f 358539/102/102 358540/103/103 358551/114/114
+f 358552/115/115 358564/127/127 358563/126/126
+f 358551/114/114 358552/115/115 358563/126/126
+f 358563/126/126 358564/127/127 358575/138/138
+f 358515/78/78 358527/90/90 358526/89/89
+f 358514/77/77 358515/78/78 358526/89/89
+f 358527/90/90 358539/102/102 358538/101/101
+f 358526/89/89 358527/90/90 358538/101/101
+f 358539/102/102 358551/114/114 358550/113/113
+f 358538/101/101 358539/102/102 358550/113/113
+f 358551/114/114 358563/126/126 358562/125/125
+f 358550/113/113 358551/114/114 358562/125/125
+f 358563/126/126 358575/138/138 358574/137/137
+f 358562/125/125 358563/126/126 358574/137/137
+f 358574/137/137 358575/138/138 358586/149/149
+f 358514/77/77 358526/89/89 358525/88/88
+f 358513/76/76 358514/77/77 358525/88/88
+f 358526/89/89 358538/101/101 358537/100/100
+f 358525/88/88 358526/89/89 358537/100/100
+f 358538/101/101 358550/113/113 358549/112/112
+f 358537/100/100 358538/101/101 358549/112/112
+f 358550/113/113 358562/125/125 358561/124/124
+f 358549/112/112 358550/113/113 358561/124/124
+f 358562/125/125 358574/137/137 358573/136/136
+f 358561/124/124 358562/125/125 358573/136/136
+f 358574/137/137 358586/149/149 358585/148/148
+f 358573/136/136 358574/137/137 358585/148/148
+f 358585/148/148 358586/149/149 358597/160/160
+f 358513/76/76 358525/88/88 358524/87/87
+f 358512/75/75 358513/76/76 358524/87/87
+f 358525/88/88 358537/100/100 358536/99/99
+f 358524/87/87 358525/88/88 358536/99/99
+f 358537/100/100 358549/112/112 358548/111/111
+f 358536/99/99 358537/100/100 358548/111/111
+f 358549/112/112 358561/124/124 358560/123/123
+f 358548/111/111 358549/112/112 358560/123/123
+f 358561/124/124 358573/136/136 358572/135/135
+f 358560/123/123 358561/124/124 358572/135/135
+f 358573/136/136 358585/148/148 358584/147/147
+f 358572/135/135 358573/136/136 358584/147/147
+f 358585/148/148 358597/160/160 358596/159/159
+f 358584/147/147 358585/148/148 358596/159/159
+f 358596/159/159 358597/160/160 358608/171/171
+f 358596/159/159 358608/171/171 358607/170/170
+f 358607/170/170 358608/171/171 358619/182/182
+f 358584/147/147 358596/159/159 358595/158/158
+f 358595/158/158 358596/159/159 358607/170/170
+f 358572/135/135 358584/147/147 358583/146/146
+f 358583/146/146 358584/147/147 358595/158/158
+f 358560/123/123 358572/135/135 358571/134/134
+f 358571/134/134 358572/135/135 358583/146/146
+f 358548/111/111 358560/123/123 358559/122/122
+f 358559/122/122 358560/123/123 358571/134/134
+f 358607/170/170 358619/182/182 358618/181/181
+f 358618/181/181 358619/182/182 358630/193/193
+f 358618/181/181 358630/193/193 358629/192/192
+f 358595/158/158 358607/170/170 358606/169/169
+f 358606/169/169 358607/170/170 358618/181/181
+f 358617/180/180 358618/181/181 358629/192/192
+f 358606/169/169 358618/181/181 358617/180/180
+f 358617/180/180 358629/192/192 358628/191/191
+f 358583/146/146 358595/158/158 358594/157/157
+f 358594/157/157 358595/158/158 358606/169/169
+f 358571/134/134 358583/146/146 358582/145/145
+f 358582/145/145 358583/146/146 358594/157/157
+f 358605/168/168 358606/169/169 358617/180/180
+f 358594/157/157 358606/169/169 358605/168/168
+f 358616/179/179 358617/180/180 358628/191/191
+f 358605/168/168 358617/180/180 358616/179/179
+f 358616/179/179 358628/191/191 358627/190/190
+f 358593/156/156 358594/157/157 358605/168/168
+f 358582/145/145 358594/157/157 358593/156/156
+f 358570/133/133 358571/134/134 358582/145/145
+f 358559/122/122 358571/134/134 358570/133/133
+f 358604/167/167 358605/168/168 358616/179/179
+f 358593/156/156 358605/168/168 358604/167/167
+f 358615/178/178 358616/179/179 358627/190/190
+f 358604/167/167 358616/179/179 358615/178/178
+f 358615/178/178 358627/190/190 358626/189/189
+f 358581/144/144 358582/145/145 358593/156/156
+f 358570/133/133 358582/145/145 358581/144/144
+f 358592/155/155 358593/156/156 358604/167/167
+f 358581/144/144 358593/156/156 358592/155/155
+f 358603/166/166 358604/167/167 358615/178/178
+f 358592/155/155 358604/167/167 358603/166/166
+f 358614/177/177 358615/178/178 358626/189/189
+f 358603/166/166 358615/178/178 358614/177/177
+f 358614/177/177 358626/189/189 358625/188/188
+f 358613/176/176 358614/177/177 358625/188/188
+f 358613/176/176 358625/188/188 358624/187/187
+f 358602/165/165 358603/166/166 358614/177/177
+f 358602/165/165 358614/177/177 358613/176/176
+f 358591/154/154 358592/155/155 358603/166/166
+f 358591/154/154 358603/166/166 358602/165/165
+f 358580/143/143 358581/144/144 358592/155/155
+f 358580/143/143 358592/155/155 358591/154/154
+f 358569/132/132 358570/133/133 358581/144/144
+f 358569/132/132 358581/144/144 358580/143/143
+f 358612/175/175 358613/176/176 358624/187/187
+f 358612/175/175 358624/187/187 358623/186/186
+f 358601/164/164 358602/165/165 358613/176/176
+f 358601/164/164 358613/176/176 358612/175/175
+f 358590/153/153 358591/154/154 358602/165/165
+f 358590/153/153 358602/165/165 358601/164/164
+f 358579/142/142 358580/143/143 358591/154/154
+f 358579/142/142 358591/154/154 358590/153/153
+f 358611/174/174 358612/175/175 358623/186/186
+f 358611/174/174 358623/186/186 358622/185/185
+f 358600/163/163 358601/164/164 358612/175/175
+f 358600/163/163 358612/175/175 358611/174/174
+f 358589/152/152 358590/153/153 358601/164/164
+f 358589/152/152 358601/164/164 358600/163/163
+f 358610/173/173 358611/174/174 358622/185/185
+f 358610/173/173 358622/185/185 358621/184/184
+f 358599/162/162 358600/163/163 358611/174/174
+f 358599/162/162 358611/174/174 358610/173/173
+f 358609/172/172 358610/173/173 358621/184/184
+f 358609/172/172 358621/184/184 358620/183/183
+f 358598/161/161 358610/173/173 358609/172/172
+f 358598/161/161 358599/162/162 358610/173/173
+f 358587/150/150 358599/162/162 358598/161/161
+f 358588/151/151 358600/163/163 358599/162/162
+f 358587/150/150 358588/151/151 358599/162/162
+f 358588/151/151 358589/152/152 358600/163/163
+f 358576/139/139 358588/151/151 358587/150/150
+f 358576/139/139 358577/140/140 358588/151/151
+f 358577/140/140 358589/152/152 358588/151/151
+f 358565/128/128 358577/140/140 358576/139/139
+f 358577/140/140 358578/141/141 358589/152/152
+f 358578/141/141 358590/153/153 358589/152/152
+f 358578/141/141 358579/142/142 358590/153/153
+f 358565/128/128 358566/129/129 358577/140/140
+f 358566/129/129 358578/141/141 358577/140/140
+f 358554/117/117 358566/129/129 358565/128/128
+f 358567/130/130 358579/142/142 358578/141/141
+f 358566/129/129 358567/130/130 358578/141/141
+f 358554/117/117 358555/118/118 358566/129/129
+f 358555/118/118 358567/130/130 358566/129/129
+f 358543/106/106 358555/118/118 358554/117/117
+f 358567/130/130 358568/131/131 358579/142/142
+f 358568/131/131 358580/143/143 358579/142/142
+f 358568/131/131 358569/132/132 358580/143/143
+f 358543/106/106 358544/107/107 358555/118/118
+f 358532/95/95 358544/107/107 358543/106/106
+f 358555/118/118 358556/119/119 358567/130/130
+f 358556/119/119 358568/131/131 358567/130/130
+f 358544/107/107 358556/119/119 358555/118/118
+f 358557/120/120 358569/132/132 358568/131/131
+f 358556/119/119 358557/120/120 358568/131/131
+f 358532/95/95 358533/96/96 358544/107/107
+f 358521/84/84 358533/96/96 358532/95/95
+f 358544/107/107 358545/108/108 358556/119/119
+f 358545/108/108 358557/120/120 358556/119/119
+f 358533/96/96 358545/108/108 358544/107/107
+f 358557/120/120 358558/121/121 358569/132/132
+f 358558/121/121 358570/133/133 358569/132/132
+f 358558/121/121 358559/122/122 358570/133/133
+f 358521/84/84 358522/85/85 358533/96/96
+f 358510/73/73 358522/85/85 358521/84/84
+f 358510/73/73 358511/74/74 358522/85/85
+f 358533/96/96 358534/97/97 358545/108/108
+f 358522/85/85 358534/97/97 358533/96/96
+f 358545/108/108 358546/109/109 358557/120/120
+f 358546/109/109 358558/121/121 358557/120/120
+f 358534/97/97 358546/109/109 358545/108/108
+f 358547/110/110 358559/122/122 358558/121/121
+f 358546/109/109 358547/110/110 358558/121/121
+f 358547/110/110 358548/111/111 358559/122/122
+f 358536/99/99 358548/111/111 358547/110/110
+f 358511/74/74 358523/86/86 358522/85/85
+f 358522/85/85 358523/86/86 358534/97/97
+f 358511/74/74 358512/75/75 358523/86/86
+f 358512/75/75 358524/87/87 358523/86/86
+f 358534/97/97 358535/98/98 358546/109/109
+f 358535/98/98 358547/110/110 358546/109/109
+f 358535/98/98 358536/99/99 358547/110/110
+f 358523/86/86 358535/98/98 358534/97/97
+f 358523/86/86 358524/87/87 358535/98/98
+f 358524/87/87 358536/99/99 358535/98/98
+o Plane2
+v 0.147939831 -0.352480739 0.6543594
+v 0.147939831 -0.347480744 0.654370368
+v 0.147939831 -0.342480749 0.6543814
+v 0.147939831 -0.337480783 0.654392362
+v 0.147939831 -0.3324808 0.6544033
+v 0.147939831 -0.3274808 0.6544143
+v 0.147939831 -0.3224808 0.654425263
+v 0.147939831 -0.317480832 0.6544363
+v 0.147939831 -0.312480837 0.654447258
+v 0.147939831 -0.307480842 0.6544582
+v 0.147939831 -0.302480847 0.6544692
+v 0.142939851 -0.352480769 0.6543726
+v 0.142939851 -0.347480774 0.65438354
+v 0.142939851 -0.342480779 0.6543945
+v 0.142939851 -0.3374808 0.6544055
+v 0.142939851 -0.332480818 0.654416442
+v 0.142939851 -0.327480823 0.654427469
+v 0.142939851 -0.322480828 0.654438436
+v 0.142939851 -0.317480862 0.6544494
+v 0.142939851 -0.312480867 0.6544604
+v 0.142939851 -0.307480872 0.654471338
+v 0.142939851 -0.302480876 0.654482365
+v 0.13793987 -0.3524808 0.6543857
+v 0.13793987 -0.3474808 0.654396653
+v 0.13793987 -0.3424808 0.6544076
+v 0.13793987 -0.337480843 0.6544186
+v 0.13793987 -0.332480848 0.6544296
+v 0.13793987 -0.327480853 0.6544406
+v 0.13793987 -0.322480857 0.654451549
+v 0.13793987 -0.3174809 0.6544625
+v 0.13793987 -0.3124809 0.654473543
+v 0.13793987 -0.3074809 0.6544845
+v 0.13793987 -0.3024809 0.6544955
+v 0.13293989 -0.352480829 0.6543988
+v 0.13293989 -0.347480834 0.654409766
+v 0.13293989 -0.342480838 0.6544208
+v 0.13293989 -0.337480843 0.65443176
+v 0.13293989 -0.332480878 0.6544427
+v 0.13293989 -0.327480882 0.6544537
+v 0.13293989 -0.3224809 0.654464662
+v 0.13293989 -0.317480922 0.6544757
+v 0.13293989 -0.312480927 0.654486656
+v 0.13293989 -0.307480931 0.6544976
+v 0.132939875 -0.302480936 0.6545086
+v 0.12793991 -0.352480859 0.654412
+v 0.12793991 -0.347480863 0.654422939
+v 0.12793991 -0.342480868 0.6544339
+v 0.12793991 -0.337480873 0.6544449
+v 0.12793991 -0.3324809 0.654455841
+v 0.12793991 -0.3274809 0.654466867
+v 0.12793991 -0.322480917 0.654477835
+v 0.12793991 -0.317480952 0.6544888
+v 0.1279399 -0.312480956 0.654499769
+v 0.1279399 -0.307480961 0.654510736
+v 0.1279399 -0.302480966 0.654521763
+v 0.122939922 -0.3524809 0.6544251
+v 0.122939922 -0.3474809 0.654436052
+v 0.122939922 -0.3424809 0.654447
+v 0.122939922 -0.3374809 0.654458046
+v 0.122939922 -0.332480937 0.654469
+v 0.122939922 -0.327480942 0.65448
+v 0.122939922 -0.322480947 0.654490948
+v 0.122939922 -0.317480981 0.6545019
+v 0.122939922 -0.312481 0.654512942
+v 0.122939922 -0.307481 0.6545239
+v 0.122939922 -0.302481 0.6545349
+v 0.117939942 -0.352480918 0.6544382
+v 0.117939942 -0.347480923 0.6544492
+v 0.117939942 -0.342480928 0.6544602
+v 0.117939942 -0.337480932 0.654471159
+v 0.117939942 -0.332480967 0.6544821
+v 0.117939942 -0.327480972 0.6544931
+v 0.117939934 -0.322480977 0.6545041
+v 0.117939934 -0.317481 0.6545151
+v 0.117939934 -0.312481016 0.654526055
+v 0.117939934 -0.307481021 0.654537
+v 0.117939934 -0.302481025 0.654548
+v 0.112939961 -0.352480948 0.6544514
+v 0.112939961 -0.347480953 0.654462337
+v 0.112939961 -0.342480958 0.6544733
+v 0.112939961 -0.337480962 0.6544843
+v 0.112939961 -0.332481 0.6544953
+v 0.112939961 -0.327481 0.654506266
+v 0.112939954 -0.322481 0.654517233
+v 0.112939954 -0.317481041 0.6545282
+v 0.112939954 -0.312481046 0.654539168
+v 0.112939954 -0.30748105 0.6545502
+v 0.112939954 -0.302481055 0.654561162
+v 0.107939981 -0.352480978 0.6544645
+v 0.107939981 -0.347480983 0.654475451
+v 0.107939981 -0.342481 0.6544864
+v 0.107939973 -0.337481 0.654497445
+v 0.107939973 -0.332481027 0.6545084
+v 0.107939973 -0.327481031 0.6545194
+v 0.107939973 -0.322481036 0.654530346
+v 0.107939973 -0.317481041 0.6545414
+v 0.107939973 -0.312481076 0.654552341
+v 0.107939973 -0.30748108 0.6545633
+v 0.107939973 -0.302481085 0.6545743
+v 0.102939993 -0.352481 0.6544776
+v 0.102939993 -0.347481 0.6544886
+v 0.102939993 -0.342481017 0.6544996
+v 0.102939993 -0.337481022 0.654510558
+v 0.102939993 -0.332481056 0.6545215
+v 0.102939993 -0.327481061 0.6545325
+v 0.102939993 -0.322481066 0.6545435
+v 0.102939986 -0.317481071 0.6545545
+v 0.102939986 -0.3124811 0.654565454
+v 0.102939986 -0.3074811 0.6545764
+v 0.102939986 -0.3024811 0.6545874
+v 0.09794001 -0.352481037 0.654490769
+v 0.09794001 -0.347481042 0.654501736
+v 0.09794001 -0.342481047 0.6545127
+v 0.09794001 -0.337481052 0.6545237
+v 0.09794001 -0.3324811 0.6545347
+v 0.09794001 -0.3274811 0.654545665
+v 0.09794001 -0.3224811 0.654556632
+v 0.09794001 -0.3174811 0.6545676
+v 0.0979400054 -0.312481135 0.654578567
+v 0.0979400054 -0.30748114 0.6545896
+v 0.0979400054 -0.302481145 0.654600561
+vt 0 0
+vt 0.1 0
+vt 0.2 0
+vt 0.3 0
+vt 0.4 0
+vt 0.5 0
+vt 0.6 0
+vt 0.7 0
+vt 0.8 0
+vt 0.900000036 0
+vt 1 0
+vt 0 0.1
+vt 0.1 0.1
+vt 0.2 0.1
+vt 0.3 0.1
+vt 0.4 0.1
+vt 0.5 0.1
+vt 0.6 0.1
+vt 0.7 0.1
+vt 0.8 0.1
+vt 0.900000036 0.1
+vt 1 0.1
+vt 0 0.2
+vt 0.1 0.2
+vt 0.2 0.2
+vt 0.3 0.2
+vt 0.4 0.2
+vt 0.5 0.2
+vt 0.6 0.2
+vt 0.7 0.2
+vt 0.8 0.2
+vt 0.900000036 0.2
+vt 1 0.2
+vt 0 0.3
+vt 0.1 0.3
+vt 0.2 0.3
+vt 0.3 0.3
+vt 0.4 0.3
+vt 0.5 0.3
+vt 0.6 0.3
+vt 0.7 0.3
+vt 0.8 0.3
+vt 0.900000036 0.3
+vt 1 0.3
+vt 0 0.4
+vt 0.1 0.4
+vt 0.2 0.4
+vt 0.3 0.4
+vt 0.4 0.4
+vt 0.5 0.4
+vt 0.6 0.4
+vt 0.7 0.4
+vt 0.8 0.4
+vt 0.900000036 0.4
+vt 1 0.4
+vt 0 0.5
+vt 0.1 0.5
+vt 0.2 0.5
+vt 0.3 0.5
+vt 0.4 0.5
+vt 0.5 0.5
+vt 0.6 0.5
+vt 0.7 0.5
+vt 0.8 0.5
+vt 0.900000036 0.5
+vt 1 0.5
+vt 0 0.6
+vt 0.1 0.6
+vt 0.2 0.6
+vt 0.3 0.6
+vt 0.4 0.6
+vt 0.5 0.6
+vt 0.6 0.6
+vt 0.7 0.6
+vt 0.8 0.6
+vt 0.900000036 0.6
+vt 1 0.6
+vt 0 0.7
+vt 0.1 0.7
+vt 0.2 0.7
+vt 0.3 0.7
+vt 0.4 0.7
+vt 0.5 0.7
+vt 0.6 0.7
+vt 0.7 0.7
+vt 0.8 0.7
+vt 0.900000036 0.7
+vt 1 0.7
+vt 0 0.8
+vt 0.1 0.8
+vt 0.2 0.8
+vt 0.3 0.8
+vt 0.4 0.8
+vt 0.5 0.8
+vt 0.6 0.8
+vt 0.7 0.8
+vt 0.8 0.8
+vt 0.900000036 0.8
+vt 1 0.8
+vt 0 0.900000036
+vt 0.1 0.900000036
+vt 0.2 0.900000036
+vt 0.3 0.900000036
+vt 0.4 0.900000036
+vt 0.5 0.900000036
+vt 0.6 0.900000036
+vt 0.7 0.900000036
+vt 0.8 0.900000036
+vt 0.900000036 0.900000036
+vt 1 0.900000036
+vt 0 1
+vt 0.1 1
+vt 0.2 1
+vt 0.3 1
+vt 0.4 1
+vt 0.5 1
+vt 0.6 1
+vt 0.7 1
+vt 0.8 1
+vt 0.900000036 1
+vt 1 1
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+vn 0.002626905 -0.002195968 0.999994159
+usemtl Default-Material_36
+f 358640/203/203 358641/204/204 358652/215/215
+f 358640/203/203 358652/215/215 358651/214/214
+f 358639/202/202 358640/203/203 358651/214/214
+f 358651/214/214 358652/215/215 358663/226/226
+f 358639/202/202 358651/214/214 358650/213/213
+f 358638/201/201 358639/202/202 358650/213/213
+f 358651/214/214 358663/226/226 358662/225/225
+f 358650/213/213 358651/214/214 358662/225/225
+f 358662/225/225 358663/226/226 358674/237/237
+f 358638/201/201 358650/213/213 358649/212/212
+f 358637/200/200 358638/201/201 358649/212/212
+f 358650/213/213 358662/225/225 358661/224/224
+f 358649/212/212 358650/213/213 358661/224/224
+f 358662/225/225 358674/237/237 358673/236/236
+f 358661/224/224 358662/225/225 358673/236/236
+f 358673/236/236 358674/237/237 358685/248/248
+f 358637/200/200 358649/212/212 358648/211/211
+f 358636/199/199 358637/200/200 358648/211/211
+f 358649/212/212 358661/224/224 358660/223/223
+f 358648/211/211 358649/212/212 358660/223/223
+f 358661/224/224 358673/236/236 358672/235/235
+f 358660/223/223 358661/224/224 358672/235/235
+f 358673/236/236 358685/248/248 358684/247/247
+f 358672/235/235 358673/236/236 358684/247/247
+f 358684/247/247 358685/248/248 358696/259/259
+f 358636/199/199 358648/211/211 358647/210/210
+f 358635/198/198 358636/199/199 358647/210/210
+f 358648/211/211 358660/223/223 358659/222/222
+f 358647/210/210 358648/211/211 358659/222/222
+f 358660/223/223 358672/235/235 358671/234/234
+f 358659/222/222 358660/223/223 358671/234/234
+f 358672/235/235 358684/247/247 358683/246/246
+f 358671/234/234 358672/235/235 358683/246/246
+f 358684/247/247 358696/259/259 358695/258/258
+f 358683/246/246 358684/247/247 358695/258/258
+f 358695/258/258 358696/259/259 358707/270/270
+f 358635/198/198 358647/210/210 358646/209/209
+f 358634/197/197 358635/198/198 358646/209/209
+f 358647/210/210 358659/222/222 358658/221/221
+f 358646/209/209 358647/210/210 358658/221/221
+f 358659/222/222 358671/234/234 358670/233/233
+f 358658/221/221 358659/222/222 358670/233/233
+f 358671/234/234 358683/246/246 358682/245/245
+f 358670/233/233 358671/234/234 358682/245/245
+f 358683/246/246 358695/258/258 358694/257/257
+f 358682/245/245 358683/246/246 358694/257/257
+f 358695/258/258 358707/270/270 358706/269/269
+f 358694/257/257 358695/258/258 358706/269/269
+f 358706/269/269 358707/270/270 358718/281/281
+f 358634/197/197 358646/209/209 358645/208/208
+f 358633/196/196 358634/197/197 358645/208/208
+f 358646/209/209 358658/221/221 358657/220/220
+f 358645/208/208 358646/209/209 358657/220/220
+f 358658/221/221 358670/233/233 358669/232/232
+f 358657/220/220 358658/221/221 358669/232/232
+f 358670/233/233 358682/245/245 358681/244/244
+f 358669/232/232 358670/233/233 358681/244/244
+f 358682/245/245 358694/257/257 358693/256/256
+f 358681/244/244 358682/245/245 358693/256/256
+f 358694/257/257 358706/269/269 358705/268/268
+f 358693/256/256 358694/257/257 358705/268/268
+f 358706/269/269 358718/281/281 358717/280/280
+f 358705/268/268 358706/269/269 358717/280/280
+f 358717/280/280 358718/281/281 358729/292/292
+f 358717/280/280 358729/292/292 358728/291/291
+f 358728/291/291 358729/292/292 358740/303/303
+f 358705/268/268 358717/280/280 358716/279/279
+f 358716/279/279 358717/280/280 358728/291/291
+f 358693/256/256 358705/268/268 358704/267/267
+f 358704/267/267 358705/268/268 358716/279/279
+f 358681/244/244 358693/256/256 358692/255/255
+f 358692/255/255 358693/256/256 358704/267/267
+f 358669/232/232 358681/244/244 358680/243/243
+f 358680/243/243 358681/244/244 358692/255/255
+f 358728/291/291 358740/303/303 358739/302/302
+f 358739/302/302 358740/303/303 358751/314/314
+f 358739/302/302 358751/314/314 358750/313/313
+f 358716/279/279 358728/291/291 358727/290/290
+f 358727/290/290 358728/291/291 358739/302/302
+f 358738/301/301 358739/302/302 358750/313/313
+f 358727/290/290 358739/302/302 358738/301/301
+f 358738/301/301 358750/313/313 358749/312/312
+f 358704/267/267 358716/279/279 358715/278/278
+f 358715/278/278 358716/279/279 358727/290/290
+f 358692/255/255 358704/267/267 358703/266/266
+f 358703/266/266 358704/267/267 358715/278/278
+f 358726/289/289 358727/290/290 358738/301/301
+f 358715/278/278 358727/290/290 358726/289/289
+f 358737/300/300 358738/301/301 358749/312/312
+f 358726/289/289 358738/301/301 358737/300/300
+f 358737/300/300 358749/312/312 358748/311/311
+f 358714/277/277 358715/278/278 358726/289/289
+f 358703/266/266 358715/278/278 358714/277/277
+f 358691/254/254 358692/255/255 358703/266/266
+f 358680/243/243 358692/255/255 358691/254/254
+f 358725/288/288 358726/289/289 358737/300/300
+f 358714/277/277 358726/289/289 358725/288/288
+f 358736/299/299 358737/300/300 358748/311/311
+f 358725/288/288 358737/300/300 358736/299/299
+f 358736/299/299 358748/311/311 358747/310/310
+f 358702/265/265 358703/266/266 358714/277/277
+f 358691/254/254 358703/266/266 358702/265/265
+f 358713/276/276 358714/277/277 358725/288/288
+f 358702/265/265 358714/277/277 358713/276/276
+f 358724/287/287 358725/288/288 358736/299/299
+f 358713/276/276 358725/288/288 358724/287/287
+f 358735/298/298 358736/299/299 358747/310/310
+f 358724/287/287 358736/299/299 358735/298/298
+f 358735/298/298 358747/310/310 358746/309/309
+f 358734/297/297 358735/298/298 358746/309/309
+f 358734/297/297 358746/309/309 358745/308/308
+f 358723/286/286 358724/287/287 358735/298/298
+f 358723/286/286 358735/298/298 358734/297/297
+f 358712/275/275 358713/276/276 358724/287/287
+f 358712/275/275 358724/287/287 358723/286/286
+f 358701/264/264 358702/265/265 358713/276/276
+f 358701/264/264 358713/276/276 358712/275/275
+f 358690/253/253 358691/254/254 358702/265/265
+f 358690/253/253 358702/265/265 358701/264/264
+f 358733/296/296 358734/297/297 358745/308/308
+f 358733/296/296 358745/308/308 358744/307/307
+f 358722/285/285 358723/286/286 358734/297/297
+f 358722/285/285 358734/297/297 358733/296/296
+f 358711/274/274 358712/275/275 358723/286/286
+f 358711/274/274 358723/286/286 358722/285/285
+f 358700/263/263 358701/264/264 358712/275/275
+f 358700/263/263 358712/275/275 358711/274/274
+f 358732/295/295 358733/296/296 358744/307/307
+f 358732/295/295 358744/307/307 358743/306/306
+f 358721/284/284 358722/285/285 358733/296/296
+f 358721/284/284 358733/296/296 358732/295/295
+f 358710/273/273 358711/274/274 358722/285/285
+f 358710/273/273 358722/285/285 358721/284/284
+f 358731/294/294 358732/295/295 358743/306/306
+f 358731/294/294 358743/306/306 358742/305/305
+f 358720/283/283 358721/284/284 358732/295/295
+f 358720/283/283 358732/295/295 358731/294/294
+f 358730/293/293 358731/294/294 358742/305/305
+f 358730/293/293 358742/305/305 358741/304/304
+f 358719/282/282 358731/294/294 358730/293/293
+f 358719/282/282 358720/283/283 358731/294/294
+f 358708/271/271 358720/283/283 358719/282/282
+f 358709/272/272 358721/284/284 358720/283/283
+f 358708/271/271 358709/272/272 358720/283/283
+f 358709/272/272 358710/273/273 358721/284/284
+f 358697/260/260 358709/272/272 358708/271/271
+f 358697/260/260 358698/261/261 358709/272/272
+f 358698/261/261 358710/273/273 358709/272/272
+f 358686/249/249 358698/261/261 358697/260/260
+f 358698/261/261 358699/262/262 358710/273/273
+f 358699/262/262 358711/274/274 358710/273/273
+f 358699/262/262 358700/263/263 358711/274/274
+f 358686/249/249 358687/250/250 358698/261/261
+f 358687/250/250 358699/262/262 358698/261/261
+f 358675/238/238 358687/250/250 358686/249/249
+f 358688/251/251 358700/263/263 358699/262/262
+f 358687/250/250 358688/251/251 358699/262/262
+f 358675/238/238 358676/239/239 358687/250/250
+f 358676/239/239 358688/251/251 358687/250/250
+f 358664/227/227 358676/239/239 358675/238/238
+f 358688/251/251 358689/252/252 358700/263/263
+f 358689/252/252 358701/264/264 358700/263/263
+f 358689/252/252 358690/253/253 358701/264/264
+f 358664/227/227 358665/228/228 358676/239/239
+f 358653/216/216 358665/228/228 358664/227/227
+f 358676/239/239 358677/240/240 358688/251/251
+f 358677/240/240 358689/252/252 358688/251/251
+f 358665/228/228 358677/240/240 358676/239/239
+f 358678/241/241 358690/253/253 358689/252/252
+f 358677/240/240 358678/241/241 358689/252/252
+f 358653/216/216 358654/217/217 358665/228/228
+f 358642/205/205 358654/217/217 358653/216/216
+f 358665/228/228 358666/229/229 358677/240/240
+f 358666/229/229 358678/241/241 358677/240/240
+f 358654/217/217 358666/229/229 358665/228/228
+f 358678/241/241 358679/242/242 358690/253/253
+f 358679/242/242 358691/254/254 358690/253/253
+f 358679/242/242 358680/243/243 358691/254/254
+f 358642/205/205 358643/206/206 358654/217/217
+f 358631/194/194 358643/206/206 358642/205/205
+f 358631/194/194 358632/195/195 358643/206/206
+f 358654/217/217 358655/218/218 358666/229/229
+f 358643/206/206 358655/218/218 358654/217/217
+f 358666/229/229 358667/230/230 358678/241/241
+f 358667/230/230 358679/242/242 358678/241/241
+f 358655/218/218 358667/230/230 358666/229/229
+f 358668/231/231 358680/243/243 358679/242/242
+f 358667/230/230 358668/231/231 358679/242/242
+f 358668/231/231 358669/232/232 358680/243/243
+f 358657/220/220 358669/232/232 358668/231/231
+f 358632/195/195 358644/207/207 358643/206/206
+f 358643/206/206 358644/207/207 358655/218/218
+f 358632/195/195 358633/196/196 358644/207/207
+f 358633/196/196 358645/208/208 358644/207/207
+f 358655/218/218 358656/219/219 358667/230/230
+f 358656/219/219 358668/231/231 358667/230/230
+f 358656/219/219 358657/220/220 358668/231/231
+f 358644/207/207 358656/219/219 358655/218/218
+f 358644/207/207 358645/208/208 358656/219/219
+f 358645/208/208 358657/220/220 358656/219/219
+o Base
+usemtl Dark_37
+o ConnectorBoss
+usemtl Metal_38
+o ConnectorHex
+usemtl Metal_38
+o Gasket
+usemtl Black_39
+o HandleCollar
+usemtl Metal_38
+o HandleFoot
+usemtl Dark_37
+o HandleStem
+usemtl Dark_37
+o Radome
+usemtl White_40
+o Screw1
+usemtl Metal_38
+o Screw2
+usemtl Metal_38
+o Screw3
+usemtl Metal_38
+o Base
+usemtl Dark_37
+o ConnectorBoss
+usemtl Metal_38
+o ConnectorHex
+usemtl Metal_38
+o Gasket
+usemtl Black_39
+o HandleCollar
+usemtl Metal_38
+o HandleFoot
+usemtl Dark_37
+o HandleStem
+usemtl Dark_37
+o Radome
+usemtl White_40
+o Screw1
+usemtl Metal_38
+o Screw2
+usemtl Metal_38
+o Screw3
+usemtl Metal_38
+o __V20_1_11_29_2.001
+usemtl mat_0_41
+o BTM_13_73_119_6.001
+usemtl mat_0_41
+o WATERPROOF-CONNECTOR_1.001
+usemtl mat_0_41
+o ZHAO_1_1_4_4_2.001
+usemtl mat_1_42
+usemtl mat_2_43
+o __V20_1_11_29_2
+usemtl mat_0_41
+o BTM_13_73_119_6
+usemtl mat_0_41
+o WATERPROOF-CONNECTOR_1
+usemtl mat_0_41
+o ZHAO_1_1_4_4_2
+usemtl mat_1_42
+usemtl mat_2_43
+o 雷达_雷神M10支架_001.001
+usemtl mat_10_0
+o 雷达_雷神M10支架_1.001
+usemtl mat_10_0
+o COMPOUND.001
+usemtl mat_0_44
+usemtl mat_1_45
+usemtl mat_2_46
+usemtl mat_3_47
+usemtl mat_4_48
+usemtl mat_5_49
+usemtl mat_6_50
+usemtl mat_7_51
+o COMPOUND001.001
+usemtl mat_0_44
+o COMPOUND002.001
+usemtl mat_0_44
+o COMPOUND003.001
+usemtl mat_6_50
+o COMPOUND004.001
+usemtl mat_6_50
+o COMPOUND006.001
+usemtl mat_0_44
+o COMPOUND007.001
+usemtl mat_0_44
+o COMPOUND008.001
+usemtl mat_0_44
+o COMPOUND009.001
+usemtl mat_0_44
+o COMPOUND010.001
+usemtl mat_0_44
+o COMPOUND011.001
+usemtl mat_0_44
+o COMPOUND012.001
+usemtl mat_0_44
+o COMPOUND013.001
+usemtl mat_0_44
+o COMPOUND014.001
+usemtl mat_0_44
+o COMPOUND015.001
+usemtl mat_0_44
+o COMPOUND016.001
+usemtl mat_0_44
+o COMPOUND017.001
+usemtl mat_0_44
+o COMPOUND018.001
+usemtl mat_0_44
+o COMPOUND019.001
+usemtl mat_0_44
+o COMPOUND020.001
+usemtl mat_0_44
+o COMPOUND021.001
+usemtl mat_0_44
+o COMPOUND022.001
+usemtl mat_0_44
+o COMPOUND023.001
+usemtl mat_0_44
+o COMPOUND024.001
+usemtl mat_0_44
+o COMPOUND025.001
+usemtl mat_0_44
+o COMPOUND026.001
+usemtl mat_0_44
+o COMPOUND027.001
+usemtl mat_0_44
+o COMPOUND028.001
+usemtl mat_0_44
+o COMPOUND029.001
+usemtl mat_0_44
+o COMPOUND030.001
+usemtl mat_0_44
+o COMPOUND031.001
+usemtl mat_0_44
+o COMPOUND032.001
+usemtl mat_6_50
+usemtl mat_8_52
+o COMPOUND033.001
+usemtl mat_6_50
+o COMPOUND034.001
+usemtl mat_6_50
+o COMPOUND035.001
+usemtl mat_6_50
+o COMPOUND036.001
+usemtl mat_6_50
+o COMPOUND037.001
+usemtl mat_6_50
+o COMPOUND
+usemtl mat_0_44
+usemtl mat_1_45
+usemtl mat_2_46
+usemtl mat_3_47
+usemtl mat_4_48
+usemtl mat_5_49
+usemtl mat_6_50
+usemtl mat_7_51
+o COMPOUND001
+usemtl mat_0_44
+o COMPOUND002
+usemtl mat_0_44
+o COMPOUND003
+usemtl mat_6_50
+o COMPOUND004
+usemtl mat_6_50
+o COMPOUND006
+usemtl mat_0_44
+o COMPOUND007
+usemtl mat_0_44
+o COMPOUND008
+usemtl mat_0_44
+o COMPOUND009
+usemtl mat_0_44
+o COMPOUND010
+usemtl mat_0_44
+o COMPOUND011
+usemtl mat_0_44
+o COMPOUND012
+usemtl mat_0_44
+o COMPOUND013
+usemtl mat_0_44
+o COMPOUND014
+usemtl mat_0_44
+o COMPOUND015
+usemtl mat_0_44
+o COMPOUND016
+usemtl mat_0_44
+o COMPOUND017
+usemtl mat_0_44
+o COMPOUND018
+usemtl mat_0_44
+o COMPOUND019
+usemtl mat_0_44
+o COMPOUND020
+usemtl mat_0_44
+o COMPOUND021
+usemtl mat_0_44
+o COMPOUND022
+usemtl mat_0_44
+o COMPOUND023
+usemtl mat_0_44
+o COMPOUND024
+usemtl mat_0_44
+o COMPOUND025
+usemtl mat_0_44
+o COMPOUND026
+usemtl mat_0_44
+o COMPOUND027
+usemtl mat_0_44
+o COMPOUND028
+usemtl mat_0_44
+o COMPOUND029
+usemtl mat_0_44
+o COMPOUND030
+usemtl mat_0_44
+o COMPOUND031
+usemtl mat_0_44
+o COMPOUND032
+usemtl mat_6_50
+usemtl mat_8_52
+o COMPOUND033
+usemtl mat_6_50
+o COMPOUND034
+usemtl mat_6_50
+o COMPOUND035
+usemtl mat_6_50
+o COMPOUND036
+usemtl mat_6_50
+o COMPOUND037
+usemtl mat_6_50
+o CMount
+usemtl Silver_53
+o FrontInnerBezel
+usemtl DarkMetal_54
+o FrontOpticalGlass
+usemtl Glass_55
+o FrontOuterRing
+usemtl Black_56
+o GrooveRing1
+usemtl DarkMetal_54
+o GrooveRing2
+usemtl DarkMetal_54
+o GrooveRing3
+usemtl DarkMetal_54
+o GrooveRing4
+usemtl DarkMetal_54
+o GrooveRing5
+usemtl DarkMetal_54
+o GrooveRing6
+usemtl DarkMetal_54
+o InnerAperture
+usemtl VeryDark_57
+o Knob1
+usemtl Black_56
+o Knob2
+usemtl Black_56
+o KnobShaft1
+usemtl DarkMetal_54
+o KnobShaft2
+usemtl DarkMetal_54
+o MainBody
+usemtl Black_56
+o OrangeAccent
+usemtl Orange_58
+o Thread1
+usemtl Silver_53
+o Thread2
+usemtl Silver_53
+o Thread3
+usemtl Silver_53
+o Thread4
+usemtl Silver_53
+o Thread5
+usemtl Silver_53
+o Imu_box
+v 0.156255484 -0.0152772386 0.134579733
+v 0.156255469 0.01472269 0.134645611
+v 0.186255381 -0.0152770616 0.134500921
+v 0.186255366 0.0147228669 0.1345668
+v 0.186307922 -0.0153209809 0.154500812
+v 0.1863079 0.0146789476 0.15456669
+v 0.156308025 -0.0153211579 0.154579625
+v 0.15630801 0.0146787707 0.1546455
+v 0.186255381 -0.0152770616 0.134500921
+v 0.186255366 0.0147228669 0.1345668
+v 0.186307922 -0.0153209809 0.154500812
+v 0.1863079 0.0146789476 0.15456669
+v 0.156308025 -0.0153211579 0.154579625
+v 0.156255484 -0.0152772386 0.134579733
+v 0.156255469 0.01472269 0.134645611
+v 0.15630801 0.0146787707 0.1546455
+v 0.156255469 0.01472269 0.134645611
+v 0.186255366 0.0147228669 0.1345668
+v 0.1863079 0.0146789476 0.15456669
+v 0.15630801 0.0146787707 0.1546455
+v 0.156308025 -0.0153211579 0.154579625
+v 0.186307922 -0.0153209809 0.154500812
+v 0.186255381 -0.0152770616 0.134500921
+v 0.156255484 -0.0152772386 0.134579733
+vt 0 0
+vt 1 0
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 1
+vt 1 1
+vt 0 0
+vt 1 0
+vt 0 0
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vt 0 0
+vt 0 1
+vt 1 1
+vt 1 0
+vn -0.00262702419 0.002195968 -0.999994159
+vn -0.00262702419 0.002195968 -0.999994159
+vn -0.00262702419 0.002195968 -0.999994159
+vn -0.00262702419 0.002195968 -0.999994159
+vn 0.999996543 5.90876061E-06 -0.00262701767
+vn 0.999996543 5.90876061E-06 -0.00262701767
+vn 0.00262702419 -0.002195968 0.999994159
+vn 0.00262702419 -0.002195968 0.999994159
+vn 0.999996543 5.90876061E-06 -0.00262701767
+vn 0.999996543 5.90876061E-06 -0.00262701767
+vn 0.00262702419 -0.002195968 0.999994159
+vn 0.00262702419 -0.002195968 0.999994159
+vn -0.999996543 -5.90876061E-06 0.00262701767
+vn -0.999996543 -5.90876061E-06 0.00262701767
+vn -0.999996543 -5.90876061E-06 0.00262701767
+vn -0.999996543 -5.90876061E-06 0.00262701767
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn -1.39882729E-07 0.9999976 0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+vn 1.39882729E-07 -0.9999976 -0.00219597574
+usemtl mat_2_59
+f 544540/315/315 544543/318/318 544542/317/317
+f 544540/315/315 544541/316/316 544543/318/318
+f 544548/323/323 544545/320/320 544544/319/319
+f 544548/323/323 544549/324/324 544545/320/320
+f 544550/325/325 544547/322/322 544546/321/321
+f 544550/325/325 544551/326/326 544547/322/322
+f 544552/327/327 544554/329/329 544553/328/328
+f 544552/327/327 544555/330/330 544554/329/329
+f 544556/331/331 544558/333/333 544557/332/332
+f 544556/331/331 544559/334/334 544558/333/333
+f 544560/335/335 544562/337/337 544561/336/336
+f 544560/335/335 544563/338/338 544562/337/337
+o 组装-前驱动总成_1_001
+usemtl mat_0_60
+o 组装-前驱动总成_1_1
+usemtl mat_0_60
+o 组装-前驱动总成_1_002
+usemtl mat_0_60
+o 组装-前驱动总成_1_003
+usemtl mat_0_60
+o 组装-前驱动总成_1_004
+usemtl mat_0_60
+o 组装-前驱动总成_1_005
+usemtl mat_0_60
+o 组装-前驱动总成_1_006
+usemtl mat_0_60
+o 组装-前驱动总成_1_007
+usemtl mat_0_60
+o 组装-前驱动总成_1_008
+usemtl mat_0_60
+o 组装-前驱动总成_1_009
+usemtl mat_0_60
+o 组装-前驱动总成_1_010
+usemtl mat_0_60
+o 组装-前驱动总成_1_011
+usemtl mat_0_60
+o 组装-前驱动总成_1_012
+usemtl mat_0_60
+o 组装-前驱动总成_1_013
+usemtl mat_0_60
+o 组装-前驱动总成_1_014
+usemtl mat_0_60
+o 组装-前驱动总成_1_015
+usemtl mat_0_60
+o 组装-前驱动总成_1_016
+usemtl mat_0_60
+o 组装-前驱动总成_1_017
+usemtl mat_0_60
+o 组装-前驱动总成_1_018
+usemtl mat_0_60
+o 组装-前驱动总成_1_019
+usemtl mat_0_60
+o 组装-前驱动总成_1_020
+usemtl mat_0_60
+o 组装-前驱动总成_1_021
+usemtl mat_0_60
+o 组装-前驱动总成_1_022
+usemtl mat_0_60
+o 组装-前驱动总成_1_023
+usemtl mat_0_60
+o 组装-前驱动总成_1_024
+usemtl mat_0_60
+o QianQiao_L
+usemtl mat_0_60
+o QianQiao_R
+usemtl mat_0_60
+o FLwheel
+usemtl mat_0_1
+usemtl mat_2_14
+o 12法兰_1_2_1_003.001
+usemtl mat_0_1
+o FRwheel
+usemtl mat_0_1
+usemtl mat_2_14
+o 12法兰_1_2_1_002.001
+usemtl mat_0_1
+o HouQiao
+usemtl mat_0_60
+usemtl mat_1_61
+usemtl mat_2_62
+o HouQiao_L
+usemtl mat_0_60
+o HouQiao_R
+usemtl mat_0_60
+o RLwheel
+usemtl mat_0_1
+usemtl mat_2_14
+o 12法兰_1_2_1_1.001
+usemtl mat_0_1
+o RRwheel
+usemtl mat_0_1
+usemtl mat_2_14
+o 12法兰_1_2_1_001.001
+usemtl mat_0_1

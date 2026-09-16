@@ -1,0 +1,252 @@
+newmtl mat_10_0
+Kd 0.352940947 0.352940947 0.352940947
+d 1
+illum 2
+newmtl mat_0_1
+Kd 0.745097935 0.901960969 0.960784
+d 1
+illum 2
+newmtl mat_11_2
+Kd 0.313724935 0.313724935 0.313724935
+d 1
+illum 2
+newmtl mat_12_3
+Kd 0.254901946 0.254901946 0.254901946
+d 1
+illum 2
+newmtl mat_13_4
+Kd 0.980392039 0.3921569 0.313724935
+d 1
+illum 2
+newmtl mat_14_5
+Kd 0.333332926 1 0.4980389
+d 1
+illum 2
+newmtl mat_7_6
+Kd 0.627450943 0.627450943 0.627450943
+d 1
+illum 2
+newmtl mat_3_7
+Kd 1 0.231372923 0.129411936
+d 1
+illum 2
+newmtl mat_4_8
+Kd 0.980392039 0.980392039 0.980392039
+d 1
+illum 2
+newmtl mat_5_9
+Kd 0.5764709 0.564705968 0.5490199
+d 1
+illum 2
+newmtl mat_6_10
+Kd 0.11764694 0.11764694 0.11764694
+d 1
+illum 2
+newmtl mat_1_11
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_8_12
+Kd 1 0.737255 0
+d 1
+illum 2
+newmtl mat_9_13
+Kd 0 0 1
+d 1
+illum 2
+newmtl mat_2_14
+Kd 0.3764709 0.3764709 0.3764709
+d 1
+illum 2
+newmtl mat_35_15
+Kd 0.5490199 0.5490199 0.92156893
+d 1
+illum 2
+newmtl mat_15_16
+Kd 0.2901959 0.2901959 0.2901959
+d 1
+illum 2
+newmtl mat_16_17
+Kd 0.9372549 0.9372549 0.650979936
+d 1
+illum 2
+newmtl mat_17_18
+Kd 0.0862749442 0.627450943 0.905881941
+d 1
+illum 2
+newmtl mat_18_19
+Kd 0.109803952 0.109803952 0.109803952
+d 1
+illum 2
+newmtl mat_19_20
+Kd 0.25097993 0.25097993 0.25097993
+d 1
+illum 2
+newmtl mat_20_21
+Kd 0.949019969 0.760784 0.180391937
+d 1
+illum 2
+newmtl mat_21_22
+Kd 0.7686269 0.7686269 0.7686269
+d 1
+illum 2
+newmtl mat_22_23
+Kd 0.266666949 0.274509937 0.28627494
+d 1
+illum 2
+newmtl mat_23_24
+Kd 0 0 0
+d 1
+illum 2
+newmtl mat_24_25
+Kd 0 1 1
+d 1
+illum 2
+newmtl mat_25_26
+Kd 0.9686269 0.8784309 0.599999964
+d 1
+illum 2
+newmtl mat_26_27
+Kd 0.843136966 0.815685868 0.752940953
+d 1
+illum 2
+newmtl mat_27_28
+Kd 0.223528951 0.223528951 0.223528951
+d 1
+illum 2
+newmtl mat_30_29
+Kd 0.152940959 0.317646921 0
+d 1
+illum 2
+newmtl mat_31_30
+Kd 0.8509799 0.8509799 0.8509799
+d 1
+illum 2
+newmtl mat_32_31
+Kd 0 1 0
+d 1
+illum 2
+newmtl mat_33_32
+Kd 0.6666669 0.698039 0.7686269
+d 1
+illum 2
+newmtl mat_34_33
+Kd 0.007843 0.235293925 0.823528945
+d 1
+illum 2
+newmtl mat_29_34
+Kd 0.945098 0.713725 0
+d 1
+illum 2
+newmtl mat_28_35
+Kd 0.196077943 0.196077943 0.196077943
+d 1
+illum 2
+newmtl Default-Material_36
+Kd 1 1 1
+d 1
+illum 2
+newmtl Dark_37
+Kd 0.381091774 0.395881176 0.4100208
+d 1
+illum 2
+newmtl Metal_38
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Black_39
+Kd 0.171844035 0.171844035 0.171844035
+d 1
+illum 2
+newmtl White_40
+Kd 0.9452768 0.954687059 0.9639762
+d 1
+illum 2
+newmtl mat_0_41
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_1_42
+Kd 0.799999952 0.799999952 0.799999952
+d 1
+illum 2
+newmtl mat_2_43
+Kd 0.011 0.012 1
+d 1
+illum 2
+newmtl mat_0_44
+Kd 0.2593908 0.280206323 0.3058252
+d 1
+illum 2
+newmtl mat_1_45
+Kd 0.799999952 0.799999952 0.799999952
+d 1
+illum 2
+newmtl mat_2_46
+Kd 0.199999928 0.199999928 0.199999928
+d 1
+illum 2
+newmtl mat_3_47
+Kd 0.435294032 0.890196 0.8039215
+d 1
+illum 2
+newmtl mat_4_48
+Kd 1 0 0
+d 1
+illum 2
+newmtl mat_5_49
+Kd 1 1 0
+d 1
+illum 2
+newmtl mat_6_50
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_7_51
+Kd 0.869999945 0.919999957 0.919999957
+d 1
+illum 2
+newmtl mat_8_52
+Kd 0 1 0
+d 1
+illum 2
+newmtl Silver_53
+Kd 0.6799757 0.6799757 0.6799757
+d 1
+illum 2
+newmtl DarkMetal_54
+Kd 0.293371975 0.293371975 0.293371975
+d 1
+illum 2
+newmtl Glass_55
+Kd 0.205984086 0.322726041 0.340643376
+d 1
+illum 2
+newmtl Black_56
+Kd 0.171844035 0.171844035 0.171844035
+d 1
+illum 2
+newmtl VeryDark_57
+Kd 0.0610084981 0.08610416 0.08610416
+d 1
+illum 2
+newmtl Orange_58
+Kd 0.9776915 0.4613561 0.171844035
+d 1
+illum 2
+newmtl mat_2_59
+Kd 0.3764709 0.3764709 0.3764709
+d 1
+illum 2
+newmtl mat_0_60
+Kd 0.745097935 0.901960969 0.960784
+d 1
+illum 2
+newmtl mat_1_61
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_2_62
+Kd 0.3764709 0.3764709 0.3764709
+d 1
+illum 2

@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agribot.local/schema/vehicle-config-1.0.json",
+  "title": "Agribot vehicle configuration",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "vehicleId",
+    "displayName",
+    "vehicleType",
+    "coordinateConvention",
+    "baseFrame",
+    "geometry",
+    "navigation",
+    "chassis",
+    "sensors"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "vehicleId": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "displayName": {"type": "string", "minLength": 1},
+    "vehicleType": {"enum": ["ackermann", "differential", "tracked"]},
+    "coordinateConvention": {"const": "ROS_FLU"},
+    "baseFrame": {
+      "type": "object",
+      "required": ["frameId", "reference"],
+      "properties": {
+        "frameId": {"const": "base_link"},
+        "reference": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "geometry": {
+      "type": "object",
+      "required": [
+        "bodyExtents",
+        "wheelbaseM",
+        "frontTrackM",
+        "rearTrackM",
+        "wheelRadiusM",
+        "wheelWidthM",
+        "maxSteeringAngleRad",
+        "minTurningRadiusM",
+        "wheelCenters"
+      ],
+      "properties": {
+        "bodyExtents": {"$ref": "#/$defs/extents"},
+        "wheelbaseM": {"type": "number", "exclusiveMinimum": 0},
+        "frontTrackM": {"type": "number", "exclusiveMinimum": 0},
+        "rearTrackM": {"type": "number", "exclusiveMinimum": 0},
+        "wheelRadiusM": {"type": "number", "exclusiveMinimum": 0},
+        "wheelWidthM": {"type": "number", "exclusiveMinimum": 0},
+        "maxSteeringAngleRad": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1.2
+        },
+        "minTurningRadiusM": {"type": "number", "exclusiveMinimum": 0},
+        "wheelCenters": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"$ref": "#/$defs/wheel"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "navigation": {
+      "type": "object",
+      "required": [
+        "clearance",
+        "maxLinearSpeedMps",
+        "maxAngularSpeedRadps",
+        "allowReverse",
+        "inflationRadiusM",
+        "costScalingFactor"
+      ],
+      "properties": {
+        "clearance": {"$ref": "#/$defs/extents"},
+        "maxLinearSpeedMps": {"type": "number", "exclusiveMinimum": 0},
+        "maxAngularSpeedRadps": {"type": "number", "exclusiveMinimum": 0},
+        "allowReverse": {"type": "boolean"},
+        "inflationRadiusM": {"type": "number", "minimum": 0},
+        "costScalingFactor": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "chassis": {
+      "type": "object",
+      "required": [
+        "commandMaxLinearSpeedMps",
+        "commandMaxAngularSpeedRadps",
+        "minimumMotionSpeedMps"
+      ],
+      "properties": {
+        "commandMaxLinearSpeedMps": {"type": "number", "exclusiveMinimum": 0},
+        "commandMaxAngularSpeedRadps": {"type": "number", "exclusiveMinimum": 0},
+        "minimumMotionSpeedMps": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "dynamics": {
+      "type": "object",
+      "properties": {
+        "massKg": {"type": "number", "exclusiveMinimum": 0},
+        "centerOfMass": {"$ref": "#/$defs/vector3"},
+        "inertia": {"$ref": "#/$defs/inertia"},
+        "maxAccelerationMps2": {"type": "number", "exclusiveMinimum": 0},
+        "maxSteeringRateRadps": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "collision": {
+      "type": "object",
+      "properties": {
+        "center": {"$ref": "#/$defs/vector3"},
+        "size": {"$ref": "#/$defs/vector3"}
+      },
+      "additionalProperties": false
+    },
+    "visuals": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/visual"}
+    },
+    "sensors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/sensor"}
+    },
+    "metadata": {"type": "object"}
+  },
+  "$defs": {
+    "vector3": {
+      "type": "array",
+      "items": {"type": "number"},
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "quaternion": {
+      "type": "array",
+      "items": {"type": "number"},
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "pose": {
+      "type": "object",
+      "required": ["xyz", "quaternion", "rpy"],
+      "properties": {
+        "xyz": {"$ref": "#/$defs/vector3"},
+        "quaternion": {"$ref": "#/$defs/quaternion"},
+        "rpy": {"$ref": "#/$defs/vector3"}
+      },
+      "additionalProperties": false
+    },
+    "extents": {
+      "type": "object",
+      "required": ["frontM", "rearM", "leftM", "rightM"],
+      "properties": {
+        "frontM": {"type": "number", "minimum": 0},
+        "rearM": {"type": "number", "minimum": 0},
+        "leftM": {"type": "number", "minimum": 0},
+        "rightM": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "wheel": {
+      "type": "object",
+      "required": ["id", "position", "steering", "driven"],
+      "properties": {
+        "id": {
+          "enum": ["front_left", "front_right", "rear_left", "rear_right"]
+        },
+        "position": {"$ref": "#/$defs/vector3"},
+        "steering": {"type": "boolean"},
+        "driven": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "sensor": {
+      "type": "object",
+      "required": [
+        "id",
+        "sensorType",
+        "model",
+        "parentFrameId",
+        "frameId",
+        "pose"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "sensorType": {
+          "enum": ["imu", "lidar", "camera", "gnss_antenna"]
+        },
+        "model": {"type": "string", "minLength": 1},
+        "role": {"type": "string"},
+        "parentFrameId": {"type": "string", "minLength": 1},
+        "frameId": {"type": "string", "minLength": 1},
+        "pose": {"$ref": "#/$defs/pose"},
+        "measurementFrameId": {"type": "string"},
+        "measurementFramePose": {
+          "oneOf": [
+            {"$ref": "#/$defs/pose"},
+            {"type": "null"}
+          ]
+        },
+        "topic": {"type": "string"},
+        "updateRateHz": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "inertia": {
+      "type": "object",
+      "required": ["ixx", "ixy", "ixz", "iyy", "iyz", "izz"],
+      "properties": {
+        "ixx": {"type": "number", "minimum": 0},
+        "ixy": {"type": "number"},
+        "ixz": {"type": "number"},
+        "iyy": {"type": "number", "minimum": 0},
+        "iyz": {"type": "number"},
+        "izz": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "visual": {
+      "type": "object",
+      "required": ["name", "meshUri", "pose"],
+      "properties": {
+        "name": {"type": "string"},
+        "meshUri": {"type": "string"},
+        "pose": {"$ref": "#/$defs/pose"},
+        "scale": {"$ref": "#/$defs/vector3"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

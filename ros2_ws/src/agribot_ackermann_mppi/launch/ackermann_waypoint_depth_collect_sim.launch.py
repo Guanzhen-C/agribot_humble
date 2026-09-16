@@ -2,6 +2,7 @@ import copy
 import os
 import tempfile
 import xml.etree.ElementTree as ET
+from typing import List
 
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
@@ -206,6 +207,7 @@ def generate_launch_description():
         for path in [
             os.path.join(get_package_prefix("agribot_ackermann_mppi"), "lib"),
             os.path.join(get_package_prefix("velodyne_gazebo_plugins"), "lib"),
+            os.path.join(get_package_prefix("gazebo_plugins"), "lib"),
             os.environ.get("GAZEBO_PLUGIN_PATH", ""),
         ]
         if path
@@ -222,7 +224,7 @@ def generate_launch_description():
     )
 
     robot_description = ParameterValue(
-        Command([xacro_exec, " ", description_file]),
+        Command([xacro_exec, " ", LaunchConfiguration("robot_description_file")]),
         value_type=str,
     )
 
@@ -493,6 +495,9 @@ def generate_launch_description():
             DeclareLaunchArgument("robot_name", default_value="agribot_ackermann"),
             DeclareLaunchArgument("robot_namespace", default_value="/"),
             DeclareLaunchArgument(
+                "robot_description_file", default_value=description_file
+            ),
+            DeclareLaunchArgument(
                 "gazebo_spawn_file", default_value=localized_gazebo_spawn_file
             ),
             DeclareLaunchArgument(
@@ -643,6 +648,21 @@ def generate_launch_description():
             DeclareLaunchArgument("navsat_reference_lat", default_value="30.5"),
             DeclareLaunchArgument("navsat_reference_lon", default_value="114.0"),
             DeclareLaunchArgument("navsat_reference_alt", default_value="20.0"),
+            DeclareLaunchArgument("sim_base_to_antenna_x", default_value="0.1425"),
+            DeclareLaunchArgument("sim_base_to_antenna_y", default_value="0.2952585"),
+            DeclareLaunchArgument("sim_base_to_antenna_z", default_value="0.78476"),
+            DeclareLaunchArgument("fastlio_base_to_body_x", default_value="0.1425"),
+            DeclareLaunchArgument("fastlio_base_to_body_y", default_value="0.0"),
+            DeclareLaunchArgument("fastlio_base_to_body_z", default_value="0.143"),
+            DeclareLaunchArgument(
+                "fastlio_base_to_body_roll", default_value="0.000572424"
+            ),
+            DeclareLaunchArgument(
+                "fastlio_base_to_body_pitch", default_value="-0.009139547"
+            ),
+            DeclareLaunchArgument(
+                "fastlio_base_to_body_yaw", default_value="-0.000002616"
+            ),
             DeclareLaunchArgument("spawn_orchard_geometry", default_value="false"),
             SetEnvironmentVariable("GAZEBO_IP", LaunchConfiguration("gazebo_ip")),
             SetEnvironmentVariable("GAZEBO_MODEL_PATH", gazebo_model_path),
@@ -718,7 +738,18 @@ def generate_launch_description():
                         "origin_y": LaunchConfiguration("initial_pose_y"),
                         "origin_z": LaunchConfiguration("initial_pose_z"),
                         "origin_yaw": LaunchConfiguration("initial_pose_yaw"),
-                        "base_to_antenna_m": [0.1425, 0.2952585, 0.78476],
+                        "base_to_antenna_m": ParameterValue(
+                            [
+                                "[",
+                                LaunchConfiguration("sim_base_to_antenna_x"),
+                                ", ",
+                                LaunchConfiguration("sim_base_to_antenna_y"),
+                                ", ",
+                                LaunchConfiguration("sim_base_to_antenna_z"),
+                                "]",
+                            ],
+                            value_type=List[float],
+                        ),
                         "fix_rate_hz": 10.0,
                         "heading_rate_hz": 1.0,
                         "fix_covariance_xy": 0.0009,
@@ -870,12 +901,24 @@ def generate_launch_description():
                             "fastlio_stamp_with_current_time": "false",
                             "fastlio_publish_tf": "true",
                             "imu_frame_bridge_enabled": "false",
-                            "fastlio_base_to_body_x": "0.1425",
-                            "fastlio_base_to_body_y": "0.0",
-                            "fastlio_base_to_body_z": "0.143",
-                            "fastlio_base_to_body_roll": "0.000572424",
-                            "fastlio_base_to_body_pitch": "-0.009139547",
-                            "fastlio_base_to_body_yaw": "-0.000002616",
+                            "fastlio_base_to_body_x": LaunchConfiguration(
+                                "fastlio_base_to_body_x"
+                            ),
+                            "fastlio_base_to_body_y": LaunchConfiguration(
+                                "fastlio_base_to_body_y"
+                            ),
+                            "fastlio_base_to_body_z": LaunchConfiguration(
+                                "fastlio_base_to_body_z"
+                            ),
+                            "fastlio_base_to_body_roll": LaunchConfiguration(
+                                "fastlio_base_to_body_roll"
+                            ),
+                            "fastlio_base_to_body_pitch": LaunchConfiguration(
+                                "fastlio_base_to_body_pitch"
+                            ),
+                            "fastlio_base_to_body_yaw": LaunchConfiguration(
+                                "fastlio_base_to_body_yaw"
+                            ),
                         }.items(),
                     )
                 ],
