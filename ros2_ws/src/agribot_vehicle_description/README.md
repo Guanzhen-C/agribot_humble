@@ -27,6 +27,26 @@ AgriculturalCar_Interior/ConfigExports/ackermann_current/
   vehicle_visual.mtl
 ```
 
+On the 218 simulation workstation, the Game export button also starts
+`scripts/unity_sync_and_simulate.sh`. The script validates and imports this
+bundle, performs an incremental build, stops only the previous simulation it
+started, and launches the configured Gazebo/RViz entry point. The default ROS
+domain is isolated from physical vehicles (`ROS_DOMAIN_ID=37` and
+`ROS_LOCALHOST_ONLY=1`).
+
+The default paths can be overridden before starting Unity:
+
+```bash
+export AGRIBOT_ROS_WORKSPACE=/home/cgz/agribot_ws/ros2_ws
+export AGRIBOT_ROS_SYNC_SCRIPT=/home/cgz/agribot_ws/ros2_ws/src/agribot_vehicle_description/scripts/unity_sync_and_simulate.sh
+```
+
+Stop the Unity-managed simulation without touching other ROS processes:
+
+```bash
+src/agribot_vehicle_description/scripts/unity_sync_and_simulate.sh --stop
+```
+
 ## 2. Import into ROS
 
 Copy that directory to the ROS machine, then run from `ros2_ws`:
