@@ -78,6 +78,8 @@ done
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agribot-unity-sim"
 PID_FILE="$STATE_DIR/simulation.pid"
+SID_FILE="$STATE_DIR/simulation.sid"
+BOOT_ID_FILE="$STATE_DIR/simulation.boot_id"
 LOCK_FILE="$STATE_DIR/sync.lock"
 STATUS_FILE="$STATE_DIR/status"
 LOG_FILE="$STATE_DIR/latest.log"
@@ -93,36 +95,81 @@ set_status() {
   printf '%s\n' "$1" >"$STATUS_FILE"
 }
 
-managed_process_is_running() {
-  [[ -s "$PID_FILE" ]] || return 1
-  local pid command
-  pid="$(cat "$PID_FILE")"
-  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  kill -0 "$pid" 2>/dev/null || return 1
-  command="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
-  [[ "$command" == *"configured_ackermann_sim.launch.py"* ]]
+current_boot_id() {
+  cat /proc/sys/kernel/random/boot_id
+}
+
+managed_session_pids() {
+  local sid="$1"
+  ps -eo pid=,sid= | awk -v target="$sid" '$2 == target { print $1 }'
+}
+
+managed_session_is_running() {
+  [[ -s "$SID_FILE" && -s "$BOOT_ID_FILE" ]] || return 1
+  local sid stored_boot_id
+  sid="$(cat "$SID_FILE")"
+  stored_boot_id="$(cat "$BOOT_ID_FILE")"
+  [[ "$sid" =~ ^[0-9]+$ ]] || return 1
+  [[ "$stored_boot_id" == "$(current_boot_id)" ]] || return 1
+  [[ -n "$(managed_session_pids "$sid")" ]]
+}
+
+signal_managed_session() {
+  local sid="$1"
+  local signal="$2"
+  local -a pids=()
+  mapfile -t pids < <(managed_session_pids "$sid")
+  ((${#pids[@]} > 0)) || return 0
+  kill -s "$signal" -- "${pids[@]}" 2>/dev/null || true
+}
+
+remove_managed_state() {
+  rm -f "$PID_FILE" "$SID_FILE" "$BOOT_ID_FILE"
+}
+
+terminate_managed_session() {
+  local sid="$1"
+  local quiet="${2:-false}"
+
+  if [[ -z "$(managed_session_pids "$sid")" ]]; then
+    return 0
+  fi
+
+  [[ "$quiet" == "true" ]] || log "正在停止上一轮 Unity 受管仿真（会话 $sid）..."
+  signal_managed_session "$sid" INT
+  for _ in {1..50}; do
+    [[ -z "$(managed_session_pids "$sid")" ]] && return 0
+    sleep 0.2
+  done
+
+  [[ "$quiet" == "true" ]] || log "上一轮仿真仍有子进程，发送 TERM。"
+  signal_managed_session "$sid" TERM
+  for _ in {1..25}; do
+    [[ -z "$(managed_session_pids "$sid")" ]] && return 0
+    sleep 0.2
+  done
+
+  [[ "$quiet" == "true" ]] || log "上一轮仿真仍未退出，发送 KILL。"
+  signal_managed_session "$sid" KILL
+  for _ in {1..10}; do
+    [[ -z "$(managed_session_pids "$sid")" ]] && return 0
+    sleep 0.1
+  done
+
+  return 1
 }
 
 stop_managed_simulation() {
-  if ! managed_process_is_running; then
-    rm -f "$PID_FILE"
+  if ! managed_session_is_running; then
+    remove_managed_state
     log "没有正在运行的 Unity 受管仿真。"
     return 0
   fi
 
-  local pid
-  pid="$(cat "$PID_FILE")"
-  log "正在停止上一轮 Unity 受管仿真（PID $pid）..."
-  kill -INT -- "-$pid" 2>/dev/null || kill -INT "$pid" 2>/dev/null || true
-  for _ in {1..50}; do
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.2
-  done
-  if kill -0 "$pid" 2>/dev/null; then
-    log "上一轮仿真未及时退出，发送 TERM。"
-    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-  fi
-  rm -f "$PID_FILE"
+  local sid
+  sid="$(cat "$SID_FILE")"
+  terminate_managed_session "$sid"
+  remove_managed_state
 }
 
 exec 9>"$LOCK_FILE"
@@ -203,8 +250,6 @@ fi
 
 # The old simulation is stopped only after validation and build succeed.
 stop_managed_simulation
-flock -u 9
-exec 9>&-
 
 export ROS_DOMAIN_ID="${AGRIBOT_SIM_ROS_DOMAIN_ID:-37}"
 export ROS_LOCALHOST_ONLY="${AGRIBOT_SIM_ROS_LOCALHOST_ONLY:-1}"
@@ -218,21 +263,45 @@ setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.p
   rviz:="$RVIZ" \
   run_waypoints:="$RUN_WAYPOINTS" &
 SIM_PID=$!
+SIM_SID=""
+for _ in {1..20}; do
+  SIM_SID="$(ps -o sid= -p "$SIM_PID" 2>/dev/null | tr -d '[:space:]')"
+  [[ "$SIM_SID" =~ ^[0-9]+$ ]] && break
+  sleep 0.05
+done
+if [[ ! "$SIM_SID" =~ ^[0-9]+$ ]]; then
+  log "ERROR: 无法读取仿真会话 ID。"
+  kill -TERM "$SIM_PID" 2>/dev/null || true
+  wait "$SIM_PID" 2>/dev/null || true
+  set_status "failed: no simulation session"
+  exit 5
+fi
 printf '%s\n' "$SIM_PID" >"$PID_FILE"
+printf '%s\n' "$SIM_SID" >"$SID_FILE"
+current_boot_id >"$BOOT_ID_FILE"
 set_status "running: $SIM_PID"
-log "仿真已启动（PID $SIM_PID）。再次从 Unity 导出时会自动切换到新配置。"
+log "仿真已启动（PID $SIM_PID，会话 $SIM_SID）。再次从 Unity 导出时会自动切换到新配置。"
+flock -u 9
+exec 9>&-
 
-cleanup_pid_file() {
-  if [[ -s "$PID_FILE" && "$(cat "$PID_FILE")" == "$SIM_PID" ]]; then
-    rm -f "$PID_FILE"
+cleanup_managed_session() {
+  exec 8>"$LOCK_FILE"
+  flock 8
+  if [[ -s "$SID_FILE" && "$(cat "$SID_FILE")" == "$SIM_SID" ]]; then
+    terminate_managed_session "$SIM_SID" true || true
+    if [[ -s "$SID_FILE" && "$(cat "$SID_FILE")" == "$SIM_SID" ]]; then
+      remove_managed_state
+    fi
   fi
+  flock -u 8
+  exec 8>&-
 }
 
 forward_signal() {
-  kill -INT -- "-$SIM_PID" 2>/dev/null || true
+  signal_managed_session "$SIM_SID" INT
 }
 
-trap cleanup_pid_file EXIT
+trap cleanup_managed_session EXIT
 trap forward_signal HUP INT TERM
 set +e
 wait "$SIM_PID"
