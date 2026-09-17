@@ -201,6 +201,7 @@ GENERATED_OUTPUT="$DESCRIPTION_SOURCE/generated/ackermann_current"
 
 for required in \
   /opt/ros/humble/setup.bash \
+  /usr/bin/cmake \
   "$CONFIG_JSON" \
   "$CONFIG_MESH" \
   "$TOOLS_SOURCE/agribot_vehicle_config_tools/cli.py" \
@@ -230,10 +231,21 @@ PYTHONPATH="$TOOLS_SOURCE${PYTHONPATH:+:$PYTHONPATH}" \
     --output "$GENERATED_OUTPUT"
 
 log "增量编译车辆配置工具和描述包..."
+export PATH="/usr/bin:/bin:$PATH"
+hash -r
+log "编译使用 CMake：$(command -v cmake)"
+set +e
 colcon build \
   --symlink-install \
   --parallel-workers "${AGRIBOT_BUILD_WORKERS:-4}" \
   --packages-select agribot_vehicle_config_tools agribot_vehicle_description
+BUILD_RESULT=$?
+set -e
+if ((BUILD_RESULT != 0)); then
+  set_status "failed: colcon build ($BUILD_RESULT)"
+  log "ERROR: ROS 增量编译失败（状态 $BUILD_RESULT）。"
+  exit "$BUILD_RESULT"
+fi
 
 set +u
 source "$WORKSPACE/install/setup.bash"
