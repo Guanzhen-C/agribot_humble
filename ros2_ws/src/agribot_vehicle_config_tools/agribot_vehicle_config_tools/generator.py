@@ -360,6 +360,19 @@ def generate_simulation_sdf(
                 config["visuals"][0]["meshUri"],
             )
 
+        # The Unity OBJ is the complete configured vehicle, including its
+        # wheels and sensor housings. Keep the physical wheel links and sensor
+        # elements below, but remove their legacy visuals to avoid rendering
+        # both the old placeholder model and the Unity vehicle.
+        for visual in list(base.findall("visual")):
+            if visual is not body_visual:
+                base.remove(visual)
+        for wheel_id in _wheel_map(config):
+            wheel_link = model.find(f"./link[@name='{wheel_id}_wheel_link']")
+            if wheel_link is not None:
+                for visual in list(wheel_link.findall("visual")):
+                    wheel_link.remove(visual)
+
     wheel_map = _wheel_map(config)
     for wheel_id, wheel in wheel_map.items():
         pose = f"{_sequence(wheel['position'])} 0 0 0"
@@ -542,11 +555,19 @@ def generate_urdf(config: dict[str, Any]) -> str:
         )
 
     sensor_blocks = []
+    integrated_visual = any(
+        visual.get("meshUri", "").endswith("/vehicle_visual.obj")
+        for visual in config.get("visuals", [])
+    )
     for sensor in config["sensors"]:
         pose = sensor["pose"]
+        sensor_visual = (
+            ""
+            if integrated_visual
+            else f"\n    <visual>{_sensor_visual(sensor)}</visual>"
+        )
         sensor_blocks.append(
-            f"""  <link name="{escape(sensor['frameId'])}">
-    <visual>{_sensor_visual(sensor)}</visual>
+            f"""  <link name="{escape(sensor['frameId'])}">{sensor_visual}
   </link>
   <joint name="{escape(sensor['id'])}_mount_joint" type="fixed">
     <origin xyz="{_sequence(pose['xyz'])}" rpy="{_sequence(pose['rpy'])}"/>
@@ -582,9 +603,16 @@ def generate_urdf(config: dict[str, Any]) -> str:
             origin = [0.0, 0.0, 0.0]
         else:
             origin = wheel["position"]
+        wheel_visual = ""
+        if not integrated_visual:
+            wheel_visual = (
+                f'\n    <visual><origin rpy="1.570796326795 0 0"/>'
+                f'<geometry><cylinder radius="{_number(geometry["wheelRadiusM"])}" '
+                f'length="{_number(geometry["wheelWidthM"])}"/></geometry></visual>'
+            )
         wheel_blocks.append(
             f"""  <link name="{wheel_id}_wheel_link">
-    <visual><origin rpy="1.570796326795 0 0"/><geometry><cylinder radius="{_number(geometry['wheelRadiusM'])}" length="{_number(geometry['wheelWidthM'])}"/></geometry></visual>
+{wheel_visual}
     <collision><origin rpy="1.570796326795 0 0"/><geometry><cylinder radius="{_number(geometry['wheelRadiusM'])}" length="{_number(geometry['wheelWidthM'])}"/></geometry></collision>
   </link>
   <joint name="{wheel_id}_wheel_joint" type="continuous">

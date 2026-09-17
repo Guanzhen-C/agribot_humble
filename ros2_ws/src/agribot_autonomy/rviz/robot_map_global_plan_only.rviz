@@ -210,7 +210,7 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/PoseWithCovariance
       Name: PoseWithCovariance
-      Enabled: true
+      Enabled: false
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -226,7 +226,7 @@ Visualization Manager:
       Head Radius: 0.1
       Shaft Length: 1
       Shaft Radius: 0.05
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

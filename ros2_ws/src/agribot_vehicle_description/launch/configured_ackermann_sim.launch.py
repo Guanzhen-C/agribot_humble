@@ -2,6 +2,7 @@ import os
 import platform
 import tempfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import yaml
 from ament_index_python.packages import get_package_share_directory
@@ -9,6 +10,35 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+
+
+def _write_gazebo_vehicle_model(source_file):
+    """Resolve ROS package mesh URIs before Gazebo Classic sees the SDF."""
+    target_file = os.path.join(
+        tempfile.gettempdir(), "configured_ackermann_vehicle.generated.sdf"
+    )
+    model_tree = ET.parse(source_file)
+    for uri in model_tree.getroot().iter("uri"):
+        value = (uri.text or "").strip()
+        for prefix in ("package://", "model://"):
+            if not value.startswith(prefix):
+                continue
+            package_path = value[len(prefix) :]
+            package_name, separator, relative_path = package_path.partition("/")
+            if not separator:
+                break
+            try:
+                share = get_package_share_directory(package_name)
+            except LookupError:
+                break
+            candidate = os.path.join(share, relative_path)
+            if os.path.isfile(candidate):
+                uri.text = Path(candidate).resolve().as_uri()
+            break
+
+    ET.indent(model_tree, space="  ")
+    model_tree.write(target_file, encoding="unicode", xml_declaration=False)
+    return target_file
 
 
 def _write_jetson_world(source_file):
@@ -64,6 +94,9 @@ def generate_launch_description():
     navigation_share = get_package_share_directory("scout_navigation")
     gazebo_share = get_package_share_directory("scout_gazebo")
     generated = os.path.join(description_share, "generated", "ackermann_current")
+    vehicle_model = _write_gazebo_vehicle_model(
+        os.path.join(generated, "models", "ackermann_current.sdf")
+    )
     base_to_body_xyz, base_to_body_rpy, base_to_antenna_xyz = _generated_mounts(
         generated
     )
@@ -108,9 +141,7 @@ def generate_launch_description():
                     "map_file_location": LaunchConfiguration("map_file_location"),
                     "map_file": LaunchConfiguration("map_file"),
                     "world": world_file,
-                    "gazebo_spawn_file": os.path.join(
-                        generated, "models", "ackermann_current.sdf"
-                    ),
+                    "gazebo_spawn_file": vehicle_model,
                     "robot_description_file": os.path.join(
                         generated,
                         "urdf",

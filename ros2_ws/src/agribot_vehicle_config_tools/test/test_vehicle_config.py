@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from agribot_vehicle_config_tools.generator import generate_bundle
+from agribot_vehicle_config_tools.generator import (
+    generate_bundle,
+    generate_simulation_sdf,
+    generate_urdf,
+)
 from agribot_vehicle_config_tools.model import (
     ConfigError,
     fastlivo_extrinsics,
@@ -155,6 +159,30 @@ def test_generated_runtime_bundle_uses_tuned_templates(tmp_path):
             "stvl_layer"
         ]["lidar_mark"]
         assert marking["min_obstacle_height"] == pytest.approx(lidar_z + 0.02)
+
+
+def test_integrated_unity_visual_replaces_placeholder_visuals(tmp_path):
+    config = _load()
+    unity_export = tmp_path / "unity_export"
+    unity_export.mkdir()
+    (unity_export / "vehicle_visual.obj").write_text("# test\n", encoding="utf-8")
+
+    urdf = ET.fromstring(generate_urdf(config))
+    assert (
+        urdf.find("./link[@name='base_link']/visual[@name='vehicle_body']")
+        is not None
+    )
+    assert urdf.find("./link[@name='imu_link']/visual") is None
+    assert urdf.find("./link[@name='front_left_wheel_link']/visual") is None
+    assert urdf.find("./link[@name='front_left_wheel_link']/collision") is not None
+
+    sdf = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, unity_export))
+    base = sdf.find("./model/link[@name='base_link']")
+    assert [visual.get("name") for visual in base.findall("visual")] == [
+        "vehicle_body_visual"
+    ]
+    assert sdf.find(".//link[@name='front_left_wheel_link']/visual") is None
+    assert sdf.find(".//link[@name='front_left_wheel_link']/collision") is not None
 
 
 def test_current_ackermann_runtime_verifier_covers_expected_surface():
