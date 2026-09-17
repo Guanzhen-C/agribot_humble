@@ -71,6 +71,12 @@ The generated physical files retain the existing tuned MPPI, Smac,
 FAST-LIVO2 and synchronization settings. Only geometry, motion limits and
 sensor-derived transforms are replaced.
 
+The original high-detail OBJ remains in the Unity export directory. During
+ROS import, the body and four wheels are converted to material-preserving
+visual LOD meshes using 20 mm and 10 mm clustering grids respectively. Only
+Gazebo/RViz visuals are reduced; collision primitives, joint axes, wheel
+centres and sensor transforms continue to use the exact exported values.
+
 Compare an export with the currently validated production configuration:
 
 ```bash

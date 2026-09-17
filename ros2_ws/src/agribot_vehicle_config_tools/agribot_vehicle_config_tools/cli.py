@@ -55,6 +55,20 @@ def _print_warnings(warnings: list[str]) -> None:
         print(f"WARNING: {warning}", file=sys.stderr)
 
 
+def _print_visual_lod(manifest: dict) -> None:
+    visual_lod = manifest.get("visualLod")
+    if not visual_lod:
+        return
+    records = [visual_lod["body"], *visual_lod["wheels"].values()]
+    input_faces = sum(record["inputFaces"] for record in records)
+    output_faces = sum(record["outputFaces"] for record in records)
+    reduction = 100.0 * (1.0 - output_faces / input_faces)
+    print(
+        f"LOD: {input_faces} -> {output_faces} visual faces "
+        f"({reduction:.1f}% reduction)"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     input_path = (
@@ -84,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             f"OK: generated {len(manifest['files'])} files in {args.output} "
             f"for {config['vehicleId']}"
         )
+        _print_visual_lod(manifest)
         return 0
 
 
@@ -103,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             f"OK: imported {config['vehicleId']} and generated "
             f"{len(manifest['files'])} files in {args.output}"
         )
+        _print_visual_lod(manifest)
         return 0
 
     results = verify_current(config, args.workspace_src)

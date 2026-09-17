@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from agribot_vehicle_config_tools.generator import (
+    _simplify_obj_vertex_clusters,
     _split_integrated_visual_obj,
     generate_bundle,
     generate_simulation_sdf,
@@ -248,6 +249,38 @@ def test_unity_obj_is_split_into_body_and_joint_local_wheels(tmp_path):
             minimum = min(vertex[axis] for vertex in vertices)
             maximum = max(vertex[axis] for vertex in vertices)
             assert minimum + maximum == pytest.approx(0.0)
+
+
+def test_obj_visual_lod_reduces_faces_and_preserves_material(tmp_path):
+    mesh = tmp_path / "dense.obj"
+    lines = ["mtllib vehicle_visual.mtl\n", "o panel\n", "usemtl blue\n"]
+    grid_size = 6
+    for y in range(grid_size):
+        for x in range(grid_size):
+            lines.append(f"v {x * 0.004} {y * 0.004} 0\n")
+    lines.extend("vn 0 0 1\n" for _ in range(grid_size * grid_size))
+    input_faces = 0
+    for y in range(grid_size - 1):
+        for x in range(grid_size - 1):
+            first = y * grid_size + x + 1
+            right = first + 1
+            upper = first + grid_size
+            upper_right = upper + 1
+            lines.append(f"f {first}//{first} {right}//{right} {upper}//{upper}\n")
+            lines.append(
+                f"f {right}//{right} {upper_right}//{upper_right} {upper}//{upper}\n"
+            )
+            input_faces += 2
+    mesh.write_text("".join(lines), encoding="utf-8")
+
+    stats = _simplify_obj_vertex_clusters(mesh, grid_size_m=0.01)
+    simplified = mesh.read_text(encoding="utf-8")
+
+    assert 0 < stats["outputFaces"] < input_faces
+    assert stats["outputVertices"] < grid_size * grid_size
+    assert "mtllib vehicle_visual.mtl" in simplified
+    assert "usemtl blue" in simplified
+    assert simplified.count("\nf ") == stats["outputFaces"]
 
 
 def test_current_ackermann_runtime_verifier_covers_expected_surface():

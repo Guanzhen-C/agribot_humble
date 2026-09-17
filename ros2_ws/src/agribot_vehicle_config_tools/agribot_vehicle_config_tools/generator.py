@@ -24,6 +24,9 @@ UNITY_WHEEL_OBJECTS = {
     "RLwheel": "rear_left",
     "RRwheel": "rear_right",
 }
+SIMULATION_BODY_LOD_GRID_M = 0.020
+SIMULATION_WHEEL_LOD_GRID_M = 0.010
+SIMULATION_LOD_NORMAL_BINS = 4
 
 
 def _number(value: float) -> str:
@@ -213,6 +216,162 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
                 f"objects={seen[wheel_id]}, faces={face_counts[wheel_id]}"
             )
     body_temporary.replace(body_target)
+
+
+def _obj_index(value: str, item_count: int) -> int:
+    """Resolve a positive or negative OBJ index to a zero-based index."""
+    numeric = int(value)
+    if numeric == 0:
+        raise ValueError("OBJ indices cannot be zero")
+    resolved = numeric - 1 if numeric > 0 else item_count + numeric
+    if resolved < 0 or resolved >= item_count:
+        raise ValueError(f"OBJ index is out of range: {value}")
+    return resolved
+
+
+def _simplify_obj_vertex_clusters(
+    source: Path,
+    grid_size_m: float,
+    normal_bins: int = SIMULATION_LOD_NORMAL_BINS,
+) -> dict[str, int]:
+    """Build a deterministic visual LOD while retaining flat OBJ materials.
+
+    Unity's CAD-oriented model contains many nearly coincident vertices. The
+    simulation does not need those sub-millimetre details, so vertices with a
+    similar position and normal are clustered per material. Degenerate and
+    duplicate triangles created by clustering are removed. This changes only
+    visual meshes; collision geometry, wheel joints and sensor frames remain
+    generated from the canonical vehicle configuration.
+    """
+    if grid_size_m <= 0.0:
+        raise ValueError("OBJ LOD grid size must be positive")
+    if normal_bins <= 0:
+        raise ValueError("OBJ LOD normal bin count must be positive")
+
+    vertices: list[tuple[float, float, float]] = []
+    normals: list[tuple[float, float, float]] = []
+    faces: list[tuple[str, str, int, int, int]] = []
+    cluster_lookup: dict[tuple[Any, ...], int] = {}
+    vertex_lookup: dict[tuple[int, int, str], int] = {}
+    position_sums: list[list[float]] = []
+    normal_sums: list[list[float]] = []
+    cluster_counts: list[int] = []
+    seen_faces: set[tuple[Any, ...]] = set()
+    object_name = "lod_visual"
+    material_name = ""
+    material_library = "vehicle_visual.mtl"
+    input_face_count = 0
+
+    def clustered_vertex(token: str) -> int:
+        parts = token.split("/")
+        vertex_index = _obj_index(parts[0], len(vertices))
+        normal_index = vertex_index
+        if len(parts) > 2 and parts[2]:
+            normal_index = _obj_index(parts[2], len(normals))
+        cache_key = (vertex_index, normal_index, material_name)
+        existing = vertex_lookup.get(cache_key)
+        if existing is not None:
+            return existing
+
+        position = vertices[vertex_index]
+        normal = (
+            normals[normal_index]
+            if normal_index < len(normals)
+            else (0.0, 0.0, 1.0)
+        )
+        cluster_key = (
+            material_name,
+            *(round(value / grid_size_m) for value in position),
+            *(round(value * normal_bins) for value in normal),
+        )
+        cluster_index = cluster_lookup.get(cluster_key)
+        if cluster_index is None:
+            cluster_index = len(position_sums)
+            cluster_lookup[cluster_key] = cluster_index
+            position_sums.append(list(position))
+            normal_sums.append(list(normal))
+            cluster_counts.append(1)
+        else:
+            for axis in range(3):
+                position_sums[cluster_index][axis] += position[axis]
+                normal_sums[cluster_index][axis] += normal[axis]
+            cluster_counts[cluster_index] += 1
+        vertex_lookup[cache_key] = cluster_index
+        return cluster_index
+
+    with source.open(encoding="utf-8", errors="strict") as stream:
+        for line in stream:
+            if line.startswith("mtllib "):
+                material_library = line[7:].strip()
+            elif line.startswith("o "):
+                object_name = line[2:].strip() or "lod_visual"
+            elif line.startswith("usemtl "):
+                material_name = line[7:].strip()
+            elif line.startswith("v "):
+                values = tuple(float(value) for value in line.split()[1:4])
+                vertices.append(values)
+            elif line.startswith("vn "):
+                values = tuple(float(value) for value in line.split()[1:4])
+                normals.append(values)
+            elif line.startswith("f "):
+                tokens = line.split()[1:]
+                if len(tokens) < 3:
+                    continue
+                input_face_count += len(tokens) - 2
+                mapped = [clustered_vertex(token) for token in tokens]
+                for index in range(1, len(mapped) - 1):
+                    triangle = (mapped[0], mapped[index], mapped[index + 1])
+                    if len(set(triangle)) < 3:
+                        continue
+                    signature = (material_name, *sorted(triangle))
+                    if signature in seen_faces:
+                        continue
+                    seen_faces.add(signature)
+                    faces.append((object_name, material_name, *triangle))
+
+    if not faces:
+        raise ValueError(f"OBJ LOD simplification removed every face: {source}")
+
+    temporary = source.with_name(f".{source.name}.lod.tmp")
+    with temporary.open("w", encoding="utf-8") as output:
+        output.write("# Visual LOD generated for Gazebo and RViz\n")
+        output.write(f"mtllib {material_library}\n")
+        for position, count in zip(position_sums, cluster_counts):
+            output.write(
+                "v "
+                + " ".join(_number(value / count) for value in position)
+                + "\n"
+            )
+        for normal in normal_sums:
+            length = math.sqrt(sum(value * value for value in normal)) or 1.0
+            output.write(
+                "vn "
+                + " ".join(_number(value / length) for value in normal)
+                + "\n"
+            )
+
+        previous_object = None
+        previous_material = None
+        for current_object, current_material, first, second, third in faces:
+            if current_object != previous_object:
+                output.write(f"o {current_object}\n")
+                previous_object = current_object
+                previous_material = None
+            if current_material and current_material != previous_material:
+                output.write(f"usemtl {current_material}\n")
+                previous_material = current_material
+            output.write(
+                f"f {first + 1}//{first + 1} "
+                f"{second + 1}//{second + 1} "
+                f"{third + 1}//{third + 1}\n"
+            )
+    temporary.replace(source)
+    return {
+        "inputVertices": len(vertices),
+        "outputVertices": len(position_sums),
+        "inputFaces": input_face_count,
+        "outputFaces": len(faces),
+    }
 
 
 def generate_sensor_mounts(config: dict[str, Any]) -> dict[str, Any]:
@@ -952,8 +1111,24 @@ def generate_bundle(
 
     unity_export_dir = source.parent
     unity_obj = unity_export_dir / "vehicle_visual.obj"
+    visual_lod = None
     if unity_obj.is_file():
         _split_integrated_visual_obj(unity_obj, models_dir)
+        visual_lod = {
+            "method": "material_aware_vertex_clustering",
+            "bodyGridM": SIMULATION_BODY_LOD_GRID_M,
+            "wheelGridM": SIMULATION_WHEEL_LOD_GRID_M,
+            "body": _simplify_obj_vertex_clusters(
+                models_dir / "vehicle_visual.obj",
+                SIMULATION_BODY_LOD_GRID_M,
+            ),
+            "wheels": {},
+        }
+        for wheel_id in UNITY_WHEEL_OBJECTS.values():
+            visual_lod["wheels"][wheel_id] = _simplify_obj_vertex_clusters(
+                models_dir / _wheel_visual_filename(wheel_id),
+                SIMULATION_WHEEL_LOD_GRID_M,
+            )
     unity_mtl = unity_export_dir / "vehicle_visual.mtl"
     if unity_mtl.is_file():
         shutil.copy2(unity_mtl, models_dir / unity_mtl.name)
@@ -971,6 +1146,7 @@ def generate_bundle(
         "generator": "agribot_vehicle_config_tools 0.1.0",
         "coordinateConvention": "ROS_FLU",
         "runtimeTemplatesApplied": workspace_src is not None,
+        "visualLod": visual_lod,
         "files": [
             {
                 "path": str(path.relative_to(output)),
