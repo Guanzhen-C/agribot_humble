@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from agribot_vehicle_config_tools.generator import (
+    _split_integrated_visual_obj,
     generate_bundle,
     generate_simulation_sdf,
     generate_urdf,
@@ -173,7 +174,11 @@ def test_integrated_unity_visual_replaces_placeholder_visuals(tmp_path):
         is not None
     )
     assert urdf.find("./link[@name='imu_link']/visual") is None
-    assert urdf.find("./link[@name='front_left_wheel_link']/visual") is None
+    wheel_mesh = urdf.find(
+        "./link[@name='front_left_wheel_link']/visual/geometry/mesh"
+    )
+    assert wheel_mesh is not None
+    assert wheel_mesh.get("filename").endswith("/front_left_wheel_visual.obj")
     assert urdf.find("./link[@name='front_left_wheel_link']/collision") is not None
 
     sdf = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, unity_export))
@@ -181,8 +186,65 @@ def test_integrated_unity_visual_replaces_placeholder_visuals(tmp_path):
     assert [visual.get("name") for visual in base.findall("visual")] == [
         "vehicle_body_visual"
     ]
-    assert sdf.find(".//link[@name='front_left_wheel_link']/visual") is None
+    wheel_uri = sdf.find(
+        ".//link[@name='front_left_wheel_link']/visual/geometry/mesh/uri"
+    )
+    assert wheel_uri is not None
+    assert wheel_uri.text.endswith("/front_left_wheel_visual.obj")
     assert sdf.find(".//link[@name='front_left_wheel_link']/collision") is not None
+
+
+def test_unity_obj_is_split_into_body_and_joint_local_wheels(tmp_path):
+    source = tmp_path / "unity" / "vehicle_visual.obj"
+    source.parent.mkdir()
+    lines = ["# test\n", "mtllib vehicle_visual.mtl\n"]
+    objects = [
+        ("body", (0.0, 0.0, 0.0)),
+        ("FLwheel", (1.0, 2.0, 3.0)),
+        ("FRwheel", (1.0, -2.0, 3.0)),
+        ("RLwheel", (-1.0, 2.0, 3.0)),
+        ("RRwheel", (-1.0, -2.0, 3.0)),
+    ]
+    vertex_index = 1
+    for name, center in objects:
+        lines.append(f"o {name}\n")
+        for offset in ((-0.1, -0.2, -0.3), (0.1, -0.2, 0.3), (0.1, 0.2, -0.3)):
+            lines.append(
+                "v "
+                + " ".join(str(value + delta) for value, delta in zip(center, offset))
+                + "\n"
+            )
+        lines.extend(("vt 0 0\n", "vt 1 0\n", "vt 1 1\n"))
+        lines.extend(("vn 0 1 0\n",) * 3)
+        lines.append("usemtl test_material\n")
+        lines.append(
+            f"f {vertex_index}/{vertex_index}/{vertex_index} "
+            f"{vertex_index + 1}/{vertex_index + 1}/{vertex_index + 1} "
+            f"{vertex_index + 2}/{vertex_index + 2}/{vertex_index + 2}\n"
+        )
+        vertex_index += 3
+    source.write_text("".join(lines), encoding="utf-8")
+
+    output = tmp_path / "models"
+    _split_integrated_visual_obj(source, output)
+
+    body = (output / "vehicle_visual.obj").read_text(encoding="utf-8")
+    assert body.count("\nf ") == 1
+    for wheel_id in ("front_left", "front_right", "rear_left", "rear_right"):
+        wheel = (output / f"{wheel_id}_wheel_visual.obj").read_text(
+            encoding="utf-8"
+        )
+        assert wheel.count("\nf ") == 1
+        assert "f 1/1/1 2/2/2 3/3/3" in wheel
+        vertices = [
+            [float(value) for value in line.split()[1:4]]
+            for line in wheel.splitlines()
+            if line.startswith("v ")
+        ]
+        for axis in range(3):
+            minimum = min(vertex[axis] for vertex in vertices)
+            maximum = max(vertex[axis] for vertex in vertices)
+            assert minimum + maximum == pytest.approx(0.0)
 
 
 def test_current_ackermann_runtime_verifier_covers_expected_surface():
