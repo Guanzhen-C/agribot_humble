@@ -6,7 +6,7 @@ WORKSPACE="${AGRIBOT_ROS_WORKSPACE:-$HOME/agribot_ws/ros2_ws}"
 EXPORT_DIR=""
 GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
-RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-false}"
+RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-true}"
 PREPARE_ONLY=false
 STOP_ONLY=false
 
@@ -20,7 +20,7 @@ Options:
   --workspace PATH       ROS 2 workspace (default: ~/agribot_ws/ros2_ws)
   --gui true|false       Open Gazebo GUI (default: true)
   --rviz true|false      Open RViz (default: true)
-  --run-waypoints BOOL   Run configured waypoints (default: false)
+  --run-waypoints BOOL   Run the preset orchard route (default: true)
   --prepare-only         Import and build without restarting simulation
   --stop                 Stop the simulation managed by this script
   -h, --help             Show this help

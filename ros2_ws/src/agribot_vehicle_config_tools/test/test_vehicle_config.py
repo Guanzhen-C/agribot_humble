@@ -152,6 +152,9 @@ def test_generated_runtime_bundle_uses_tuned_templates(tmp_path):
     simulated_nav = yaml.safe_load(
         (output / "config/simulation/nav2_params_ackermann_fastlio_static.yaml").read_text()
     )
+    assert simulated_nav["planner_server"]["ros__parameters"]["GridBased"][
+        "max_planning_time"
+    ] == pytest.approx(20.0)
     lidar_z = next(
         sensor for sensor in config["sensors"] if sensor["id"] == "lidar"
     )["pose"]["xyz"][2]

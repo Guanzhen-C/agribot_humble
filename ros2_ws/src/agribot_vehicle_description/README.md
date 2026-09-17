@@ -34,6 +34,11 @@ started, and launches the configured Gazebo/RViz entry point. The default ROS
 domain is isolated from physical vehicles (`ROS_DOMAIN_ID=37` and
 `ROS_LOCALHOST_ONLY=1`).
 
+The simulation automatically loads the validated 23-point orchard route,
+preplans one continuous Smac path through every point, and starts MPPI only
+after that path has been verified. Set `AGRIBOT_SIM_RUN_WAYPOINTS=false` only
+when an interactive RViz goal test is explicitly required.
+
 The default paths can be overridden before starting Unity:
 
 ```bash
@@ -85,7 +90,7 @@ extrinsics. It does not alter the legacy simulation entry points.
 colcon build --symlink-install --packages-up-to agribot_vehicle_description
 source install/setup.bash
 ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
-  gui:=false rviz:=true run_waypoints:=false
+  gui:=false rviz:=true
 ```
 
 Validate TF, sensor topics, steering, wheel motion, footprint and planned path

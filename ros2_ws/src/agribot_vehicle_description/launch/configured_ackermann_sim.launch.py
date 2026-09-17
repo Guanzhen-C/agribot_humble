@@ -110,7 +110,8 @@ def generate_launch_description():
             DeclareLaunchArgument("gui", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("headless", default_value="false"),
-            DeclareLaunchArgument("run_waypoints", default_value="false"),
+            DeclareLaunchArgument("run_waypoints", default_value="true"),
+            DeclareLaunchArgument("waypoint_startup_delay", default_value="1.0"),
             DeclareLaunchArgument("navigation_delay", default_value="22.0"),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument("use_static_map", default_value="true"),
@@ -134,6 +135,15 @@ def generate_launch_description():
                     "headless": LaunchConfiguration("headless"),
                     "gazebo_render_workaround": "true" if is_jetson else "false",
                     "run_waypoints": LaunchConfiguration("run_waypoints"),
+                    "waypoint_navigation_mode": "plan_then_follow_path",
+                    "waypoint_startup_delay": LaunchConfiguration(
+                        "waypoint_startup_delay"
+                    ),
+                    "waypoint_file": os.path.join(
+                        simulation_share,
+                        "config",
+                        "orchard_waypoints_ackermann_smac.yaml",
+                    ),
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "localization_mode": LaunchConfiguration("localization_mode"),
                     "use_static_map": LaunchConfiguration("use_static_map"),

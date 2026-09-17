@@ -363,6 +363,15 @@ def _patch_simulation_nav2(
 ) -> dict[str, Any]:
     """Apply vehicle geometry and reject Gazebo returns on the lidar plane."""
     template = _patch_nav2(template, config)
+    planner = template.get("planner_server", {}).get("ros__parameters", {}).get(
+        "GridBased"
+    )
+    if planner is not None:
+        # The configured simulation preplans all mandatory orchard waypoints in
+        # one Smac request. Retain the validated long-route planning budget.
+        planner["max_planning_time"] = max(
+            float(planner.get("max_planning_time", 0.0)), 20.0
+        )
     lidar_z = effective_sensor_pose(_sensor_map(config)["lidar"])["xyz"][2]
     min_obstacle_height = lidar_z + 0.02
 
