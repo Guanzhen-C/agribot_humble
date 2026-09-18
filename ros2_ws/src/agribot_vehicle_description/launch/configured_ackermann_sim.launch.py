@@ -13,7 +13,15 @@ from launch.substitutions import LaunchConfiguration
 
 
 def _write_gazebo_vehicle_model(source_file):
-    """Resolve ROS package mesh URIs before Gazebo Classic sees the SDF."""
+    """Prepare the generated vehicle for real-time Gazebo Classic sensing.
+
+    The canonical Unity export keeps the physical C16 and camera resolution.
+    Gazebo Classic's CPU ray sensor cannot sustain that load together with
+    FAST-LIVO2 and both Nav2 costmaps.  The validated long-route simulation
+    uses fewer azimuth samples and renders the same half-resolution image that
+    FAST-LIVO2 would otherwise create internally.  Sensor poses, rates and all
+    physical configuration files remain unchanged.
+    """
     target_file = os.path.join(
         tempfile.gettempdir(), "configured_ackermann_vehicle.generated.sdf"
     )
@@ -36,8 +44,58 @@ def _write_gazebo_vehicle_model(source_file):
                 uri.text = Path(candidate).resolve().as_uri()
             break
 
+    lidar = model_tree.getroot().find(".//sensor[@name='lslidar_c16_points']")
+    if lidar is None:
+        raise RuntimeError(f"Generated vehicle has no C16 sensor: {source_file}")
+    lidar_values = {
+        "./ray/scan/horizontal/samples": "720",
+        "./ray/range/max": "25.0",
+        "./plugin/max_range": "25.0",
+    }
+    for query, value in lidar_values.items():
+        element = lidar.find(query)
+        if element is None:
+            raise RuntimeError(f"Generated C16 is missing {query}: {source_file}")
+        element.text = value
+
+    camera = model_tree.getroot().find(
+        ".//sensor[@name='hikrobot_right_camera']"
+    )
+    if camera is None:
+        raise RuntimeError(f"Generated vehicle has no Hikrobot camera: {source_file}")
+    camera_values = {
+        "./camera/image/width": "640",
+        "./camera/image/height": "512",
+        "./plugin/camera_info_url": (
+            "package://agribot_ackermann_mppi/config/"
+            "hikrobot_camera_640_sim.yaml"
+        ),
+    }
+    for query, value in camera_values.items():
+        element = camera.find(query)
+        if element is None:
+            raise RuntimeError(f"Generated camera is missing {query}: {source_file}")
+        element.text = value
+
     ET.indent(model_tree, space="  ")
     model_tree.write(target_file, encoding="unicode", xml_declaration=False)
+    return target_file
+
+
+def _write_fastlivo_sim_config(source_file):
+    """Apply the orchard profile without changing calibrated extrinsics."""
+    target_file = os.path.join(
+        tempfile.gettempdir(), "configured_ackermann_fastlivo.generated.yaml"
+    )
+    with open(source_file, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream)
+
+    parameters = config["/**"]["ros__parameters"]
+    parameters["lio"]["voxel_size"] = 1.0
+    parameters["vio"]["img_point_cov"] = 800
+    parameters["time_offset"]["img_time_offset"] = 0.0
+    with open(target_file, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
     return target_file
 
 
@@ -99,6 +157,14 @@ def generate_launch_description():
     )
     base_to_body_xyz, base_to_body_rpy, base_to_antenna_xyz = _generated_mounts(
         generated
+    )
+    fastlivo_sim_config = _write_fastlivo_sim_config(
+        os.path.join(
+            generated,
+            "config",
+            "physical",
+            "agribot_c16_astra.yaml",
+        )
     )
     is_jetson = platform.machine() in ("aarch64", "arm64")
     world_file = os.path.join(gazebo_share, "worlds", "orchard_barriers.world")
@@ -169,11 +235,11 @@ def generate_launch_description():
                         "simulation",
                         "nav2_params_ackermann_fastlio_static.yaml",
                     ),
-                    "fastlivo_lidar_config_file": os.path.join(
-                        generated,
+                    "fastlivo_lidar_config_file": fastlivo_sim_config,
+                    "fastlivo_camera_config_file": os.path.join(
+                        simulation_share,
                         "config",
-                        "physical",
-                        "agribot_c16_astra.yaml",
+                        "fastlivo_hikrobot_640_sim.yaml",
                     ),
                     "fastlivo_bridge_config_file": os.path.join(
                         generated,
