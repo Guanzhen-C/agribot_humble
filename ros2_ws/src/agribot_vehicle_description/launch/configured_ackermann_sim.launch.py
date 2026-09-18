@@ -249,7 +249,12 @@ def generate_launch_description():
             DeclareLaunchArgument("headless", default_value="false"),
             DeclareLaunchArgument("run_waypoints", default_value="true"),
             DeclareLaunchArgument("waypoint_startup_delay", default_value="1.0"),
-            DeclareLaunchArgument("navigation_delay", default_value="22.0"),
+            # Start the readiness gate early. The gate still blocks Nav2 until
+            # localization has produced a real map-frame pose.
+            DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            # Let localization and Nav2 complete their CPU-heavy startup before
+            # RViz begins subscribing to point clouds, images and costmaps.
+            DeclareLaunchArgument("rviz_start_delay", default_value="16.0"),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument(
                 "controller_mode", default_value="mppi", choices=["mppi", "rpp"]
@@ -279,6 +284,7 @@ def generate_launch_description():
                     "waypoint_startup_delay": LaunchConfiguration(
                         "waypoint_startup_delay"
                     ),
+                    "rviz_start_delay": LaunchConfiguration("rviz_start_delay"),
                     "waypoint_file": os.path.join(
                         simulation_share,
                         "config",
