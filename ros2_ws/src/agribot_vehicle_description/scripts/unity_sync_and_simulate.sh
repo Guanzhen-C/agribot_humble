@@ -336,7 +336,7 @@ setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.p
   rviz:="$RVIZ" \
   run_waypoints:="$RUN_WAYPOINTS" \
   localization_mode:="$LOCALIZATION_MODE" \
-  controller_mode:="$CONTROLLER_MODE" &
+  controller_mode:="$CONTROLLER_MODE" 9>&- &
 SIM_PID=$!
 SIM_SID=""
 for _ in {1..20}; do
