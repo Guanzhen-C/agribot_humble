@@ -572,7 +572,7 @@ class SnakeWaypointRunner(Node):
                     break
             if matched_index is None:
                 self.get_logger().error(
-                    f"Smac path does not contain key waypoint "
+                    f"Global path does not contain key waypoint "
                     f"{waypoint_index}/{len(waypoints)} within "
                     f"{self.preplan_waypoint_tolerance:.2f} m; vehicle remains stopped"
                 )
@@ -599,7 +599,7 @@ class SnakeWaypointRunner(Node):
         self._publish_key_waypoints(self.key_waypoints)
 
         self.get_logger().info(
-            f"Preplanning one continuous Smac path through all "
+            f"Preplanning one continuous global path through all "
             f"{len(self.preplan_waypoints)} remaining key waypoints; vehicle remains stopped"
         )
         future = self.planner_client.send_goal_async(
@@ -659,7 +659,9 @@ class SnakeWaypointRunner(Node):
 
         path = wrapped_result.result.path
         if len(path.poses) < 2:
-            self.get_logger().error("Smac returned an empty path; vehicle remains stopped")
+            self.get_logger().error(
+                "Global planner returned an empty path; vehicle remains stopped"
+            )
             self._schedule_preplan_retry()
             return
         waypoint_path_indices = self._preplanned_path_waypoint_indices(
@@ -677,7 +679,7 @@ class SnakeWaypointRunner(Node):
         duration = wrapped_result.result.planning_time
         planning_seconds = duration.sec + duration.nanosec / 1e9
         self.get_logger().info(
-            f"Smac preplan ready: {len(path.poses)} poses, "
+            f"Global preplan ready: {len(path.poses)} poses, "
             f"all {len(self.preplan_waypoints)} remaining key waypoints verified in order, "
             f"planning time {planning_seconds:.3f} s"
         )
@@ -694,14 +696,16 @@ class SnakeWaypointRunner(Node):
             self.destroy_timer(self.preplan_dispatch_timer)
             self.preplan_dispatch_timer = None
         if self.preplanned_path is None:
-            self.get_logger().error("No verified Smac path to execute; vehicle remains stopped")
+            self.get_logger().error(
+                "No verified global path to execute; vehicle remains stopped"
+            )
             return
 
         goal = FollowPath.Goal()
         goal.path = self.preplanned_path
         goal.controller_id = self.controller_id
         self.get_logger().info(
-            "Complete Smac path is visible and verified; dispatching it to MPPI"
+            "Complete global path is visible and verified; dispatching it to the selected controller"
         )
         future = self.path_client.send_goal_async(goal)
         future.add_done_callback(self._on_path_goal_response)
@@ -721,7 +725,7 @@ class SnakeWaypointRunner(Node):
         self._publish_key_waypoints(self.key_waypoints)
 
         self.get_logger().info(
-            f"Sending {len(self.key_waypoints)} key waypoints to Smac through "
+            f"Sending {len(self.key_waypoints)} key waypoints through "
             f"{self.through_poses_action_name}; final goal "
             f"({final_goal['x']:.2f}, {final_goal['y']:.2f})"
         )
@@ -761,7 +765,7 @@ class SnakeWaypointRunner(Node):
             if self.through_poses_retry_timer is not None:
                 self.destroy_timer(self.through_poses_retry_timer)
                 self.through_poses_retry_timer = None
-            self.get_logger().info("Smac through-poses route completed successfully")
+            self.get_logger().info("Through-poses route completed successfully")
             return
         if status == GoalStatus.STATUS_CANCELED:
             return
