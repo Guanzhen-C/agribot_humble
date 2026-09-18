@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+from collections import deque
 import math
 from pathlib import Path
+import time
 
 import rclpy
 import yaml
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Pose, PoseArray, PoseStamped, PoseWithCovarianceStamped
+from lifecycle_msgs.msg import State
+from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import (
     ComputePathThroughPoses,
     FollowPath,
@@ -21,6 +25,17 @@ from rclpy.qos import DurabilityPolicy, QoSProfile
 
 def normalize_angle(angle: float) -> float:
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def poses_are_stable(samples, position_tolerance: float, yaw_tolerance: float) -> bool:
+    if not samples:
+        return False
+    reference_x, reference_y, reference_yaw = samples[-1]
+    return all(
+        math.hypot(x - reference_x, y - reference_y) <= position_tolerance
+        and abs(normalize_angle(yaw - reference_yaw)) <= yaw_tolerance
+        for x, y, yaw in samples
+    )
 
 
 def load_waypoints(path: str):
@@ -195,6 +210,48 @@ class SnakeWaypointRunner(Node):
         self.preplan_retry_delay = float(
             self.declare_parameter("preplan_retry_delay", 0.5).value
         )
+        self.readiness_gate_enabled = bool(
+            self.declare_parameter("readiness_gate_enabled", False).value
+        )
+        self.readiness_pose_samples_required = max(
+            1, int(self.declare_parameter("readiness_pose_samples", 1).value)
+        )
+        self.readiness_position_tolerance = max(
+            0.0,
+            float(self.declare_parameter("readiness_position_tolerance", 0.05).value),
+        )
+        self.readiness_yaw_tolerance = max(
+            0.0,
+            float(self.declare_parameter("readiness_yaw_tolerance", 0.03).value),
+        )
+        self.readiness_settle_time = max(
+            0.0, float(self.declare_parameter("readiness_settle_time", 0.0).value)
+        )
+        lifecycle_services = {
+            "planner_server": self.declare_parameter(
+                "planner_lifecycle_service", "/planner_server/get_state"
+            ).value,
+            "controller_server": self.declare_parameter(
+                "controller_lifecycle_service", "/controller_server/get_state"
+            ).value,
+            "global_costmap": self.declare_parameter(
+                "costmap_lifecycle_service",
+                "/global_costmap/global_costmap/get_state",
+            ).value,
+        }
+        self.lifecycle_clients = {}
+        self.lifecycle_futures = {}
+        self.lifecycle_active = {}
+        if self.readiness_gate_enabled:
+            for name, service_name in lifecycle_services.items():
+                self.lifecycle_clients[name] = self.create_client(GetState, service_name)
+                self.lifecycle_futures[name] = None
+                self.lifecycle_active[name] = False
+        self.lifecycle_ready_since = None
+        self.readiness_pose_samples = deque(
+            maxlen=self.readiness_pose_samples_required
+        )
+        self._last_readiness_reason = ""
         self._last_wait_log_time = 0.0
 
         latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -254,7 +311,89 @@ class SnakeWaypointRunner(Node):
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),
         )
         self.pose_received = True
+        if all(
+            math.isfinite(value)
+            for value in (self.robot_x, self.robot_y, self.robot_yaw)
+        ):
+            self.readiness_pose_samples.append(
+                (self.robot_x, self.robot_y, self.robot_yaw)
+            )
         self._update_preplanned_progress()
+
+    def _poll_lifecycle_states(self) -> None:
+        for name, client in self.lifecycle_clients.items():
+            if (
+                self.lifecycle_active[name]
+                or self.lifecycle_futures[name] is not None
+            ):
+                continue
+            if not client.service_is_ready():
+                continue
+            future = client.call_async(GetState.Request())
+            self.lifecycle_futures[name] = future
+            future.add_done_callback(
+                lambda completed, lifecycle_name=name: self._on_lifecycle_state(
+                    lifecycle_name, completed
+                )
+            )
+
+    def _on_lifecycle_state(self, name: str, future) -> None:
+        self.lifecycle_futures[name] = None
+        try:
+            response = future.result()
+        except Exception as exc:
+            self.get_logger().warn(
+                f"Failed to query {name} lifecycle state: {exc}"
+            )
+            return
+        self.lifecycle_active[name] = (
+            response.current_state.id == State.PRIMARY_STATE_ACTIVE
+        )
+
+    def _readiness_wait_reason(self):
+        if self.require_pose_before_start and not self.pose_received:
+            return "waiting for the first /amcl_pose"
+        if not self.readiness_gate_enabled:
+            return None
+
+        self._poll_lifecycle_states()
+        inactive = [
+            name for name, active in self.lifecycle_active.items() if not active
+        ]
+        if inactive:
+            self.lifecycle_ready_since = None
+            return f"waiting for active lifecycle nodes: {', '.join(inactive)}"
+
+        if self.lifecycle_ready_since is None:
+            self.lifecycle_ready_since = time.monotonic()
+            self.readiness_pose_samples.clear()
+            return (
+                "lifecycle nodes are active; waiting for post-activation "
+                "costmap updates"
+            )
+
+        settle_remaining = self.readiness_settle_time - (
+            time.monotonic() - self.lifecycle_ready_since
+        )
+        if settle_remaining > 0.0:
+            return (
+                "waiting for post-activation costmap updates "
+                f"({settle_remaining:.1f} s remaining)"
+            )
+
+        if len(self.readiness_pose_samples) < self.readiness_pose_samples_required:
+            return (
+                "waiting for stable localization samples "
+                f"({len(self.readiness_pose_samples)}/"
+                f"{self.readiness_pose_samples_required})"
+            )
+        if not poses_are_stable(
+            self.readiness_pose_samples,
+            self.readiness_position_tolerance,
+            self.readiness_yaw_tolerance,
+        ):
+            return "waiting for localization pose to become stable"
+        return None
 
     def _update_preplanned_progress(self) -> None:
         """Track progress monotonically so retries keep every unvisited waypoint."""
@@ -964,13 +1103,25 @@ class SnakeWaypointRunner(Node):
         if self.ran:
             return
 
-        if self.require_pose_before_start and not self.pose_received:
-            now_sec = self.get_clock().now().nanoseconds / 1e9
-            if now_sec - self._last_wait_log_time >= 5.0:
-                self.get_logger().info("Waiting for /amcl_pose before dispatching waypoints")
+        readiness_wait_reason = self._readiness_wait_reason()
+        if readiness_wait_reason is not None:
+            now_sec = time.monotonic()
+            if (
+                readiness_wait_reason != self._last_readiness_reason
+                or now_sec - self._last_wait_log_time >= 5.0
+            ):
+                self.get_logger().info(
+                    f"Navigation readiness gate: {readiness_wait_reason}"
+                )
+                self._last_readiness_reason = readiness_wait_reason
                 self._last_wait_log_time = now_sec
             return
 
+        if self.readiness_gate_enabled:
+            self.get_logger().info(
+                "Navigation readiness gate passed: localization is stable; "
+                "planner, controller and global costmap are active"
+            )
         self.ran = True
         self.destroy_timer(self.timer)
 

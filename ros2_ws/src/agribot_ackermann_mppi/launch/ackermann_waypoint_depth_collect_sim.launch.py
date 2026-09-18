@@ -511,6 +511,9 @@ def generate_launch_description():
                 "waypoint_navigation_mode", default_value="follow_path"
             ),
             DeclareLaunchArgument("waypoint_startup_delay", default_value="24.0"),
+            DeclareLaunchArgument(
+                "waypoint_readiness_gate_enabled", default_value="false"
+            ),
             DeclareLaunchArgument("robot_spawn_delay", default_value="3.0"),
             DeclareLaunchArgument("rviz_start_delay", default_value="5.0"),
             DeclareLaunchArgument("headless", default_value="false"),
@@ -1035,6 +1038,16 @@ def generate_launch_description():
                         "initial_pose_y": LaunchConfiguration("initial_pose_y"),
                         "initial_pose_yaw": LaunchConfiguration("initial_pose_yaw"),
                         "require_pose_before_start": True,
+                        "readiness_gate_enabled": ParameterValue(
+                            LaunchConfiguration("waypoint_readiness_gate_enabled"),
+                            value_type=bool,
+                        ),
+                        "readiness_pose_samples": 5,
+                        "readiness_position_tolerance": 0.05,
+                        "readiness_yaw_tolerance": 0.03,
+                        # The global costmap updates at 2 Hz. Waiting 1.5 s
+                        # after activation guarantees at least three update cycles.
+                        "readiness_settle_time": 1.5,
                     }
                 ],
                 condition=IfCondition(LaunchConfiguration("run_waypoints")),

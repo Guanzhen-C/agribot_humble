@@ -284,6 +284,7 @@ def generate_launch_description():
                     "waypoint_startup_delay": LaunchConfiguration(
                         "waypoint_startup_delay"
                     ),
+                    "waypoint_readiness_gate_enabled": "true",
                     "rviz_start_delay": LaunchConfiguration("rviz_start_delay"),
                     "waypoint_file": os.path.join(
                         simulation_share,
