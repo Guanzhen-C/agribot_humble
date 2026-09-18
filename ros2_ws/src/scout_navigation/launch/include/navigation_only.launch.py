@@ -2,7 +2,12 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, SetRemap
 from nav2_common.launch import RewrittenYaml
@@ -16,6 +21,9 @@ def generate_launch_description():
     default_nav_to_pose_bt_xml = LaunchConfiguration("default_nav_to_pose_bt_xml")
     default_nav_through_poses_bt_xml = LaunchConfiguration(
         "default_nav_through_poses_bt_xml"
+    )
+    lifecycle_manager_start_delay = LaunchConfiguration(
+        "lifecycle_manager_start_delay"
     )
     odom_topic = LaunchConfiguration("odom_topic")
     configured_params = RewrittenYaml(
@@ -43,6 +51,9 @@ def generate_launch_description():
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("odom_topic", default_value="/odom"),
             DeclareLaunchArgument("map_topic", default_value="/map"),
+            DeclareLaunchArgument(
+                "lifecycle_manager_start_delay", default_value="2.0"
+            ),
             DeclareLaunchArgument(
                 "params_file",
                 default_value=os.path.join(
@@ -109,23 +120,28 @@ def generate_launch_description():
                         remappings=nav2_remappings,
                         parameters=[configured_params],
                     ),
-                    Node(
-                        package="nav2_lifecycle_manager",
-                        executable="lifecycle_manager",
-                        name="lifecycle_manager_navigation",
-                        output="screen",
-                        parameters=[
-                            {"use_sim_time": use_sim_time},
-                            {"autostart": autostart},
-                            {
-                                "node_names": [
-                                    "controller_server",
-                                    "planner_server",
-                                    "behavior_server",
-                                    "bt_navigator",
-                                    "waypoint_follower",
-                                ]
-                            },
+                    TimerAction(
+                        period=lifecycle_manager_start_delay,
+                        actions=[
+                            Node(
+                                package="nav2_lifecycle_manager",
+                                executable="lifecycle_manager",
+                                name="lifecycle_manager_navigation",
+                                output="screen",
+                                parameters=[
+                                    {"use_sim_time": use_sim_time},
+                                    {"autostart": autostart},
+                                    {
+                                        "node_names": [
+                                            "controller_server",
+                                            "planner_server",
+                                            "behavior_server",
+                                            "bt_navigator",
+                                            "waypoint_follower",
+                                        ]
+                                    },
+                                ],
+                            )
                         ],
                     ),
                 ]
