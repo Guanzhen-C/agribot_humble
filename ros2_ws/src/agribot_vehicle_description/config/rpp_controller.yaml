@@ -1,0 +1,31 @@
+# Regulated Pure Pursuit controller overlay for Unity-configured Ackermann simulation.
+# Vehicle speed and minimum turning radius are filled from the generated MPPI
+# configuration at launch time so both controllers use the same Unity geometry.
+goal_checker:
+  plugin: nav2_controller::PositionGoalChecker
+  xy_goal_tolerance: 0.25
+  stateful: false
+
+FollowPath:
+  plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+  desired_linear_vel: 0.30
+  lookahead_dist: 0.80
+  min_lookahead_dist: 0.50
+  max_lookahead_dist: 1.20
+  lookahead_time: 2.0
+  rotate_to_heading_angular_vel: 0.23
+  transform_tolerance: 0.8
+  use_velocity_scaled_lookahead_dist: true
+  min_approach_linear_velocity: 0.05
+  use_collision_detection: true
+  max_allowed_time_to_collision_up_to_carrot: 1.5
+  use_regulated_linear_velocity_scaling: true
+  use_cost_regulated_linear_velocity_scaling: true
+  regulated_linear_scaling_min_radius: 1.30
+  regulated_linear_scaling_min_speed: 0.05
+  use_rotate_to_heading: false
+  rotate_to_heading_min_angle: 0.785
+  max_angular_accel: 0.35
+  cost_scaling_dist: 0.50
+  cost_scaling_gain: 1.0
+  inflation_cost_scaling_factor: 1.0

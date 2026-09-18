@@ -35,15 +35,40 @@ domain is isolated from physical vehicles (`ROS_DOMAIN_ID=37` and
 `ROS_LOCALHOST_ONLY=1`).
 
 The simulation automatically loads the validated 23-point orchard route,
-preplans one continuous Smac path through every point, and starts MPPI only
-after that path has been verified. Set `AGRIBOT_SIM_RUN_WAYPOINTS=false` only
-when an interactive RViz goal test is explicitly required.
+preplans one continuous Smac path through every point, and starts the selected
+controller only after that path has been verified. Set
+`AGRIBOT_SIM_RUN_WAYPOINTS=false` only when an interactive RViz goal test is
+explicitly required.
+
+Before export, the Unity interface presents the validated algorithm library.
+The selected profile is passed as one immutable ID to the ROS launcher:
+
+| Profile ID | Localization | Planner | Controller |
+| --- | --- | --- | --- |
+| `fastlivo_rtk_mppi` | FAST-LIVO2 + fixed RTK | Smac Hybrid-A* | MPPI |
+| `fastlio_mppi` | FAST-LIO2 | Smac Hybrid-A* | MPPI |
+| `navsat_mppi` | NavSat ESKF | Smac Hybrid-A* | MPPI |
+| `fastlio_rpp` | FAST-LIO2 | Smac Hybrid-A* | Regulated Pure Pursuit |
+| `navsat_rpp` | NavSat ESKF | Smac Hybrid-A* | Regulated Pure Pursuit |
+
+`fastlivo_rtk_mppi` remains the default. RPP configurations are derived at
+launch time from the same Unity-generated footprint, speed and minimum turning
+radius as MPPI, so selecting a controller never falls back to stale geometry.
 
 The default paths can be overridden before starting Unity:
 
 ```bash
 export AGRIBOT_ROS_WORKSPACE=/home/cgz/agribot_ws/ros2_ws
 export AGRIBOT_ROS_SYNC_SCRIPT=/home/cgz/agribot_ws/ros2_ws/src/agribot_vehicle_description/scripts/unity_sync_and_simulate.sh
+```
+
+List or select the same profiles from a terminal:
+
+```bash
+src/agribot_vehicle_description/scripts/unity_sync_and_simulate.sh --list-algorithms
+src/agribot_vehicle_description/scripts/unity_sync_and_simulate.sh \
+  --export-dir /path/to/ackermann_current \
+  --algorithm fastlio_rpp
 ```
 
 Stop the Unity-managed simulation without touching other ROS processes:

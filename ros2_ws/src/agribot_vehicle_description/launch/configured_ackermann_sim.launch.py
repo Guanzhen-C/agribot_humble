@@ -1,3 +1,4 @@
+import copy
 import os
 import platform
 import tempfile
@@ -9,7 +10,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 
 
 def _write_gazebo_vehicle_model(source_file):
@@ -99,6 +100,57 @@ def _write_fastlivo_sim_config(source_file):
     return target_file
 
 
+def _write_rpp_nav2_config(source_file, controller_overlay_file, profile_name):
+    """Replace only the controller plugin while retaining generated geometry."""
+    target_file = os.path.join(
+        tempfile.gettempdir(), f"configured_ackermann_{profile_name}_rpp.generated.yaml"
+    )
+    with open(source_file, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream)
+    with open(controller_overlay_file, encoding="utf-8") as stream:
+        overlay = yaml.safe_load(stream)
+
+    controller = config["controller_server"]["ros__parameters"]
+    mppi = controller["FollowPath"]
+    rpp = copy.deepcopy(overlay["FollowPath"])
+    rpp["desired_linear_vel"] = float(mppi["vx_max"])
+    rpp["rotate_to_heading_angular_vel"] = float(mppi["wz_max"])
+    rpp["max_angular_accel"] = float(mppi["az_max"])
+    rpp["regulated_linear_scaling_min_radius"] = float(
+        mppi["AckermannConstraints"]["min_turning_r"]
+    )
+    inflation = (
+        config.get("global_costmap", {})
+        .get("global_costmap", {})
+        .get("ros__parameters", {})
+        .get("inflation_layer", {})
+    )
+    if "cost_scaling_factor" in inflation:
+        rpp["inflation_cost_scaling_factor"] = float(
+            inflation["cost_scaling_factor"]
+        )
+
+    controller["goal_checker"] = copy.deepcopy(overlay["goal_checker"])
+    controller["FollowPath"] = rpp
+    with open(target_file, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
+    return target_file
+
+
+def _controller_config(mppi_file, rpp_file):
+    return PythonExpression(
+        [
+            "'",
+            rpp_file,
+            "' if '",
+            LaunchConfiguration("controller_mode"),
+            "' == 'rpp' else '",
+            mppi_file,
+            "'",
+        ]
+    )
+
+
 def _write_jetson_world(source_file):
     target_file = os.path.join(
         tempfile.gettempdir(), "configured_ackermann_jetson.generated.world"
@@ -166,6 +218,25 @@ def generate_launch_description():
             "agribot_c16_astra.yaml",
         )
     )
+    navsat_mppi_config = os.path.join(
+        generated,
+        "config",
+        "simulation",
+        "nav2_params_ackermann_navsat_static.yaml",
+    )
+    fastlio_mppi_config = os.path.join(
+        generated,
+        "config",
+        "simulation",
+        "nav2_params_ackermann_fastlio_static.yaml",
+    )
+    controller_overlay = os.path.join(description_share, "config", "rpp_controller.yaml")
+    navsat_rpp_config = _write_rpp_nav2_config(
+        navsat_mppi_config, controller_overlay, "navsat"
+    )
+    fastlio_rpp_config = _write_rpp_nav2_config(
+        fastlio_mppi_config, controller_overlay, "fastlio"
+    )
     is_jetson = platform.machine() in ("aarch64", "arm64")
     world_file = os.path.join(gazebo_share, "worlds", "orchard_barriers.world")
     if is_jetson:
@@ -180,6 +251,9 @@ def generate_launch_description():
             DeclareLaunchArgument("waypoint_startup_delay", default_value="1.0"),
             DeclareLaunchArgument("navigation_delay", default_value="22.0"),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
+            DeclareLaunchArgument(
+                "controller_mode", default_value="mppi", choices=["mppi", "rpp"]
+            ),
             DeclareLaunchArgument("use_static_map", default_value="true"),
             DeclareLaunchArgument("enable_slam_map", default_value="false"),
             DeclareLaunchArgument(
@@ -223,17 +297,11 @@ def generate_launch_description():
                         "urdf",
                         "ackermann_current.urdf.xacro",
                     ),
-                    "navsat_static_nav2_params_file": os.path.join(
-                        generated,
-                        "config",
-                        "simulation",
-                        "nav2_params_ackermann_navsat_static.yaml",
+                    "navsat_static_nav2_params_file": _controller_config(
+                        navsat_mppi_config, navsat_rpp_config
                     ),
-                    "fastlio_static_nav2_params_file": os.path.join(
-                        generated,
-                        "config",
-                        "simulation",
-                        "nav2_params_ackermann_fastlio_static.yaml",
+                    "fastlio_static_nav2_params_file": _controller_config(
+                        fastlio_mppi_config, fastlio_rpp_config
                     ),
                     "fastlivo_lidar_config_file": fastlivo_sim_config,
                     "fastlivo_camera_config_file": os.path.join(

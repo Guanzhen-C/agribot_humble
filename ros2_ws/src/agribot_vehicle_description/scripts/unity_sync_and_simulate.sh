@@ -7,8 +7,51 @@ EXPORT_DIR=""
 GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
 RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-true}"
+ALGORITHM="${AGRIBOT_SIM_ALGORITHM:-fastlivo_rtk_mppi}"
 PREPARE_ONLY=false
 STOP_ONLY=false
+LIST_ALGORITHMS=false
+
+list_algorithms() {
+  cat <<'EOF'
+fastlivo_rtk_mppi|FAST-LIVO2 + RTK / Smac Hybrid-A* / MPPI|真机同构融合定位方案（默认）
+fastlio_mppi|FAST-LIO2 / Smac Hybrid-A* / MPPI|激光雷达与IMU定位，MPPI控制
+navsat_mppi|NavSat ESKF / Smac Hybrid-A* / MPPI|RTK与IMU融合定位，MPPI控制
+fastlio_rpp|FAST-LIO2 / Smac Hybrid-A* / RPP|激光雷达与IMU定位，RPP控制
+navsat_rpp|NavSat ESKF / Smac Hybrid-A* / RPP|RTK与IMU融合定位，RPP控制
+EOF
+}
+
+resolve_algorithm() {
+  case "$ALGORITHM" in
+    fastlivo_rtk_mppi)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=mppi
+      ;;
+    fastlio_mppi)
+      LOCALIZATION_MODE=fast_lio
+      CONTROLLER_MODE=mppi
+      ;;
+    navsat_mppi)
+      LOCALIZATION_MODE=navsat
+      CONTROLLER_MODE=mppi
+      ;;
+    fastlio_rpp)
+      LOCALIZATION_MODE=fast_lio
+      CONTROLLER_MODE=rpp
+      ;;
+    navsat_rpp)
+      LOCALIZATION_MODE=navsat
+      CONTROLLER_MODE=rpp
+      ;;
+    *)
+      echo "ERROR: unknown simulation algorithm: $ALGORITHM" >&2
+      echo "Available algorithms:" >&2
+      list_algorithms >&2
+      exit 2
+      ;;
+  esac
+}
 
 usage() {
   cat <<'EOF'
@@ -21,6 +64,8 @@ Options:
   --gui true|false       Open Gazebo GUI (default: true)
   --rviz true|false      Open RViz (default: true)
   --run-waypoints BOOL   Run the preset orchard route (default: true)
+  --algorithm ID         Select a validated localization/controller profile
+  --list-algorithms      Print available profile IDs and descriptions
   --prepare-only         Import and build without restarting simulation
   --stop                 Stop the simulation managed by this script
   -h, --help             Show this help
@@ -49,6 +94,14 @@ while (($#)); do
       RUN_WAYPOINTS="${2:?missing value for --run-waypoints}"
       shift 2
       ;;
+    --algorithm)
+      ALGORITHM="${2:?missing value for --algorithm}"
+      shift 2
+      ;;
+    --list-algorithms)
+      LIST_ALGORITHMS=true
+      shift
+      ;;
     --prepare-only)
       PREPARE_ONLY=true
       shift
@@ -68,6 +121,13 @@ while (($#)); do
       ;;
   esac
 done
+
+if [[ "$LIST_ALGORITHMS" == "true" ]]; then
+  list_algorithms
+  exit 0
+fi
+
+resolve_algorithm
 
 for value in "$GUI" "$RVIZ" "$RUN_WAYPOINTS"; do
   if [[ "$value" != "true" && "$value" != "false" ]]; then
@@ -216,6 +276,7 @@ done
 set_status "preparing"
 log "Unity 导出目录：$EXPORT_DIR"
 log "ROS 工作区：$WORKSPACE"
+log "仿真算法：$ALGORITHM（定位=$LOCALIZATION_MODE，控制=$CONTROLLER_MODE）"
 
 set +u
 source /opt/ros/humble/setup.bash
@@ -273,7 +334,9 @@ log "启动 Gazebo 和 RViz（ROS_DOMAIN_ID=$ROS_DOMAIN_ID）..."
 setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
   gui:="$GUI" \
   rviz:="$RVIZ" \
-  run_waypoints:="$RUN_WAYPOINTS" &
+  run_waypoints:="$RUN_WAYPOINTS" \
+  localization_mode:="$LOCALIZATION_MODE" \
+  controller_mode:="$CONTROLLER_MODE" &
 SIM_PID=$!
 SIM_SID=""
 for _ in {1..20}; do
@@ -291,8 +354,8 @@ fi
 printf '%s\n' "$SIM_PID" >"$PID_FILE"
 printf '%s\n' "$SIM_SID" >"$SID_FILE"
 current_boot_id >"$BOOT_ID_FILE"
-set_status "running: $SIM_PID"
-log "仿真已启动（PID $SIM_PID，会话 $SIM_SID）。再次从 Unity 导出时会自动切换到新配置。"
+set_status "running: $SIM_PID algorithm=$ALGORITHM"
+log "仿真已启动（PID $SIM_PID，会话 $SIM_SID，算法 $ALGORITHM）。再次从 Unity 导出时会自动切换到新配置。"
 flock -u 9
 exec 9>&-
 
