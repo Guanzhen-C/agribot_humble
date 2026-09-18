@@ -227,6 +227,10 @@ class SnakeWaypointRunner(Node):
         self.readiness_settle_time = max(
             0.0, float(self.declare_parameter("readiness_settle_time", 0.0).value)
         )
+        self.lifecycle_query_timeout = max(
+            0.5,
+            float(self.declare_parameter("lifecycle_query_timeout", 2.0).value),
+        )
         lifecycle_services = {
             "planner_server": self.declare_parameter(
                 "planner_lifecycle_service", "/planner_server/get_state"
@@ -241,11 +245,13 @@ class SnakeWaypointRunner(Node):
         }
         self.lifecycle_clients = {}
         self.lifecycle_futures = {}
+        self.lifecycle_request_times = {}
         self.lifecycle_active = {}
         if self.readiness_gate_enabled:
             for name, service_name in lifecycle_services.items():
                 self.lifecycle_clients[name] = self.create_client(GetState, service_name)
                 self.lifecycle_futures[name] = None
+                self.lifecycle_request_times[name] = None
                 self.lifecycle_active[name] = False
         self.lifecycle_ready_since = None
         self.readiness_pose_samples = deque(
@@ -321,16 +327,28 @@ class SnakeWaypointRunner(Node):
         self._update_preplanned_progress()
 
     def _poll_lifecycle_states(self) -> None:
+        now = time.monotonic()
         for name, client in self.lifecycle_clients.items():
-            if (
-                self.lifecycle_active[name]
-                or self.lifecycle_futures[name] is not None
-            ):
+            if self.lifecycle_active[name]:
                 continue
+            pending = self.lifecycle_futures[name]
+            if pending is not None:
+                requested_at = self.lifecycle_request_times[name]
+                if (
+                    requested_at is not None
+                    and now - requested_at >= self.lifecycle_query_timeout
+                ):
+                    pending.cancel()
+                    if self.lifecycle_futures[name] is pending:
+                        self.lifecycle_futures[name] = None
+                        self.lifecycle_request_times[name] = None
+                else:
+                    continue
             if not client.service_is_ready():
                 continue
             future = client.call_async(GetState.Request())
             self.lifecycle_futures[name] = future
+            self.lifecycle_request_times[name] = now
             future.add_done_callback(
                 lambda completed, lifecycle_name=name: self._on_lifecycle_state(
                     lifecycle_name, completed
@@ -338,7 +356,12 @@ class SnakeWaypointRunner(Node):
             )
 
     def _on_lifecycle_state(self, name: str, future) -> None:
+        if self.lifecycle_futures[name] is not future:
+            return
         self.lifecycle_futures[name] = None
+        self.lifecycle_request_times[name] = None
+        if future.cancelled():
+            return
         try:
             response = future.result()
         except Exception as exc:
