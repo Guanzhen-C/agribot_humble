@@ -28,6 +28,7 @@
   <exec_depend>gazebo_plugins</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>kiss_icp</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_behaviors</exec_depend>
@@ -37,8 +38,11 @@
   <exec_depend>nav2_bt_navigator</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
+  <exec_depend>nav2_dwb_controller</exec_depend>
+  <exec_depend>nav2_navfn_planner</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>
+  <exec_depend>nav2_theta_star_planner</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>scout_gazebo</exec_depend>

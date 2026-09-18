@@ -1,0 +1,51 @@
+# Dynamic Window controller overlay for Unity-configured Ackermann simulation.
+# Speed and acceleration limits are filled from the Unity-generated MPPI
+# profile at launch time. RotateToGoal is intentionally omitted because an
+# Ackermann vehicle cannot rotate in place.
+goal_checker:
+  plugin: nav2_controller::PositionGoalChecker
+  xy_goal_tolerance: 0.25
+  stateful: false
+
+FollowPath:
+  plugin: dwb_core::DWBLocalPlanner
+  debug_trajectory_details: false
+  min_vel_x: 0.0
+  min_vel_y: 0.0
+  max_vel_x: 0.30
+  max_vel_y: 0.0
+  max_vel_theta: 0.23
+  min_speed_xy: 0.0
+  max_speed_xy: 0.30
+  min_speed_theta: 0.0
+  acc_lim_x: 0.8
+  acc_lim_y: 0.0
+  acc_lim_theta: 0.35
+  decel_lim_x: -0.8
+  decel_lim_y: 0.0
+  decel_lim_theta: -0.35
+  vx_samples: 12
+  vy_samples: 1
+  vtheta_samples: 20
+  sim_time: 2.5
+  linear_granularity: 0.05
+  angular_granularity: 0.025
+  transform_tolerance: 0.8
+  xy_goal_tolerance: 0.25
+  trans_stopped_velocity: 0.05
+  short_circuit_trajectory_evaluation: true
+  stateful: true
+  critics:
+    - Oscillation
+    - ObstacleFootprint
+    - GoalAlign
+    - PathAlign
+    - PathDist
+    - GoalDist
+    - PreferForward
+  ObstacleFootprint.scale: 0.05
+  GoalAlign.scale: 16.0
+  PathAlign.scale: 24.0
+  PathDist.scale: 28.0
+  GoalDist.scale: 20.0
+  PreferForward.scale: 5.0

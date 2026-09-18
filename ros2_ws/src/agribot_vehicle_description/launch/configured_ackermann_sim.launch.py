@@ -100,53 +100,141 @@ def _write_fastlivo_sim_config(source_file):
     return target_file
 
 
-def _write_rpp_nav2_config(source_file, controller_overlay_file, profile_name):
-    """Replace only the controller plugin while retaining generated geometry."""
+def _write_nav2_profile_config(
+    source_file,
+    rpp_overlay_file,
+    dwb_overlay_file,
+    localization_name,
+    controller_mode,
+    planner_mode,
+):
+    """Build a Nav2 profile while retaining Unity-generated vehicle geometry."""
     target_file = os.path.join(
-        tempfile.gettempdir(), f"configured_ackermann_{profile_name}_rpp.generated.yaml"
+        tempfile.gettempdir(),
+        (
+            f"configured_ackermann_{localization_name}_{planner_mode}_"
+            f"{controller_mode}.generated.yaml"
+        ),
     )
     with open(source_file, encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
-    with open(controller_overlay_file, encoding="utf-8") as stream:
-        overlay = yaml.safe_load(stream)
 
     controller = config["controller_server"]["ros__parameters"]
     mppi = controller["FollowPath"]
-    rpp = copy.deepcopy(overlay["FollowPath"])
-    rpp["desired_linear_vel"] = float(mppi["vx_max"])
-    rpp["rotate_to_heading_angular_vel"] = float(mppi["wz_max"])
-    rpp["max_angular_accel"] = float(mppi["az_max"])
-    rpp["regulated_linear_scaling_min_radius"] = float(
-        mppi["AckermannConstraints"]["min_turning_r"]
-    )
-    inflation = (
-        config.get("global_costmap", {})
-        .get("global_costmap", {})
-        .get("ros__parameters", {})
-        .get("inflation_layer", {})
-    )
-    if "cost_scaling_factor" in inflation:
-        rpp["inflation_cost_scaling_factor"] = float(
-            inflation["cost_scaling_factor"]
+    if controller_mode == "rpp":
+        with open(rpp_overlay_file, encoding="utf-8") as stream:
+            overlay = yaml.safe_load(stream)
+        selected_controller = copy.deepcopy(overlay["FollowPath"])
+        selected_controller["desired_linear_vel"] = float(mppi["vx_max"])
+        selected_controller["rotate_to_heading_angular_vel"] = float(mppi["wz_max"])
+        selected_controller["max_angular_accel"] = float(mppi["az_max"])
+        selected_controller["regulated_linear_scaling_min_radius"] = float(
+            mppi["AckermannConstraints"]["min_turning_r"]
         )
+        inflation = (
+            config.get("global_costmap", {})
+            .get("global_costmap", {})
+            .get("ros__parameters", {})
+            .get("inflation_layer", {})
+        )
+        if "cost_scaling_factor" in inflation:
+            selected_controller["inflation_cost_scaling_factor"] = float(
+                inflation["cost_scaling_factor"]
+            )
+        controller["goal_checker"] = copy.deepcopy(overlay["goal_checker"])
+        controller["FollowPath"] = selected_controller
+    elif controller_mode == "dwb":
+        with open(dwb_overlay_file, encoding="utf-8") as stream:
+            overlay = yaml.safe_load(stream)
+        selected_controller = copy.deepcopy(overlay["FollowPath"])
+        selected_controller["max_vel_x"] = float(mppi["vx_max"])
+        selected_controller["max_speed_xy"] = float(mppi["vx_max"])
+        selected_controller["max_vel_theta"] = float(mppi["wz_max"])
+        selected_controller["acc_lim_x"] = float(mppi["ax_max"])
+        selected_controller["decel_lim_x"] = float(mppi["ax_min"])
+        selected_controller["acc_lim_theta"] = float(mppi["az_max"])
+        selected_controller["decel_lim_theta"] = -float(mppi["az_max"])
+        controller["goal_checker"] = copy.deepcopy(overlay["goal_checker"])
+        controller["FollowPath"] = selected_controller
+    elif controller_mode != "mppi":
+        raise ValueError(f"Unsupported controller mode: {controller_mode}")
 
-    controller["goal_checker"] = copy.deepcopy(overlay["goal_checker"])
-    controller["FollowPath"] = rpp
+    planner = config["planner_server"]["ros__parameters"]
+    if planner_mode == "navfn":
+        planner["GridBased"] = {
+            "plugin": "nav2_navfn_planner/NavfnPlanner",
+            "tolerance": 0.25,
+            "use_astar": False,
+            "allow_unknown": True,
+            "use_final_approach_orientation": True,
+        }
+    elif planner_mode == "theta_star":
+        planner["GridBased"] = {
+            "plugin": "nav2_theta_star_planner/ThetaStarPlanner",
+            "how_many_corners": 8,
+            "w_euc_cost": 1.0,
+            "w_traversal_cost": 2.0,
+            "allow_unknown": True,
+            "use_final_approach_orientation": True,
+        }
+    elif planner_mode == "smac_2d":
+        planner["GridBased"] = {
+            "plugin": "nav2_smac_planner/SmacPlanner2D",
+            "tolerance": 0.25,
+            "downsample_costmap": True,
+            "downsampling_factor": 2,
+            "allow_unknown": True,
+            "max_iterations": 1000000,
+            "max_on_approach_iterations": 1000,
+            "max_planning_time": 5.0,
+            "cost_travel_multiplier": 2.0,
+            "use_final_approach_orientation": True,
+            "smoother": {
+                "max_iterations": 1000,
+                "w_smooth": 0.3,
+                "w_data": 0.2,
+                "tolerance": 1.0e-10,
+            },
+        }
+    elif planner_mode != "smac_hybrid":
+        raise ValueError(f"Unsupported planner mode: {planner_mode}")
+
     with open(target_file, "w", encoding="utf-8") as stream:
         yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
     return target_file
 
 
-def _controller_config(mppi_file, rpp_file):
+def _write_nav2_profiles(source_file, config_dir, localization_name):
+    rpp_overlay = os.path.join(config_dir, "rpp_controller.yaml")
+    dwb_overlay = os.path.join(config_dir, "dwb_controller.yaml")
+    profiles = {}
+    for controller_mode in ("mppi", "rpp", "dwb"):
+        for planner_mode in ("smac_hybrid", "navfn", "theta_star", "smac_2d"):
+            profiles[(controller_mode, planner_mode)] = _write_nav2_profile_config(
+                source_file,
+                rpp_overlay,
+                dwb_overlay,
+                localization_name,
+                controller_mode,
+                planner_mode,
+            )
+    return profiles
+
+
+def _nav2_profile_config(profiles):
+    mapping_items = ", ".join(
+        f"{controller + ':' + planner!r}: {path!r}"
+        for (controller, planner), path in profiles.items()
+    )
     return PythonExpression(
         [
-            "'",
-            rpp_file,
-            "' if '",
+            "{",
+            mapping_items,
+            "}['",
             LaunchConfiguration("controller_mode"),
-            "' == 'rpp' else '",
-            mppi_file,
-            "'",
+            ":' + '",
+            LaunchConfiguration("planner_mode"),
+            "']",
         ]
     )
 
@@ -230,12 +318,12 @@ def generate_launch_description():
         "simulation",
         "nav2_params_ackermann_fastlio_static.yaml",
     )
-    controller_overlay = os.path.join(description_share, "config", "rpp_controller.yaml")
-    navsat_rpp_config = _write_rpp_nav2_config(
-        navsat_mppi_config, controller_overlay, "navsat"
+    config_dir = os.path.join(description_share, "config")
+    navsat_nav2_profiles = _write_nav2_profiles(
+        navsat_mppi_config, config_dir, "navsat"
     )
-    fastlio_rpp_config = _write_rpp_nav2_config(
-        fastlio_mppi_config, controller_overlay, "fastlio"
+    fastlio_nav2_profiles = _write_nav2_profiles(
+        fastlio_mppi_config, config_dir, "fastlio"
     )
     is_jetson = platform.machine() in ("aarch64", "arm64")
     world_file = os.path.join(gazebo_share, "worlds", "orchard_barriers.world")
@@ -257,7 +345,17 @@ def generate_launch_description():
             DeclareLaunchArgument("rviz_start_delay", default_value="16.0"),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument(
-                "controller_mode", default_value="mppi", choices=["mppi", "rpp"]
+                "controller_mode",
+                default_value="mppi",
+                choices=["mppi", "rpp", "dwb"],
+            ),
+            DeclareLaunchArgument(
+                "planner_mode",
+                default_value="smac_hybrid",
+                choices=["smac_hybrid", "navfn", "theta_star", "smac_2d"],
+            ),
+            DeclareLaunchArgument(
+                "route_mode", default_value="planned", choices=["planned", "direct"]
             ),
             DeclareLaunchArgument("use_static_map", default_value="true"),
             DeclareLaunchArgument("enable_slam_map", default_value="false"),
@@ -280,7 +378,13 @@ def generate_launch_description():
                     "headless": LaunchConfiguration("headless"),
                     "gazebo_render_workaround": "true" if is_jetson else "false",
                     "run_waypoints": LaunchConfiguration("run_waypoints"),
-                    "waypoint_navigation_mode": "plan_then_follow_path",
+                    "waypoint_navigation_mode": PythonExpression(
+                        [
+                            "'follow_path' if '",
+                            LaunchConfiguration("route_mode"),
+                            "' == 'direct' else 'plan_then_follow_path'",
+                        ]
+                    ),
                     "waypoint_startup_delay": LaunchConfiguration(
                         "waypoint_startup_delay"
                     ),
@@ -304,11 +408,11 @@ def generate_launch_description():
                         "urdf",
                         "ackermann_current.urdf.xacro",
                     ),
-                    "navsat_static_nav2_params_file": _controller_config(
-                        navsat_mppi_config, navsat_rpp_config
+                    "navsat_static_nav2_params_file": _nav2_profile_config(
+                        navsat_nav2_profiles
                     ),
-                    "fastlio_static_nav2_params_file": _controller_config(
-                        fastlio_mppi_config, fastlio_rpp_config
+                    "fastlio_static_nav2_params_file": _nav2_profile_config(
+                        fastlio_nav2_profiles
                     ),
                     "fastlivo_lidar_config_file": fastlivo_sim_config,
                     "fastlivo_camera_config_file": os.path.join(

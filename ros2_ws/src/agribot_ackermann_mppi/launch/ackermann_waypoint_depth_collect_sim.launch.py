@@ -176,6 +176,11 @@ def generate_launch_description():
             ]
         )
     )
+    static_kiss_condition = IfCondition(
+        PythonExpression(
+            ["'", use_static_map, "' == 'true' and '", localization_mode, "' == 'kiss_icp'"]
+        )
+    )
     navsat_condition = IfCondition(
         PythonExpression(["'", localization_mode, "' == 'navsat'"])
     )
@@ -184,6 +189,9 @@ def generate_launch_description():
     )
     fastlivo_rtk_condition = IfCondition(
         PythonExpression(["'", localization_mode, "' == 'fastlivo_rtk'"])
+    )
+    kiss_condition = IfCondition(
+        PythonExpression(["'", localization_mode, "' == 'kiss_icp'"])
     )
 
     system_model_paths = [
@@ -343,6 +351,20 @@ def generate_launch_description():
                 }
             ],
         )
+        static_kiss_localization_gate = Node(
+            package="agribot_autonomy",
+            executable="topic_ready_gate.py",
+            name="ackermann_static_kiss_localization_gate",
+            output="screen",
+            parameters=[
+                {
+                    "use_sim_time": True,
+                    "topic": "/amcl_pose",
+                    "message_type": "pose",
+                    "timeout_sec": float(resolved_navigation_delay) + 20.0,
+                }
+            ],
+        )
 
         def static_map_nodes():
             return [
@@ -488,6 +510,43 @@ def generate_launch_description():
                     ),
                 ],
             ),
+            GroupAction(
+                condition=static_kiss_condition,
+                actions=static_map_nodes()
+                + [
+                    TimerAction(
+                        period=float(resolved_navigation_delay),
+                        actions=[static_kiss_localization_gate],
+                    ),
+                    RegisterEventHandler(
+                        event_handler=OnProcessExit(
+                            target_action=static_kiss_localization_gate,
+                            on_exit=[
+                                IncludeLaunchDescription(
+                                    PythonLaunchDescriptionSource(
+                                        os.path.join(
+                                            scout_navigation_share,
+                                            "launch",
+                                            "include",
+                                            "navigation_only.launch.py",
+                                        )
+                                    ),
+                                    launch_arguments={
+                                        "use_sim_time": "true",
+                                        "autostart": "true",
+                                        "params_file": resolved_fastlio_static_nav2_params,
+                                        "odom_topic": resolved_nav_odom_topic,
+                                        "default_nav_to_pose_bt_xml": resolved_default_bt_xml,
+                                        "default_nav_through_poses_bt_xml": (
+                                            resolved_default_through_poses_bt_xml
+                                        ),
+                                    }.items(),
+                                )
+                            ],
+                        )
+                    ),
+                ],
+            ),
         ]
 
     return LaunchDescription(
@@ -535,7 +594,9 @@ def generate_launch_description():
                         localization_mode,
                         "' == 'fast_lio' else ('/odometry/filtered_navsat' if '",
                         localization_mode,
-                        "' == 'navsat' else '/odom'))",
+                        "' == 'navsat' else ('/kiss/odometry' if '",
+                        localization_mode,
+                        "' == 'kiss_icp' else '/odom')))",
                     ]
                 ),
             ),
@@ -574,6 +635,16 @@ def generate_launch_description():
             DeclareLaunchArgument("fastlio_start_delay", default_value="8.0"),
             DeclareLaunchArgument("fastlio_localization_start_delay", default_value="20.0"),
             DeclareLaunchArgument("fastlio_visualize", default_value="false"),
+            DeclareLaunchArgument(
+                "kiss_config_file",
+                default_value=os.path.join(
+                    autonomy_share, "config", "kiss_icp_sim.yaml"
+                ),
+            ),
+            DeclareLaunchArgument("kiss_start_delay", default_value="8.0"),
+            DeclareLaunchArgument(
+                "kiss_localization_start_delay", default_value="12.0"
+            ),
             DeclareLaunchArgument(
                 "fastlivo_lidar_config_file",
                 default_value=os.path.join(
@@ -978,6 +1049,79 @@ def generate_launch_description():
                     ),
                 ],
                 condition=fastlio_condition,
+            ),
+            TimerAction(
+                period=LaunchConfiguration("kiss_start_delay"),
+                actions=[
+                    IncludeLaunchDescription(
+                        PythonLaunchDescriptionSource(
+                            os.path.join(autonomy_share, "launch", "kiss_icp_sim.launch.py")
+                        ),
+                        launch_arguments={
+                            "use_sim_time": "true",
+                            "use_pointcloud_relay": "false",
+                            "input_pointcloud_topic": "/lidar/points",
+                            "kiss_input_topic": "/lidar/points",
+                            "kiss_base_frame": "base_link",
+                            "kiss_odom_frame": "odom",
+                            "kiss_visualize": "false",
+                            "kiss_config_file": LaunchConfiguration("kiss_config_file"),
+                        }.items(),
+                    )
+                ],
+                condition=kiss_condition,
+            ),
+            TimerAction(
+                period=LaunchConfiguration("kiss_localization_start_delay"),
+                actions=[
+                    Node(
+                        package="agribot_autonomy",
+                        executable="kiss_localization.py",
+                        name="ackermann_kiss_localization",
+                        output="screen",
+                        parameters=[
+                            {
+                                "use_sim_time": True,
+                                "map_frame": "map",
+                                "odom_frame": "odom",
+                                "base_frame": "base_link",
+                                "odom_topic": "/kiss/odometry",
+                                "initial_pose_topic": "/initialpose",
+                                "pose_topic": "/amcl_pose",
+                                "planar_mode": False,
+                                "allow_reinitialization": True,
+                                "initial_pose_x": LaunchConfiguration("initial_pose_x"),
+                                "initial_pose_y": LaunchConfiguration("initial_pose_y"),
+                                "initial_pose_z": LaunchConfiguration("initial_pose_z"),
+                                "initial_pose_yaw": LaunchConfiguration("initial_pose_yaw"),
+                                "stamp_with_current_time": True,
+                            }
+                        ],
+                    ),
+                    Node(
+                        package="agribot_autonomy",
+                        executable="initial_pose_sender.py",
+                        name="ackermann_initial_pose_sender_kiss",
+                        output="screen",
+                        parameters=[
+                            {
+                                "use_sim_time": True,
+                                "x": LaunchConfiguration("initial_pose_x"),
+                                "y": LaunchConfiguration("initial_pose_y"),
+                                "z": LaunchConfiguration("initial_pose_z"),
+                                "yaw": LaunchConfiguration("initial_pose_yaw"),
+                                "frame_id": "map",
+                                "topic": "/initialpose",
+                                "startup_delay": 0.5,
+                                "publish_count": 10,
+                                "publish_interval": 0.5,
+                                "covariance_xy": 0.05,
+                                "covariance_yaw": 0.02,
+                            }
+                        ],
+                    ),
+                ],
+                condition=kiss_condition,
             ),
             Node(
                 package="agribot_autonomy",

@@ -17,12 +17,21 @@ list_algorithms() {
 fastlivo_rtk_mppi|FAST-LIVO2 + RTK / Smac Hybrid-A* / MPPI|真机同构融合定位方案（默认）
 fastlio_mppi|FAST-LIO2 / Smac Hybrid-A* / MPPI|激光雷达与IMU定位，MPPI控制
 navsat_mppi|NavSat ESKF / Smac Hybrid-A* / MPPI|RTK与IMU融合定位，MPPI控制
+fastlivo_rtk_rpp|FAST-LIVO2 + RTK / Smac Hybrid-A* / RPP|融合定位，纯跟踪控制器对照
 fastlio_rpp|FAST-LIO2 / Smac Hybrid-A* / RPP|激光雷达与IMU定位，RPP控制
 navsat_rpp|NavSat ESKF / Smac Hybrid-A* / RPP|RTK与IMU融合定位，RPP控制
+kiss_icp_mppi|KISS-ICP / Smac Hybrid-A* / MPPI|轻量级纯激光里程计对照
+fastlivo_rtk_navfn_mppi|FAST-LIVO2 + RTK / NavFn / MPPI|经典栅格Dijkstra规划对照
+fastlivo_rtk_theta_mppi|FAST-LIVO2 + RTK / Theta* / MPPI|任意角栅格规划对照
+fastlivo_rtk_smac2d_mppi|FAST-LIVO2 + RTK / Smac 2D / MPPI|二维A*规划对照
+fastlivo_rtk_navfn_dwb|FAST-LIVO2 + RTK / NavFn / DWB|经典Nav2规划控制组合
+fastlivo_rtk_direct_mppi|FAST-LIVO2 + RTK / 必经点直连 / MPPI|不调用全局规划器的直线路径基线
 EOF
 }
 
 resolve_algorithm() {
+  PLANNER_MODE=smac_hybrid
+  ROUTE_MODE=planned
   case "$ALGORITHM" in
     fastlivo_rtk_mppi)
       LOCALIZATION_MODE=fastlivo_rtk
@@ -36,6 +45,10 @@ resolve_algorithm() {
       LOCALIZATION_MODE=navsat
       CONTROLLER_MODE=mppi
       ;;
+    fastlivo_rtk_rpp)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=rpp
+      ;;
     fastlio_rpp)
       LOCALIZATION_MODE=fast_lio
       CONTROLLER_MODE=rpp
@@ -43,6 +56,35 @@ resolve_algorithm() {
     navsat_rpp)
       LOCALIZATION_MODE=navsat
       CONTROLLER_MODE=rpp
+      ;;
+    kiss_icp_mppi)
+      LOCALIZATION_MODE=kiss_icp
+      CONTROLLER_MODE=mppi
+      ;;
+    fastlivo_rtk_navfn_mppi)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=mppi
+      PLANNER_MODE=navfn
+      ;;
+    fastlivo_rtk_theta_mppi)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=mppi
+      PLANNER_MODE=theta_star
+      ;;
+    fastlivo_rtk_smac2d_mppi)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=mppi
+      PLANNER_MODE=smac_2d
+      ;;
+    fastlivo_rtk_navfn_dwb)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=dwb
+      PLANNER_MODE=navfn
+      ;;
+    fastlivo_rtk_direct_mppi)
+      LOCALIZATION_MODE=fastlivo_rtk
+      CONTROLLER_MODE=mppi
+      ROUTE_MODE=direct
       ;;
     *)
       echo "ERROR: unknown simulation algorithm: $ALGORITHM" >&2
@@ -276,7 +318,7 @@ done
 set_status "preparing"
 log "Unity 导出目录：$EXPORT_DIR"
 log "ROS 工作区：$WORKSPACE"
-log "仿真算法：$ALGORITHM（定位=$LOCALIZATION_MODE，控制=$CONTROLLER_MODE）"
+log "仿真算法：$ALGORITHM（定位=$LOCALIZATION_MODE，规划=$PLANNER_MODE，控制=$CONTROLLER_MODE，路径=$ROUTE_MODE）"
 
 set +u
 source /opt/ros/humble/setup.bash
@@ -336,7 +378,9 @@ setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.p
   rviz:="$RVIZ" \
   run_waypoints:="$RUN_WAYPOINTS" \
   localization_mode:="$LOCALIZATION_MODE" \
-  controller_mode:="$CONTROLLER_MODE" 9>&- &
+  planner_mode:="$PLANNER_MODE" \
+  controller_mode:="$CONTROLLER_MODE" \
+  route_mode:="$ROUTE_MODE" 9>&- &
 SIM_PID=$!
 SIM_SID=""
 for _ in {1..20}; do
