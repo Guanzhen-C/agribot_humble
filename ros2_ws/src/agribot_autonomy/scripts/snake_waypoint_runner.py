@@ -12,6 +12,7 @@ from geometry_msgs.msg import Pose, PoseArray, PoseStamped, PoseWithCovarianceSt
 from lifecycle_msgs.msg import State
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import (
+    ComputePathToPose,
     ComputePathThroughPoses,
     FollowPath,
     NavigateThroughPoses,
@@ -171,6 +172,9 @@ class SnakeWaypointRunner(Node):
         self.planner_action_name = self.declare_parameter(
             "planner_action_name", "compute_path_through_poses"
         ).value
+        self.segment_planner_action_name = self.declare_parameter(
+            "segment_planner_action_name", "compute_path_to_pose"
+        ).value
         self.planner_id = self.declare_parameter("planner_id", "GridBased").value
         self.path_action_name = self.declare_parameter("path_action_name", "follow_path").value
         self.controller_id = self.declare_parameter("controller_id", "FollowPath").value
@@ -209,6 +213,9 @@ class SnakeWaypointRunner(Node):
         )
         self.preplan_retry_delay = float(
             self.declare_parameter("preplan_retry_delay", 0.5).value
+        )
+        self.preplan_segment_fallback_enabled = bool(
+            self.declare_parameter("preplan_segment_fallback_enabled", True).value
         )
         self.readiness_gate_enabled = bool(
             self.declare_parameter("readiness_gate_enabled", False).value
@@ -273,6 +280,9 @@ class SnakeWaypointRunner(Node):
         self.planner_client = ActionClient(
             self, ComputePathThroughPoses, self.planner_action_name
         )
+        self.segment_planner_client = ActionClient(
+            self, ComputePathToPose, self.segment_planner_action_name
+        )
         self.path_client = ActionClient(self, FollowPath, self.path_action_name)
         self.timer = self.create_timer(self.startup_delay, self.run_once)
 
@@ -304,6 +314,10 @@ class SnakeWaypointRunner(Node):
         self.preplan_waypoint_path_indices = []
         self.preplan_progress_index = 0
         self.preplan_completed_waypoints = 0
+        self.preplan_prefer_segment_fallback = False
+        self.preplan_segment_index = 0
+        self.preplan_segment_path = None
+        self.preplan_segment_planning_seconds = 0.0
         self.ran = False
         self.attempts_remaining = 0
 
@@ -578,6 +592,22 @@ class SnakeWaypointRunner(Node):
         goal.use_start = False
         return goal
 
+    def make_segment_preplan_goal(self, waypoint_index):
+        goal = ComputePathToPose.Goal()
+        stamp = self.get_clock().now().to_msg()
+        waypoint = self.preplan_waypoints[waypoint_index]
+        goal.goal.header.frame_id = self.frame_id
+        goal.goal.header.stamp = stamp
+        goal.goal.pose = self._make_pose(waypoint)
+        goal.planner_id = self.planner_id
+        goal.use_start = waypoint_index > 0
+        if goal.use_start:
+            previous = self.preplan_waypoints[waypoint_index - 1]
+            goal.start.header.frame_id = self.frame_id
+            goal.start.header.stamp = stamp
+            goal.start.pose = self._make_pose(previous)
+        return goal
+
     def _preplanned_path_waypoint_indices(self, path: NavPath, waypoints):
         """Verify every authored waypoint occurs in order on the Smac result."""
         cursor = 0
@@ -621,6 +651,13 @@ class SnakeWaypointRunner(Node):
         self._publish_current_goal_visual(final_goal)
         self._publish_key_waypoints(self.key_waypoints)
 
+        if (
+            self.preplan_segment_fallback_enabled
+            and self.preplan_prefer_segment_fallback
+        ):
+            self._start_segmented_preplan()
+            return
+
         self.get_logger().info(
             f"Preplanning one continuous global path through all "
             f"{len(self.preplan_waypoints)} remaining key waypoints; vehicle remains stopped"
@@ -629,6 +666,112 @@ class SnakeWaypointRunner(Node):
             self.make_preplan_goal(self.preplan_waypoints)
         )
         future.add_done_callback(self._on_preplan_goal_response)
+
+    def _fallback_to_segmented_preplan(self, reason: str) -> None:
+        if not self.preplan_segment_fallback_enabled:
+            self._schedule_preplan_retry()
+            return
+        self.preplan_prefer_segment_fallback = True
+        self.get_logger().warn(
+            f"{reason}; falling back to segment-by-segment global preplanning "
+            "while the vehicle remains stopped"
+        )
+        self._start_segmented_preplan()
+
+    def _start_segmented_preplan(self) -> None:
+        self.preplan_segment_index = 0
+        self.preplan_segment_path = None
+        self.preplan_segment_planning_seconds = 0.0
+        self.get_logger().info(
+            f"Preplanning {len(self.preplan_waypoints)} mandatory route segments "
+            "with the selected global planner before vehicle motion"
+        )
+        self._request_next_preplan_segment()
+
+    def _request_next_preplan_segment(self) -> None:
+        if self.preplan_segment_index >= len(self.preplan_waypoints):
+            self._complete_preplanned_path(
+                self.preplan_segment_path,
+                self.preplan_segment_planning_seconds,
+                "segmented fallback",
+            )
+            return
+
+        future = self.segment_planner_client.send_goal_async(
+            self.make_segment_preplan_goal(self.preplan_segment_index)
+        )
+        future.add_done_callback(self._on_segment_preplan_goal_response)
+
+    def _on_segment_preplan_goal_response(self, future) -> None:
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            self.get_logger().error(
+                f"Failed to request preplan segment "
+                f"{self.preplan_segment_index + 1}: {exc}; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        if goal_handle is None or not goal_handle.accepted:
+            self.get_logger().error(
+                f"Preplan segment {self.preplan_segment_index + 1} was rejected; "
+                "vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._on_segment_preplan_result)
+
+    def _on_segment_preplan_result(self, future) -> None:
+        try:
+            wrapped_result = future.result()
+        except Exception as exc:
+            self.get_logger().error(
+                f"Failed to receive preplan segment "
+                f"{self.preplan_segment_index + 1}: {exc}; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        segment_number = self.preplan_segment_index + 1
+        if getattr(wrapped_result, "status", None) != GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().error(
+                f"Preplan segment {segment_number}/{len(self.preplan_waypoints)} "
+                f"failed with status {getattr(wrapped_result, 'status', None)}; "
+                "vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        segment_path = wrapped_result.result.path
+        if len(segment_path.poses) < 2:
+            self.get_logger().error(
+                f"Preplan segment {segment_number}/{len(self.preplan_waypoints)} "
+                "is empty; vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
+
+        if self.preplan_segment_path is None:
+            self.preplan_segment_path = NavPath()
+            self.preplan_segment_path.header = segment_path.header
+            self.preplan_segment_path.poses = list(segment_path.poses)
+        else:
+            poses = list(segment_path.poses)
+            previous = self.preplan_segment_path.poses[-1].pose.position
+            current = poses[0].pose.position
+            if math.hypot(previous.x - current.x, previous.y - current.y) <= 1e-3:
+                poses = poses[1:]
+            self.preplan_segment_path.poses.extend(poses)
+
+        duration = wrapped_result.result.planning_time
+        self.preplan_segment_planning_seconds += (
+            duration.sec + duration.nanosec / 1e9
+        )
+        self.preplan_segment_index += 1
+        self._request_next_preplan_segment()
 
     def _schedule_preplan_retry(self) -> None:
         if self.preplan_retry_timer is not None:
@@ -646,17 +789,15 @@ class SnakeWaypointRunner(Node):
         try:
             goal_handle = future.result()
         except Exception as exc:
-            self.get_logger().error(
-                f"Failed to request Smac preplan: {exc}; vehicle remains stopped"
+            self._fallback_to_segmented_preplan(
+                f"Failed to request batch global preplan: {exc}"
             )
-            self._schedule_preplan_retry()
             return
 
         if goal_handle is None or not goal_handle.accepted:
-            self.get_logger().error(
-                "Smac preplan request was rejected; vehicle remains stopped"
+            self._fallback_to_segmented_preplan(
+                "Batch global preplan request was rejected"
             )
-            self._schedule_preplan_retry()
             return
 
         result_future = goal_handle.get_result_async()
@@ -666,24 +807,34 @@ class SnakeWaypointRunner(Node):
         try:
             wrapped_result = future.result()
         except Exception as exc:
-            self.get_logger().error(
-                f"Failed to receive Smac preplan: {exc}; vehicle remains stopped"
+            self._fallback_to_segmented_preplan(
+                f"Failed to receive batch global preplan: {exc}"
             )
-            self._schedule_preplan_retry()
             return
 
         if getattr(wrapped_result, "status", None) != GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().error(
-                f"Smac preplan failed with status "
-                f"{getattr(wrapped_result, 'status', None)}; vehicle remains stopped"
+            self._fallback_to_segmented_preplan(
+                f"Batch global preplan failed with status "
+                f"{getattr(wrapped_result, 'status', None)}"
             )
-            self._schedule_preplan_retry()
             return
 
         path = wrapped_result.result.path
         if len(path.poses) < 2:
+            self._fallback_to_segmented_preplan(
+                "Batch global planner returned an empty path"
+            )
+            return
+        duration = wrapped_result.result.planning_time
+        planning_seconds = duration.sec + duration.nanosec / 1e9
+        self._complete_preplanned_path(path, planning_seconds, "batch")
+
+    def _complete_preplanned_path(
+        self, path: NavPath, planning_seconds: float, method: str
+    ) -> None:
+        if path is None or len(path.poses) < 2:
             self.get_logger().error(
-                "Global planner returned an empty path; vehicle remains stopped"
+                f"The {method} global preplan is empty; vehicle remains stopped"
             )
             self._schedule_preplan_retry()
             return
@@ -691,7 +842,12 @@ class SnakeWaypointRunner(Node):
             path, self.preplan_waypoints
         )
         if waypoint_path_indices is None:
-            self._schedule_preplan_retry()
+            if method == "batch":
+                self._fallback_to_segmented_preplan(
+                    "Batch global path omitted a mandatory waypoint"
+                )
+            else:
+                self._schedule_preplan_retry()
             return
 
         self.preplanned_path = path
@@ -699,12 +855,10 @@ class SnakeWaypointRunner(Node):
         self.preplan_progress_index = 0
         self.preplan_completed_waypoints = 0
         self._publish_path_visuals(path)
-        duration = wrapped_result.result.planning_time
-        planning_seconds = duration.sec + duration.nanosec / 1e9
         self.get_logger().info(
             f"Global preplan ready: {len(path.poses)} poses, "
             f"all {len(self.preplan_waypoints)} remaining key waypoints verified in order, "
-            f"planning time {planning_seconds:.3f} s"
+            f"planning time {planning_seconds:.3f} s ({method})"
         )
         self.get_logger().info(
             f"Published the complete path to RViz; controller dispatch waits "
@@ -1222,6 +1376,12 @@ class SnakeWaypointRunner(Node):
                 f"Waiting for planner action server {self.planner_action_name}"
             )
             self.planner_client.wait_for_server()
+            if self.preplan_segment_fallback_enabled:
+                self.get_logger().info(
+                    "Waiting for segment planner action server "
+                    f"{self.segment_planner_action_name}"
+                )
+                self.segment_planner_client.wait_for_server()
             self.get_logger().info(
                 f"Waiting for controller action server {self.path_action_name}"
             )
