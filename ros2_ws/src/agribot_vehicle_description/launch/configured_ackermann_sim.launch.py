@@ -105,6 +105,7 @@ def _write_nav2_profile_config(
     rpp_overlay_file,
     dwb_overlay_file,
     localization_name,
+    perception_mode,
     controller_mode,
     planner_mode,
 ):
@@ -112,12 +113,14 @@ def _write_nav2_profile_config(
     target_file = os.path.join(
         tempfile.gettempdir(),
         (
-            f"configured_ackermann_{localization_name}_{planner_mode}_"
+            f"configured_ackermann_{localization_name}_{perception_mode}_{planner_mode}_"
             f"{controller_mode}.generated.yaml"
         ),
     )
     with open(source_file, encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
+
+    _configure_perception(config, perception_mode)
 
     controller = config["controller_server"]["ros__parameters"]
     mppi = controller["FollowPath"]
@@ -204,33 +207,93 @@ def _write_nav2_profile_config(
     return target_file
 
 
+def _configure_perception(config, perception_mode):
+    """Select a costmap perception plugin behind one PointCloud2 contract."""
+    if perception_mode == "stvl":
+        return
+    if perception_mode != "voxel":
+        raise ValueError(f"Unsupported perception mode: {perception_mode}")
+
+    for costmap_name in ("local_costmap", "global_costmap"):
+        parameters = config[costmap_name][costmap_name]["ros__parameters"]
+        plugins = list(parameters["plugins"])
+        if "stvl_layer" not in plugins:
+            raise ValueError(f"{costmap_name} has no stvl_layer to replace")
+        plugin_index = plugins.index("stvl_layer")
+        plugins[plugin_index] = "voxel_layer"
+        parameters["plugins"] = plugins
+
+        stvl = parameters.pop("stvl_layer")
+        marking = stvl["lidar_mark"]
+        obstacle_range = float(marking.get("obstacle_range", 8.0))
+        min_height = float(marking.get("min_obstacle_height", 0.0))
+        max_height = float(marking.get("max_obstacle_height", 2.0))
+        parameters["voxel_layer"] = {
+            "plugin": "nav2_costmap_2d::VoxelLayer",
+            "enabled": True,
+            "footprint_clearing_enabled": True,
+            "publish_voxel_map": False,
+            "origin_z": 0.0,
+            "z_resolution": 0.1,
+            "z_voxels": 16,
+            "unknown_threshold": 15,
+            "mark_threshold": 0,
+            "combination_method": int(stvl.get("combination_method", 1)),
+            "observation_sources": "lidar",
+            "lidar": {
+                "topic": marking["topic"],
+                "data_type": "PointCloud2",
+                "clearing": True,
+                "marking": True,
+                "obstacle_min_range": 0.0,
+                "obstacle_max_range": obstacle_range,
+                "raytrace_min_range": 0.0,
+                "raytrace_max_range": obstacle_range + 1.0,
+                "min_obstacle_height": min_height,
+                "max_obstacle_height": max_height,
+                "expected_update_rate": float(
+                    marking.get("expected_update_rate", 0.0)
+                ),
+                "observation_persistence": float(
+                    marking.get("observation_persistence", 0.0)
+                ),
+            },
+        }
+
+
 def _write_nav2_profiles(source_file, config_dir, localization_name):
     rpp_overlay = os.path.join(config_dir, "rpp_controller.yaml")
     dwb_overlay = os.path.join(config_dir, "dwb_controller.yaml")
     profiles = {}
-    for controller_mode in ("mppi", "rpp", "dwb"):
-        for planner_mode in ("smac_hybrid", "navfn", "theta_star", "smac_2d"):
-            profiles[(controller_mode, planner_mode)] = _write_nav2_profile_config(
-                source_file,
-                rpp_overlay,
-                dwb_overlay,
-                localization_name,
-                controller_mode,
-                planner_mode,
-            )
+    for perception_mode in ("stvl", "voxel"):
+        for controller_mode in ("mppi", "rpp", "dwb"):
+            for planner_mode in ("smac_hybrid", "navfn", "theta_star", "smac_2d"):
+                profiles[(perception_mode, controller_mode, planner_mode)] = (
+                    _write_nav2_profile_config(
+                        source_file,
+                        rpp_overlay,
+                        dwb_overlay,
+                        localization_name,
+                        perception_mode,
+                        controller_mode,
+                        planner_mode,
+                    )
+                )
     return profiles
 
 
 def _nav2_profile_config(profiles):
     mapping_items = ", ".join(
-        f"{controller + ':' + planner!r}: {path!r}"
-        for (controller, planner), path in profiles.items()
+        f"{perception + ':' + controller + ':' + planner!r}: {path!r}"
+        for (perception, controller, planner), path in profiles.items()
     )
     return PythonExpression(
         [
             "{",
             mapping_items,
             "}['",
+            LaunchConfiguration("perception_mode"),
+            ":' + '",
             LaunchConfiguration("controller_mode"),
             ":' + '",
             LaunchConfiguration("planner_mode"),
@@ -343,6 +406,9 @@ def generate_launch_description():
             # Let localization and Nav2 complete their CPU-heavy startup before
             # RViz begins subscribing to point clouds, images and costmaps.
             DeclareLaunchArgument("rviz_start_delay", default_value="16.0"),
+            DeclareLaunchArgument(
+                "perception_mode", default_value="stvl", choices=["stvl", "voxel"]
+            ),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument(
                 "controller_mode",

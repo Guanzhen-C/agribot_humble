@@ -8,91 +8,205 @@ GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
 RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-true}"
 ALGORITHM="${AGRIBOT_SIM_ALGORITHM:-fastlivo_rtk_mppi}"
+PERCEPTION="${AGRIBOT_SIM_PERCEPTION:-stvl}"
+LOCALIZATION="${AGRIBOT_SIM_LOCALIZATION:-fastlivo_rtk}"
+PLANNER="${AGRIBOT_SIM_PLANNER:-smac_hybrid}"
+CONTROLLER="${AGRIBOT_SIM_CONTROLLER:-mppi}"
 PREPARE_ONLY=false
 STOP_ONLY=false
 LIST_ALGORITHMS=false
+LIST_COMPONENTS=false
+VALIDATE_ALGORITHMS=false
+RESOLVE_ONLY=false
+ALGORITHM_EXPLICIT=false
+COMPONENTS_EXPLICIT=false
 
-list_algorithms() {
-  cat <<'EOF'
-fastlivo_rtk_mppi|FAST-LIVO2 + RTK / Smac Hybrid-A* / MPPI|真机同构融合定位方案（默认）
-fastlio_mppi|FAST-LIO2 / Smac Hybrid-A* / MPPI|激光雷达与IMU定位，MPPI控制
-navsat_mppi|NavSat ESKF / Smac Hybrid-A* / MPPI|RTK与IMU融合定位，MPPI控制
-fastlivo_rtk_rpp|FAST-LIVO2 + RTK / Smac Hybrid-A* / RPP|融合定位，纯跟踪控制器对照
-fastlio_rpp|FAST-LIO2 / Smac Hybrid-A* / RPP|激光雷达与IMU定位，RPP控制
-navsat_rpp|NavSat ESKF / Smac Hybrid-A* / RPP|RTK与IMU融合定位，RPP控制
-kiss_icp_mppi|KISS-ICP / Smac Hybrid-A* / MPPI|轻量级纯激光里程计对照
-fastlivo_rtk_navfn_mppi|FAST-LIVO2 + RTK / NavFn / MPPI|经典栅格Dijkstra规划对照
-fastlivo_rtk_theta_mppi|FAST-LIVO2 + RTK / Theta* / MPPI|任意角栅格规划对照
-fastlivo_rtk_smac2d_mppi|FAST-LIVO2 + RTK / Smac 2D / MPPI|二维A*规划对照
-fastlivo_rtk_navfn_dwb|FAST-LIVO2 + RTK / NavFn / DWB|经典Nav2规划控制组合
-fastlivo_rtk_direct_mppi|FAST-LIVO2 + RTK / 必经点直连 / MPPI|不调用全局规划器的直线路径基线
-EOF
+[[ -n "${AGRIBOT_SIM_ALGORITHM+x}" ]] && ALGORITHM_EXPLICIT=true
+if [[ -n "${AGRIBOT_SIM_PERCEPTION+x}" ||
+      -n "${AGRIBOT_SIM_LOCALIZATION+x}" ||
+      -n "${AGRIBOT_SIM_PLANNER+x}" ||
+      -n "${AGRIBOT_SIM_CONTROLLER+x}" ]]; then
+  COMPONENTS_EXPLICIT=true
+fi
+
+PERCEPTION_COMPONENTS=(stvl voxel)
+LOCALIZATION_COMPONENTS=(fastlivo_rtk fast_lio navsat kiss_icp)
+PLANNER_COMPONENTS=(smac_hybrid navfn theta_star smac_2d direct)
+CONTROLLER_COMPONENTS=(mppi rpp dwb)
+
+component_is_available() {
+  local requested="$1"
+  shift
+  local candidate
+  for candidate in "$@"; do
+    [[ "$requested" == "$candidate" ]] && return 0
+  done
+  return 1
 }
 
-resolve_algorithm() {
-  PLANNER_MODE=smac_hybrid
-  ROUTE_MODE=planned
-  case "$ALGORITHM" in
-    fastlivo_rtk_mppi)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=mppi
-      ;;
-    fastlio_mppi)
-      LOCALIZATION_MODE=fast_lio
-      CONTROLLER_MODE=mppi
-      ;;
-    navsat_mppi)
-      LOCALIZATION_MODE=navsat
-      CONTROLLER_MODE=mppi
-      ;;
-    fastlivo_rtk_rpp)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=rpp
-      ;;
-    fastlio_rpp)
-      LOCALIZATION_MODE=fast_lio
-      CONTROLLER_MODE=rpp
-      ;;
-    navsat_rpp)
-      LOCALIZATION_MODE=navsat
-      CONTROLLER_MODE=rpp
-      ;;
-    kiss_icp_mppi)
-      LOCALIZATION_MODE=kiss_icp
-      CONTROLLER_MODE=mppi
-      ;;
-    fastlivo_rtk_navfn_mppi)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=mppi
-      PLANNER_MODE=navfn
-      ;;
-    fastlivo_rtk_theta_mppi)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=mppi
-      PLANNER_MODE=theta_star
-      ;;
-    fastlivo_rtk_smac2d_mppi)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=mppi
-      PLANNER_MODE=smac_2d
-      ;;
-    fastlivo_rtk_navfn_dwb)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=dwb
-      PLANNER_MODE=navfn
-      ;;
-    fastlivo_rtk_direct_mppi)
-      LOCALIZATION_MODE=fastlivo_rtk
-      CONTROLLER_MODE=mppi
-      ROUTE_MODE=direct
-      ;;
-    *)
-      echo "ERROR: unknown simulation algorithm: $ALGORITHM" >&2
-      echo "Available algorithms:" >&2
-      list_algorithms >&2
-      exit 2
-      ;;
+perception_name() {
+  case "$1" in
+    stvl) echo "STVL时空体素" ;;
+    voxel) echo "Nav2三维体素" ;;
   esac
+}
+
+localization_name() {
+  case "$1" in
+    fastlivo_rtk) echo "FAST-LIVO2 + RTK" ;;
+    fast_lio) echo "FAST-LIO2" ;;
+    navsat) echo "NavSat ESKF" ;;
+    kiss_icp) echo "KISS-ICP" ;;
+  esac
+}
+
+planner_name() {
+  case "$1" in
+    smac_hybrid) echo "Smac Hybrid-A*" ;;
+    navfn) echo "NavFn Dijkstra" ;;
+    theta_star) echo "Theta*" ;;
+    smac_2d) echo "Smac 2D A*" ;;
+    direct) echo "必经点直连" ;;
+  esac
+}
+
+controller_name() {
+  case "$1" in
+    mppi) echo "MPPI" ;;
+    rpp) echo "RPP" ;;
+    dwb) echo "DWB" ;;
+  esac
+}
+
+canonical_algorithm_id() {
+  printf '%s_%s_%s_%s\n' "$1" "$2" "$3" "$4"
+}
+
+list_algorithms() {
+  local perception localization planner controller id name
+  for perception in "${PERCEPTION_COMPONENTS[@]}"; do
+    for localization in "${LOCALIZATION_COMPONENTS[@]}"; do
+      for planner in "${PLANNER_COMPONENTS[@]}"; do
+        for controller in "${CONTROLLER_COMPONENTS[@]}"; do
+          id="$(canonical_algorithm_id \
+            "$perception" "$localization" "$planner" "$controller")"
+          name="$(perception_name "$perception") / $(localization_name "$localization") / $(planner_name "$planner") / $(controller_name "$controller")"
+          printf '%s|%s|统一接口自由组合：感知=%s，定位=%s，规划=%s，控制=%s\n' \
+            "$id" "$name" \
+            "$(perception_name "$perception")" \
+            "$(localization_name "$localization")" \
+            "$(planner_name "$planner")" \
+            "$(controller_name "$controller")"
+        done
+      done
+    done
+  done
+}
+
+list_components() {
+  printf 'perception|stvl|STVL时空体素层|C16 PointCloud2输入，带体素衰减和三维清除\n'
+  printf 'perception|voxel|Nav2三维体素层|C16 PointCloud2输入，Nav2官方VoxelLayer\n'
+  printf 'localization|fastlivo_rtk|FAST-LIVO2 + RTK|视觉激光惯性里程计与固定解RTK因子融合\n'
+  printf 'localization|fast_lio|FAST-LIO2|C16与IMU激光惯性里程计\n'
+  printf 'localization|navsat|NavSat ESKF|RTK与IMU组合导航\n'
+  printf 'localization|kiss_icp|KISS-ICP|轻量纯激光里程计\n'
+  printf 'planner|smac_hybrid|Smac Hybrid-A*|考虑阿克曼运动学与最小转弯半径\n'
+  printf 'planner|navfn|NavFn Dijkstra|经典二维栅格最短路\n'
+  printf 'planner|theta_star|Theta*|任意角二维栅格规划\n'
+  printf 'planner|smac_2d|Smac 2D A*|带平滑器的二维A*\n'
+  printf 'planner|direct|必经点直连|按顺序连接全部预设必经点的基线\n'
+  printf 'controller|mppi|MPPI|采样式模型预测控制与实时避障\n'
+  printf 'controller|rpp|RPP|调节纯跟踪控制\n'
+  printf 'controller|dwb|DWB|动态窗口轨迹评分控制\n'
+}
+
+resolve_legacy_algorithm() {
+  PERCEPTION=stvl
+  case "$ALGORITHM" in
+    fastlivo_rtk_mppi) LOCALIZATION=fastlivo_rtk; PLANNER=smac_hybrid; CONTROLLER=mppi ;;
+    fastlio_mppi) LOCALIZATION=fast_lio; PLANNER=smac_hybrid; CONTROLLER=mppi ;;
+    navsat_mppi) LOCALIZATION=navsat; PLANNER=smac_hybrid; CONTROLLER=mppi ;;
+    fastlivo_rtk_rpp) LOCALIZATION=fastlivo_rtk; PLANNER=smac_hybrid; CONTROLLER=rpp ;;
+    fastlio_rpp) LOCALIZATION=fast_lio; PLANNER=smac_hybrid; CONTROLLER=rpp ;;
+    navsat_rpp) LOCALIZATION=navsat; PLANNER=smac_hybrid; CONTROLLER=rpp ;;
+    kiss_icp_mppi) LOCALIZATION=kiss_icp; PLANNER=smac_hybrid; CONTROLLER=mppi ;;
+    fastlivo_rtk_navfn_mppi) LOCALIZATION=fastlivo_rtk; PLANNER=navfn; CONTROLLER=mppi ;;
+    fastlivo_rtk_theta_mppi) LOCALIZATION=fastlivo_rtk; PLANNER=theta_star; CONTROLLER=mppi ;;
+    fastlivo_rtk_smac2d_mppi) LOCALIZATION=fastlivo_rtk; PLANNER=smac_2d; CONTROLLER=mppi ;;
+    fastlivo_rtk_navfn_dwb) LOCALIZATION=fastlivo_rtk; PLANNER=navfn; CONTROLLER=dwb ;;
+    fastlivo_rtk_direct_mppi) LOCALIZATION=fastlivo_rtk; PLANNER=direct; CONTROLLER=mppi ;;
+    *) return 1 ;;
+  esac
+}
+
+resolve_canonical_algorithm() {
+  local perception localization planner controller candidate
+  for perception in "${PERCEPTION_COMPONENTS[@]}"; do
+    for localization in "${LOCALIZATION_COMPONENTS[@]}"; do
+      for planner in "${PLANNER_COMPONENTS[@]}"; do
+        for controller in "${CONTROLLER_COMPONENTS[@]}"; do
+          candidate="$(canonical_algorithm_id \
+            "$perception" "$localization" "$planner" "$controller")"
+          if [[ "$ALGORITHM" == "$candidate" ]]; then
+            PERCEPTION="$perception"
+            LOCALIZATION="$localization"
+            PLANNER="$planner"
+            CONTROLLER="$controller"
+            return 0
+          fi
+        done
+      done
+    done
+  done
+  return 1
+}
+
+resolve_components() {
+  if [[ "$ALGORITHM_EXPLICIT" == "true" ]]; then
+    if ! resolve_legacy_algorithm && ! resolve_canonical_algorithm; then
+      echo "ERROR: unknown simulation algorithm: $ALGORITHM" >&2
+      return 2
+    fi
+  fi
+
+  component_is_available "$PERCEPTION" "${PERCEPTION_COMPONENTS[@]}" || {
+    echo "ERROR: unsupported perception component: $PERCEPTION" >&2; return 2; }
+  component_is_available "$LOCALIZATION" "${LOCALIZATION_COMPONENTS[@]}" || {
+    echo "ERROR: unsupported localization component: $LOCALIZATION" >&2; return 2; }
+  component_is_available "$PLANNER" "${PLANNER_COMPONENTS[@]}" || {
+    echo "ERROR: unsupported planner component: $PLANNER" >&2; return 2; }
+  component_is_available "$CONTROLLER" "${CONTROLLER_COMPONENTS[@]}" || {
+    echo "ERROR: unsupported controller component: $CONTROLLER" >&2; return 2; }
+
+  PERCEPTION_MODE="$PERCEPTION"
+  LOCALIZATION_MODE="$LOCALIZATION"
+  CONTROLLER_MODE="$CONTROLLER"
+  ROUTE_MODE=planned
+  if [[ "$PLANNER" == "direct" ]]; then
+    PLANNER_MODE=smac_hybrid
+    ROUTE_MODE=direct
+  else
+    PLANNER_MODE="$PLANNER"
+  fi
+  ALGORITHM="$(canonical_algorithm_id \
+    "$PERCEPTION" "$LOCALIZATION" "$PLANNER" "$CONTROLLER")"
+}
+
+validate_algorithm_catalog() {
+  local count unique id saved_algorithm="$ALGORITHM"
+  count="$(list_algorithms | wc -l)"
+  unique="$(list_algorithms | cut -d'|' -f1 | sort -u | wc -l)"
+  [[ "$count" -eq 120 ]] || {
+    echo "ERROR: expected 120 combinations, got $count" >&2; return 1; }
+  [[ "$unique" -eq "$count" ]] || {
+    echo "ERROR: duplicate algorithm IDs in catalog" >&2; return 1; }
+  while IFS='|' read -r id _; do
+    ALGORITHM="$id"
+    ALGORITHM_EXPLICIT=true
+    resolve_components >/dev/null
+  done < <(list_algorithms)
+  ALGORITHM="$saved_algorithm"
+  printf 'VALIDATED_ALGORITHM_COMBINATIONS=%s\n' "$count"
 }
 
 usage() {
@@ -106,8 +220,15 @@ Options:
   --gui true|false       Open Gazebo GUI (default: true)
   --rviz true|false      Open RViz (default: true)
   --run-waypoints BOOL   Run the preset orchard route (default: true)
-  --algorithm ID         Select a validated localization/controller profile
-  --list-algorithms      Print available profile IDs and descriptions
+  --perception ID        Select perception plugin: stvl or voxel
+  --localization ID      Select localization adapter
+  --planner ID           Select planner plugin or direct path baseline
+  --controller ID        Select controller plugin
+  --algorithm ID         Backward-compatible combined profile ID
+  --list-components      Print independently selectable components
+  --list-algorithms      Print all generated component combinations
+  --validate-algorithms  Exhaustively validate all generated combinations
+  --resolve-only         Resolve selected components without building or running
   --prepare-only         Import and build without restarting simulation
   --stop                 Stop the simulation managed by this script
   -h, --help             Show this help
@@ -138,10 +259,43 @@ while (($#)); do
       ;;
     --algorithm)
       ALGORITHM="${2:?missing value for --algorithm}"
+      ALGORITHM_EXPLICIT=true
       shift 2
+      ;;
+    --perception)
+      PERCEPTION="${2:?missing value for --perception}"
+      COMPONENTS_EXPLICIT=true
+      shift 2
+      ;;
+    --localization)
+      LOCALIZATION="${2:?missing value for --localization}"
+      COMPONENTS_EXPLICIT=true
+      shift 2
+      ;;
+    --planner)
+      PLANNER="${2:?missing value for --planner}"
+      COMPONENTS_EXPLICIT=true
+      shift 2
+      ;;
+    --controller)
+      CONTROLLER="${2:?missing value for --controller}"
+      COMPONENTS_EXPLICIT=true
+      shift 2
+      ;;
+    --list-components)
+      LIST_COMPONENTS=true
+      shift
       ;;
     --list-algorithms)
       LIST_ALGORITHMS=true
+      shift
+      ;;
+    --validate-algorithms)
+      VALIDATE_ALGORITHMS=true
+      shift
+      ;;
+    --resolve-only)
+      RESOLVE_ONLY=true
       shift
       ;;
     --prepare-only)
@@ -164,12 +318,34 @@ while (($#)); do
   esac
 done
 
+if [[ "$ALGORITHM_EXPLICIT" == "true" && "$COMPONENTS_EXPLICIT" == "true" ]]; then
+  echo "ERROR: --algorithm cannot be combined with individual component options." >&2
+  exit 2
+fi
+
+if [[ "$LIST_COMPONENTS" == "true" ]]; then
+  list_components
+  exit 0
+fi
+
 if [[ "$LIST_ALGORITHMS" == "true" ]]; then
   list_algorithms
   exit 0
 fi
 
-resolve_algorithm
+if [[ "$VALIDATE_ALGORITHMS" == "true" ]]; then
+  validate_algorithm_catalog
+  exit 0
+fi
+
+resolve_components
+
+if [[ "$RESOLVE_ONLY" == "true" ]]; then
+  printf 'algorithm=%s\nperception=%s\nlocalization=%s\nplanner=%s\ncontroller=%s\nroute=%s\n' \
+    "$ALGORITHM" "$PERCEPTION_MODE" "$LOCALIZATION_MODE" \
+    "$PLANNER_MODE" "$CONTROLLER_MODE" "$ROUTE_MODE"
+  exit 0
+fi
 
 for value in "$GUI" "$RVIZ" "$RUN_WAYPOINTS"; do
   if [[ "$value" != "true" && "$value" != "false" ]]; then
@@ -318,7 +494,7 @@ done
 set_status "preparing"
 log "Unity 导出目录：$EXPORT_DIR"
 log "ROS 工作区：$WORKSPACE"
-log "仿真算法：$ALGORITHM（定位=$LOCALIZATION_MODE，规划=$PLANNER_MODE，控制=$CONTROLLER_MODE，路径=$ROUTE_MODE）"
+log "仿真算法：$ALGORITHM（感知=$PERCEPTION_MODE，定位=$LOCALIZATION_MODE，规划=$PLANNER_MODE，控制=$CONTROLLER_MODE，路径=$ROUTE_MODE）"
 
 set +u
 source /opt/ros/humble/setup.bash
@@ -377,6 +553,7 @@ setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.p
   gui:="$GUI" \
   rviz:="$RVIZ" \
   run_waypoints:="$RUN_WAYPOINTS" \
+  perception_mode:="$PERCEPTION_MODE" \
   localization_mode:="$LOCALIZATION_MODE" \
   planner_mode:="$PLANNER_MODE" \
   controller_mode:="$CONTROLLER_MODE" \
