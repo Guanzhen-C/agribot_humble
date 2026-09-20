@@ -9,8 +9,10 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch_ros.actions import Node
 
 
 def _write_gazebo_vehicle_model(source_file):
@@ -409,6 +411,15 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "perception_mode", default_value="stvl", choices=["stvl", "voxel"]
             ),
+            DeclareLaunchArgument(
+                "vision_mode",
+                default_value="off",
+                choices=["off", "canny", "orb", "optical_flow"],
+                description=(
+                    "Independent visual perception output; it is not connected "
+                    "to Nav2 costmaps or motion control"
+                ),
+            ),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument(
                 "controller_mode",
@@ -514,6 +525,27 @@ def generate_launch_description():
                     "fastlio_base_to_body_pitch": str(base_to_body_rpy[1]),
                     "fastlio_base_to_body_yaw": str(base_to_body_rpy[2]),
                 }.items(),
+            ),
+            Node(
+                package="agribot_visual_perception",
+                executable="visual_perception_node",
+                name="visual_perception",
+                output="screen",
+                condition=IfCondition(
+                    PythonExpression(
+                        ["'", LaunchConfiguration("vision_mode"), "' != 'off'"]
+                    )
+                ),
+                parameters=[
+                    {
+                        "use_sim_time": True,
+                        "mode": LaunchConfiguration("vision_mode"),
+                        "input_topic": "/camera/rgb/image_raw",
+                        "output_topic": "/vision/annotated_image",
+                        "status_topic": "/vision/status",
+                        "max_rate_hz": 10.0,
+                    }
+                ],
             ),
         ]
     )

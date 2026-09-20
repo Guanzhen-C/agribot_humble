@@ -27,7 +27,7 @@ def load_launch_module():
     return module
 
 
-def test_component_catalog_generates_120_unique_combinations():
+def test_component_catalog_generates_480_unique_combinations():
     components = run_script("--list-components").strip().splitlines()
     groups = {}
     for line in components:
@@ -36,6 +36,7 @@ def test_component_catalog_generates_120_unique_combinations():
 
     assert {key: len(value) for key, value in groups.items()} == {
         "perception": 2,
+        "vision": 4,
         "localization": 4,
         "planner": 5,
         "controller": 3,
@@ -43,10 +44,10 @@ def test_component_catalog_generates_120_unique_combinations():
 
     algorithms = run_script("--list-algorithms").strip().splitlines()
     algorithm_ids = [line.split("|", 1)[0] for line in algorithms]
-    assert len(algorithm_ids) == 120
-    assert len(set(algorithm_ids)) == 120
+    assert len(algorithm_ids) == 480
+    assert len(set(algorithm_ids)) == 480
     assert run_script("--validate-algorithms").strip() == (
-        "VALIDATED_ALGORITHM_COMBINATIONS=120"
+        "VALIDATED_ALGORITHM_COMBINATIONS=480"
     )
 
 
@@ -54,6 +55,8 @@ def test_independent_component_selection_and_legacy_alias():
     resolved = run_script(
         "--perception",
         "voxel",
+        "--vision",
+        "orb",
         "--localization",
         "kiss_icp",
         "--planner",
@@ -62,8 +65,9 @@ def test_independent_component_selection_and_legacy_alias():
         "dwb",
         "--resolve-only",
     )
-    assert "algorithm=voxel_kiss_icp_theta_star_dwb" in resolved
+    assert "algorithm=voxel_orb_kiss_icp_theta_star_dwb" in resolved
     assert "perception=voxel" in resolved
+    assert "vision=orb" in resolved
     assert "localization=kiss_icp" in resolved
     assert "planner=theta_star" in resolved
     assert "controller=dwb" in resolved
@@ -72,6 +76,8 @@ def test_independent_component_selection_and_legacy_alias():
     direct = run_script(
         "--perception",
         "stvl",
+        "--vision",
+        "optical_flow",
         "--localization",
         "navsat",
         "--planner",
@@ -81,12 +87,18 @@ def test_independent_component_selection_and_legacy_alias():
         "--resolve-only",
     )
     assert "planner=smac_hybrid" in direct
+    assert "vision=optical_flow" in direct
     assert "route=direct" in direct
 
     legacy = run_script(
         "--algorithm", "fastlivo_rtk_navfn_dwb", "--resolve-only"
     )
-    assert "algorithm=stvl_fastlivo_rtk_navfn_dwb" in legacy
+    assert "algorithm=stvl_off_fastlivo_rtk_navfn_dwb" in legacy
+
+    previous_canonical = run_script(
+        "--algorithm", "voxel_kiss_icp_theta_star_dwb", "--resolve-only"
+    )
+    assert "algorithm=voxel_off_kiss_icp_theta_star_dwb" in previous_canonical
 
 
 def test_every_nav2_plugin_profile_uses_the_unified_interfaces():
@@ -140,7 +152,7 @@ def test_every_nav2_plugin_profile_uses_the_unified_interfaces():
 
 
 if __name__ == "__main__":
-    test_component_catalog_generates_120_unique_combinations()
+    test_component_catalog_generates_480_unique_combinations()
     test_independent_component_selection_and_legacy_alias()
     test_every_nav2_plugin_profile_uses_the_unified_interfaces()
     print("ALGORITHM_MATRIX_TESTS_PASSED=3")
