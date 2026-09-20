@@ -56,7 +56,7 @@ def test_independent_component_selection_and_legacy_alias():
         "--perception",
         "voxel",
         "--vision",
-        "orb",
+        "instance_segmentation",
         "--localization",
         "kiss_icp",
         "--planner",
@@ -65,9 +65,12 @@ def test_independent_component_selection_and_legacy_alias():
         "dwb",
         "--resolve-only",
     )
-    assert "algorithm=voxel_orb_kiss_icp_theta_star_dwb" in resolved
+    assert (
+        "algorithm=voxel_instance_segmentation_kiss_icp_theta_star_dwb"
+        in resolved
+    )
     assert "perception=voxel" in resolved
-    assert "vision=orb" in resolved
+    assert "vision=instance_segmentation" in resolved
     assert "localization=kiss_icp" in resolved
     assert "planner=theta_star" in resolved
     assert "controller=dwb" in resolved
@@ -77,7 +80,7 @@ def test_independent_component_selection_and_legacy_alias():
         "--perception",
         "stvl",
         "--vision",
-        "optical_flow",
+        "pose_estimation",
         "--localization",
         "navsat",
         "--planner",
@@ -87,7 +90,7 @@ def test_independent_component_selection_and_legacy_alias():
         "--resolve-only",
     )
     assert "planner=smac_hybrid" in direct
-    assert "vision=optical_flow" in direct
+    assert "vision=pose_estimation" in direct
     assert "route=direct" in direct
 
     legacy = run_script(

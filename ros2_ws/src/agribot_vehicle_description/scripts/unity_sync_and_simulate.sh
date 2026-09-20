@@ -10,6 +10,9 @@ RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-true}"
 ALGORITHM="${AGRIBOT_SIM_ALGORITHM:-fastlivo_rtk_mppi}"
 PERCEPTION="${AGRIBOT_SIM_PERCEPTION:-stvl}"
 VISION="${AGRIBOT_SIM_VISION:-off}"
+VISION_PYTHON="${AGRIBOT_VISION_PYTHON:-}"
+VISION_MODEL_DIR="${AGRIBOT_VISION_MODEL_DIR:-$HOME/.local/share/agribot/vision_models}"
+VISION_DEVICE="${AGRIBOT_VISION_DEVICE:-}"
 LOCALIZATION="${AGRIBOT_SIM_LOCALIZATION:-fastlivo_rtk}"
 PLANNER="${AGRIBOT_SIM_PLANNER:-smac_hybrid}"
 CONTROLLER="${AGRIBOT_SIM_CONTROLLER:-mppi}"
@@ -32,7 +35,7 @@ if [[ -n "${AGRIBOT_SIM_PERCEPTION+x}" ||
 fi
 
 PERCEPTION_COMPONENTS=(stvl voxel)
-VISION_COMPONENTS=(off canny orb optical_flow)
+VISION_COMPONENTS=(off object_detection instance_segmentation pose_estimation)
 LOCALIZATION_COMPONENTS=(fastlivo_rtk fast_lio navsat kiss_icp)
 PLANNER_COMPONENTS=(smac_hybrid navfn theta_star smac_2d direct)
 CONTROLLER_COMPONENTS=(mppi rpp dwb)
@@ -57,9 +60,9 @@ perception_name() {
 vision_name() {
   case "$1" in
     off) NAME_RESULT="关闭视觉感知" ;;
-    canny) NAME_RESULT="Canny边缘感知" ;;
-    orb) NAME_RESULT="ORB特征感知" ;;
-    optical_flow) NAME_RESULT="Farneback光流感知" ;;
+    object_detection) NAME_RESULT="AI目标检测" ;;
+    instance_segmentation) NAME_RESULT="AI实例分割" ;;
+    pose_estimation) NAME_RESULT="AI人体姿态估计" ;;
   esac
 }
 
@@ -123,9 +126,9 @@ list_components() {
   printf 'perception|stvl|STVL时空体素层|C16 PointCloud2输入，带体素衰减和三维清除\n'
   printf 'perception|voxel|Nav2三维体素层|C16 PointCloud2输入，Nav2官方VoxelLayer\n'
   printf 'vision|off|关闭视觉感知|相机仍可供定位使用，不启动额外视觉节点\n'
-  printf 'vision|canny|Canny边缘感知|发布独立边缘叠加图，不接入运动控制\n'
-  printf 'vision|orb|ORB特征感知|发布独立ORB特征图，不接入运动控制\n'
-  printf 'vision|optical_flow|Farneback光流感知|发布独立稠密光流图，不接入运动控制\n'
+  printf 'vision|object_detection|AI目标检测|发布目标类别、置信度和边界框，不接入运动控制\n'
+  printf 'vision|instance_segmentation|AI实例分割|发布逐实例掩膜和边界框，不接入运动控制\n'
+  printf 'vision|pose_estimation|AI人体姿态估计|发布人体关键点和边界框，不接入运动控制\n'
   printf 'localization|fastlivo_rtk|FAST-LIVO2 + RTK|视觉激光惯性里程计与固定解RTK因子融合\n'
   printf 'localization|fast_lio|FAST-LIO2|C16与IMU激光惯性里程计\n'
   printf 'localization|navsat|NavSat ESKF|RTK与IMU组合导航\n'
@@ -562,6 +565,9 @@ fi
 set +u
 source "$WORKSPACE/install/setup.bash"
 set -u
+if [[ -z "$VISION_PYTHON" && -x "$HOME/.local/share/agribot/vision_venv/bin/python3" ]]; then
+  VISION_PYTHON="$HOME/.local/share/agribot/vision_venv/bin/python3"
+fi
 ros2 pkg prefix agribot_vehicle_description >/dev/null
 ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
   --show-args >/dev/null
@@ -588,6 +594,9 @@ setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.p
   run_waypoints:="$RUN_WAYPOINTS" \
   perception_mode:="$PERCEPTION_MODE" \
   vision_mode:="$VISION_MODE" \
+  vision_python:="$VISION_PYTHON" \
+  vision_model_dir:="$VISION_MODEL_DIR" \
+  vision_device:="$VISION_DEVICE" \
   localization_mode:="$LOCALIZATION_MODE" \
   planner_mode:="$PLANNER_MODE" \
   controller_mode:="$CONTROLLER_MODE" \

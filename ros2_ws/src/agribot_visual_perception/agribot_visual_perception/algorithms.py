@@ -1,13 +1,24 @@
-"""OpenCV visual algorithms with a common frame-in/frame-out interface."""
+"""AI visual inference behind a common frame-in/result-out interface."""
 
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
 
 
-SUPPORTED_MODES = ("canny", "orb", "optical_flow")
+SUPPORTED_MODES = ("object_detection", "instance_segmentation", "pose_estimation")
+DEFAULT_MODEL_FILES = {
+    "object_detection": "yolo26n.pt",
+    "instance_segmentation": "yolo26n-seg.pt",
+    "pose_estimation": "yolo26n-pose.pt",
+}
+METRIC_NAMES = {
+    "object_detection": "detected_objects",
+    "instance_segmentation": "segmented_instances",
+    "pose_estimation": "detected_poses",
+}
 
 
 @dataclass
@@ -15,28 +26,146 @@ class VisualResult:
     image: np.ndarray
     metric_name: str
     metric_value: float
+    objects: List[Dict[str, Any]]
+
+
+class UltralyticsBackend:
+    """Thin adapter that keeps the ROS node independent from model APIs."""
+
+    def __init__(
+        self,
+        mode: str,
+        model_path: Path,
+        device: str,
+        confidence: float,
+        image_size: int,
+    ) -> None:
+        try:
+            from ultralytics import YOLO
+        except ImportError as exc:
+            raise RuntimeError(
+                "Ultralytics is not installed. Run setup_ai_runtime.sh first."
+            ) from exc
+
+        if not model_path.is_file():
+            raise FileNotFoundError(
+                f"AI model not found: {model_path}. "
+                "Run setup_ai_runtime.sh first."
+            )
+        self.mode = mode
+        self.model = YOLO(str(model_path))
+        self.device = device or None
+        self.confidence = confidence
+        self.image_size = image_size
+
+    def infer(self, image: np.ndarray) -> tuple[np.ndarray, List[Dict[str, Any]]]:
+        results = self.model.predict(
+            source=image,
+            conf=self.confidence,
+            imgsz=self.image_size,
+            device=self.device,
+            verbose=False,
+        )
+        if not results:
+            return image.copy(), []
+        result = results[0]
+        return result.plot(), self._serialize_result(result)
+
+    def _serialize_result(self, result: Any) -> List[Dict[str, Any]]:
+        boxes = result.boxes
+        if boxes is None:
+            return []
+        xyxy = boxes.xyxy.detach().cpu().numpy()
+        confidences = boxes.conf.detach().cpu().numpy()
+        class_ids = boxes.cls.detach().cpu().numpy().astype(int)
+        names = result.names
+        objects: List[Dict[str, Any]] = []
+        for index, (bounds, score, class_id) in enumerate(
+            zip(xyxy, confidences, class_ids)
+        ):
+            item: Dict[str, Any] = {
+                "class_id": int(class_id),
+                "class_name": str(names.get(int(class_id), class_id)),
+                "confidence": round(float(score), 5),
+                "bbox_xyxy": [round(float(value), 2) for value in bounds],
+            }
+            if self.mode == "instance_segmentation" and result.masks is not None:
+                polygons = result.masks.xy
+                if index < len(polygons):
+                    polygon = np.asarray(polygons[index])
+                    stride = max(1, len(polygon) // 64)
+                    item["mask_polygon"] = [
+                        [round(float(x), 2), round(float(y), 2)]
+                        for x, y in polygon[::stride]
+                    ]
+            if self.mode == "pose_estimation" and result.keypoints is not None:
+                coordinates = result.keypoints.xy[index].detach().cpu().numpy()
+                keypoint_confidence: Optional[np.ndarray] = None
+                if result.keypoints.conf is not None:
+                    keypoint_confidence = (
+                        result.keypoints.conf[index].detach().cpu().numpy()
+                    )
+                keypoints = []
+                for keypoint_index, (x, y) in enumerate(coordinates):
+                    point = {"x": round(float(x), 2), "y": round(float(y), 2)}
+                    if keypoint_confidence is not None:
+                        point["confidence"] = round(
+                            float(keypoint_confidence[keypoint_index]), 5
+                        )
+                    keypoints.append(point)
+                item["keypoints"] = keypoints
+            objects.append(item)
+        return objects
 
 
 class VisualProcessor:
-    """Processes frames without publishing into the navigation control chain."""
+    """Runs one AI model without publishing into the motion-control chain."""
 
-    def __init__(self, mode: str) -> None:
+    def __init__(
+        self,
+        mode: str,
+        model_dir: str = "",
+        model_path: str = "",
+        device: str = "",
+        confidence: float = 0.35,
+        image_size: int = 640,
+        inference_backend: Optional[Any] = None,
+    ) -> None:
         if mode not in SUPPORTED_MODES:
             raise ValueError(f"Unsupported visual mode: {mode}")
         self.mode = mode
-        self._orb = cv2.ORB_create(nfeatures=800) if mode == "orb" else None
-        self._previous_gray: Optional[np.ndarray] = None
+        resolved_path = self.resolve_model_path(mode, model_dir, model_path)
+        self.backend = inference_backend or UltralyticsBackend(
+            mode,
+            resolved_path,
+            device,
+            min(max(confidence, 0.0), 1.0),
+            max(32, image_size),
+        )
+
+    @staticmethod
+    def resolve_model_path(mode: str, model_dir: str, model_path: str) -> Path:
+        if model_path:
+            return Path(model_path).expanduser().resolve()
+        directory = (
+            Path(model_dir).expanduser()
+            if model_dir
+            else Path.home() / ".local" / "share" / "agribot" / "vision_models"
+        )
+        return (directory / DEFAULT_MODEL_FILES[mode]).resolve()
 
     def process(self, image: np.ndarray) -> VisualResult:
         if image is None or image.size == 0:
             raise ValueError("Input image is empty")
         bgr = self._as_bgr(image)
-        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-        if self.mode == "canny":
-            return self._process_canny(bgr, gray)
-        if self.mode == "orb":
-            return self._process_orb(bgr, gray)
-        return self._process_optical_flow(bgr, gray)
+        annotated, objects = self.backend.infer(bgr)
+        annotated = self._as_bgr(annotated)
+        return VisualResult(
+            annotated,
+            METRIC_NAMES[self.mode],
+            float(len(objects)),
+            objects,
+        )
 
     @staticmethod
     def _as_bgr(image: np.ndarray) -> np.ndarray:
@@ -44,58 +173,6 @@ class VisualProcessor:
             return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         if image.ndim != 3 or image.shape[2] != 3:
             raise ValueError(f"Unsupported image shape: {image.shape}")
+        if image.dtype != np.uint8:
+            return np.clip(image, 0, 255).astype(np.uint8)
         return image.copy()
-
-    @staticmethod
-    def _process_canny(bgr: np.ndarray, gray: np.ndarray) -> VisualResult:
-        blurred = cv2.GaussianBlur(gray, (5, 5), 1.2)
-        edges = cv2.Canny(blurred, 60, 150)
-        annotated = (bgr.astype(np.float32) * 0.55).astype(np.uint8)
-        annotated[edges > 0] = (0, 0, 255)
-        return VisualResult(annotated, "edge_pixels", float(np.count_nonzero(edges)))
-
-    def _process_orb(self, bgr: np.ndarray, gray: np.ndarray) -> VisualResult:
-        keypoints = self._orb.detect(gray, None)
-        annotated = cv2.drawKeypoints(
-            bgr,
-            keypoints,
-            None,
-            color=(0, 255, 0),
-            flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS,
-        )
-        return VisualResult(annotated, "keypoints", float(len(keypoints)))
-
-    def _process_optical_flow(
-        self, bgr: np.ndarray, gray: np.ndarray
-    ) -> VisualResult:
-        previous = self._previous_gray
-        self._previous_gray = gray
-        if previous is None or previous.shape != gray.shape:
-            cv2.putText(
-                bgr,
-                "optical flow: waiting for next frame",
-                (16, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
-                (0, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-            return VisualResult(bgr, "mean_flow_px", 0.0)
-
-        flow = cv2.calcOpticalFlowFarneback(
-            previous, gray, None, 0.5, 3, 21, 3, 5, 1.2, 0
-        )
-        magnitude = np.linalg.norm(flow, axis=2)
-        annotated = bgr.copy()
-        step = max(16, min(gray.shape) // 18)
-        for y in range(step // 2, gray.shape[0], step):
-            for x in range(step // 2, gray.shape[1], step):
-                dx, dy = flow[y, x]
-                if dx * dx + dy * dy < 0.25:
-                    continue
-                end = (int(round(x + dx)), int(round(y + dy)))
-                cv2.arrowedLine(
-                    annotated, (x, y), end, (0, 255, 255), 1, cv2.LINE_AA, 0, 0.3
-                )
-        return VisualResult(annotated, "mean_flow_px", float(np.mean(magnitude)))

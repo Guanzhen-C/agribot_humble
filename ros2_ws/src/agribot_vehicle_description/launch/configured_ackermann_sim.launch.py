@@ -414,11 +414,31 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "vision_mode",
                 default_value="off",
-                choices=["off", "canny", "orb", "optical_flow"],
+                choices=[
+                    "off",
+                    "object_detection",
+                    "instance_segmentation",
+                    "pose_estimation",
+                ],
                 description=(
                     "Independent visual perception output; it is not connected "
                     "to Nav2 costmaps or motion control"
                 ),
+            ),
+            DeclareLaunchArgument(
+                "vision_python",
+                default_value=os.environ.get("AGRIBOT_VISION_PYTHON", ""),
+            ),
+            DeclareLaunchArgument(
+                "vision_model_dir",
+                default_value=os.environ.get(
+                    "AGRIBOT_VISION_MODEL_DIR",
+                    os.path.expanduser("~/.local/share/agribot/vision_models"),
+                ),
+            ),
+            DeclareLaunchArgument(
+                "vision_device",
+                default_value=os.environ.get("AGRIBOT_VISION_DEVICE", ""),
             ),
             DeclareLaunchArgument("localization_mode", default_value="fastlivo_rtk"),
             DeclareLaunchArgument(
@@ -531,6 +551,7 @@ def generate_launch_description():
                 executable="visual_perception_node",
                 name="visual_perception",
                 output="screen",
+                prefix=LaunchConfiguration("vision_python"),
                 condition=IfCondition(
                     PythonExpression(
                         ["'", LaunchConfiguration("vision_mode"), "' != 'off'"]
@@ -542,7 +563,12 @@ def generate_launch_description():
                         "mode": LaunchConfiguration("vision_mode"),
                         "input_topic": "/camera/rgb/image_raw",
                         "output_topic": "/vision/annotated_image",
+                        "result_topic": "/vision/results",
                         "status_topic": "/vision/status",
+                        "model_dir": LaunchConfiguration("vision_model_dir"),
+                        "device": LaunchConfiguration("vision_device"),
+                        "confidence": 0.35,
+                        "image_size": 640,
                         "max_rate_hz": 10.0,
                     }
                 ],

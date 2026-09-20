@@ -1,4 +1,4 @@
-"""ROS 2 node exposing visual algorithms only for observation and analysis."""
+"""ROS 2 node exposing AI vision only for observation and analysis."""
 
 import json
 import time
@@ -16,7 +16,7 @@ from .algorithms import SUPPORTED_MODES, VisualProcessor
 class VisualPerceptionNode(Node):
     def __init__(self) -> None:
         super().__init__("visual_perception")
-        mode = str(self.declare_parameter("mode", "canny").value)
+        mode = str(self.declare_parameter("mode", "object_detection").value)
         if mode not in SUPPORTED_MODES:
             raise ValueError(
                 f"mode must be one of {', '.join(SUPPORTED_MODES)}; got {mode}"
@@ -32,12 +32,27 @@ class VisualPerceptionNode(Node):
         status_topic = str(
             self.declare_parameter("status_topic", "/vision/status").value
         )
+        result_topic = str(
+            self.declare_parameter("result_topic", "/vision/results").value
+        )
+        model_dir = str(self.declare_parameter("model_dir", "").value)
+        model_path = str(self.declare_parameter("model_path", "").value)
+        device = str(self.declare_parameter("device", "").value)
+        confidence = float(self.declare_parameter("confidence", 0.35).value)
+        image_size = int(self.declare_parameter("image_size", 640).value)
         self.max_rate_hz = max(
             0.1, float(self.declare_parameter("max_rate_hz", 10.0).value)
         )
 
         self.mode = mode
-        self.processor = VisualProcessor(mode)
+        self.processor = VisualProcessor(
+            mode,
+            model_dir=model_dir,
+            model_path=model_path,
+            device=device,
+            confidence=confidence,
+            image_size=image_size,
+        )
         self.bridge = CvBridge()
         self.received_frames = 0
         self.processed_frames = 0
@@ -49,6 +64,7 @@ class VisualPerceptionNode(Node):
         self.started_at = time.monotonic()
 
         self.image_publisher = self.create_publisher(Image, output_topic, 2)
+        self.result_publisher = self.create_publisher(String, result_topic, 2)
         self.status_publisher = self.create_publisher(String, status_topic, 2)
         self.subscription = self.create_subscription(
             Image, input_topic, self._on_image, qos_profile_sensor_data
@@ -56,7 +72,8 @@ class VisualPerceptionNode(Node):
         self.status_timer = self.create_timer(1.0, self._publish_status)
         self.get_logger().info(
             f"Visual perception ready: mode={mode}, input={input_topic}, "
-            f"output={output_topic}; navigation outputs are not published"
+            f"output={output_topic}, results={result_topic}; "
+            "navigation outputs are not published"
         )
 
     def _on_image(self, message: Image) -> None:
@@ -77,6 +94,21 @@ class VisualPerceptionNode(Node):
 
         output.header = message.header
         self.image_publisher.publish(output)
+        result_message = String()
+        result_message.data = json.dumps(
+            {
+                "mode": self.mode,
+                "stamp": {
+                    "sec": message.header.stamp.sec,
+                    "nanosec": message.header.stamp.nanosec,
+                },
+                "frame_id": message.header.frame_id,
+                "objects": result.objects,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        self.result_publisher.publish(result_message)
         self.processed_frames += 1
         self.last_processed_at = now
         self.last_metric_name = result.metric_name

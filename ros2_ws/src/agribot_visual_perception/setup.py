@@ -15,13 +15,14 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
+        (os.path.join("share", package_name, "scripts"), glob("scripts/*.sh")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="cgz",
     maintainer_email="cgz@example.com",
     description=(
-        "Independent OpenCV visual perception algorithms that do not affect "
+        "Independent AI visual perception algorithms that do not affect "
         "the vehicle motion-control chain."
     ),
     license="Apache-2.0",
