@@ -8,16 +8,19 @@ import {
   Clock3,
   Crosshair,
   Database,
+  Gauge,
   LocateFixed,
   Map,
   MapPin,
   Navigation,
+  Network,
   Play,
   Radio,
   RefreshCw,
   Route,
   Satellite,
   Send,
+  Settings2,
   Square,
   Tractor,
   Trash2,
@@ -28,6 +31,7 @@ import {
 } from "lucide-react";
 import MapView from "./MapView";
 import ConsolePanels from "./ConsolePanels";
+import { GlassNavigation, GlassSwitch } from "./GlassNavigation";
 import {
   formatDuration,
   getJson,
@@ -38,10 +42,13 @@ import {
 
 
 const TABS = [
-  { id: "navigate", label: "导航", icon: Navigation },
-  { id: "collect", label: "采集", icon: Database },
-  { id: "maps", label: "地图", icon: Map },
-  { id: "status", label: "状态", icon: Activity },
+  { id: "status", label: "总览", title: "运行总览", icon: Gauge, color: "overview" },
+  { id: "navigate", label: "导航", title: "车辆导航", icon: Navigation, color: "navigation" },
+  { id: "collect", label: "采集", title: "数据采集", icon: Database, color: "collection" },
+  { id: "maps", label: "地图", title: "地图与运行", icon: Map, color: "maps" },
+  { id: "devices", label: "设备", title: "设备管理", icon: Network, color: "devices" },
+  { id: "diagnostics", label: "诊断", title: "设备诊断", icon: Activity, color: "diagnostics" },
+  { id: "settings", label: "设置", title: "运行设置", icon: Settings2, color: "settings" },
 ];
 
 const MODES = [
@@ -780,20 +787,25 @@ export default function App() {
     if (activeTab === "maps") {
       return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} onImportError={(message) => setToast({ tone: "error", text: message })} />;
     }
-    return <ConsolePanels state={state} connected={connected} vehicleType={vehicleType} diagnostics={<StatusPanel state={state} />} />;
+    return <ConsolePanels section={activeTab} state={state} connected={connected} vehicleType={vehicleType} diagnostics={<StatusPanel state={connected ? state : null} />} />;
   }, [activeTab, connected, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
 
   const localizationReady = connected && state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
+  const currentPage = TABS.find((tab) => tab.id === activeTab) || TABS[1];
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
+      <div className="desktop-workspace">
       <header className="topbar">
+        <GlassNavigation />
         <div className="brand-block">
           <div className="brand-mark"><img src="./icons/agribot.svg" alt="" /></div>
-          <div><h1>农机控制台</h1><span>{state?.active_runtime?.map_id || selectedMap || "未选择地图"}</span></div>
+          <div><h1>农机控制台</h1><span>{selectedVehicle?.label || "未选择车辆"}</span></div>
         </div>
         <div className="top-status">
+          <GlassSwitch />
           <Pill tone={connected ? "green" : "red"}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? "在线" : "离线"}</Pill>
           <Pill tone={localizationReady ? "green" : "amber"}><Crosshair size={14} />{localizationReady ? "定位就绪" : "定位未就绪"}</Pill>
           <Pill tone={connected && state?.localization?.fix_quality === 4 ? "green" : "neutral"}><Satellite size={14} />RTK {connected ? state?.localization?.fix_quality ?? "--" : "--"}</Pill>
@@ -805,7 +817,12 @@ export default function App() {
         </div>
       </header>
 
-      <main className="workspace">
+      <main id="main-content" className={`workspace page-${activeTab}`} tabIndex={-1}>
+        <div className="page-heading">
+          <h2>{currentPage.title}</h2>
+          <VehicleSelector vehicles={vehicles} vehicleType={vehicleType} setVehicleType={setVehicleType} disabled={vehicleLocked} />
+        </div>
+        {activeTab === "navigate" ? <div className="navigation-workspace">
         <div className="map-region">
           <MapView
             state={state}
@@ -818,17 +835,21 @@ export default function App() {
           />
         </div>
         <aside className="control-panel">
-          <nav className="tabbar" aria-label="功能导航">
-            {TABS.map(({ id, label, icon: Icon }) => (
-              <button type="button" key={id} className={activeTab === id ? "selected" : ""} onClick={() => setActiveTab(id)}>
-                <Icon size={19} /><span>{label}</span>
-              </button>
-            ))}
-          </nav>
-          <VehicleSelector vehicles={vehicles} vehicleType={vehicleType} setVehicleType={setVehicleType} disabled={vehicleLocked} />
+          <div className="navigation-map-heading"><Map size={18} /><span>{state?.active_runtime?.map_id || selectedMap || "未选择地图"}</span></div>
           {tabPanel}
         </aside>
+        </div> : tabPanel}
       </main>
+      <footer className="desktop-credit">农机控制台 <span>·</span> 界面参考 FieldGate VCU / 刘泽禹</footer>
+      </div>
+      <nav className="tabbar desktop-dock" aria-label="功能导航">
+        <GlassNavigation dock />
+        {TABS.map(({ id, label, icon: Icon, color }) => (
+          <button type="button" key={id} className={activeTab === id ? "selected" : ""} aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>
+            <span className={`app-icon app-${color}`}><Icon size={24} strokeWidth={1.65} /></span><span>{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {toast && <div className={`toast ${toast.tone}`} role="status">{toast.tone === "success" ? <Check size={18} /> : <AlertTriangle size={18} />}{toast.text}</div>}
       <MotionDialog request={motionRequest} onClose={() => setMotionRequest(null)} execute={execute} />

@@ -32,7 +32,7 @@ test("VCU pages remain truthful offline and never emit motion commands", async (
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
   await expect(page.getByText("定位未就绪", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "状态", exact: true }).click();
+  await page.getByRole("button", { name: "总览", exact: true }).click();
   await expect(page.getByRole("heading", { name: "运行总览" })).toBeVisible();
   await page.screenshot({ path: "/tmp/agribot-vcu-overview-desktop.png" });
   await page.getByRole("button", { name: "设备", exact: true }).click();
@@ -308,11 +308,11 @@ test("desktop operations surface renders without overflow or console errors", as
 test("mobile layout keeps map and controls usable", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await mockApi(page);
+  await mockApi(page, { live: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.locator("canvas")).toBeVisible();
-  await page.getByRole("button", { name: "状态" }).click();
+  await page.getByRole("button", { name: "总览" }).click();
   await expect(page.getByRole("heading", { name: "运行总览" })).toBeVisible();
   await page.getByRole("button", { name: "诊断", exact: true }).click();
   await expect(page.getByRole("heading", { name: "数据通道" })).toBeVisible();
@@ -503,4 +503,34 @@ test("installed web interface opens after the network is disconnected", async ({
   await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
   await expect(page.getByRole("button", { name: "四轮差速车" })).toBeVisible();
   await context.setOffline(false);
+});
+
+test("FieldGate-style pages retain all destinations at desktop and narrow phone widths", async ({ page }) => {
+  const posts = [];
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const state = { ...mockState, active_runtime: null, navigation: { status: "idle" },
+    vcu: { configured: false, online: false, port: "", error: "未配置6750诊断串口" },
+    processes: { runtime: { running: false }, collection: { running: false } },
+  };
+  await mockApi(page, { state, onPost: request => posts.push(request) });
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+    await page.goto("/");
+    for (const name of ["总览", "导航", "采集", "地图", "设备", "诊断", "设置"]) {
+      await page.locator(".tabbar").getByRole("button", { name, exact: true }).click();
+      await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector(".workspace").scrollTo(0, 0); });
+      expect(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth)).toBe(true);
+      await expect(page.locator(".tabbar")).toBeInViewport();
+      const icons = await page.locator(".app-icon").evaluateAll(items => items.map(item => item.getBoundingClientRect().width));
+      expect(Math.min(...icons)).toBeGreaterThanOrEqual(32);
+      if (width !== 320) await page.screenshot({ path: `/tmp/agribot-fieldgate-${width}-${name}.png` });
+    }
+    await page.getByRole("switch", { name: "玻璃特效" }).uncheck();
+    await expect(page.locator(".glass-optics[data-glass-active]")).toHaveCount(0);
+    await page.getByRole("switch", { name: "玻璃特效" }).check();
+    await expect(page.locator(".glass-optics[data-glass-active]")).toHaveCount(2);
+  }
+  expect(posts).toEqual([]);
+  expect(errors).toEqual([]);
 });

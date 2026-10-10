@@ -21,6 +21,6 @@
     </style>
 
     <style name="Theme.Agribot.ActionBar.Subtitle" parent="@android:style/TextAppearance.Material.Widget.ActionBar.Subtitle">
-        <item name="android:textColor">#D8EEE8</item>
+        <item name="android:textColor">#E1EFFF</item>
     </style>
 </resources>
