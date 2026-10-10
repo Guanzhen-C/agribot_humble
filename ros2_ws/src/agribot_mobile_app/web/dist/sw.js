@@ -1,4 +1,4 @@
-const CACHE = "agribot-mobile-v6";
+const CACHE = "agribot-mobile-v7";
 const CORE = ["./manifest.webmanifest", "./icons/agribot.svg", "./fieldgate/desktop-wallpaper.png", "./fieldgate/ackermann-poster.png", "./fieldgate/tracked-diagram.png"];
 
 async function cacheApplicationShell() {

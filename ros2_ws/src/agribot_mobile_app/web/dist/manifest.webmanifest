@@ -6,8 +6,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f4f6f7",
-  "theme_color": "#176b5b",
+  "background_color": "#4cc5f1",
+  "theme_color": "#1271e4",
   "icons": [
     {
       "src": "./icons/agribot.svg",
