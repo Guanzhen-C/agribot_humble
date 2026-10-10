@@ -18,6 +18,8 @@ PLANNER="${AGRIBOT_SIM_PLANNER:-smac_hybrid}"
 CONTROLLER="${AGRIBOT_SIM_CONTROLLER:-mppi}"
 PREPARE_ONLY=false
 STOP_ONLY=false
+STATUS_ONLY=false
+PHYSICAL_OUTPUT=""
 LIST_ALGORITHMS=false
 LIST_COMPONENTS=false
 VALIDATE_ALGORITHMS=false
@@ -262,6 +264,8 @@ Options:
   --resolve-only         Resolve selected components without building or running
   --prepare-only         Import and build without restarting simulation
   --stop                 Stop the simulation managed by this script
+  --status               Read managed simulation state without changing it
+  --export-physical PATH Export the verified physical preset after stopping
   -h, --help             Show this help
 EOF
 }
@@ -342,6 +346,14 @@ while (($#)); do
       STOP_ONLY=true
       shift
       ;;
+    --status)
+      STATUS_ONLY=true
+      shift
+      ;;
+    --export-physical)
+      PHYSICAL_OUTPUT="${2:?missing output path}"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -397,9 +409,8 @@ BOOT_ID_FILE="$STATE_DIR/simulation.boot_id"
 LOCK_FILE="$STATE_DIR/sync.lock"
 STATUS_FILE="$STATE_DIR/status"
 LOG_FILE="$STATE_DIR/latest.log"
+STOP_REQUEST="$STATE_DIR/stop.request"
 mkdir -p "$STATE_DIR"
-: >"$LOG_FILE"
-exec > >(tee -a "$LOG_FILE") 2>&1
 
 log() {
   printf '[%(%F %T)T] %s\n' -1 "$*"
@@ -415,7 +426,7 @@ current_boot_id() {
 
 managed_session_pids() {
   local sid="$1"
-  ps -eo pid=,sid= | awk -v target="$sid" '$2 == target { print $1 }'
+  ps -eo pid=,sid=,stat= | awk -v target="$sid" '$2 == target && $3 !~ /^Z/ { print $1 }'
 }
 
 managed_session_is_running() {
@@ -486,8 +497,22 @@ stop_managed_simulation() {
   remove_managed_state
 }
 
+if [[ "$STATUS_ONLY" == "true" ]]; then
+  if ! flock -n "$LOCK_FILE" true; then
+    printf 'preparing\n'
+  elif managed_session_is_running; then
+    printf 'running\n'
+  else
+    printf 'stopped\n'
+  fi
+  exit 0
+fi
+
+[[ "$STOP_ONLY" == "true" ]] && touch "$STOP_REQUEST"
 exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
+LOCK_WAIT=0
+[[ "$STOP_ONLY" == "true" ]] && LOCK_WAIT=180
+if ! flock -w "$LOCK_WAIT" 9; then
   echo "ERROR: another Unity-to-ROS synchronization is already running." >&2
   exit 3
 fi
@@ -495,8 +520,25 @@ fi
 if [[ "$STOP_ONLY" == "true" ]]; then
   stop_managed_simulation
   set_status "stopped"
+  rm -f "$STOP_REQUEST"
   exit 0
 fi
+
+if [[ -n "$PHYSICAL_OUTPUT" ]]; then
+  if managed_session_is_running; then
+    echo "ERROR: 请先停止仿真，再导出真机配置。" >&2
+    exit 3
+  fi
+  PYTHONPATH="$WORKSPACE/src/agribot_vehicle_config_tools${PYTHONPATH:+:$PYTHONPATH}" \
+    /usr/bin/python3 -m agribot_vehicle_config_tools.cli export-physical \
+      --workspace-src "$WORKSPACE/src" --output "$PHYSICAL_OUTPUT" \
+      --firmware-root "${AGRIBOT_HPM_FIRMWARE_ROOT:-$WORKSPACE/hpm6750evk2/build/releases/ackermann}"
+  exit $?
+fi
+
+rm -f "$STOP_REQUEST"
+: >"$LOG_FILE"
+exec > >(tee -a "$LOG_FILE") 2>&1
 
 if [[ -z "$EXPORT_DIR" ]]; then
   echo "ERROR: --export-dir is required." >&2
@@ -579,6 +621,11 @@ if [[ "$PREPARE_ONLY" == "true" ]]; then
 fi
 
 # The old simulation is stopped only after validation and build succeed.
+if [[ -f "$STOP_REQUEST" ]]; then
+  set_status "stopped: launch cancelled"
+  log "已收到停止请求；编译完成，但不再启动仿真。"
+  exit 0
+fi
 stop_managed_simulation
 
 export ROS_DOMAIN_ID="${AGRIBOT_SIM_ROS_DOMAIN_ID:-37}"
@@ -588,19 +635,23 @@ export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 
 set_status "starting"
 log "启动 Gazebo 和 RViz（ROS_DOMAIN_ID=$ROS_DOMAIN_ID）..."
+launch_arguments=(
+  "gui:=$GUI"
+  "rviz:=$RVIZ"
+  "run_waypoints:=$RUN_WAYPOINTS"
+  "perception_mode:=$PERCEPTION_MODE"
+  "vision_mode:=$VISION_MODE"
+  "vision_model_dir:=$VISION_MODEL_DIR"
+  "localization_mode:=$LOCALIZATION_MODE"
+  "planner_mode:=$PLANNER_MODE"
+  "controller_mode:=$CONTROLLER_MODE"
+  "route_mode:=$ROUTE_MODE"
+)
+[[ -n "$VISION_PYTHON" ]] && launch_arguments+=("vision_python:=$VISION_PYTHON")
+[[ -n "$VISION_DEVICE" ]] && launch_arguments+=("vision_device:=$VISION_DEVICE")
+
 setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
-  gui:="$GUI" \
-  rviz:="$RVIZ" \
-  run_waypoints:="$RUN_WAYPOINTS" \
-  perception_mode:="$PERCEPTION_MODE" \
-  vision_mode:="$VISION_MODE" \
-  vision_python:="$VISION_PYTHON" \
-  vision_model_dir:="$VISION_MODEL_DIR" \
-  vision_device:="$VISION_DEVICE" \
-  localization_mode:="$LOCALIZATION_MODE" \
-  planner_mode:="$PLANNER_MODE" \
-  controller_mode:="$CONTROLLER_MODE" \
-  route_mode:="$ROUTE_MODE" 9>&- &
+  "${launch_arguments[@]}" 9>&- &
 SIM_PID=$!
 SIM_SID=""
 for _ in {1..20}; do

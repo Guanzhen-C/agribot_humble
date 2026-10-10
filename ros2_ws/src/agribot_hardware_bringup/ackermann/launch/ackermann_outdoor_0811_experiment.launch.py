@@ -247,6 +247,36 @@ def generate_launch_description():
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("navigation_delay", default_value="8.0"),
+            DeclareLaunchArgument("nav2_params", default_value=os.path.join(
+                hardware_share, "ackermann/config/nav2_params_ackermann_fastlio_mapped.yaml"
+            )),
+            DeclareLaunchArgument("mount_config", default_value=os.path.join(
+                hardware_share, "config/sensor_mounts.yaml"
+            )),
+            DeclareLaunchArgument("fastlivo_lidar_config", default_value=os.path.join(
+                get_package_share_directory("fast_livo"), "config/agribot_c16_astra.yaml"
+            )),
+            DeclareLaunchArgument("fastlivo_camera_config", default_value=os.path.join(
+                hardware_share, "config/fastlivo_hikrobot_mv_cu013.yaml"
+            )),
+            DeclareLaunchArgument("fastlivo_bridge_config", default_value=os.path.join(
+                hardware_share, "config/fastlivo_bridge.yaml"
+            )),
+            DeclareLaunchArgument("pcd_initial_localization_config", default_value=os.path.join(
+                hardware_share, "ackermann/config/pcd_initial_localization.yaml"
+            )),
+            DeclareLaunchArgument("rtk_map_initializer_config", default_value=os.path.join(
+                hardware_share, "config/rtk_map_initializer.yaml"
+            )),
+            DeclareLaunchArgument("fastlivo_rtk_fusion_config", default_value=os.path.join(
+                hardware_share, "config/fastlivo_rtk_fusion.yaml"
+            )),
+            DeclareLaunchArgument("chassis_can_config", default_value=os.path.join(
+                hardware_share, "ackermann/config/chassis_can.yaml"
+            )),
+            DeclareLaunchArgument("chassis_serial_config", default_value=os.path.join(
+                hardware_share, "ackermann/config/chassis_serial.yaml"
+            )),
             # Keep delayed actions in nested launch files bound to the safe
             # outdoor values after their scoped include contexts have exited.
             DeclareLaunchArgument("initialization_source", default_value="auto"),
@@ -317,6 +347,16 @@ def generate_launch_description():
                         PythonLaunchDescriptionSource(full_navigation_launch),
                         launch_arguments={
                             "map_base": LaunchConfiguration("map_base"),
+                            "nav2_params": LaunchConfiguration("nav2_params"),
+                            "mount_config": LaunchConfiguration("mount_config"),
+                            "fastlivo_lidar_config": LaunchConfiguration("fastlivo_lidar_config"),
+                            "fastlivo_camera_config": LaunchConfiguration("fastlivo_camera_config"),
+                            "fastlivo_bridge_config": LaunchConfiguration("fastlivo_bridge_config"),
+                            "pcd_initial_localization_config": LaunchConfiguration("pcd_initial_localization_config"),
+                            "rtk_map_initializer_config": LaunchConfiguration("rtk_map_initializer_config"),
+                            "fastlivo_rtk_fusion_config": LaunchConfiguration("fastlivo_rtk_fusion_config"),
+                            "chassis_can_config": LaunchConfiguration("chassis_can_config"),
+                            "chassis_serial_config": LaunchConfiguration("chassis_serial_config"),
                             "use_sim_time": LaunchConfiguration("use_sim_time"),
                             "autostart": LaunchConfiguration("autostart"),
                             "start_sensors": "true",

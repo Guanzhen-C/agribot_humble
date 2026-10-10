@@ -10,6 +10,9 @@ from pathlib import Path
 from agribot_vehicle_config_tools.generator import generate_bundle
 from agribot_vehicle_config_tools.model import ConfigError, load_and_validate
 from agribot_vehicle_config_tools.verifier import verify_current
+from agribot_vehicle_config_tools.physical_config import (
+    PhysicalConfigError, export_document, template_paths, write_document,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -18,6 +21,14 @@ def _parser() -> argparse.ArgumentParser:
         description="Validate a Unity vehicle export and generate ROS configuration.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    physical_parser = subparsers.add_parser(
+        "export-physical", help="export only the verified physical Ackermann preset"
+    )
+    physical_parser.add_argument("--workspace-src", type=Path, required=True)
+    physical_parser.add_argument("--output", type=Path, required=True)
+    physical_parser.add_argument("--firmware-root", type=Path,
+        help="include HPM6750 firmware in a manual deployment bundle")
 
     validate_parser = subparsers.add_parser("validate", help="validate one exported JSON file")
     validate_parser.add_argument("input", type=Path)
@@ -71,6 +82,20 @@ def _print_visual_lod(manifest: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "export-physical":
+        try:
+            document = export_document(template_paths(args.workspace_src))
+            if args.firmware_root:
+                from agribot_vehicle_config_tools.deployment_bundle import export_deployment
+                bundle = export_deployment(args.output, document, args.firmware_root)
+                print(f"OK: 人工烧录部署包: {bundle}")
+            else:
+                write_document(args.output, document)
+        except (PhysicalConfigError, OSError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+        print(f"OK: 已导出已验证真机方案: {args.output}")
+        return 0
     input_path = (
         args.export_directory / "vehicle_config.json"
         if args.command == "import-unity"

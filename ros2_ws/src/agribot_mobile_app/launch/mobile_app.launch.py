@@ -19,6 +19,10 @@ def generate_launch_description():
                 default_value=os.path.join(share, "config", "runtime_profiles.yaml"),
             ),
             DeclareLaunchArgument(
+                "vcu_diagnostic_port", default_value="",
+                description="Optional HPM6750 UART0 read-only diagnostics, never the chassis CAN port",
+            ),
+            DeclareLaunchArgument(
                 "ros_localhost_only",
                 default_value="1",
                 description="Keep the vehicle ROS graph on this computer",
@@ -35,6 +39,7 @@ def generate_launch_description():
                     LaunchConfiguration("params_file"),
                     {
                         "runtime_profiles": LaunchConfiguration("runtime_profiles"),
+                        "vcu_diagnostic_port": LaunchConfiguration("vcu_diagnostic_port"),
                     },
                 ],
             ),

@@ -189,6 +189,7 @@ class RuntimeProfiles:
         map_base: Path,
         motion: bool,
         vehicle_type: str | None = None,
+        parameter_files: dict[str, str] | None = None,
     ) -> list[str]:
         profile = self.get(profile_id)
         if vehicle_type is not None and profile["vehicle_type"] != vehicle_type:
@@ -204,6 +205,12 @@ class RuntimeProfiles:
             if not georeference.is_file():
                 raise ProfileError(f"运行地图缺少地理配准: {georeference}")
         arguments = dict(profile["fixed_args"])
+        if parameter_files:
+            from agribot_vehicle_config_tools.physical_config import TEMPLATES
+
+            if profile["vehicle_type"] != "ackermann" or set(parameter_files) - set(TEMPLATES):
+                raise ProfileError("导入参数不属于已验证阿克曼方案")
+            arguments.update(parameter_files)
         arguments[profile["map_argument"]] = str(map_base)
         arguments["enable_chassis_output"] = "true" if motion else "false"
         if motion:

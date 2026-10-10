@@ -21,11 +21,13 @@ import {
   Square,
   Tractor,
   Trash2,
+  Upload,
   Truck,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import MapView from "./MapView";
+import ConsolePanels from "./ConsolePanels";
 import {
   formatDuration,
   getJson,
@@ -417,7 +419,7 @@ function CollectionPanel({ state, refreshCatalogs, execute, vehicleType }) {
   );
 }
 
-function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute, onMotionRequest, vehicleType, vehicleLabel }) {
+function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute, onMotionRequest, vehicleType, vehicleLabel, onImportError }) {
   const [profileId, setProfileId] = useState("");
   useEffect(() => {
     if (!profiles.some((profile) => profile.id === profileId)) {
@@ -425,6 +427,24 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
     }
   }, [profileId, profiles]);
   const runtime = state?.processes?.runtime;
+  const [configBusy, setConfigBusy] = useState(false);
+  const config = state?.physical_config;
+  const configLocked = configBusy || Object.values(state?.processes || {}).some((process) => process.running);
+  const importConfiguration = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setConfigBusy(true);
+    try {
+      if (file.size > 2 * 1024 * 1024) throw new Error("真机配置文件不得超过2 MiB");
+      const configuration = JSON.parse(await file.text());
+      await execute("/api/v1/runtime/config/import", { vehicle_type: vehicleType, configuration });
+    } catch (error) {
+      onImportError(error.message);
+    } finally {
+      setConfigBusy(false);
+    }
+  };
 
   return (
     <div className="panel-content">
@@ -455,6 +475,20 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
 
       <section className="section-band">
         <div className="section-heading"><h2>运行配置</h2><Pill tone={runtime?.running ? "blue" : "neutral"}>{runtime?.state || "idle"}</Pill></div>
+        <div className="configuration-source">
+          <span>{vehicleType === "ackermann" && config?.source === "imported" ? "已导入真机配置" : "程序默认配置"}</span>
+          {vehicleType === "ackermann" && <span>FAST-LIVO2 + RTK · Smac · MPPI</span>}
+        </div>
+        {vehicleType === "ackermann" && (
+          <div className="configuration-actions">
+            <label className={classNames("command-button", "secondary", configLocked && "disabled")}>
+              <Upload size={18} /><span>{configBusy ? "正在校验" : "导入真机配置"}</span>
+              <input aria-label="导入真机配置文件" type="file" accept=".json,application/json" disabled={configLocked} onChange={importConfiguration} />
+            </label>
+            {config?.source === "imported" && <CommandButton icon={RefreshCw} tone="secondary" disabled={configLocked} onClick={() => execute("/api/v1/runtime/config/reset", {})}>恢复默认</CommandButton>}
+          </div>
+        )}
+        {config?.error && vehicleType === "ackermann" && <div role="alert" className="configuration-error">{config.error}</div>}
         <label className="field-label">
           <span>车辆流程</span>
           <select value={profileId} onChange={(event) => setProfileId(event.target.value)} disabled={runtime?.running}>
@@ -744,12 +778,12 @@ export default function App() {
       return <CollectionPanel state={state} refreshCatalogs={refreshCatalogs} execute={execute} vehicleType={vehicleType} />;
     }
     if (activeTab === "maps") {
-      return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} />;
+      return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} onImportError={(message) => setToast({ tone: "error", text: message })} />;
     }
-    return <StatusPanel state={state} />;
-  }, [activeTab, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
+    return <ConsolePanels state={state} connected={connected} vehicleType={vehicleType} diagnostics={<StatusPanel state={state} />} />;
+  }, [activeTab, connected, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
 
-  const localizationReady = state?.localization?.fusion_ready === true;
+  const localizationReady = connected && state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
 
   return (
@@ -762,7 +796,7 @@ export default function App() {
         <div className="top-status">
           <Pill tone={connected ? "green" : "red"}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? "在线" : "离线"}</Pill>
           <Pill tone={localizationReady ? "green" : "amber"}><Crosshair size={14} />{localizationReady ? "定位就绪" : "定位未就绪"}</Pill>
-          <Pill tone={state?.localization?.fix_quality === 4 ? "green" : "neutral"}><Satellite size={14} />RTK {state?.localization?.fix_quality ?? "--"}</Pill>
+          <Pill tone={connected && state?.localization?.fix_quality === 4 ? "green" : "neutral"}><Satellite size={14} />RTK {connected ? state?.localization?.fix_quality ?? "--" : "--"}</Pill>
           {navActive && (
             <button type="button" className="top-stop" title="停止导航" aria-label="停止导航" onClick={() => execute("/api/v1/navigation/cancel", {})}>
               <CircleStop size={20} />

@@ -230,6 +230,12 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
+                "fastlivo_camera_config",
+                default_value=os.path.join(
+                    hardware_share, "config", "fastlivo_hikrobot_mv_cu013.yaml"
+                ),
+            ),
+            DeclareLaunchArgument(
                 "fastlivo_bridge_config",
                 default_value=os.path.join(
                     hardware_share, "config", "fastlivo_bridge.yaml"
@@ -361,6 +367,9 @@ def generate_launch_description():
                             "mount_config": LaunchConfiguration("mount_config"),
                             "fastlivo_lidar_config": LaunchConfiguration(
                                 "fastlivo_lidar_config"
+                            ),
+                            "fastlivo_camera_config": LaunchConfiguration(
+                                "fastlivo_camera_config"
                             ),
                             "fastlivo_bridge_config": LaunchConfiguration(
                                 "fastlivo_bridge_config"

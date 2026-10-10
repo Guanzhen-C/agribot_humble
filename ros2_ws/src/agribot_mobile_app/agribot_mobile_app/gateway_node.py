@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 import numpy as np
+import yaml
 
 from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import (
@@ -57,6 +58,8 @@ from .catalog import (
 )
 from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
+from .physical_config import PhysicalConfigError, PhysicalConfigStore
+from .vcu_monitor import VcuMonitor
 from .route_costmap import (
     RouteCorridorPolicy,
     RouteCostmapError,
@@ -270,6 +273,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         except (
             CatalogError,
             ProfileError,
+            PhysicalConfigError,
             ProcessError,
         ) as error:
             self._error(HTTPStatus.BAD_REQUEST, str(error))
@@ -291,6 +295,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         except (
             CatalogError,
             ProfileError,
+            PhysicalConfigError,
             ProcessError,
         ) as error:
             self._error(HTTPStatus.BAD_REQUEST, str(error))
@@ -452,6 +457,11 @@ class MobileGateway(Node):
         self.map_catalog = MapCatalog(self.map_root)
         self.bag_catalog = BagCatalog(self.bag_root)
         self.runtime_profiles = RuntimeProfiles(profile_path)
+        self.physical_config = PhysicalConfigStore(Path(str(self.declare_parameter(
+            "physical_config_root",
+            str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+                / "agribot-mobile-app/physical-config"),
+        ).value)))
         default_vehicle = self.runtime_profiles.public_vehicles()[0]
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
@@ -523,6 +533,16 @@ class MobileGateway(Node):
             "active_processing": None,
         }
         self.processes = ProcessSlots(self._touch)
+        self.vcu_monitor = VcuMonitor(str(self.declare_parameter("vcu_diagnostic_port", "").value), self._touch)
+        self._vehicle_installations = {}
+        hardware_share = Path(get_package_share_directory("agribot_hardware_bringup"))
+        for vehicle, relative in (("ackermann", "config/sensor_mounts.yaml"),
+                                  ("differential", "differential/config/sensor_mounts.yaml")):
+            try:
+                mounts = yaml.safe_load((hardware_share / relative).read_text(encoding="utf-8"))
+                self._vehicle_installations[vehicle] = {"parent_frame": "base_link", "mounts": mounts}
+            except (OSError, ValueError, yaml.YAMLError):
+                self._vehicle_installations[vehicle] = None
         self._goal_handle = None
         self._path_updates: dict[str, float] = {}
 
@@ -1002,7 +1022,10 @@ class MobileGateway(Node):
                 **core,
                 "grids": self._grid_metadata(),
                 "processes": self.processes.snapshot(),
+                "physical_config": self.physical_config.public(),
                 "storage": self._disk_state(),
+                "vcu": self.vcu_monitor.snapshot(),
+                "vehicle_installation": self._vehicle_installations.get(core["vehicle"]["id"]),
             }
             self._snapshot_cache_revision = revision
             self._snapshot_cache = document
@@ -1032,6 +1055,7 @@ class MobileGateway(Node):
         return self.event_payload()
 
     def start_http(self) -> None:
+        self.vcu_monitor.start()
         self._http_server = GatewayHttpServer(
             (self.http_host, self.http_port), self, self.static_root
         )
@@ -1063,6 +1087,8 @@ class MobileGateway(Node):
             "/api/v1/processing/stop": self.stop_processing,
             "/api/v1/runtime/start": self.start_runtime,
             "/api/v1/runtime/stop": self.stop_runtime,
+            "/api/v1/runtime/config/import": self.import_physical_config,
+            "/api/v1/runtime/config/reset": self.reset_physical_config,
         }
         try:
             handler = handlers[path]
@@ -1705,11 +1731,12 @@ class MobileGateway(Node):
         if motion and body.get("motion_confirmed") is not True:
             raise ApiError(HTTPStatus.BAD_REQUEST, "真车运动必须再次明确确认")
         map_base = self.map_catalog.map_base(map_id)
-        command = self.runtime_profiles.command(
-            profile_id, map_base, motion, vehicle_type
-        )
         vehicle = self.runtime_profiles.vehicle(vehicle_type)
         with self._task_transition_lock:
+            command = self.runtime_profiles.command(
+                profile_id, map_base, motion, vehicle_type,
+                self.physical_config.launch_arguments(vehicle_type),
+            )
             stopped = self._stop_active_tasks()
             self.processes.runtime.start(
                 command,
@@ -1726,6 +1753,10 @@ class MobileGateway(Node):
                     "vehicle_type": vehicle_type,
                     "map_id": map_id,
                     "motion": motion,
+                    "configuration_source": (
+                        self.physical_config.public()["source"]
+                        if vehicle_type == "ackermann" else "default"
+                    ),
                 }
                 self._state["vehicle"] = {
                     key: value
@@ -1742,6 +1773,22 @@ class MobileGateway(Node):
             "motion": motion,
             "stopped": stopped,
         }
+
+    def _change_physical_config(self, document=None, *, reset=False) -> dict:
+        with self._task_transition_lock:
+            if any(value.get("running") for value in self.processes.snapshot().values()):
+                raise ApiError(HTTPStatus.CONFLICT, "请先停止运行栈和采集任务，再更换真机配置")
+            result = self.physical_config.reset() if reset else self.physical_config.import_document(document)
+            self._touch()
+            return {"physical_config": result}
+
+    def import_physical_config(self, body: dict) -> dict:
+        if body.get("vehicle_type") != "ackermann":
+            raise PhysicalConfigError("本次导出仅适用于已验证的阿克曼车，差速车保持原配置")
+        return self._change_physical_config(body.get("configuration"))
+
+    def reset_physical_config(self, _body: dict) -> dict:
+        return self._change_physical_config(reset=True)
 
     def stop_runtime(self, _body: dict) -> dict:
         with self._task_transition_lock:
@@ -1764,6 +1811,7 @@ class MobileGateway(Node):
         return {"runtime": runtime}
 
     def shutdown_gateway(self) -> None:
+        self.vcu_monitor.close()
         self._stopping = True
         self._touch()
         if self._http_server is not None:

@@ -36,6 +36,8 @@ htmlcov/
 !.env.example
 
 # OS and temporary files
+# Independently versioned HPM6750 firmware repository and its SDK/toolchain
+/ros2_ws/hpm6750evk2/
 .DS_Store
 *~
 *.swp

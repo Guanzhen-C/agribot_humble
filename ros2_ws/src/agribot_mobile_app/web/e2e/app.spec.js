@@ -26,6 +26,27 @@ function mapGrid() {
   };
 }
 
+test("VCU pages remain truthful offline and never emit motion commands", async ({ page }) => {
+  const posts = [];
+  await mockApi(page, { state: { ...mockState, vcu: { configured: false, online: false, port: "", error: "未配置6750诊断串口" } }, onPost: request => posts.push(request) });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.getByText("定位未就绪", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "状态", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "运行总览" })).toBeVisible();
+  await page.screenshot({ path: "/tmp/agribot-vcu-overview-desktop.png" });
+  await page.getByRole("button", { name: "设备", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "FieldGate VCU · HPM6750" })).toBeVisible();
+  await expect(page.getByText("未配置6750诊断串口", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/agribot-vcu-devices-phone.png" });
+  expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.getByText("人工烧录", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /烧录/ })).toHaveCount(0);
+  expect(posts).toEqual([]);
+});
+
 const mockState = {
   revision: 8,
   server_time: Date.now() / 1000,
@@ -116,7 +137,21 @@ const mockState = {
   },
 };
 
-async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
+async function mockApi(page, { state = mockState, onPost = () => {}, live = false } = {}) {
+  // A fulfilled SSE response ends immediately; simulate a persistent connection
+  // only for tests that explicitly exercise live readiness.
+  if (live) await page.addInitScript((initialState) => {
+    window.EventSource = class extends EventTarget {
+      constructor() {
+        super();
+        this.timer = setTimeout(() => {
+          this.dispatchEvent(new Event("open"));
+          this.dispatchEvent(new MessageEvent("state", { data: JSON.stringify(initialState) }));
+        }, 0);
+      }
+      close() { clearTimeout(this.timer); }
+    };
+  }, state);
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -183,11 +218,53 @@ async function mockApi(page, { state = mockState, onPost = () => {} } = {}) {
   });
 }
 
+test("physical configuration import is optional and does not start a vehicle", async ({ page }) => {
+  const requests = [];
+  const state = { ...mockState, active_runtime: null,
+    physical_config: { source: "default" },
+    processes: { runtime: { running: false }, collection: { running: false }, processing: { running: false } },
+  };
+  await mockApi(page, { state, onPost: (request) => requests.push(request) });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.locator(".tabbar").getByRole("button", { name: "地图" }).click();
+  await expect(page.getByText("程序默认配置")).toBeVisible();
+  const input = page.getByLabel("导入真机配置文件");
+  await expect(input).toBeEnabled();
+  const configuration = { format: "agribot.physical-runtime", version: 1 };
+  await input.setInputFiles({ name: "physical.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(configuration)) });
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toEqual({ path: "/api/v1/runtime/config/import", body: { vehicle_type: "ackermann", configuration } });
+  expect(requests.some((request) => request.path === "/api/v1/runtime/start")).toBe(false);
+  await page.screenshot({ path: "/tmp/agribot-config-import-phone.png", fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: "/tmp/agribot-config-import-desktop.png", fullPage: true });
+});
+
+test("configuration changes are disabled during active runtime", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await page.locator(".tabbar").getByRole("button", { name: "地图" }).click();
+  await expect(page.getByLabel("导入真机配置文件")).toBeDisabled();
+});
+
+test("invalid JSON is reported locally without sending an import", async ({ page }) => {
+  const requests = [];
+  const state = { ...mockState, active_runtime: null, processes: { runtime: { running: false } } };
+  await mockApi(page, { state, onPost: (request) => requests.push(request) });
+  await page.goto("/");
+  await page.locator(".tabbar").getByRole("button", { name: "地图" }).click();
+  await page.getByLabel("导入真机配置文件").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from("broken") });
+  await expect(page.getByRole("status")).toBeVisible();
+  expect(requests).toHaveLength(0);
+});
+
 test("desktop operations surface renders without overflow or console errors", async ({ page }) => {
   const errors = [];
   page.on("console", (message) => message.type() === "error" && errors.push(message.text()));
   page.on("pageerror", (error) => errors.push(error.message));
-  await mockApi(page);
+  await mockApi(page, { live: true });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "农机控制台" })).toBeVisible();
@@ -236,6 +313,8 @@ test("mobile layout keeps map and controls usable", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("canvas")).toBeVisible();
   await page.getByRole("button", { name: "状态" }).click();
+  await expect(page.getByRole("heading", { name: "运行总览" })).toBeVisible();
+  await page.getByRole("button", { name: "诊断", exact: true }).click();
   await expect(page.getByRole("heading", { name: "数据通道" })).toBeVisible();
   await expect(page.getByText("单目相机", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "传感器授时与同步" })).toBeVisible();

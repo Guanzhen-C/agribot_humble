@@ -24,6 +24,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -44,6 +45,8 @@ public final class MainActivity extends Activity {
     private static final String PREFERENCES = "agribot_mobile";
     private static final String GATEWAY_URL_KEY = "gateway_url";
     private static final int SETTINGS_MENU_ID = 1001;
+    private static final int CONFIG_FILE_REQUEST = 1002;
+    private ValueCallback<Uri[]> configurationFileCallback;
     private static final long RETRY_DELAY_MS = 5000L;
     private static final int CONNECT_TIMEOUT_MS = 2500;
     private static final String BUNDLED_UI_URL = "file:///android_asset/web/index.html";
@@ -98,13 +101,32 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(false);
-        settings.setAllowContentAccess(false);
+        settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMediaPlaybackRequiresUserGesture(true);
 
         CookieManager.getInstance().setAcceptCookie(true);
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                FileChooserParams parameters) {
+                if (configurationFileCallback != null) configurationFileCallback.onReceiveValue(null);
+                configurationFileCallback = callback;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                // Some Android document providers mislabel JSON as plain text.
+                intent.setType("*/*");
+                try {
+                    startActivityForResult(intent, CONFIG_FILE_REQUEST);
+                } catch (ActivityNotFoundException error) {
+                    callback.onReceiveValue(null);
+                    configurationFileCallback = null;
+                    Toast.makeText(MainActivity.this, "未找到文件选择器", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            }
+        });
         webView.setWebViewClient(new GatewayWebViewClient());
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
     }
@@ -115,6 +137,16 @@ public final class MainActivity extends Activity {
         progressBar.setVisibility(View.VISIBLE);
         offlinePanel.setVisibility(View.GONE);
         webView.loadUrl(gatewayUrl);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == CONFIG_FILE_REQUEST && configurationFileCallback != null) {
+            Uri selected = resultCode == RESULT_OK && data != null ? data.getData() : null;
+            configurationFileCallback.onReceiveValue(selected == null ? null : new Uri[]{selected});
+            configurationFileCallback = null;
+        }
     }
 
     private void showBundledUi() {

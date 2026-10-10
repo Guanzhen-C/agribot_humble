@@ -11,6 +11,7 @@
 
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>agribot_hardware_bringup</exec_depend>
+  <exec_depend>agribot_vehicle_config_tools</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
@@ -19,6 +20,7 @@
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>scout_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>

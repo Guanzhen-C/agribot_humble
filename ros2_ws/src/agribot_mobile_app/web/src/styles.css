@@ -1,16 +1,16 @@
 :root {
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   color: #17212b;
-  background: #f4f6f7;
+  background: #f3f6fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --panel: #ffffff;
-  --surface: #f4f6f7;
-  --border: #d6dce1;
-  --muted: #66727e;
+  --surface: #f3f6fb;
+  --border: #d4dfea;
+  --muted: #52647b;
   --green: #176b5b;
   --green-soft: #dceee8;
-  --blue: #2463a5;
+  --blue: #0062cc;
   --blue-soft: #e3eef9;
   --amber: #a85f00;
   --amber-soft: #fff0d6;
@@ -183,3 +183,34 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
   .mode-selector button span { display: none; }
   .mode-selector button { height: 34px; }
 }
+.configuration-source { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 13px; }
+.configuration-source span:last-child { color: var(--muted, #60706b); }
+.configuration-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.configuration-actions label { position: relative; cursor: pointer; }
+.configuration-actions input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.configuration-actions .disabled { opacity: 0.5; cursor: default; }
+.configuration-error { font-size: 13px; color: #b42318; overflow-wrap: anywhere; margin-bottom: 12px; }
+
+/* FieldGate VCU layout reference, original author: Liu Zeyu. */
+.topbar { border-top: 3px solid var(--blue); }
+.console-pages { display: grid; grid-template-rows: 42px minmax(0, 1fr); min-height: 0; }
+.console-section-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--surface); }
+.console-section-nav button { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; border: 0; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.console-section-nav button.selected { color: var(--blue); box-shadow: inset 0 -2px var(--blue); background: white; }
+.console-pages .panel-content .panel-content { overflow: visible; }
+.section-heading h2 { display: flex; align-items: center; gap: 7px; }
+.console-rows { margin: 8px 0 0; font-size: 11px; }
+.console-rows > div { display: grid; grid-template-columns: 94px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-bottom: 1px solid #edf0f2; }
+.console-rows dt { color: var(--muted); }
+.console-rows dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.instrument-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 12px 0; }
+.instrument-grid > div { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 6px; border-bottom: 2px solid var(--border); padding-bottom: 14px; }
+.instrument-grid svg { color: var(--blue); }
+.instrument-grid span { color: var(--muted); font-size: 11px; }
+.instrument-grid strong { grid-column: 1 / -1; font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.instrument-grid > div:first-child { border-color: var(--green); }
+.link-stack { display: grid; gap: 0; font-size: 11px; }
+.link-stack > span { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; padding: 11px 0 11px 12px; border-left: 2px solid var(--border); color: var(--muted); }
+.link-stack > span.link-up { border-left-color: var(--green); color: var(--green); }
+.link-stack small { color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }

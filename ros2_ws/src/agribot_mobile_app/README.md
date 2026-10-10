@@ -104,7 +104,7 @@ journalctl -u agribot-mobile-app.service -f
 Android 8.0及以上设备可直接安装原生壳应用：
 
 ```text
-http://RDK_IP:8088/downloads/agribot-mobile-0.2.2.apk
+http://RDK_IP:8088/downloads/agribot-mobile-0.2.4.apk
 ```
 
 应用默认连接`http://192.168.100.125:8088`。RDK地址变化时，在应用标题栏点击设置图标，
@@ -127,6 +127,29 @@ cd android
 
 正式包签名配置参考`android/signing.properties.example`。签名文件和密码不得提交到Git。
 
+## HPM6750 控制台集成
+
+保留原有算法运行、采集、导航和语义任务 API。四个主入口不变，状态页包含总览、设备、
+诊断和设置；视觉风格参考 FieldGate VCU（原作者刘泽禹）。设备未回复时不显示已连接。
+没有导入真机配置时仍使用程序默认方案；地图页的导入不启动运行、不授权运动。
+
+6750 桥接固件通过 Unity 的“停止仿真 → 导出真机配置”导出，由操作人员人工烧录。
+导入控制台的是部署包中的 `ackermann_physical_runtime.json`，不是 ELF/BIN。
+本控制台没有烧录接口，也不把移动端 Web Serial 作为通信条件。
+
+将 6750 UART0 的诊断串口接到 RDK 后，可选启动只读监控：
+
+```bash
+ros2 launch agribot_mobile_app mobile_app.launch.py \
+  vcu_diagnostic_port:=/dev/serial/by-id/实际6750诊断串口
+```
+
+诊断串口必须是 6750 的 UART0，不得填写正在被 CAN 驱动占用的 USB-CAN 串口。
+默认此参数为空，不打开任何串口；配置后独立线程每秒查询身份和状态，校验序号及 CRC。
+断连即清空有效状态。界面展示真实电压、帧年龄、转发/丢弃计数；无设备报告的电量百分比
+和功能状态显示“未提供”。阿克曼目标转角与角速度分别显示，履带目标为左右百分比。
+传感器安装表只读展示所选运行车辆的配置文件，不向车辆写入新的外参。
+
 Jetson本地已有数据包时，使用带离线处理能力的配置启动第二个实例：
 
 ```bash
@@ -137,3 +160,16 @@ ros2 launch agribot_mobile_app mobile_app.launch.py \
 该实例监听`8089`，调用的就是`agribot_offline_mapping`标准流程。RDK实例不会在X5上
 运行LIO-SAM；原始数据仍先保存在RDK固态硬盘，再通过现有复制流程放入Jetson数据目录。
 手机端的“开始采集”只录制bag，不会在RDK上生成最终2D/3D地图。
+
+## 可选真机配置导入
+
+Unity 停止受管仿真后，可导出 `ackermann_physical_runtime.json`。
+在控制台的“地图 → 运行配置”中点击“导入真机配置”，选择该文件。
+只支持已验证的阿克曼 STVL / FAST-LIVO2+RTK / NDT-GICP / Smac Hybrid-A* / MPPI 方案；
+算法和参数必须与车端已安装版本一致。不导入时，原运行配置及命令完全不变。
+
+导入不安装算法包、不导入地图、不启动车辆；设备端口、地图选择与运动确认继续由原流程负责。
+运行或采集期间不能更换配置。“恢复默认”会删除保存的导入选择，不改变原程序参数。
+配置持久化在 `~/.local/state/agribot-mobile-app/physical-config/`，可通过
+`physical_config_root` 指定路径；跨版本失效会显示错误并使用程序默认配置。
+Android 文件选择器支持需要更新到 0.2.3 APK，旧 APK 不具备原生文件选择入口。
