@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -188,8 +189,8 @@ def validate(config: dict[str, Any]) -> list[str]:
         raise ConfigError("coordinateConvention must be ROS_FLU")
     if config["vehicleType"] not in {"ackermann", "differential", "tracked"}:
         raise ConfigError("vehicleType is unsupported")
-    if not isinstance(config["vehicleId"], str) or not config["vehicleId"]:
-        raise ConfigError("vehicleId must not be empty")
+    if not isinstance(config["vehicleId"], str) or not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", config["vehicleId"]):
+        raise ConfigError("vehicleId must be a safe directory identifier")
 
     base_frame = config["baseFrame"]
     _require_keys(base_frame, ("frameId", "reference"), "baseFrame")
@@ -236,6 +237,11 @@ def validate(config: dict[str, Any]) -> list[str]:
         _require_keys(wheel, ("id", "position", "steering", "driven"), f"wheelCenters[{index}]")
         wheel_ids.add(wheel["id"])
         _vector(wheel["position"], 3, f"wheelCenters[{index}].position")
+        for key in ("radiusM", "widthM"):
+            if wheel.get(key, 0) != 0:
+                _positive(wheel[key], f"wheelCenters[{index}].{key}")
+        if config["vehicleType"] != "ackermann" and wheel["steering"]:
+            raise ConfigError("differential/tracked wheels must not have steering joints")
     if wheel_ids != required_wheels:
         raise ConfigError("wheel IDs must be front_left, front_right, rear_left and rear_right")
 

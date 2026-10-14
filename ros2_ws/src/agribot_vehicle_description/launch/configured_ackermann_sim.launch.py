@@ -1,21 +1,33 @@
 import copy
 import os
 import platform
+import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import yaml
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
-def _write_gazebo_vehicle_model(source_file):
+def _gazebo_transport_compat_path():
+    directory = os.path.join(get_package_prefix("agribot_vehicle_description"),
+                             "lib", "agribot_gazebo_transport_compat")
+    if not os.path.isfile(os.path.join(directory, "libgazebo_transport.so.11")):
+        return ""
+    # Never load a stale private library after the system Gazebo is upgraded.
+    version = subprocess.check_output(
+        ["pkg-config", "--modversion", "gazebo"], text=True, timeout=5).strip()
+    return directory if version == "11.10.2" else ""
+
+
+def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None):
     """Prepare the generated vehicle for real-time Gazebo Classic sensing.
 
     The canonical Unity export keeps the physical C16 and camera resolution.
@@ -60,6 +72,8 @@ def _write_gazebo_vehicle_model(source_file):
         if element is None:
             raise RuntimeError(f"Generated C16 is missing {query}: {source_file}")
         element.text = value
+    if lidar_input_topic:
+        lidar.find("./plugin/ros/remapping").text = "~/out:=" + lidar_input_topic
 
     camera = model_tree.getroot().find(
         ".//sensor[@name='hikrobot_right_camera']"
@@ -94,9 +108,25 @@ def _write_fastlivo_sim_config(source_file):
         config = yaml.safe_load(stream)
 
     parameters = config["/**"]["ros__parameters"]
+    parameters["common"]["lid_topic"] = "/configured/localization_points"
     parameters["lio"]["voxel_size"] = 1.0
     parameters["vio"]["img_point_cov"] = 800
     parameters["time_offset"]["img_time_offset"] = 0.0
+    with open(target_file, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
+    return target_file
+
+
+def _write_fastlio_sim_config(source_file, extrinsics_file):
+    with open(source_file, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream)
+    with open(extrinsics_file, encoding="utf-8") as stream:
+        extrinsics = yaml.safe_load(stream)["/**"]["ros__parameters"]["extrin_calib"]
+    parameters = config["/**"]["ros__parameters"]
+    parameters["common"]["lid_topic"] = "/configured/localization_points"
+    for key in ("extrinsic_T", "extrinsic_R"):
+        parameters["mapping"][key] = copy.deepcopy(extrinsics[key])
+    target_file = os.path.join(tempfile.gettempdir(), "configured_ackermann_fastlio.generated.yaml")
     with open(target_file, "w", encoding="utf-8") as stream:
         yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
     return target_file
@@ -122,10 +152,13 @@ def _write_nav2_profile_config(
     with open(source_file, encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
 
+    _configure_obstacle_height_filter(config)
     _configure_perception(config, perception_mode)
 
     controller = config["controller_server"]["ros__parameters"]
     mppi = controller["FollowPath"]
+    differential = mppi.get("motion_model") == "DiffDrive"
+    reverse_speed = float(mppi["vx_min"])
     if controller_mode == "rpp":
         with open(rpp_overlay_file, encoding="utf-8") as stream:
             overlay = yaml.safe_load(stream)
@@ -133,6 +166,8 @@ def _write_nav2_profile_config(
         selected_controller["desired_linear_vel"] = float(mppi["vx_max"])
         selected_controller["rotate_to_heading_angular_vel"] = float(mppi["wz_max"])
         selected_controller["max_angular_accel"] = float(mppi["az_max"])
+        if differential:
+            selected_controller["use_rotate_to_heading"] = True
         selected_controller["regulated_linear_scaling_min_radius"] = float(
             mppi["AckermannConstraints"]["min_turning_r"]
         )
@@ -159,10 +194,46 @@ def _write_nav2_profile_config(
         selected_controller["decel_lim_x"] = float(mppi["ax_min"])
         selected_controller["acc_lim_theta"] = float(mppi["az_max"])
         selected_controller["decel_lim_theta"] = -float(mppi["az_max"])
+        selected_controller["min_turning_radius"] = float(
+            mppi["AckermannConstraints"]["min_turning_r"]
+        )
+        if differential:
+            selected_controller["trajectory_generator_name"] = "dwb_plugins::StandardTrajectoryGenerator"
+            selected_controller.pop("min_turning_radius", None)
         controller["goal_checker"] = copy.deepcopy(overlay["goal_checker"])
         controller["FollowPath"] = selected_controller
     elif controller_mode != "mppi":
         raise ValueError(f"Unsupported controller mode: {controller_mode}")
+
+    if controller_mode == "mppi" and not differential:
+        with open(Path(rpp_overlay_file).parent / "ackermann_mppi_simulation.yaml", encoding="utf-8") as stream:
+            tracking = yaml.safe_load(stream)["FollowPath"]
+        for key, value in tracking.items():
+            if isinstance(value, dict):
+                controller["FollowPath"].setdefault(key, {}).update(copy.deepcopy(value))
+            else:
+                controller["FollowPath"][key] = copy.deepcopy(value)
+
+    if differential:
+        with open(Path(rpp_overlay_file).parent / "differential_controllers.yaml", encoding="utf-8") as stream:
+            differential_overlay = yaml.safe_load(stream)
+        controller["goal_checker"] = copy.deepcopy(differential_overlay["goal_checker"])
+        selected_controller = controller["FollowPath"]
+        for key, value in differential_overlay[controller_mode].items():
+            if isinstance(value, dict):
+                selected_controller.setdefault(key, {}).update(copy.deepcopy(value))
+            else:
+                selected_controller[key] = copy.deepcopy(value)
+        if controller_mode == "mppi":
+            selected_controller.pop("AckermannConstraints", None)
+        elif controller_mode == "rpp":
+            # Humble RPP cannot enable rotation-to-heading and reversing together.
+            reversing = reverse_speed < 0.0
+            selected_controller["allow_reversing"] = reversing
+            selected_controller["use_rotate_to_heading"] = not reversing
+        else:
+            selected_controller["min_vel_x"] = reverse_speed
+            selected_controller.pop("min_turning_radius", None)
 
     planner = config["planner_server"]["ros__parameters"]
     if planner_mode == "navfn":
@@ -204,6 +275,18 @@ def _write_nav2_profile_config(
     elif planner_mode != "smac_hybrid":
         raise ValueError(f"Unsupported planner mode: {planner_mode}")
 
+    if controller_mode == "mppi" and planner_mode != "smac_hybrid":
+        # These XY planners do not enforce final yaw or Ackermann curvature.
+        # Their intermediate orientations are not a heading constraint.
+        if not differential:
+            controller["goal_checker"] = {
+                "plugin": "nav2_controller::PositionGoalChecker",
+                "xy_goal_tolerance": 0.25,
+                "stateful": False,
+            }
+        controller["FollowPath"]["PathAlignCritic"]["use_path_orientations"] = False
+        controller["FollowPath"]["GoalAngleCritic"]["enabled"] = differential
+
     with open(target_file, "w", encoding="utf-8") as stream:
         yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
     return target_file
@@ -240,12 +323,13 @@ def _configure_perception(config, perception_mode):
             "z_voxels": 16,
             "unknown_threshold": 15,
             "mark_threshold": 0,
+            "max_obstacle_height": max_height,
             "combination_method": int(stvl.get("combination_method", 1)),
-            "observation_sources": "lidar",
-            "lidar": {
+            "observation_sources": "lidar_mark lidar_clear",
+            "lidar_mark": {
                 "topic": marking["topic"],
                 "data_type": "PointCloud2",
-                "clearing": True,
+                "clearing": False,
                 "marking": True,
                 "obstacle_min_range": 0.0,
                 "obstacle_max_range": obstacle_range,
@@ -260,7 +344,31 @@ def _configure_perception(config, perception_mode):
                     marking.get("observation_persistence", 0.0)
                 ),
             },
+            "lidar_clear": {
+                "topic": stvl["lidar_clear"]["topic"],
+                "data_type": "PointCloud2",
+                "clearing": True,
+                "marking": False,
+                "obstacle_min_range": 0.0,
+                "obstacle_max_range": obstacle_range,
+                "raytrace_min_range": 0.0,
+                "raytrace_max_range": obstacle_range + 1.0,
+                "min_obstacle_height": -10.0,
+                "max_obstacle_height": 10.0,
+                "expected_update_rate": 0.0,
+                "observation_persistence": 0.0,
+            },
         }
+
+
+def _configure_obstacle_height_filter(config):
+    """Apply the authored height band in base_link, not a drifting map frame."""
+    for costmap_name in ("local_costmap", "global_costmap"):
+        layer = config[costmap_name][costmap_name]["ros__parameters"]["stvl_layer"]
+        marking = layer["lidar_mark"]
+        marking["topic"] = "/configured/obstacle_points"
+        marking["min_obstacle_height"] = -10.0
+        marking["max_obstacle_height"] = 10.0
 
 
 def _write_nav2_profiles(source_file, config_dir, localization_name):
@@ -352,14 +460,42 @@ def _generated_mounts(generated):
 
 
 def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument("vehicle_id", default_value="ackermann_current"),
+        OpaqueFunction(function=_launch_vehicle),
+    ])
+
+
+def _launch_vehicle(context):
     description_share = get_package_share_directory("agribot_vehicle_description")
     simulation_share = get_package_share_directory("agribot_ackermann_mppi")
     navigation_share = get_package_share_directory("scout_navigation")
     gazebo_share = get_package_share_directory("scout_gazebo")
-    generated = os.path.join(description_share, "generated", "ackermann_current")
+    vehicle_id = LaunchConfiguration("vehicle_id").perform(context)
+    import re
+    if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", vehicle_id):
+        raise ValueError("Invalid vehicle_id")
+    generated = os.path.join(description_share, "generated", vehicle_id)
+    self_filter_enabled = vehicle_id != "ackermann_current"
     vehicle_model = _write_gazebo_vehicle_model(
-        os.path.join(generated, "models", "ackermann_current.sdf")
+        os.path.join(generated, "models", vehicle_id + ".sdf"),
+        "/configured/unfiltered_lidar_points" if self_filter_enabled else None,
     )
+    with open(os.path.join(generated, "vehicle_config.json"), encoding="utf-8") as stream:
+        import json
+        vehicle = json.load(stream)
+    lidar_sensor = next(sensor for sensor in vehicle["sensors"] if sensor["id"] == "lidar")
+    extents = vehicle["geometry"]["bodyExtents"]
+    collision = vehicle["collision"]
+    body_top = collision["center"][2] + collision["size"][2] * 0.5
+    sensor_top = max(sensor["pose"]["xyz"][2] for sensor in vehicle["sensors"]) + 0.1
+    self_min = [-extents["rearM"] - 0.03, -extents["rightM"] - 0.03,
+                min(wheel["position"][2] - (wheel.get("radiusM") or vehicle["geometry"]["wheelRadiusM"])
+                    for wheel in vehicle["geometry"]["wheelCenters"]) - 0.03]
+    self_max = [extents["frontM"] + 0.03, extents["leftM"] + 0.03,
+                max(body_top, sensor_top)]
+    spawn_z = max((wheel.get("radiusM") or vehicle["geometry"]["wheelRadiusM"]) - wheel["position"][2]
+                  for wheel in vehicle["geometry"]["wheelCenters"]) + 0.005
     base_to_body_xyz, base_to_body_rpy, base_to_antenna_xyz = _generated_mounts(
         generated
     )
@@ -370,6 +506,10 @@ def generate_launch_description():
             "physical",
             "agribot_c16_astra.yaml",
         )
+    )
+    fastlio_sim_config = _write_fastlio_sim_config(
+        os.path.join(simulation_share, "config", "fast_lio_c16_physical_sim.yaml"),
+        os.path.join(generated, "config", "fastlivo_extrinsics.yaml"),
     )
     navsat_mppi_config = os.path.join(
         generated,
@@ -383,6 +523,10 @@ def generate_launch_description():
         "simulation",
         "nav2_params_ackermann_fastlio_static.yaml",
     )
+    with open(fastlio_mppi_config, encoding="utf-8") as stream:
+        marking = yaml.safe_load(stream)["local_costmap"]["local_costmap"]["ros__parameters"]["stvl_layer"]["lidar_mark"]
+    obstacle_min_height = float(marking["min_obstacle_height"])
+    obstacle_max_height = float(marking["max_obstacle_height"])
     config_dir = os.path.join(description_share, "config")
     navsat_nav2_profiles = _write_nav2_profiles(
         navsat_mppi_config, config_dir, "navsat"
@@ -397,6 +541,16 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "rmw_implementation",
+                default_value=os.environ.get("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp"),
+            ),
+            SetEnvironmentVariable("RMW_IMPLEMENTATION", LaunchConfiguration("rmw_implementation")),
+            SetEnvironmentVariable(
+                "CYCLONEDDS_URI",
+                os.environ.get("CYCLONEDDS_URI", "file://" + os.path.join(
+                    config_dir, "cyclonedds_simulation.xml")),
+            ),
             DeclareLaunchArgument("gui", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("headless", default_value="false"),
@@ -461,6 +615,54 @@ def generate_launch_description():
                 default_value=os.path.join(navigation_share, "maps"),
             ),
             DeclareLaunchArgument("map_file", default_value="orchard_v2_map6.yaml"),
+            Node(
+                package="agribot_vehicle_description",
+                executable="simulation_vehicle_cloud_filter.py",
+                parameters=[{
+                    "use_sim_time": True,
+                    "lidar_frame": lidar_sensor["frameId"],
+                    "lidar_xyz": lidar_sensor["pose"]["xyz"],
+                    "lidar_rpy": lidar_sensor["pose"]["rpy"],
+                    "self_min": [float(value) for value in self_min],
+                    "self_max": [float(value) for value in self_max],
+                }],
+                output="screen",
+                condition=IfCondition("true" if self_filter_enabled else "false"),
+            ),
+            Node(
+                package="agribot_vehicle_description",
+                executable="simulation_initial_pose.py",
+                output="screen",
+                parameters=[{"use_sim_time": True}],
+                condition=IfCondition(PythonExpression([
+                    "'", LaunchConfiguration("localization_mode"), "' == 'fastlivo_rtk'",
+                ])),
+            ),
+            Node(
+                package="agribot_vehicle_description",
+                executable="simulation_lidar_time_adapter.py",
+                output="screen",
+                parameters=[{"use_sim_time": True}],
+                condition=IfCondition(PythonExpression([
+                    "'", LaunchConfiguration("localization_mode"),
+                    "' in ('fast_lio', 'fastlivo_rtk')",
+                ])),
+            ),
+            Node(
+                package="agribot_hardware_bringup",
+                executable="differential_obstacle_height_filter",
+                name="configured_obstacle_height_filter",
+                output="screen",
+                parameters=[{
+                    "use_sim_time": True,
+                    "input_topic": "/lidar/points",
+                    "output_topic": "/configured/obstacle_points",
+                    "base_frame": "base_link",
+                    "min_height": obstacle_min_height,
+                    "max_height": obstacle_max_height,
+                    "transform_timeout_sec": 0.0,
+                }],
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     os.path.join(
@@ -473,6 +675,11 @@ def generate_launch_description():
                     "gui": LaunchConfiguration("gui"),
                     "rviz": LaunchConfiguration("rviz"),
                     "headless": LaunchConfiguration("headless"),
+                    "initial_pose_z": str(spawn_z),
+                    "gazebo_pause_until_spawn": "true",
+                    # One-time map anchor after settling, never motion feedback.
+                    "use_settled_spawn_pose": "true",
+                    "gazebo_transport_library_path": _gazebo_transport_compat_path(),
                     "gazebo_render_workaround": "true" if is_jetson else "false",
                     "run_waypoints": LaunchConfiguration("run_waypoints"),
                     "waypoint_navigation_mode": PythonExpression(
@@ -503,7 +710,7 @@ def generate_launch_description():
                     "robot_description_file": os.path.join(
                         generated,
                         "urdf",
-                        "ackermann_current.urdf.xacro",
+                        vehicle_id + ".urdf.xacro",
                     ),
                     "navsat_static_nav2_params_file": _nav2_profile_config(
                         navsat_nav2_profiles
@@ -512,6 +719,7 @@ def generate_launch_description():
                         fastlio_nav2_profiles
                     ),
                     "fastlivo_lidar_config_file": fastlivo_sim_config,
+                    "fastlio_config_file": fastlio_sim_config,
                     "fastlivo_camera_config_file": os.path.join(
                         simulation_share,
                         "config",
@@ -574,4 +782,4 @@ def generate_launch_description():
                 ],
             ),
         ]
-    )
+    ).entities

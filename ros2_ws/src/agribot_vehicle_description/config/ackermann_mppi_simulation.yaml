@@ -1,0 +1,11 @@
+# Simulation tracking profile; physical deployment templates are separate.
+FollowPath:
+  time_steps: 60
+  batch_size: 1600
+  prune_distance: 6.0
+  wz_std: 0.16
+  PathAlignCritic:
+    cost_weight: 8.0
+  PathAngleCritic:
+    cost_weight: 6.0
+    max_angle_to_furthest: 0.5

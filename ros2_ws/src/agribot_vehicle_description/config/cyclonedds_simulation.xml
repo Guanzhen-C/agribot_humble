@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <Discovery>
+      <!-- ROS_LOCALHOST_ONLY supplies loopback configuration. Allow enough
+           unicast participants for the complete simulation stack. -->
+      <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

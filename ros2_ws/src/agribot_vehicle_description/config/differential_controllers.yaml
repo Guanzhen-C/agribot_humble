@@ -1,0 +1,51 @@
+# Simulation-only differential overlays. Geometry and speed limits remain
+# authoritative in the Unity-generated profile; Ackermann overlays are unchanged.
+goal_checker:
+  plugin: nav2_controller::SimpleGoalChecker
+  xy_goal_tolerance: 0.25
+  yaw_goal_tolerance: 0.20
+  stateful: true
+
+mppi:
+  motion_model: DiffDrive
+  vy_max: 0.0
+  vy_std: 0.0
+  wz_std: 0.08
+  az_max: 0.30
+  PathAlignCritic:
+    cost_weight: 2.5
+  PathAngleCritic:
+    cost_weight: 2.0
+  GoalAngleCritic:
+    threshold_to_consider: 0.25
+
+rpp:
+  lookahead_dist: 0.6
+  min_lookahead_dist: 0.5
+  max_lookahead_dist: 0.9
+  lookahead_time: 1.5
+  rotate_to_heading_min_angle: 0.785
+  max_angular_accel: 0.30
+
+dwb:
+  trajectory_generator_name: dwb_plugins::StandardTrajectoryGenerator
+  debug_trajectory_details: false
+  min_vel_y: 0.0
+  max_vel_y: 0.0
+  vy_samples: 1
+  sim_time: 2.0
+  vtheta_samples: 24
+  acc_lim_theta: 0.30
+  decel_lim_theta: -0.30
+  critics:
+    - Oscillation
+    - ObstacleFootprint
+    - GoalAlign
+    - PathAlign
+    - PathDist
+    - GoalDist
+    - RotateToGoal
+    - PreferForward
+  RotateToGoal.scale: 32.0
+  RotateToGoal.slowing_factor: 5.0
+  RotateToGoal.lookahead_time: -1.0

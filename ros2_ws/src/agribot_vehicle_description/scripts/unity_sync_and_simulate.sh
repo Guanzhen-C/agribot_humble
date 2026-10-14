@@ -20,6 +20,7 @@ PREPARE_ONLY=false
 STOP_ONLY=false
 STATUS_ONLY=false
 PHYSICAL_OUTPUT=""
+PHYSICAL_DRAFT_OUTPUT=""
 LIST_ALGORITHMS=false
 LIST_COMPONENTS=false
 VALIDATE_ALGORITHMS=false
@@ -266,6 +267,7 @@ Options:
   --stop                 Stop the simulation managed by this script
   --status               Read managed simulation state without changing it
   --export-physical PATH Export the verified physical preset after stopping
+  --export-physical-draft PATH Export an uncalibrated Car1-Car5 draft after stopping
   -h, --help             Show this help
 EOF
 }
@@ -352,6 +354,10 @@ while (($#)); do
       ;;
     --export-physical)
       PHYSICAL_OUTPUT="${2:?missing output path}"
+      shift 2
+      ;;
+    --export-physical-draft)
+      PHYSICAL_DRAFT_OUTPUT="${2:?missing output directory}"
       shift 2
       ;;
     -h|--help)
@@ -536,6 +542,21 @@ if [[ -n "$PHYSICAL_OUTPUT" ]]; then
   exit $?
 fi
 
+if [[ -n "$PHYSICAL_DRAFT_OUTPUT" ]]; then
+  if managed_session_is_running; then
+    echo "ERROR: 请先停止仿真，再导出真机配置草案。" >&2
+    exit 3
+  fi
+  if [[ -z "$EXPORT_DIR" ]]; then
+    echo "ERROR: 草案导出需要 --export-dir 指定当前 Unity 车辆目录。" >&2
+    exit 2
+  fi
+  PYTHONPATH="$WORKSPACE/src/agribot_vehicle_config_tools${PYTHONPATH:+:$PYTHONPATH}" \
+    /usr/bin/python3 -m agribot_vehicle_config_tools.cli export-physical-draft \
+      "$EXPORT_DIR/vehicle_config.json" --output "$PHYSICAL_DRAFT_OUTPUT"
+  exit $?
+fi
+
 rm -f "$STOP_REQUEST"
 : >"$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -552,8 +573,10 @@ CONFIG_JSON="$EXPORT_DIR/vehicle_config.json"
 CONFIG_MESH="$EXPORT_DIR/vehicle_visual.obj"
 TOOLS_SOURCE="$WORKSPACE/src/agribot_vehicle_config_tools"
 DESCRIPTION_SOURCE="$WORKSPACE/src/agribot_vehicle_description"
-CANONICAL_CONFIG="$DESCRIPTION_SOURCE/config/vehicles/ackermann_current/vehicle_config.json"
-GENERATED_OUTPUT="$DESCRIPTION_SOURCE/generated/ackermann_current"
+VEHICLE_ID="$(PYTHONPATH="$TOOLS_SOURCE${PYTHONPATH:+:$PYTHONPATH}" /usr/bin/python3 -c \
+  'import sys; from agribot_vehicle_config_tools.model import load_and_validate; print(load_and_validate(sys.argv[1])[0]["vehicleId"])' "$CONFIG_JSON")"
+CANONICAL_CONFIG="$DESCRIPTION_SOURCE/config/vehicles/$VEHICLE_ID/vehicle_config.json"
+GENERATED_OUTPUT="$DESCRIPTION_SOURCE/generated/$VEHICLE_ID"
 
 for required in \
   /opt/ros/humble/setup.bash \
@@ -636,6 +659,7 @@ export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 set_status "starting"
 log "启动 Gazebo 和 RViz（ROS_DOMAIN_ID=$ROS_DOMAIN_ID）..."
 launch_arguments=(
+  "vehicle_id:=$VEHICLE_ID"
   "gui:=$GUI"
   "rviz:=$RVIZ"
   "run_waypoints:=$RUN_WAYPOINTS"

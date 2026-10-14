@@ -15,7 +15,7 @@ from launch.actions import (
     SetEnvironmentVariable,
     TimerAction,
 )
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution, PythonExpression
@@ -236,10 +236,8 @@ def generate_launch_description():
         value_type=str,
     )
 
-    robot_spawn = Node(
-        package="gazebo_ros",
-        executable="spawn_entity.py",
-        arguments=[
+    def _spawn_robot(context):
+        arguments = [
             "-entity",
             LaunchConfiguration("robot_name"),
             "-file",
@@ -252,9 +250,23 @@ def generate_launch_description():
             LaunchConfiguration("initial_pose_z"),
             "-Y",
             LaunchConfiguration("initial_pose_yaw"),
-        ],
-        output="screen",
-    )
+        ]
+        if LaunchConfiguration("gazebo_pause_until_spawn").perform(context).lower() == "true":
+            arguments.append("-unpause")
+        return [Node(package="gazebo_ros", executable="spawn_entity.py",
+                     arguments=arguments, output="screen")]
+
+    robot_spawn = OpaqueFunction(function=_spawn_robot)
+
+    def _transport_environment(context):
+        directory = LaunchConfiguration("gazebo_transport_library_path").perform(context)
+        if not directory:
+            return []
+        if not os.path.isfile(os.path.join(directory, "libgazebo_transport.so.11")):
+            raise RuntimeError(f"Gazebo compatibility library missing: {directory}")
+        return [SetEnvironmentVariable(
+            "LD_LIBRARY_PATH", os.pathsep.join(
+                part for part in (directory, os.environ.get("LD_LIBRARY_PATH", "")) if part))]
 
     gzclient = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -267,6 +279,7 @@ def generate_launch_description():
     gzserver = GroupAction(
         scoped=True,
         actions=[
+            OpaqueFunction(function=_transport_environment),
             SetEnvironmentVariable(
                 "AGRIBOT_GAZEBO_RENDER_PATH_WORKAROUND",
                 "1",
@@ -289,6 +302,7 @@ def generate_launch_description():
                     "world": LaunchConfiguration("world"),
                     "headless": LaunchConfiguration("headless"),
                     "verbose": "false",
+                    "pause": LaunchConfiguration("gazebo_pause_until_spawn"),
                 }.items(),
             ),
         ],
@@ -574,6 +588,8 @@ def generate_launch_description():
                 "waypoint_readiness_gate_enabled", default_value="false"
             ),
             DeclareLaunchArgument("robot_spawn_delay", default_value="3.0"),
+            DeclareLaunchArgument("gazebo_pause_until_spawn", default_value="false"),
+            DeclareLaunchArgument("gazebo_transport_library_path", default_value=""),
             DeclareLaunchArgument("rviz_start_delay", default_value="5.0"),
             DeclareLaunchArgument("headless", default_value="false"),
             DeclareLaunchArgument(
@@ -718,6 +734,7 @@ def generate_launch_description():
             DeclareLaunchArgument("initial_pose_y", default_value="36.0"),
             DeclareLaunchArgument("initial_pose_z", default_value="0.1275"),
             DeclareLaunchArgument("initial_pose_yaw", default_value="0.0"),
+            DeclareLaunchArgument("use_settled_spawn_pose", default_value="false"),
             DeclareLaunchArgument("waypoint_transform_enabled", default_value="false"),
             DeclareLaunchArgument("navsat_reference_lat", default_value="30.5"),
             DeclareLaunchArgument("navsat_reference_lon", default_value="114.0"),
@@ -883,7 +900,20 @@ def generate_launch_description():
                         ),
                         "map_file": "",
                         "allow_missing_georeference": False,
-                        "auto_initialize_from_fixed_rtk": True,
+                        "auto_initialize_from_fixed_rtk": ParameterValue(
+                            PythonExpression(["'", LaunchConfiguration("use_settled_spawn_pose"), "' != 'true'"]),
+                            value_type=bool,
+                        ),
+                        "seed_pose_topic": PythonExpression([
+                            "'/configured/initial_localization_pose' if '",
+                            LaunchConfiguration("use_settled_spawn_pose"),
+                            "' == 'true' else '/localization_pose'",
+                        ]),
+                        "seed_rotation_sigma_rad": ParameterValue(PythonExpression([
+                            "0.008726646259971648 if '",
+                            LaunchConfiguration("use_settled_spawn_pose"),
+                            "' == 'true' else 0.08726646259971647",
+                        ]), value_type=float),
                         "initial_map_from_odom_yaw_rad": ParameterValue(
                             LaunchConfiguration("initial_pose_yaw"), value_type=float
                         ),
@@ -1016,7 +1046,15 @@ def generate_launch_description():
                                 "initial_pose_topic": "/initialpose",
                                 "pose_topic": "/amcl_pose",
                                 "planar_mode": False,
-                                "allow_reinitialization": True,
+                                "use_auto_initial_pose": ParameterValue(
+                                    LaunchConfiguration("use_settled_spawn_pose"), value_type=bool
+                                ),
+                                "auto_initial_pose_topic": "/odom",
+                                "auto_initial_pose_message_type": "odometry",
+                                "allow_reinitialization": ParameterValue(PythonExpression([
+                                    "'", LaunchConfiguration("use_settled_spawn_pose"),
+                                    "'.lower() not in ('true', '1')",
+                                ]), value_type=bool),
                                 "initial_pose_x": LaunchConfiguration("initial_pose_x"),
                                 "initial_pose_y": LaunchConfiguration("initial_pose_y"),
                                 "initial_pose_z": LaunchConfiguration("initial_pose_z"),
@@ -1030,6 +1068,7 @@ def generate_launch_description():
                         executable="initial_pose_sender.py",
                         name="ackermann_initial_pose_sender_fastlio",
                         output="screen",
+                        condition=UnlessCondition(LaunchConfiguration("use_settled_spawn_pose")),
                         parameters=[
                             {
                                 "use_sim_time": True,
@@ -1089,7 +1128,15 @@ def generate_launch_description():
                                 "initial_pose_topic": "/initialpose",
                                 "pose_topic": "/amcl_pose",
                                 "planar_mode": False,
-                                "allow_reinitialization": True,
+                                "use_auto_initial_pose": ParameterValue(
+                                    LaunchConfiguration("use_settled_spawn_pose"), value_type=bool
+                                ),
+                                "auto_initial_pose_topic": "/odom",
+                                "auto_initial_pose_message_type": "odometry",
+                                "allow_reinitialization": ParameterValue(PythonExpression([
+                                    "'", LaunchConfiguration("use_settled_spawn_pose"),
+                                    "'.lower() not in ('true', '1')",
+                                ]), value_type=bool),
                                 "initial_pose_x": LaunchConfiguration("initial_pose_x"),
                                 "initial_pose_y": LaunchConfiguration("initial_pose_y"),
                                 "initial_pose_z": LaunchConfiguration("initial_pose_z"),
@@ -1103,6 +1150,7 @@ def generate_launch_description():
                         executable="initial_pose_sender.py",
                         name="ackermann_initial_pose_sender_kiss",
                         output="screen",
+                        condition=UnlessCondition(LaunchConfiguration("use_settled_spawn_pose")),
                         parameters=[
                             {
                                 "use_sim_time": True,

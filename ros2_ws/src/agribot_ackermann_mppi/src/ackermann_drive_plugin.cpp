@@ -11,6 +11,7 @@
 #include <gazebo/common/Time.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
+#include <gazebo_ros/conversions/geometry_msgs.hpp>
 #include <gazebo_ros/node.hpp>
 #include <geometry_msgs/msg/quaternion.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -32,14 +33,6 @@ double clamp(const double value, const double lower, const double upper)
 double wrap_angle(const double angle)
 {
   return std::atan2(std::sin(angle), std::cos(angle));
-}
-
-geometry_msgs::msg::Quaternion quaternion_from_yaw(const double yaw)
-{
-  geometry_msgs::msg::Quaternion quaternion;
-  quaternion.z = std::sin(yaw * 0.5);
-  quaternion.w = std::cos(yaw * 0.5);
-  return quaternion;
 }
 
 class AckermannDrivePlugin : public gazebo::ModelPlugin
@@ -292,7 +285,8 @@ private:
     odom.pose.pose.position.x = x_;
     odom.pose.pose.position.y = y_;
     odom.pose.pose.position.z = z_;
-    odom.pose.pose.orientation = quaternion_from_yaw(yaw_);
+    odom.pose.pose.orientation = gazebo_ros::Convert<geometry_msgs::msg::Quaternion>(
+      model_->WorldPose().Rot());
     odom.twist.twist.linear.x = actual_forward;
     odom.twist.twist.angular.z = actual_yaw_rate;
     odom.pose.covariance[0] = 0.01;
@@ -330,7 +324,7 @@ private:
       transform.transform.translation.x = x_;
       transform.transform.translation.y = y_;
       transform.transform.translation.z = z_;
-      transform.transform.rotation = quaternion_from_yaw(yaw_);
+      transform.transform.rotation = odom.pose.pose.orientation;
       tf_broadcaster_->sendTransform(transform);
     }
   }

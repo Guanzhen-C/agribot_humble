@@ -1,0 +1,7 @@
+<library path="agribot_ackermann_trajectory_generator">
+  <class name="agribot_vehicle_description::AckermannTrajectoryGenerator"
+    type="agribot_vehicle_description::AckermannTrajectoryGenerator"
+    base_class_type="dwb_core::TrajectoryGenerator">
+    <description>DWB trajectory sampling constrained by Ackermann curvature.</description>
+  </class>
+</library>

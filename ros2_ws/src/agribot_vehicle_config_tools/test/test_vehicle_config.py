@@ -12,6 +12,7 @@ from agribot_vehicle_config_tools.generator import (
     _split_integrated_visual_obj,
     generate_bundle,
     generate_simulation_sdf,
+    generate_sdf,
     generate_urdf,
 )
 from agribot_vehicle_config_tools.model import (
@@ -21,6 +22,7 @@ from agribot_vehicle_config_tools.model import (
     load_and_validate,
 )
 from agribot_vehicle_config_tools.verifier import verify_current
+from agribot_vehicle_config_tools.cli import main as config_main
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
@@ -78,6 +80,149 @@ def test_inconsistent_turning_radius_is_rejected(tmp_path):
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(ConfigError, match="minTurningRadiusM"):
         load_and_validate(path)
+
+
+def test_vehicle_id_cannot_escape_its_export_directory(tmp_path):
+    config = _load()
+    config["vehicleId"] = "../ackermann_current"
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(config))
+    with pytest.raises(ConfigError, match="vehicleId"):
+        load_and_validate(path)
+
+
+@pytest.mark.parametrize("fault", (
+    "missing_geometry", "negative_radius", "nan_radius", "infinite_speed",
+    "duplicate_sensor", "duplicate_frame", "wrong_vector", "bad_quaternion",
+    "negative_infinite_speed", "boolean_radius", "long_quaternion",
+))
+def test_documented_invalid_inputs_are_rejected(tmp_path, fault):
+    config = _load()
+    if fault == "missing_geometry":
+        del config["geometry"]
+    elif fault == "negative_radius":
+        config["geometry"]["wheelRadiusM"] = -1
+    elif fault == "nan_radius":
+        config["geometry"]["wheelRadiusM"] = math.nan
+    elif fault == "infinite_speed":
+        config["navigation"]["maxLinearSpeedMps"] = math.inf
+    elif fault == "negative_infinite_speed":
+        config["navigation"]["maxLinearSpeedMps"] = -math.inf
+    elif fault == "boolean_radius":
+        config["geometry"]["wheelRadiusM"] = True
+    elif fault == "duplicate_sensor":
+        config["sensors"][1]["id"] = config["sensors"][0]["id"]
+    elif fault == "duplicate_frame":
+        config["sensors"][1]["frameId"] = config["sensors"][0]["frameId"]
+    elif fault == "wrong_vector":
+        config["sensors"][0]["pose"]["xyz"] = [0, 0]
+    elif fault == "long_quaternion":
+        config["sensors"][0]["pose"]["quaternion"] = [0, 0, 0, 1, 0]
+    else:
+        config["sensors"][0]["pose"]["quaternion"] = [0, 0, 0, 0]
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_and_validate(path)
+
+
+@pytest.mark.parametrize("missing", ("vehicle_visual.obj", "vehicle_visual.mtl"))
+def test_import_missing_visual_resource_preserves_previous_config(tmp_path, capsys, missing):
+    export = tmp_path / "unity"
+    export.mkdir()
+    (export / "vehicle_config.json").write_text(json.dumps(_load()), encoding="utf-8")
+    for name in ("vehicle_visual.obj", "vehicle_visual.mtl"):
+        if name != missing:
+            (export / name).write_text("fixture", encoding="utf-8")
+    canonical = tmp_path / "current.json"
+    canonical.write_text("original", encoding="utf-8")
+    output = tmp_path / "generated"
+    result = config_main(["import-unity", str(export), "--canonical", str(canonical),
+                          "--output", str(output), "--workspace-src", str(WORKSPACE_SRC)])
+    assert result == 2
+    assert missing in capsys.readouterr().err
+    assert canonical.read_text() == "original"
+    assert not output.exists()
+
+
+def test_front_and_rear_wheel_radii_are_preserved(tmp_path):
+    config = _load()
+    for wheel in config["geometry"]["wheelCenters"]:
+        wheel["radiusM"] = 0.09 if wheel["id"].startswith("front") else 0.14
+        wheel["widthM"] = 0.06
+    for sdf in (generate_sdf(config), generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path)):
+        root = ET.fromstring(sdf)
+        for wheel in config["geometry"]["wheelCenters"]:
+            cylinder = root.find(f".//link[@name='{wheel['id']}_wheel_link']/collision/geometry/cylinder")
+            assert float(cylinder.findtext("radius")) == pytest.approx(wheel["radiusM"])
+            assert float(cylinder.findtext("length")) == pytest.approx(wheel["widthM"])
+
+
+def test_nominal_cad_collision_proxies_do_not_occlude_simulated_lidar(tmp_path):
+    config = _load()
+    original = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    assert original.find(".//plugin[@name='configured_sensor_collision_filter']") is None
+    config.setdefault("metadata", {})["calibrationState"] = "unity_nominal_simulation_only"
+    model = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    plugin = model.find(".//plugin[@name='configured_sensor_collision_filter']")
+    assert plugin.get("filename") == "libagribot_simulation_sensor_collision_filter.so"
+    assert ET.tostring(model.find(".//link[@name='base_link']/collision")) == ET.tostring(
+        original.find(".//link[@name='base_link']/collision"))
+    urdf = ET.fromstring(generate_urdf(config))
+    for sensor in config["sensors"]:
+        assert urdf.find(f"./link[@name='{sensor['frameId']}']/visual") is not None
+
+
+@pytest.mark.parametrize("vehicle_type", ["differential", "tracked"])
+def test_differential_sdf_uses_four_wheel_drive_without_steering(tmp_path, vehicle_type):
+    config = _load()
+    config["vehicleType"] = vehicle_type
+    for wheel in config["geometry"]["wheelCenters"]:
+        wheel["steering"] = False
+        wheel["driven"] = True
+    (tmp_path / "vehicle_visual.obj").touch()
+    for sdf in (generate_sdf(config), generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path)):
+        root = ET.fromstring(sdf)
+        assert root.find(".//plugin[@name='ackermann_drive']") is None
+        drive = root.find(".//plugin[@name='configured_diff_drive']")
+        assert drive.get("filename") == "libgazebo_ros_diff_drive.so"
+        assert drive.findtext("num_wheel_pairs") == "2"
+        assert len(drive.findall("left_joint")) == len(drive.findall("right_joint")) == 2
+        assert root.find(".//joint[@name='front_left_steering_joint']") is None
+        for wheel in config["geometry"]["wheelCenters"]:
+            link = root.find(f".//link[@name='{wheel['id']}_wheel_link']")
+            assert root.find(f".//joint[@name='{wheel['id']}_wheel_joint']/parent").text == "base_link"
+            if vehicle_type == "tracked":
+                assert link.find("visual") is None
+
+
+def test_ackermann_simulation_keeps_original_contact_friction(tmp_path):
+    config = _load()
+    root = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    assert root.find(".//plugin[@name='configured_diff_drive']") is None
+    for wheel in config["geometry"]["wheelCenters"]:
+        contact = root.find(f".//link[@name='{wheel['id']}_wheel_link']/collision/surface/friction/ode")
+        assert float(contact.findtext("mu")) == 1.8
+        assert float(contact.findtext("mu2")) == 1.5
+
+
+def test_multiple_mesh_objects_per_wheel_keep_valid_local_indices(tmp_path):
+    source = tmp_path / "vehicle_visual.obj"
+    lines = []
+    index = 1
+    for name in ("body", "FLwheel", "FRwheel", "RLwheel", "RRwheel"):
+        for part in range(2):
+            lines.extend([f"o {name}__{part}\n", "v 0 0 0\n", "v 1 0 0\n", "v 0 1 0\n",
+                          f"f {index} {index + 1} {index + 2}\n"])
+            index += 3
+    source.write_text("".join(lines))
+    output = tmp_path / "split"
+    output.mkdir()
+    _split_integrated_visual_obj(source, output)
+    for wheel in _load()["geometry"]["wheelCenters"]:
+        text = (output / f"{wheel['id']}_wheel_visual.obj").read_text()
+        assert "f 1 2 3" in text
+        assert "f 4 5 6" in text
 
 
 def test_unity_empty_measurement_frame_is_treated_as_absent(tmp_path):
@@ -294,3 +439,50 @@ def test_current_ackermann_runtime_verifier_covers_expected_surface():
         "simulation.wheelbase",
         "simulation_sensor.lidar.pose",
     }.issubset(names)
+
+
+def _write_sensor_cad(directory):
+    for sensor_id in ("imu", "lidar", "right_camera", "rtk_master"):
+        name = f"sensor_{sensor_id}_visual"
+        (directory / f"{name}.obj").write_text(
+            f"mtllib {name}.mtl\nv 0 0 0\nv 0.01 0 0\nv 0 0.01 0\nusemtl blue\nf 1 2 3\n",
+            encoding="utf-8",
+        )
+        (directory / f"{name}.mtl").write_text("newmtl blue\nKd 0 0 1\n", encoding="utf-8")
+
+
+def test_sensor_cad_is_visible_in_urdf_and_sdf_without_duplicate_placeholders(tmp_path):
+    config = _load()
+    _write_sensor_cad(tmp_path)
+    source = tmp_path / "vehicle_config.json"
+    source.write_text(json.dumps(config), encoding="utf-8")
+    output = tmp_path / "bundle"
+    generate_bundle(config, source, output)
+    urdf = ET.parse(output / "urdf" / "ackermann_current.urdf.xacro")
+    for sensor in ("imu", "lidar", "right_camera", "rtk_master"):
+        item = next(item for item in config["sensors"] if item["id"] == sensor)
+        visual = urdf.find(f"./link[@name='{item['frameId']}']/visual/geometry/mesh")
+        assert visual.get("filename").endswith(f"/sensor_{sensor}_visual.obj")
+        assert (output / "models" / f"sensor_{sensor}_visual.mtl").is_file()
+    assert urdf.find("./link[@name='rtk_secondary_link']/visual") is None
+    sdf = ET.parse(output / "models" / "ackermann_current.sdf")
+    assert len(sdf.findall(".//visual/plugin[@filename='libagribot_simulation_sensor_visual.so']")) == 4
+
+
+def test_runtime_sensor_cad_visual_poses_match_mounts(tmp_path):
+    config = _load()
+    _write_sensor_cad(tmp_path)
+    (tmp_path / "vehicle_visual.obj").write_text("# body\n", encoding="utf-8")
+    sdf = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    base = sdf.find("./model/link[@name='base_link']")
+    assert len(base.findall("visual")) == 5
+    for sensor in ("imu", "lidar", "right_camera", "rtk_master"):
+        item = next(item for item in config["sensors"] if item["id"] == sensor)
+        values = [float(value) for value in base.find(f"visual[@name='{sensor}_cad_visual']/pose").text.split()]
+        assert values[:3] == pytest.approx(item["pose"]["xyz"])
+
+
+def test_sensor_cad_requires_material_sidecar(tmp_path):
+    (tmp_path / "sensor_lidar_visual.obj").write_text("# incomplete\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Incomplete sensor CAD"):
+        generate_simulation_sdf(_load(), WORKSPACE_SRC, tmp_path)

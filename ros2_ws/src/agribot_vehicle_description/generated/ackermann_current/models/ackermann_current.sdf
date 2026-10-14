@@ -32,101 +32,8 @@
           </mesh>
         </geometry>
       </visual>
-      <visual name="imu_visual">
-        <pose>0.1425 0 0.143 0.000572424 -0.009139547 -0.000002616</pose>
-        <geometry>
-          <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/hipnuc_n300pro.glb</uri>
-          </mesh>
-        </geometry>
-      </visual>
-      <visual name="c16_visual">
-        <pose>0.480089121 -0.000371330 0.184451502 0.007648487 0.001835661 -3.141585634</pose>
-        <geometry>
-          <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/lslidar_c16_v4.glb</uri>
-          </mesh>
-        </geometry>
-      </visual>
-      <visual name="camera_body_visual">
-        <pose>0.5535 0 0.154 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.044 0.040 0.040</size>
-          </box>
-        </geometry>
-        <material>
-          <ambient>0.035 0.035 0.035 1</ambient>
-          <diffuse>0.035 0.035 0.035 1</diffuse>
-        </material>
-      </visual>
-      <visual name="camera_lens_visual">
-        <pose>0.5815 0 0.154 0 1.5707963267948966 0</pose>
-        <geometry>
-          <cylinder>
-            <radius>0.014</radius>
-            <length>0.012</length>
-          </cylinder>
-        </geometry>
-        <material>
-          <ambient>0.02 0.02 0.02 1</ambient>
-          <diffuse>0.02 0.02 0.02 1</diffuse>
-        </material>
-      </visual>
-      <visual name="rtk_master_radome">
-        <pose>0.1425 0.2952585 0.76676 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <radius>0.0225</radius>
-            <length>0.036</length>
-          </cylinder>
-        </geometry>
-        <material>
-          <ambient>0.88 0.88 0.84 1</ambient>
-          <diffuse>0.88 0.88 0.84 1</diffuse>
-        </material>
-      </visual>
-      <visual name="rtk_master_stem">
-        <pose>0.1425 0.2952585 0.69476 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <radius>0.008</radius>
-            <length>0.108</length>
-          </cylinder>
-        </geometry>
-        <material>
-          <ambient>0.06 0.06 0.06 1</ambient>
-          <diffuse>0.06 0.06 0.06 1</diffuse>
-        </material>
-      </visual>
-      <visual name="rtk_secondary_radome">
-        <pose>0.1425 -0.2952585 0.76676 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <radius>0.0225</radius>
-            <length>0.036</length>
-          </cylinder>
-        </geometry>
-        <material>
-          <ambient>0.88 0.88 0.84 1</ambient>
-          <diffuse>0.88 0.88 0.84 1</diffuse>
-        </material>
-      </visual>
-      <visual name="rtk_secondary_stem">
-        <pose>0.1425 -0.2952585 0.69476 0 0 0</pose>
-        <geometry>
-          <cylinder>
-            <radius>0.008</radius>
-            <length>0.108</length>
-          </cylinder>
-        </geometry>
-        <material>
-          <ambient>0.06 0.06 0.06 1</ambient>
-          <diffuse>0.06 0.06 0.06 1</diffuse>
-        </material>
-      </visual>
       <sensor name="n300pro_imu" type="imu">
-        <pose>0.14250010252 2.8882130465e-08 0.143001556396 0.00057242391631 -0.00913954898715 -2.61600803242e-06</pose>
+        <pose>0.142500117421 -4.16096668232e-08 0.142999082804 0.000572423858102 -0.00913954805583 -2.61646141553e-06</pose>
         <always_on>true</always_on>
         <update_rate>100</update_rate>
         <visualize>false</visualize>
@@ -181,7 +88,7 @@
         </plugin>
       </sensor>
       <sensor name="lslidar_c16_points" type="ray">
-        <pose>0.48000010848 1.83202484294e-08 0.233001708984 -0.00764848850667 -0.00183566112537 7.01999988451e-06</pose>
+        <pose>0.480000048876 -8.73142695923e-08 0.23299922049 -0.00764848897234 -0.00183566112537 7.02045099388e-06</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -224,7 +131,7 @@
         </plugin>
       </sensor>
       <sensor name="hikrobot_right_camera" type="camera">
-        <pose>0.575500130653 -9.59825552371e-09 0.154001235962 -2.32920654986e-10 7.77125586104e-11 1.45519152284e-11</pose>
+        <pose>0.575500071049 -6.9207942488e-08 0.153998762369 3.98870910259e-12 3.83765547118e-10 9.01187069413e-10</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -267,7 +174,7 @@
       </sensor>
     </link>
     <link name="front_left_steering_link">
-      <pose relative_to="__model__">0.499848693609 0.294998437166 0.000669479137287 0 0 0</pose>
+      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -280,7 +187,7 @@
       </inertial>
     </link>
     <link name="front_right_steering_link">
-      <pose relative_to="__model__">0.501325964928 -0.294998288155 -0.000631332746707 0 0 0</pose>
+      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -293,7 +200,7 @@
       </inertial>
     </link>
     <link name="front_left_wheel_link">
-      <pose relative_to="__model__">0.499848693609 0.294998437166 0.000669479137287 0 0 0</pose>
+      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -330,16 +237,15 @@
         </surface>
       </collision>
       <visual name="wheel_visual">
-        <pose>0 0 0 0 0 1.5707963267948966</pose>
         <geometry>
           <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/ackermann_front_left_wheel.glb</uri>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/front_left_wheel_visual.obj</uri>
           </mesh>
         </geometry>
       </visual>
     </link>
     <link name="front_right_wheel_link">
-      <pose relative_to="__model__">0.501325964928 -0.294998288155 -0.000631332746707 0 0 0</pose>
+      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -376,16 +282,15 @@
         </surface>
       </collision>
       <visual name="wheel_visual">
-        <pose>0 0 0 0 0 1.5707963267948966</pose>
         <geometry>
           <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/ackermann_front_right_wheel.glb</uri>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/front_right_wheel_visual.obj</uri>
           </mesh>
         </geometry>
       </visual>
     </link>
     <link name="rear_left_wheel_link">
-      <pose relative_to="__model__">9.0567539246e-08 0.294999301434 0.000650405883789 0 0 0</pose>
+      <pose relative_to="__model__">4.38546038595e-07 0.29499900341 0.000733767054044 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -422,16 +327,15 @@
         </surface>
       </collision>
       <visual name="wheel_visual">
-        <pose>0 0 0 0 0 1.5707963267948966</pose>
         <geometry>
           <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/ackermann_rear_left_wheel.glb</uri>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/rear_left_wheel_visual.obj</uri>
           </mesh>
         </geometry>
       </visual>
     </link>
     <link name="rear_right_wheel_link">
-      <pose relative_to="__model__">8.60191562424e-08 -0.294999241829 -0.000646591302939 0 0 0</pose>
+      <pose relative_to="__model__">-2.09537219575e-07 -0.294999182224 -0.000736798800062 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -468,16 +372,15 @@
         </surface>
       </collision>
       <visual name="wheel_visual">
-        <pose>0 0 0 0 0 1.5707963267948966</pose>
         <geometry>
           <mesh>
-            <uri>model://agribot_hardware_bringup/meshes/ackermann_rear_right_wheel.glb</uri>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/rear_right_wheel_visual.obj</uri>
           </mesh>
         </geometry>
       </visual>
     </link>
     <joint name="front_left_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.499848693609 0.294998437166 0.000669479137287 0 0 0</pose>
+      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_left_steering_link</child>
       <axis>
@@ -494,7 +397,7 @@
       </axis>
     </joint>
     <joint name="front_right_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.501325964928 -0.294998288155 -0.000631332746707 0 0 0</pose>
+      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_right_steering_link</child>
       <axis>
@@ -511,7 +414,7 @@
       </axis>
     </joint>
     <joint name="front_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.499848693609 0.294998437166 0.000669479137287 0 0 0</pose>
+      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
       <parent>front_left_steering_link</parent>
       <child>front_left_wheel_link</child>
       <axis>
@@ -525,7 +428,7 @@
       </axis>
     </joint>
     <joint name="front_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.501325964928 -0.294998288155 -0.000631332746707 0 0 0</pose>
+      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
       <parent>front_right_steering_link</parent>
       <child>front_right_wheel_link</child>
       <axis>
@@ -539,7 +442,7 @@
       </axis>
     </joint>
     <joint name="rear_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">9.0567539246e-08 0.294999301434 0.000650405883789 0 0 0</pose>
+      <pose relative_to="__model__">4.38546038595e-07 0.29499900341 0.000733767054044 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_left_wheel_link</child>
       <axis>
@@ -553,7 +456,7 @@
       </axis>
     </joint>
     <joint name="rear_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">8.60191562424e-08 -0.294999241829 -0.000646591302939 0 0 0</pose>
+      <pose relative_to="__model__">-2.09537219575e-07 -0.294999182224 -0.000736798800062 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_right_wheel_link</child>
       <axis>
@@ -575,7 +478,7 @@
       <joint_state_topic>/joint_states</joint_state_topic>
       <odom_frame>odom</odom_frame>
       <base_frame>base_link</base_frame>
-      <wheelbase>0.50058722496</wheelbase>
+      <wheelbase>0.526587486267</wheelbase>
       <front_track_width>0.589999973774</front_track_width>
       <rear_track_width>0.589999973774</rear_track_width>
       <wheel_radius>0.127499997616</wheel_radius>

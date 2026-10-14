@@ -6,6 +6,7 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
 from std_msgs.msg import UInt8
 
@@ -238,8 +239,12 @@ def main() -> None:
     node = SimNavSatBridge()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError as exc:
+        # SIGINT can invalidate a queued subscription while spin is unwinding.
+        if rclpy.ok() or "Unable to convert call argument to Python object" not in str(exc):
+            raise
     finally:
         node.destroy_node()
         rclpy.try_shutdown()

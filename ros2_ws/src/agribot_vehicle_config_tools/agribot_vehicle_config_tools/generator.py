@@ -75,6 +75,44 @@ def _wheel_visual_filename(wheel_id: str) -> str:
     return f"{wheel_id}_wheel_visual.obj"
 
 
+def _sensor_visual_filename(sensor_id: str) -> str:
+    return f"sensor_{sensor_id}_visual.obj"
+
+
+def _sensor_visual_meshes(config: dict[str, Any], export_dir: Path) -> set[str]:
+    result = set()
+    for sensor in config["sensors"]:
+        mesh = export_dir / _sensor_visual_filename(sensor["id"])
+        material = mesh.with_suffix(".mtl")
+        if mesh.is_file() != material.is_file():
+            raise ValueError(f"Incomplete sensor CAD export: {mesh.name}")
+        if mesh.is_file():
+            result.add(sensor["id"])
+    return result
+
+
+def _cad_sensor_visual(config: dict[str, Any], sensor_id: str) -> ET.Element:
+    visual = ET.Element("visual", name=f"{sensor_id}_cad_visual")
+    ET.SubElement(visual, "pose").text = _pose_text(_sensor_map(config)[sensor_id]["pose"])
+    mesh = ET.SubElement(ET.SubElement(visual, "geometry"), "mesh")
+    ET.SubElement(mesh, "uri").text = _visual_asset_uri(config, _sensor_visual_filename(sensor_id))
+    ET.SubElement(visual, "plugin", name=f"{sensor_id}_visual_only",
+                  filename="libagribot_simulation_sensor_visual.so")
+    return visual
+
+
+def _wheel_object(name: str) -> str | None:
+    return UNITY_WHEEL_OBJECTS.get(name.split("__", 1)[0])
+
+
+def _wheel_radius(config: dict[str, Any], wheel: dict[str, Any]) -> float:
+    return wheel.get("radiusM") or config["geometry"]["wheelRadiusM"]
+
+
+def _wheel_width(config: dict[str, Any], wheel: dict[str, Any]) -> float:
+    return wheel.get("widthM") or config["geometry"]["wheelWidthM"]
+
+
 def _scan_wheel_mesh_centers(source: Path) -> dict[str, list[float]]:
     bounds = {
         wheel_id: {"min": [math.inf] * 3, "max": [-math.inf] * 3, "faces": 0}
@@ -84,7 +122,7 @@ def _scan_wheel_mesh_centers(source: Path) -> dict[str, list[float]]:
     with source.open(encoding="utf-8", errors="strict") as stream:
         for line in stream:
             if line.startswith("o "):
-                current_wheel = UNITY_WHEEL_OBJECTS.get(line[2:].strip())
+                current_wheel = _wheel_object(line[2:].strip())
             elif current_wheel is not None and line.startswith("v "):
                 values = [float(value) for value in line.split()[1:4]]
                 for axis, value in enumerate(values):
@@ -142,6 +180,7 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
     }
     seen = {wheel_id: 0 for wheel_id in wheel_targets}
     face_counts = {wheel_id: 0 for wheel_id in wheel_targets}
+    wheel_counts = {wheel_id: [0, 0, 0] for wheel_id in wheel_targets}
 
     with ExitStack() as stack:
         body = stack.enter_context(body_temporary.open("w", encoding="utf-8"))
@@ -165,12 +204,12 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
         with source.open(encoding="utf-8", errors="strict") as stream:
             for line in stream:
                 if line.startswith("o "):
-                    current_wheel = UNITY_WHEEL_OBJECTS.get(line[2:].strip())
+                    current_wheel = _wheel_object(line[2:].strip())
                     if current_wheel is not None:
                         seen[current_wheel] += 1
-                        vertex_base = vertex_count
-                        uv_base = uv_count
-                        normal_base = normal_count
+                        vertex_base = vertex_count - wheel_counts[current_wheel][0]
+                        uv_base = uv_count - wheel_counts[current_wheel][1]
+                        normal_base = normal_count - wheel_counts[current_wheel][2]
                     body.write(line)
                     continue
 
@@ -183,6 +222,7 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
                     vertex_count += 1
                     body.write(line)
                     if wheel_stream is not None:
+                        wheel_counts[current_wheel][0] += 1
                         values = [float(value) for value in line.split()[1:4]]
                         local = [
                             value - center
@@ -193,11 +233,13 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
                     uv_count += 1
                     body.write(line)
                     if wheel_stream is not None:
+                        wheel_counts[current_wheel][1] += 1
                         wheel_stream.write(line)
                 elif line.startswith("vn "):
                     normal_count += 1
                     body.write(line)
                     if wheel_stream is not None:
+                        wheel_counts[current_wheel][2] += 1
                         wheel_stream.write(line)
                 elif line.startswith("f ") and wheel_stream is not None:
                     wheel_stream.write(
@@ -210,7 +252,7 @@ def _split_integrated_visual_obj(source: Path, output_dir: Path) -> None:
                         wheel_stream.write(line)
 
     for wheel_id in wheel_targets:
-        if seen[wheel_id] != 1 or face_counts[wheel_id] == 0:
+        if seen[wheel_id] < 1 or face_counts[wheel_id] == 0:
             raise ValueError(
                 f"Unity OBJ wheel split failed for {wheel_id}: "
                 f"objects={seen[wheel_id]}, faces={face_counts[wheel_id]}"
@@ -479,7 +521,7 @@ def _patch_nav2(template: dict[str, Any], config: dict[str, Any]) -> dict[str, A
             "maxAccelerationMps2", follow_path.get("ax_max", 0.8)
         )
         follow_path["ax_min"] = -follow_path["ax_max"]
-        follow_path["motion_model"] = "Ackermann"
+        follow_path["motion_model"] = "Ackermann" if config["vehicleType"] == "ackermann" else "DiffDrive"
         follow_path.setdefault("AckermannConstraints", {})[
             "min_turning_r"
         ] = geometry["minTurningRadiusM"]
@@ -663,6 +705,10 @@ def generate_simulation_sdf(
         raise ValueError("Ackermann SDF templates must contain one model")
     model.set("name", config["vehicleId"])
 
+    if config.get("metadata", {}).get("calibrationState") == "unity_nominal_simulation_only":
+        ET.SubElement(model, "plugin", name="configured_sensor_collision_filter",
+                      filename="libagribot_simulation_sensor_collision_filter.so")
+
     geometry = config["geometry"]
     navigation = config["navigation"]
     dynamics = config.get("dynamics", {})
@@ -694,8 +740,9 @@ def generate_simulation_sdf(
                 config["visuals"][0]["meshUri"],
             )
 
-        # The Unity OBJ is the complete configured vehicle, including its
-        # wheels and sensor housings. Keep the physical wheel links and sensor
+        # The Unity OBJ contains the configured body and wheel geometry.
+        # Sensor housings are excluded to avoid camera self-occlusion.
+        # Keep the physical wheel links and sensor
         # elements below, but remove their legacy visuals to avoid rendering
         # both the old placeholder model and the Unity vehicle.
         for visual in list(base.findall("visual")):
@@ -706,6 +753,8 @@ def generate_simulation_sdf(
             if wheel_link is not None:
                 for visual in list(wheel_link.findall("visual")):
                     wheel_link.remove(visual)
+                if config["vehicleType"] == "tracked":
+                    continue
                 wheel_visual = ET.SubElement(
                     wheel_link, "visual", {"name": "wheel_visual"}
                 )
@@ -734,8 +783,14 @@ def generate_simulation_sdf(
                 _number(geometry["maxSteeringAngleRad"]),
             )
         wheel_link = model.find(f"./link[@name='{wheel_id}_wheel_link']")
-        _set_xml_text(wheel_link, "./collision/geometry/cylinder/radius", _number(geometry["wheelRadiusM"]))
-        _set_xml_text(wheel_link, "./collision/geometry/cylinder/length", _number(geometry["wheelWidthM"]))
+        _set_xml_text(wheel_link, "./collision/geometry/cylinder/radius", _number(_wheel_radius(config, wheel)))
+        _set_xml_text(wheel_link, "./collision/geometry/cylinder/length", _number(_wheel_width(config, wheel)))
+        if config["vehicleType"] != "ackermann":
+            _set_xml_text(model, f"./joint[@name='{wheel_id}_wheel_joint']/parent", "base_link")
+            for tag, name in (("link", f"{wheel_id}_steering_link"), ("joint", f"{wheel_id}_steering_joint")):
+                element = model.find(f"./{tag}[@name='{name}']")
+                if element is not None:
+                    model.remove(element)
 
     plugin = model.find("./plugin[@name='ackermann_drive']")
     if plugin is None:
@@ -752,6 +807,9 @@ def generate_simulation_sdf(
     }
     for key, value in plugin_values.items():
         _set_xml_text(plugin, key, _number(value))
+    if config["vehicleType"] != "ackermann":
+        model.remove(plugin)
+        _append_differential_plugins(model, config)
 
     sensor_names = {
         "imu": "n300pro_imu",
@@ -759,6 +817,8 @@ def generate_simulation_sdf(
         "right_camera": "hikrobot_right_camera",
     }
     sensors = _sensor_map(config)
+    for sensor_id in sorted(_sensor_visual_meshes(config, unity_export_dir)):
+        base.append(_cad_sensor_visual(config, sensor_id))
     for sensor_id, sdf_name in sensor_names.items():
         sensor_xml = sensor_base.find(f"./sensor[@name='{sdf_name}']")
         if sensor_xml is None:
@@ -770,6 +830,34 @@ def generate_simulation_sdf(
 
     ET.indent(vehicle_tree, space="  ")
     return ET.tostring(vehicle_tree.getroot(), encoding="unicode") + "\n"
+
+
+def _append_differential_plugins(model: ET.Element, config: dict[str, Any]) -> None:
+    drive = ET.SubElement(model, "plugin", name="configured_diff_drive", filename="libgazebo_ros_diff_drive.so")
+    ros = ET.SubElement(drive, "ros")
+    ET.SubElement(ros, "namespace").text = "/"
+    ET.SubElement(ros, "remapping").text = "cmd_vel:=/nav2/cmd_vel"
+    values = {"num_wheel_pairs": 2, "update_rate": 100, "max_wheel_torque": 200,
+              "max_wheel_acceleration": config.get("dynamics", {}).get("maxAccelerationMps2", 0.8),
+              "publish_odom": "true", "publish_odom_tf": "false", "publish_wheel_tf": "false",
+              "odometry_frame": "odom", "robot_base_frame": "base_link"}
+    for key, value in values.items():
+        ET.SubElement(drive, key).text = str(value)
+    for axle in ("front", "rear"):
+        for side in ("left", "right"):
+            ET.SubElement(drive, f"{side}_joint").text = f"{axle}_{side}_wheel_joint"
+        ET.SubElement(drive, "wheel_separation").text = _number(config["geometry"][f"{axle}TrackM"])
+        wheel = _wheel_map(config)[f"{axle}_left"]
+        ET.SubElement(drive, "wheel_diameter").text = _number(2 * _wheel_radius(config, wheel))
+    joint_states = ET.SubElement(model, "plugin", name="configured_joint_states", filename="libgazebo_ros_joint_state_publisher.so")
+    ET.SubElement(joint_states, "update_rate").text = "30"
+    for wheel_id in _wheel_map(config):
+        ET.SubElement(joint_states, "joint_name").text = f"{wheel_id}_wheel_joint"
+    ground_truth = ET.SubElement(model, "plugin", name="configured_ground_truth", filename="libgazebo_ros_p3d.so")
+    ros = ET.SubElement(ground_truth, "ros")
+    ET.SubElement(ros, "remapping").text = "odom:=base_pose_ground_truth"
+    ET.SubElement(ground_truth, "body_name").text = "base_link"
+    ET.SubElement(ground_truth, "update_rate").text = "100"
 
 
 def generate_runtime_files(
@@ -869,7 +957,7 @@ def _sensor_visual(sensor: dict[str, Any]) -> str:
     return f"<geometry>{geometry}</geometry>"
 
 
-def generate_urdf(config: dict[str, Any]) -> str:
+def generate_urdf(config: dict[str, Any], sensor_visual_meshes: set[str] | None = None) -> str:
     geometry = config["geometry"]
     dynamics = config.get("dynamics", {})
     collision = config.get("collision", {})
@@ -898,13 +986,21 @@ def generate_urdf(config: dict[str, Any]) -> str:
 
     sensor_blocks = []
     integrated_visual = _integrated_visual(config)
+    nominal_sensors = config.get("metadata", {}).get("calibrationState") == "unity_nominal_simulation_only"
+    sensor_visual_meshes = sensor_visual_meshes or set()
     for sensor in config["sensors"]:
         pose = sensor["pose"]
         sensor_visual = (
             ""
-            if integrated_visual
+            if integrated_visual and not nominal_sensors
             else f"\n    <visual>{_sensor_visual(sensor)}</visual>"
         )
+        if sensor["id"] in sensor_visual_meshes:
+            uri = escape(_visual_asset_uri(config, _sensor_visual_filename(sensor["id"])))
+            sensor_visual = f'\n    <visual><geometry><mesh filename="{uri}"/></geometry></visual>'
+        elif sensor["id"] == "rtk_secondary" and "rtk_master" in sensor_visual_meshes:
+            # The master CAD export contains the shared mast and both antennas.
+            sensor_visual = ""
         sensor_blocks.append(
             f"""  <link name="{escape(sensor['frameId'])}">{sensor_visual}
   </link>
@@ -943,7 +1039,9 @@ def generate_urdf(config: dict[str, Any]) -> str:
         else:
             origin = wheel["position"]
         wheel_visual = ""
-        if integrated_visual:
+        if integrated_visual and config["vehicleType"] == "tracked":
+            wheel_visual = ""
+        elif integrated_visual:
             wheel_uri = escape(
                 _visual_asset_uri(config, _wheel_visual_filename(wheel_id))
             )
@@ -954,13 +1052,13 @@ def generate_urdf(config: dict[str, Any]) -> str:
         else:
             wheel_visual = (
                 f'\n    <visual><origin rpy="1.570796326795 0 0"/>'
-                f'<geometry><cylinder radius="{_number(geometry["wheelRadiusM"])}" '
-                f'length="{_number(geometry["wheelWidthM"])}"/></geometry></visual>'
+                f'<geometry><cylinder radius="{_number(_wheel_radius(config, wheel))}" '
+                f'length="{_number(_wheel_width(config, wheel))}"/></geometry></visual>'
             )
         wheel_blocks.append(
             f"""  <link name="{wheel_id}_wheel_link">
 {wheel_visual}
-    <collision><origin rpy="1.570796326795 0 0"/><geometry><cylinder radius="{_number(geometry['wheelRadiusM'])}" length="{_number(geometry['wheelWidthM'])}"/></geometry></collision>
+    <collision><origin rpy="1.570796326795 0 0"/><geometry><cylinder radius="{_number(_wheel_radius(config, wheel))}" length="{_number(_wheel_width(config, wheel))}"/></geometry></collision>
   </link>
   <joint name="{wheel_id}_wheel_joint" type="continuous">
     <origin xyz="{_sequence(origin)}" rpy="0 0 0"/>
@@ -987,7 +1085,7 @@ def generate_urdf(config: dict[str, Any]) -> str:
 """
 
 
-def generate_sdf(config: dict[str, Any]) -> str:
+def generate_sdf(config: dict[str, Any], sensor_visual_meshes: set[str] | None = None) -> str:
     geometry = config["geometry"]
     navigation = config["navigation"]
     dynamics = config.get("dynamics", {})
@@ -1012,6 +1110,8 @@ def generate_sdf(config: dict[str, Any]) -> str:
         )
 
     sensors = _sensor_map(config)
+    cad_visual_xml = "\n".join(ET.tostring(_cad_sensor_visual(config, sensor_id), encoding="unicode")
+                               for sensor_id in sorted(sensor_visual_meshes or set()))
     imu = sensors["imu"]
     lidar = sensors["lidar"]
     camera = sensors["right_camera"]
@@ -1025,7 +1125,7 @@ def generate_sdf(config: dict[str, Any]) -> str:
     integrated_visual = _integrated_visual(config)
     for wheel in geometry["wheelCenters"]:
         wheel_id = wheel["id"]
-        if integrated_visual:
+        if integrated_visual and config["vehicleType"] != "tracked":
             wheel_geometry = (
                 "<mesh><uri>"
                 + escape(_visual_asset_uri(config, _wheel_visual_filename(wheel_id)))
@@ -1034,12 +1134,17 @@ def generate_sdf(config: dict[str, Any]) -> str:
             wheel_visual_pose = "0 0 0 0 0 0"
         else:
             wheel_geometry = (
-                f"<cylinder><radius>{_number(geometry['wheelRadiusM'])}</radius>"
-                f"<length>{_number(geometry['wheelWidthM'])}</length></cylinder>"
+                f"<cylinder><radius>{_number(_wheel_radius(config, wheel))}</radius>"
+                f"<length>{_number(_wheel_width(config, wheel))}</length></cylinder>"
             )
             wheel_visual_pose = "0 0 0 1.570796326795 0 0"
+        wheel_visual = (
+            f'<visual name="visual"><pose>{wheel_visual_pose}</pose>'
+            f'<geometry>{wheel_geometry}</geometry></visual>'
+            if not (integrated_visual and config["vehicleType"] == "tracked") else ""
+        )
         wheel_links.append(
-            f"""    <link name="{wheel_id}_wheel_link"><pose relative_to="__model__">{_sequence(wheel['position'])} 0 0 0</pose><inertial><mass>3</mass><inertia><ixx>0.01223</ixx><iyy>0.02438</iyy><izz>0.01223</izz></inertia></inertial><collision name="collision"><pose>0 0 0 1.570796326795 0 0</pose><geometry><cylinder><radius>{_number(geometry['wheelRadiusM'])}</radius><length>{_number(geometry['wheelWidthM'])}</length></cylinder></geometry></collision><visual name="visual"><pose>{wheel_visual_pose}</pose><geometry>{wheel_geometry}</geometry></visual></link>"""
+            f"""    <link name="{wheel_id}_wheel_link"><pose relative_to="__model__">{_sequence(wheel['position'])} 0 0 0</pose><inertial><mass>3</mass><inertia><ixx>0.01223</ixx><iyy>0.02438</iyy><izz>0.01223</izz></inertia></inertial><collision name="collision"><pose>0 0 0 1.570796326795 0 0</pose><geometry><cylinder><radius>{_number(_wheel_radius(config, wheel))}</radius><length>{_number(_wheel_width(config, wheel))}</length></cylinder></geometry></collision>{wheel_visual}</link>"""
         )
         if wheel["steering"]:
             steering_id = f"{wheel_id}_steering_link"
@@ -1056,7 +1161,7 @@ def generate_sdf(config: dict[str, Any]) -> str:
             f"    <joint name=\"{wheel_id}_wheel_joint\" type=\"revolute\"><pose relative_to=\"__model__\">{_sequence(wheel['position'])} 0 0 0</pose><parent>{parent}</parent><child>{wheel_id}_wheel_link</child><axis><xyz>0 1 0</xyz><limit><lower>-1e16</lower><upper>1e16</upper><effort>200</effort><velocity>100</velocity></limit></axis></joint>"
         )
 
-    return f"""<sdf version="1.7">
+    sdf = f"""<sdf version="1.7">
   <!-- {GENERATED_NOTICE} -->
   <model name="{escape(config['vehicleId'])}">
     <allow_auto_disable>false</allow_auto_disable>
@@ -1064,6 +1169,7 @@ def generate_sdf(config: dict[str, Any]) -> str:
       <inertial><pose>{_sequence(dynamics.get('centerOfMass', center))} 0 0 0</pose><mass>{_number(dynamics.get('massKg', 50.0))}</mass><inertia><ixx>{_number(inertia['ixx'])}</ixx><ixy>{_number(inertia['ixy'])}</ixy><ixz>{_number(inertia['ixz'])}</ixz><iyy>{_number(inertia['iyy'])}</iyy><iyz>{_number(inertia['iyz'])}</iyz><izz>{_number(inertia['izz'])}</izz></inertia></inertial>
       <collision name="body_collision"><pose>{_sequence(center)} 0 0 0</pose><geometry><box><size>{_sequence(size)}</size></box></geometry></collision>
 {chr(10).join(visuals)}
+{cad_visual_xml}
 {sensor_xml}
     </link>
 {chr(10).join(wheel_links)}
@@ -1072,6 +1178,14 @@ def generate_sdf(config: dict[str, Any]) -> str:
   </model>
 </sdf>
 """
+    if config["vehicleType"] != "ackermann":
+        root = ET.fromstring(sdf)
+        model = root.find("model")
+        model.remove(model.find("./plugin[@name='ackermann_drive']"))
+        _append_differential_plugins(model, config)
+        ET.indent(root, space="  ")
+        return ET.tostring(root, encoding="unicode") + "\n"
+    return sdf
 
 
 def _sha256(path: Path) -> str:
@@ -1093,6 +1207,8 @@ def generate_bundle(
     models_dir = output / "models"
     for directory in (config_dir, urdf_dir, models_dir):
         directory.mkdir(parents=True, exist_ok=True)
+    unity_export_dir = source.parent
+    sensor_visual_meshes = _sensor_visual_meshes(config, unity_export_dir)
 
     canonical_copy = output / "vehicle_config.json"
     canonical_copy.write_text(
@@ -1103,17 +1219,22 @@ def generate_bundle(
     _yaml_dump(config_dir / "ackermann_kinematics.yaml", generate_kinematics(config))
     _yaml_dump(config_dir / "fastlivo_extrinsics.yaml", generate_fastlivo_config(config))
     (urdf_dir / f"{config['vehicleId']}.urdf.xacro").write_text(
-        generate_urdf(config), encoding="utf-8"
+        generate_urdf(config, sensor_visual_meshes), encoding="utf-8"
     )
     (models_dir / f"{config['vehicleId']}.sdf").write_text(
-        generate_sdf(config), encoding="utf-8"
+        generate_sdf(config, sensor_visual_meshes), encoding="utf-8"
     )
 
     unity_export_dir = source.parent
     unity_obj = unity_export_dir / "vehicle_visual.obj"
     visual_lod = None
     if unity_obj.is_file():
-        _split_integrated_visual_obj(unity_obj, models_dir)
+        if config["vehicleType"] == "tracked":
+            # Tracks are one rigid visual shell; the supplied wheel anchors
+            # define hidden contact rollers, not four visible tire meshes.
+            shutil.copy2(unity_obj, models_dir / "vehicle_visual.obj")
+        else:
+            _split_integrated_visual_obj(unity_obj, models_dir)
         visual_lod = {
             "method": "material_aware_vertex_clustering",
             "bodyGridM": SIMULATION_BODY_LOD_GRID_M,
@@ -1125,6 +1246,8 @@ def generate_bundle(
             "wheels": {},
         }
         for wheel_id in UNITY_WHEEL_OBJECTS.values():
+            if not (models_dir / _wheel_visual_filename(wheel_id)).is_file():
+                continue
             visual_lod["wheels"][wheel_id] = _simplify_obj_vertex_clusters(
                 models_dir / _wheel_visual_filename(wheel_id),
                 SIMULATION_WHEEL_LOD_GRID_M,
@@ -1132,6 +1255,10 @@ def generate_bundle(
     unity_mtl = unity_export_dir / "vehicle_visual.mtl"
     if unity_mtl.is_file():
         shutil.copy2(unity_mtl, models_dir / unity_mtl.name)
+    for sensor_id in sorted(sensor_visual_meshes):
+        mesh = unity_export_dir / _sensor_visual_filename(sensor_id)
+        shutil.copy2(mesh, models_dir / mesh.name)
+        shutil.copy2(mesh.with_suffix(".mtl"), models_dir / mesh.with_suffix(".mtl").name)
 
     if workspace_src is not None:
         generate_runtime_files(config, source, workspace_src, output)

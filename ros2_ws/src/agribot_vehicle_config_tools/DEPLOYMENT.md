@@ -56,3 +56,12 @@ Unity 的导出按钮始终要求固件齐全，不静默退化为 JSON-only。
 控制台桌面/手机浏览器测试及 Unity 可执行程序构建。
 这些不等于实板验收。现场仍需人工烧录、核对线序/终端电阻、验证反馈稳定性、零速、
 急停/遥控接管以及断链停车；本次实现不会自主让车辆移动。
+
+## Car1-Car5 离线草案
+
+Car1-Car5 在 Unity 完成当前车辆配置后可点击“导出真机配置”，生成
+`~/unity_exports/unity_carN_physical_draft/`。该目录包含当前车辆 JSON、
+ROS_FLU 安装位姿、导航几何、运动学、FAST-LIVO2 外参和 SHA-256 清单，
+`manifest.json` 明确标记 `calibrationVerified=false` 与 `deployable=false`。
+它不包含底盘协议或固件，不能导入当前农机控制台或直接用于真车运动。
+Car000 仍使用上文的已验证导出流程。

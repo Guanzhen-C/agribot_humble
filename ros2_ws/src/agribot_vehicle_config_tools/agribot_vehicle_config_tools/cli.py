@@ -13,6 +13,7 @@ from agribot_vehicle_config_tools.verifier import verify_current
 from agribot_vehicle_config_tools.physical_config import (
     PhysicalConfigError, export_document, template_paths, write_document,
 )
+from agribot_vehicle_config_tools.physical_draft import export_physical_draft
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -29,6 +30,12 @@ def _parser() -> argparse.ArgumentParser:
     physical_parser.add_argument("--output", type=Path, required=True)
     physical_parser.add_argument("--firmware-root", type=Path,
         help="include HPM6750 firmware in a manual deployment bundle")
+
+    draft_parser = subparsers.add_parser(
+        "export-physical-draft", help="export an uncalibrated offline draft for Car1-Car5"
+    )
+    draft_parser.add_argument("input", type=Path)
+    draft_parser.add_argument("--output", type=Path, required=True)
 
     validate_parser = subparsers.add_parser("validate", help="validate one exported JSON file")
     validate_parser.add_argument("input", type=Path)
@@ -96,6 +103,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(f"OK: 已导出已验证真机方案: {args.output}")
         return 0
+    if args.command == "export-physical-draft":
+        try:
+            output = export_physical_draft(args.input, args.output)
+        except (ConfigError, OSError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+        print(f"OK: 已导出未经真机标定的离线草案: {output}")
+        return 0
     input_path = (
         args.export_directory / "vehicle_config.json"
         if args.command == "import-unity"
@@ -107,6 +122,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
     _print_warnings(warnings)
+
+    if args.command == "import-unity":
+        missing = [name for name in ("vehicle_visual.obj", "vehicle_visual.mtl")
+                   if not (args.export_directory / name).is_file()
+                   or (args.export_directory / name).stat().st_size == 0]
+        if missing:
+            print(f"ERROR: Unity 导出缺少有效模型资源: {', '.join(missing)}", file=sys.stderr)
+            return 2
 
     if args.command == "validate":
         print(f"OK: {input_path} ({config['vehicleId']}, schema {config['schemaVersion']})")

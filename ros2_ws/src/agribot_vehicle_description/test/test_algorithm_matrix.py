@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 import yaml
+import pytest
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -147,15 +148,128 @@ def test_every_nav2_plugin_profile_uses_the_unified_interfaces():
             config["planner_server"]["ros__parameters"]["GridBased"]["plugin"]
             == planner_plugins[planner]
         )
+        controller_parameters = config["controller_server"]["ros__parameters"]
+        if controller == "dwb":
+            assert controller_parameters["FollowPath"]["trajectory_generator_name"] == (
+                "agribot_vehicle_description::AckermannTrajectoryGenerator"
+            )
+            assert controller_parameters["FollowPath"]["min_turning_radius"] > 0.0
+        if controller == "mppi" and planner != "smac_hybrid":
+            assert controller_parameters["goal_checker"]["plugin"] == (
+                "nav2_controller::PositionGoalChecker"
+            )
+            assert not controller_parameters["FollowPath"]["PathAlignCritic"]["use_path_orientations"]
+            assert not controller_parameters["FollowPath"]["GoalAngleCritic"]["enabled"]
+        if controller == "mppi" and planner == "smac_hybrid":
+            assert controller_parameters["FollowPath"]["time_steps"] == 60
+            assert controller_parameters["FollowPath"]["PathAngleCritic"]["max_angle_to_furthest"] == 0.5
+            assert controller_parameters["goal_checker"]["plugin"] == (
+                "nav2_controller::SimpleGoalChecker"
+            )
         layer_name, layer_plugin = perception_plugins[perception]
         for costmap in ("local_costmap", "global_costmap"):
             parameters = config[costmap][costmap]["ros__parameters"]
             assert layer_name in parameters["plugins"]
             assert parameters[layer_name]["plugin"] == layer_plugin
+            marking = parameters[layer_name]["lidar_mark"]
+            clearing = parameters[layer_name]["lidar_clear"]
+            assert marking["topic"] == "/configured/obstacle_points"
+            assert marking["marking"] and not marking["clearing"]
+            assert clearing["topic"] == "/lidar/points"
+            assert clearing["clearing"] and not clearing["marking"]
+
+
+def test_differential_vehicle_profiles_do_not_use_ackermann_trajectory_generator(tmp_path):
+    module = load_launch_module()
+    source = WORKSPACE_SRC / "agribot_ackermann_mppi/config/nav2_params_ackermann_fastlio_static.yaml"
+    config = yaml.safe_load(source.read_text())
+    config["controller_server"]["ros__parameters"]["FollowPath"]["motion_model"] = "DiffDrive"
+    differential = tmp_path / "differential.yaml"
+    differential.write_text(yaml.safe_dump(config))
+    profiles = module._write_nav2_profiles(differential, PACKAGE / "config", "test_diff")
+    for (_, controller, _), profile_path in profiles.items():
+        config = yaml.safe_load(Path(profile_path).read_text())
+        follow = config["controller_server"]["ros__parameters"]["FollowPath"]
+        if controller == "dwb":
+            assert follow["trajectory_generator_name"] == "dwb_plugins::StandardTrajectoryGenerator"
+            assert "min_turning_radius" not in follow
+            assert "RotateToGoal" in follow["critics"]
+            assert follow["max_vel_y"] == 0.0
+        elif controller == "rpp":
+            assert follow["use_rotate_to_heading"]
+            assert not follow["allow_reversing"]
+        else:
+            assert follow["motion_model"] == "DiffDrive"
+            assert "AckermannConstraints" not in follow
+            assert follow["GoalAngleCritic"]["threshold_to_consider"] <= (
+                config["controller_server"]["ros__parameters"]["goal_checker"]["xy_goal_tolerance"]
+            )
+        assert config["controller_server"]["ros__parameters"]["goal_checker"]["plugin"] == (
+            "nav2_controller::SimpleGoalChecker"
+        )
+
+
+@pytest.mark.parametrize("controller", ["mppi", "rpp", "dwb"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_tracked_controllers_preserve_unity_limits_and_template(tmp_path, controller, reverse):
+    module = load_launch_module()
+    source = PACKAGE / "generated/unity_car3/config/simulation/nav2_params_ackermann_fastlio_static.yaml"
+    config = yaml.safe_load(source.read_text())
+    follow = config["controller_server"]["ros__parameters"]["FollowPath"]
+    follow["vx_min"] = -follow["vx_max"] if reverse else 0.0
+    input_file = tmp_path / "tracked.yaml"
+    input_file.write_text(yaml.safe_dump(config))
+    original = input_file.read_bytes()
+    path = module._write_nav2_profile_config(
+        input_file, PACKAGE / "config/rpp_controller.yaml", PACKAGE / "config/dwb_controller.yaml",
+        "test_tracked", "stvl", controller, "smac_hybrid",
+    )
+    output = yaml.safe_load(Path(path).read_text())
+    selected = output["controller_server"]["ros__parameters"]["FollowPath"]
+    for name in ("global_costmap", "local_costmap"):
+        expected = config[name][name]["ros__parameters"]
+        actual = output[name][name]["ros__parameters"]
+        assert actual["footprint"] == expected["footprint"]
+        assert actual["inflation_layer"] == expected["inflation_layer"]
+    assert output["planner_server"] == config["planner_server"]
+    speed_key = {"mppi": "vx_max", "rpp": "desired_linear_vel", "dwb": "max_vel_x"}[controller]
+    assert selected[speed_key] == follow["vx_max"]
+    if controller == "rpp":
+        assert selected["allow_reversing"] == reverse
+        assert selected["use_rotate_to_heading"] != reverse
+        assert selected["rotate_to_heading_angular_vel"] == follow["wz_max"]
+    elif controller == "dwb":
+        assert selected["min_vel_x"] == follow["vx_min"]
+        assert selected["max_vel_theta"] == follow["wz_max"]
+    else:
+        assert selected["vx_min"] == follow["vx_min"]
+        assert selected["wz_max"] == follow["wz_max"]
+    assert input_file.read_bytes() == original
+
+
+def test_simulation_time_profiles_preserve_exported_mounts_and_raw_inputs():
+    module = load_launch_module()
+    source = WORKSPACE_SRC / "agribot_ackermann_mppi/config/fast_lio_c16_physical_sim.yaml"
+    mounts = PACKAGE / "generated/ackermann_current/config/fastlivo_extrinsics.yaml"
+    original = source.read_bytes()
+    parameters = yaml.safe_load(Path(module._write_fastlio_sim_config(source, mounts)).read_text())["/**"]["ros__parameters"]
+    exported = yaml.safe_load(mounts.read_text())["/**"]["ros__parameters"]["extrin_calib"]
+    assert parameters["common"]["lid_topic"] == "/configured/localization_points"
+    assert parameters["preprocess"]["timestamp_unit"] == 0
+    assert parameters["mapping"]["extrinsic_T"] == exported["extrinsic_T"]
+    assert parameters["mapping"]["extrinsic_R"] == exported["extrinsic_R"]
+    assert source.read_bytes() == original
+    source = PACKAGE / "generated/ackermann_current/config/physical/agribot_c16_astra.yaml"
+    original = source.read_bytes()
+    parameters = yaml.safe_load(Path(module._write_fastlivo_sim_config(source)).read_text())["/**"]["ros__parameters"]
+    assert parameters["common"]["lid_topic"] == "/configured/localization_points"
+    assert parameters["preprocess"]["timestamp_unit"] == 0
+    assert source.read_bytes() == original
 
 
 if __name__ == "__main__":
     test_component_catalog_generates_480_unique_combinations()
     test_independent_component_selection_and_legacy_alias()
     test_every_nav2_plugin_profile_uses_the_unified_interfaces()
-    print("ALGORITHM_MATRIX_TESTS_PASSED=3")
+    test_simulation_time_profiles_preserve_exported_mounts_and_raw_inputs()
+    print("ALGORITHM_MATRIX_TESTS_PASSED=4")

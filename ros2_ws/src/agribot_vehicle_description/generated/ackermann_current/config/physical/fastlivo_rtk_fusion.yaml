@@ -38,15 +38,15 @@ fastlivo_rtk_fusion:
     rtk_horizontal_sigma_floor_m: 0.1
     rtk_huber_delta: 1.345
     base_to_antenna_xyz:
-    - 0.14250005781650543
-    - 0.295258492231369
-    - 0.7847614288330078
+    - 0.142500102519989
+    - 0.29525843262672424
+    - 0.7847589254379272
     gravity_sigma_rad: 0.017453292519943295
     gravity_huber_delta: 1.345
     base_from_imu_rpy:
-    - 0.0005724239163100719
-    - -0.009139548987150192
-    - -2.616008032418904e-06
+    - 0.000572423858102411
+    - -0.009139548055827618
+    - -2.6164614155277377e-06
     odom_rotation_sigma_rad: 0.008726646259971648
     odom_yaw_sigma_rad: 0.017453292519943295
     odom_horizontal_sigma_m: 0.03

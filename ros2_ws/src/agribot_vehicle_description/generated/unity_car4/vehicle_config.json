@@ -1,0 +1,396 @@
+{
+  "schemaVersion": "1.0",
+  "vehicleId": "unity_car4",
+  "displayName": "Car4",
+  "vehicleType": "ackermann",
+  "coordinateConvention": "ROS_FLU",
+  "baseFrame": {
+    "frameId": "base_link",
+    "reference": "rear_axle_midpoint"
+  },
+  "geometry": {
+    "bodyExtents": {
+      "frontM": 0.8635448217391968,
+      "rearM": 0.3356170356273651,
+      "leftM": 0.35140883922576904,
+      "rightM": 0.35140877962112427
+    },
+    "wheelbaseM": 0.7278659343719482,
+    "frontTrackM": 0.5225722789764404,
+    "rearTrackM": 0.5946281552314758,
+    "wheelRadiusM": 0.2385021597146988,
+    "wheelWidthM": 0.10818943381309509,
+    "maxSteeringAngleRad": 0.6108652353286743,
+    "minTurningRadiusM": 1.0395002896969898,
+    "wheelCenters": [
+      {
+        "id": "front_left",
+        "position": [
+          0.7275707125663757,
+          0.2612862288951874,
+          -0.10622024536132812
+        ],
+        "steering": true,
+        "driven": false,
+        "radiusM": 0.13420617580413818,
+        "widthM": 0.05038034915924072
+      },
+      {
+        "id": "front_right",
+        "position": [
+          0.7281611561775208,
+          -0.26128602027893066,
+          -0.10622024536132812
+        ],
+        "steering": true,
+        "driven": false,
+        "radiusM": 0.13417433202266693,
+        "widthM": 0.05038028955459595
+      },
+      {
+        "id": "rear_left",
+        "position": [
+          -0.00033537604031153023,
+          0.29731419682502747,
+          -1.9073486328125e-06
+        ],
+        "steering": false,
+        "driven": true,
+        "radiusM": 0.2385045886039734,
+        "widthM": 0.1081894040107727
+      },
+      {
+        "id": "rear_right",
+        "position": [
+          0.0003354127111379057,
+          -0.29731395840644836,
+          3.814697265625e-06
+        ],
+        "steering": false,
+        "driven": true,
+        "radiusM": 0.2384997308254242,
+        "widthM": 0.10818946361541748
+      }
+    ]
+  },
+  "navigation": {
+    "clearance": {
+      "frontM": 0.10000000149011612,
+      "rearM": 0.10000000149011612,
+      "leftM": 0.15000000596046448,
+      "rightM": 0.15000000596046448
+    },
+    "maxLinearSpeedMps": 0.30000001192092896,
+    "maxAngularSpeedRadps": 0.28557536005973816,
+    "allowReverse": false,
+    "inflationRadiusM": 0.5,
+    "costScalingFactor": 3.0
+  },
+  "chassis": {
+    "commandMaxLinearSpeedMps": 0.800000011920929,
+    "commandMaxAngularSpeedRadps": 0.699999988079071,
+    "minimumMotionSpeedMps": 0.019999999552965164
+  },
+  "dynamics": {
+    "massKg": 50.0,
+    "centerOfMass": [
+      0.263963907957077,
+      -4.747509956359863e-05,
+      0.23799651861190796
+    ],
+    "inertia": {
+      "ixx": 3.749309539794922,
+      "ixy": 0.0,
+      "ixz": 0.0,
+      "iyy": 8.110467910766602,
+      "iyz": 0.0,
+      "izz": 7.622084140777588
+    },
+    "maxAccelerationMps2": 0.800000011920929,
+    "maxSteeringRateRadps": 1.2000000476837158
+  },
+  "collision": {
+    "center": [
+      0.263963907957077,
+      -4.747509956359863e-05,
+      0.23799651861190796
+    ],
+    "size": [
+      1.1991618871688843,
+      0.6255486011505127,
+      0.7131081819534302
+    ]
+  },
+  "visuals": [
+    {
+      "name": "vehicle_body",
+      "meshUri": "package://agribot_vehicle_description/generated/unity_car4/models/vehicle_visual.obj",
+      "pose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ],
+  "sensors": [
+    {
+      "id": "imu",
+      "sensorType": "imu",
+      "model": "N300",
+      "role": "inertial",
+      "parentFrameId": "base_link",
+      "frameId": "imu_link",
+      "pose": {
+        "xyz": [
+          0.3530280590057373,
+          0.007899058982729912,
+          0.29447364807128906
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/imu/data",
+      "updateRateHz": 200.0
+    },
+    {
+      "id": "lidar",
+      "sensorType": "lidar",
+      "model": "C16",
+      "role": "perception",
+      "parentFrameId": "base_link",
+      "frameId": "lidar_link",
+      "pose": {
+        "xyz": [
+          0.6333362460136414,
+          0.0008157626143656671,
+          0.41477394104003906
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/lidar/points",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "right_camera",
+      "sensorType": "camera",
+      "model": "Hikrobot",
+      "role": "visual",
+      "parentFrameId": "base_link",
+      "frameId": "right_camera_link",
+      "pose": {
+        "xyz": [
+          0.658633291721344,
+          0.003444304224103689,
+          0.5170726776123047
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "measurementFrameId": "right_camera_optical_frame",
+      "measurementFramePose": {
+        "xyz": [
+          3.19319255481787e-08,
+          1.0949946016580725e-07,
+          0.0
+        ],
+        "quaternion": [
+          0.5000000596046448,
+          -0.5,
+          0.5,
+          -0.5000000596046448
+        ],
+        "rpy": [
+          -1.5707963705062866,
+          0.0,
+          -1.5707963705062866
+        ]
+      },
+      "topic": "/camera/rgb/image_raw",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_master",
+      "sensorType": "gnss_antenna",
+      "model": "RTK",
+      "role": "master_left",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_link",
+      "pose": {
+        "xyz": [
+          0.5227815508842468,
+          0.31459176540374756,
+          0.8077716827392578
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/fix",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_secondary",
+      "sensorType": "gnss_antenna",
+      "model": "RTK",
+      "role": "secondary_right",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_secondary_link",
+      "pose": {
+        "xyz": [
+          0.5235161781311035,
+          -0.3354092538356781,
+          0.8077716827392578
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/secondary",
+      "updateRateHz": 10.0
+    }
+  ],
+  "metadata": {
+    "authoringTool": "AgriculturalCar_Interior",
+    "profileVersion": "1.0.0",
+    "calibrationState": "unity_nominal_simulation_only",
+    "notes": "Geometry and sensor poses derived from the selected Unity vehicle; not a physical calibration."
+  }
+}

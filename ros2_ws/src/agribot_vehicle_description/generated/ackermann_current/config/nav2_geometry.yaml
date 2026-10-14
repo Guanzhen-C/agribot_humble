@@ -16,7 +16,7 @@
     inflation_radius: 2.0
     cost_scaling_factor: 1.0
     motion_model: Ackermann
-    minimum_turning_radius: 1.238898525654777
+    minimum_turning_radius: 1.303246323188244
     allow_reverse: false
     max_linear_velocity: 0.30000001192092896
     max_angular_velocity: 0.23019500076770782

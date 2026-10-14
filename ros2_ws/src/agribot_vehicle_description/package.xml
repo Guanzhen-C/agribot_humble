@@ -6,13 +6,34 @@
 
   <maintainer email="cgz@example.com">cgz</maintainer>
   <license>MIT</license>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>dwb_core</depend>
+  <depend>dwb_plugins</depend>
+  <depend>pluginlib</depend>
+  <build_depend>gazebo_dev</build_depend>
+  <depend>pkg-config</depend>
+  <depend>tbb</depend>
 
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>lifecycle_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>agribot_ackermann_mppi</exec_depend>
+  <exec_depend>agribot_autonomy</exec_depend>
+  <exec_depend>agribot_vehicle_config_tools</exec_depend>
   <exec_depend>agribot_hardware_bringup</exec_depend>
   <exec_depend>agribot_visual_perception</exec_depend>
   <exec_depend>nav2_dwb_controller</exec_depend>
@@ -23,6 +44,8 @@
   <exec_depend>nav2_theta_star_planner</exec_depend>
   <exec_depend>scout_gazebo</exec_depend>
   <exec_depend>scout_navigation</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

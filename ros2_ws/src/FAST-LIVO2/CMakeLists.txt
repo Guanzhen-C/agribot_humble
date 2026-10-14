@@ -35,8 +35,10 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64|ARM|AARCH64)")
   add_definitions(-DARM_ARCH)
 else()
   # x86-64 (Intel/AMD) optimizations
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -mtune=native -funroll-loops") #-flto
-  message(STATUS "Using general x86 optimizations: -O3 -march=native -mtune=native -funroll-loops") 
+  # System PCL/Eigen binaries use the baseline x86 ABI; native AVX changes
+  # aligned allocation/free semantics across the VoxelGrid library boundary.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -mtune=native -funroll-loops")
+  message(STATUS "Using PCL-compatible x86 optimizations: -O3 -mtune=native -funroll-loops")
   add_definitions(-DX86_ARCH)
 endif()
 
@@ -194,6 +196,15 @@ install(
   DIRECTORY config launch rviz_cfg
   DESTINATION share/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_test REQUIRED)
+  add_executable(pcl_alignment_smoke test/pcl_alignment_smoke.cpp)
+  target_link_libraries(pcl_alignment_smoke ${PCL_LIBRARIES})
+  ament_add_test(pcl_alignment_smoke
+    COMMAND $<TARGET_FILE:pcl_alignment_smoke>
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO)
+endif()
 
 # Export dependencies
 ament_export_dependencies(
