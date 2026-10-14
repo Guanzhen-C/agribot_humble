@@ -149,6 +149,12 @@ def footprint(config: dict[str, Any]) -> list[list[float]]:
     rear = body["rearM"] + clearance["rearM"]
     left = body["leftM"] + clearance["leftM"]
     right = body["rightM"] + clearance["rightM"]
+    from .sprayer import collision_boxes
+    for box in collision_boxes(config):
+        front = max(front, box[3] + clearance["frontM"])
+        rear = max(rear, -box[0] + clearance["rearM"])
+        left = max(left, box[4] + clearance["leftM"])
+        right = max(right, -box[1] + clearance["rightM"])
     return [[front, left], [front, -right], [-rear, -right], [-rear, left]]
 
 
@@ -313,6 +319,8 @@ def validate(config: dict[str, Any]) -> list[str]:
                 raise ConfigError(f"{path}.measurementFramePose is required with measurementFrameId")
             _validate_pose(sensor["measurementFramePose"], f"{path}.measurementFramePose")
 
+    from .sprayer import validate_implements
+    validate_implements(config, frame_ids | {"base_link"})
     warnings = []
     if config["vehicleType"] == "ackermann":
         calculated_radius = geometry["wheelbaseM"] / math.tan(geometry["maxSteeringAngleRad"])
