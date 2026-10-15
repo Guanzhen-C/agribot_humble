@@ -321,6 +321,8 @@ def validate(config: dict[str, Any]) -> list[str]:
 
     from .sprayer import validate_implements
     validate_implements(config, frame_ids | {"base_link"})
+    from .manipulator import validate_manipulators
+    validate_manipulators(config, frame_ids | {"base_link"})
     warnings = []
     if config["vehicleType"] == "ackermann":
         calculated_radius = geometry["wheelbaseM"] / math.tan(geometry["maxSteeringAngleRad"])

@@ -1,0 +1,15 @@
+{
+  "model": "lite6",
+  "links": ["link_base", "link1", "link2", "link3", "link4", "link5", "link6", "gripper_shell", "finger1", "finger2"],
+  "joints": [
+    {"name":"joint1","parent":"link_base","child":"link1","xyz":[0,0,0.2435],"rpy":[0,0,0],"lower":-6.283185307179586,"upper":6.283185307179586},
+    {"name":"joint2","parent":"link1","child":"link2","xyz":[0,0,0],"rpy":[1.5708,-1.5708,3.1416],"lower":-2.61799,"upper":2.61799},
+    {"name":"joint3","parent":"link2","child":"link3","xyz":[0.2002,0,0],"rpy":[-3.1416,0,1.5708],"lower":-0.061087,"upper":5.235988},
+    {"name":"joint4","parent":"link3","child":"link4","xyz":[0.087,-0.22761,0],"rpy":[1.5708,0,0],"lower":-6.283185307179586,"upper":6.283185307179586},
+    {"name":"joint5","parent":"link4","child":"link5","xyz":[0,0,0],"rpy":[1.5708,0,0],"lower":-2.1642,"upper":2.1642},
+    {"name":"joint6","parent":"link5","child":"link6","xyz":[0,0.0625,0],"rpy":[-1.5708,0,0],"lower":-6.283185307179586,"upper":6.283185307179586},
+    {"name":"gripper_mount","parent":"link6","child":"gripper_shell","xyz":[0,0,0],"rpy":[0,0,0],"type":"fixed"},
+    {"name":"finger_joint1","parent":"gripper_shell","child":"finger1","xyz":[0,0,0.0543],"rpy":[0,0,0],"type":"prismatic","axis":[0,1,0],"lower":0,"upper":0.0089},
+    {"name":"finger_joint2","parent":"gripper_shell","child":"finger2","xyz":[0,0,0.0543],"rpy":[0,0,0],"type":"prismatic","axis":[0,-1,0],"lower":0,"upper":0.0089}
+  ]
+}

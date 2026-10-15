@@ -1,16 +1,48 @@
-newmtl mat_0_0
+newmtl mat_0_(Instance)_0
 Kd 0.4470588 0.474509776 0.5019608
 d 1
 illum 2
-newmtl mat_1_1
+newmtl mat_0_(Instance)_1
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_0_(Instance)_2
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_1_(Instance)_3
 Kd 0.799999952 0.799999952 0.799999952
 d 1
 illum 2
-newmtl mat_2_2
+newmtl mat_2_(Instance)_4
 Kd 0.011 0.012 1
 d 1
 illum 2
-newmtl mat_10_3
-Kd 0.352940947 0.352940947 0.352940947
+newmtl mat_0_(Instance)_5
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_0_(Instance)_6
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_0_(Instance)_7
+Kd 0.4470588 0.474509776 0.5019608
+d 1
+illum 2
+newmtl mat_1_(Instance)_8
+Kd 0.799999952 0.799999952 0.799999952
+d 1
+illum 2
+newmtl mat_2_(Instance)_9
+Kd 0.011 0.012 1
+d 1
+illum 2
+newmtl mat_10_(Instance)_10
+Kd 0.352940917 0.352940917 0.352940917
+d 1
+illum 2
+newmtl mat_10_(Instance)_11
+Kd 0.352940917 0.352940917 0.352940917
 d 1
 illum 2

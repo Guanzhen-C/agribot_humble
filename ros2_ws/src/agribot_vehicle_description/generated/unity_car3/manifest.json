@@ -11,9 +11,9 @@
     "wheelGridM": 0.01,
     "body": {
       "inputVertices": 193687,
-      "outputVertices": 23287,
+      "outputVertices": 28029,
       "inputFaces": 209646,
-      "outputFaces": 22647
+      "outputFaces": 23821
     },
     "wheels": {}
   },
@@ -65,8 +65,8 @@
     },
     {
       "path": "config/physical/fastlivo_rtk_fusion.yaml",
-      "sizeBytes": 2220,
-      "sha256": "f31f383248f56549a27777a88b3a3c239a8bd180394b654fe5277b3bf7ea3bea"
+      "sizeBytes": 2218,
+      "sha256": "ef48c580f691f46e2e49f340e748d19f3b961d0e0f3a163fca80585b740b1057"
     },
     {
       "path": "config/physical/joint_state_publisher.yaml",
@@ -75,8 +75,8 @@
     },
     {
       "path": "config/physical/kf_gins_n300pro.yaml",
-      "sizeBytes": 2492,
-      "sha256": "f81686bf209fbb3ffab63df4fb99394f70d34f13182ffb0b5add09993e4231d1"
+      "sizeBytes": 2493,
+      "sha256": "2e3a701dc1c85f931e635384f634b5c8a7efffb1d1ce27d8e43b81810abcaae0"
     },
     {
       "path": "config/physical/nav2_params_ackermann_fastlio_local.yaml",
@@ -105,18 +105,18 @@
     },
     {
       "path": "config/physical/rtk_map_initializer.yaml",
-      "sizeBytes": 1310,
-      "sha256": "b0dd065f4b341e0c49a0c3ed290ee39af313ba987f24797ab34d9c66b1af80d9"
+      "sizeBytes": 1308,
+      "sha256": "77530d6c43cb2ace15522b00f995bf752d4d8d8b215b759d7ceb5d2fe3b70818"
     },
     {
       "path": "config/physical/sensor_mounts.yaml",
-      "sizeBytes": 1213,
-      "sha256": "f58a162cf132cf9a9e398b83ffe4a6c2c4ef395cc2726e572407951db95b95f1"
+      "sizeBytes": 1210,
+      "sha256": "965867abcae6115f0ae1080f762c547594a083ca38bcb2bf9dd1c805511103e6"
     },
     {
       "path": "config/sensor_mounts.yaml",
-      "sizeBytes": 1213,
-      "sha256": "f58a162cf132cf9a9e398b83ffe4a6c2c4ef395cc2726e572407951db95b95f1"
+      "sizeBytes": 1210,
+      "sha256": "965867abcae6115f0ae1080f762c547594a083ca38bcb2bf9dd1c805511103e6"
     },
     {
       "path": "config/simulation/nav2_params_ackermann.yaml",
@@ -135,68 +135,68 @@
     },
     {
       "path": "models/sensor_imu_visual.mtl",
-      "sizeBytes": 60,
-      "sha256": "505b9d181483da4b3bff26a2a29ffafa76f66a8b68b980aa3e670cba1b0905dc"
+      "sizeBytes": 77,
+      "sha256": "53e82da047b0663d8fee8933c6615e4d0a9bef2ed8465896e3f3d5b5725de133"
     },
     {
       "path": "models/sensor_imu_visual.obj",
-      "sizeBytes": 2322,
-      "sha256": "9df169b8a1bdc46d70bb6cb084363d4d5ba65c49624d9942b6600908c2423fb7"
+      "sizeBytes": 2333,
+      "sha256": "d2d153e7adf512eb8c44616ab454bb321f83b7a0b21b30c4c0df1dd8ebcda488"
     },
     {
       "path": "models/sensor_lidar_visual.mtl",
-      "sizeBytes": 239,
-      "sha256": "50441f62cb7deb6c8087008170e47067a0bbd82ad8ff3a11d3ecff13e1dcb468"
+      "sizeBytes": 860,
+      "sha256": "d5eb1276ce9a252cc16b0bbdff3f36aac3cfeb2bb4a9cc221030e63c9b05ee3d"
     },
     {
       "path": "models/sensor_lidar_visual.obj",
-      "sizeBytes": 6313932,
-      "sha256": "71732b7d9a1179b04110c3725e3890aed680b1801458579c4da9bf1c3897650e"
+      "sizeBytes": 6314066,
+      "sha256": "030fa1693ee9d8d5d17ba07119dd282efedd2258e1878088e8b2b5f0f008939e"
     },
     {
       "path": "models/sensor_right_camera_visual.mtl",
-      "sizeBytes": 864,
-      "sha256": "19b5526e3842d1b76973981cf14894c675c468334e99e3e078ca82e8d5eeb8c9"
+      "sizeBytes": 8013,
+      "sha256": "f66a0f766f0fbc7ac458df6a2c233ab4f425f6e1e8eaddaf44d4da76216b6baa"
     },
     {
       "path": "models/sensor_right_camera_visual.obj",
-      "sizeBytes": 17569525,
-      "sha256": "426849d26c18bb7f501cc2d098e212a4fcaf1e7e64b8140f628b5daa733f1b13"
+      "sizeBytes": 17570855,
+      "sha256": "767f37e500783793e40d0ecbd35efce7b56a5e9f3f1e34607c11c7a01ed91b81"
     },
     {
       "path": "models/sensor_rtk_master_visual.mtl",
-      "sizeBytes": 300,
-      "sha256": "6bc8c6f9eda6a36728aa9142d4e36465d1680147c6545a651cda2428c40ec212"
+      "sizeBytes": 1927,
+      "sha256": "35727f4594408802c349f910cb7b0883793d53a651ad2cb345db325b3928bbd9"
     },
     {
       "path": "models/sensor_rtk_master_visual.obj",
-      "sizeBytes": 649986,
-      "sha256": "d86fb7c969662b0f3feea5778840f49004b2895bdfa84f3c18d10b8931cd40b0"
+      "sizeBytes": 650067,
+      "sha256": "3629661b52f54c872c5bcc39b20fec81d6e304469ad9174e0e5adce8de58b5e1"
     },
     {
       "path": "models/unity_car3.sdf",
-      "sizeBytes": 15391,
-      "sha256": "ad7453e570ad301ddb76c96f7c3715a264bf7d61bf5625ff38f08fd38d9efd00"
+      "sizeBytes": 28073,
+      "sha256": "2d75cb093bfcb1ef4e2d20f04450288bfa9192daf041b15862ccc3f82c827169"
     },
     {
       "path": "models/vehicle_visual.mtl",
-      "sizeBytes": 321,
-      "sha256": "1d5399447be7337a41b050a7fb1fb4bd5d98d02909673b5849ca87012a423647"
+      "sizeBytes": 7122,
+      "sha256": "7474496b11c5684d1edb5aac5f81cbb2cd71d3ab91b4907aab06cf6ba74ce38b"
     },
     {
       "path": "models/vehicle_visual.obj",
-      "sizeBytes": 3021039,
-      "sha256": "fcf5ddb03b70848aa68618fbdd5f7e89097eda2b5da5d7a12288355fd8085a6f"
+      "sizeBytes": 3491031,
+      "sha256": "adecd4fae4b222bb00f3cc5db10b482ce04af76c3338eefa9516f57b62fb2c7f"
     },
     {
       "path": "urdf/unity_car3.urdf.xacro",
-      "sizeBytes": 4636,
-      "sha256": "20674fecc1705b8932cdb0ccc5a150ec454ecc8268b33e92aaa75029087daf0a"
+      "sizeBytes": 11590,
+      "sha256": "5a6e55a1443e8e2cd9508c2406b8d20d9601d2abf0ed9046b5d294b88217571c"
     },
     {
       "path": "vehicle_config.json",
-      "sizeBytes": 8320,
-      "sha256": "e99978389492999d81ae83ec1250dbb04557c4a50cc0587d10a73470c0187029"
+      "sizeBytes": 8845,
+      "sha256": "36071606c0011cb59296d4de405ece2e96b1c65387db4ba17d557210728c501c"
     }
   ]
 }

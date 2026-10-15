@@ -16,13 +16,13 @@ pcd_initial_localizer:
     enable_fpfh: false
     automatic_global_localization: false
     base_to_body_xyz:
-    - 0.4800000488758087
-    - -8.731426959229793e-08
-    - 0.23299922049045563
+    - 0.47999992966651917
+    - 7.156462089596971e-08
+    - 0.23299789428710938
     base_to_body_rpy:
-    - -0.007648488972336054
-    - -0.00183566112536937
-    - 7.020450993877603e-06
+    - -0.007648488041013479
+    - -0.0018356605432927608
+    - 7.019998975010822e-06
     map_voxel_size: 0.15
     coarse_voxel_size: 0.3
     scan_voxel_size: 0.1

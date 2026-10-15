@@ -28,6 +28,27 @@ def load_launch_module():
     return module
 
 
+@pytest.mark.parametrize("vision_mode", ["off", "object_detection", "instance_segmentation", "pose_estimation"])
+def test_unity_simulation_rviz_shows_the_published_rgb_image(vision_mode):
+    module = load_launch_module()
+    source = WORKSPACE_SRC / "agribot_autonomy/rviz/robot_map_global_plan_only.rviz"
+    original = source.read_bytes()
+    config = yaml.safe_load(Path(module._write_simulation_rviz_config(source, vision_mode)).read_text())
+    displays = config["Visualization Manager"]["Displays"]
+    rgb = next(display for display in displays if display["Name"] == "RGB Image")
+    assert rgb["Enabled"] and rgb["Value"]
+    assert rgb["Queue Size"] == rgb["Topic"]["Depth"] == 1
+    assert rgb["Topic"]["Value"] == (
+        "/camera/rgb/image_raw" if vision_mode == "off" else "/vision/annotated_image")
+    assert rgb["Topic"]["Reliability Policy"] == "Best Effort"
+    previous = yaml.safe_load(original)["Visualization Manager"]["Displays"]
+    assert [d for d in displays if d["Name"] != "RGB Image"] == [
+        d for d in previous if d["Name"] != "RGB Image"]
+    assert source.read_bytes() == original
+    launch = LAUNCH_FILE.read_text()
+    assert '"rviz_config": LaunchConfiguration("rviz_config")' in launch
+
+
 def test_component_catalog_generates_480_unique_combinations():
     components = run_script("--list-components").strip().splitlines()
     groups = {}

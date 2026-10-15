@@ -1,60 +1,448 @@
-newmtl mat_0_0
-Kd 0.2593908 0.280206323 0.3058252
+newmtl mat_0_(Instance)_0
+Kd 0.259390742 0.280206263 0.305825144
 d 1
 illum 2
-newmtl mat_1_1
+newmtl mat_1_(Instance)_1
 Kd 0.799999952 0.799999952 0.799999952
 d 1
 illum 2
-newmtl mat_2_2
-Kd 0.199999928 0.199999928 0.199999928
+newmtl mat_2_(Instance)_2
+Kd 0.199999869 0.199999869 0.199999869
 d 1
 illum 2
-newmtl mat_3_3
-Kd 0.435294032 0.890196 0.8039215
+newmtl mat_3_(Instance)_3
+Kd 0.435293972 0.890196 0.8039215
 d 1
 illum 2
-newmtl mat_4_4
+newmtl mat_4_(Instance)_4
 Kd 1 0 0
 d 1
 illum 2
-newmtl mat_5_5
+newmtl mat_5_(Instance)_5
 Kd 1 1 0
 d 1
 illum 2
-newmtl mat_6_6
+newmtl mat_6_(Instance)_6
 Kd 1 1 1
 d 1
 illum 2
-newmtl mat_7_7
+newmtl mat_7_(Instance)_7
 Kd 0.869999945 0.919999957 0.919999957
 d 1
 illum 2
-newmtl mat_8_8
+newmtl mat_0_(Instance)_8
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_9
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_6_(Instance)_10
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_11
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_0_(Instance)_12
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_13
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_14
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_15
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_16
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_17
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_18
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_19
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_20
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_21
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_22
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_23
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_24
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_25
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_26
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_27
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_28
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_29
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_30
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_31
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_32
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_33
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_34
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_35
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_36
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_37
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_6_(Instance)_38
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_8_(Instance)_39
 Kd 0 1 0
 d 1
 illum 2
-newmtl Silver_9
+newmtl mat_6_(Instance)_40
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_41
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_42
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_43
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_44
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_0_(Instance)_45
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_1_(Instance)_46
+Kd 0.799999952 0.799999952 0.799999952
+d 1
+illum 2
+newmtl mat_2_(Instance)_47
+Kd 0.199999869 0.199999869 0.199999869
+d 1
+illum 2
+newmtl mat_3_(Instance)_48
+Kd 0.435293972 0.890196 0.8039215
+d 1
+illum 2
+newmtl mat_4_(Instance)_49
+Kd 1 0 0
+d 1
+illum 2
+newmtl mat_5_(Instance)_50
+Kd 1 1 0
+d 1
+illum 2
+newmtl mat_6_(Instance)_51
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_7_(Instance)_52
+Kd 0.869999945 0.919999957 0.919999957
+d 1
+illum 2
+newmtl mat_0_(Instance)_53
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_54
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_6_(Instance)_55
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_56
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_0_(Instance)_57
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_58
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_59
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_60
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_61
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_62
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_63
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_64
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_65
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_66
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_67
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_68
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_69
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_70
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_71
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_72
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_73
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_74
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_75
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_76
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_77
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_78
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_79
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_80
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_81
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_0_(Instance)_82
+Kd 0.259390742 0.280206263 0.305825144
+d 1
+illum 2
+newmtl mat_6_(Instance)_83
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_8_(Instance)_84
+Kd 0 1 0
+d 1
+illum 2
+newmtl mat_6_(Instance)_85
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_86
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_87
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_88
+Kd 1 1 1
+d 1
+illum 2
+newmtl mat_6_(Instance)_89
+Kd 1 1 1
+d 1
+illum 2
+newmtl Silver_(Instance)_90
 Kd 0.6799757 0.6799757 0.6799757
 d 1
 illum 2
-newmtl DarkMetal_10
-Kd 0.293371975 0.293371975 0.293371975
+newmtl DarkMetal_(Instance)_91
+Kd 0.293371916 0.293371916 0.293371916
 d 1
 illum 2
-newmtl Glass_11
-Kd 0.205984086 0.322726041 0.340643376
+newmtl Glass_(Instance)_92
+Kd 0.205984026 0.322725981 0.340643317
 d 1
 illum 2
-newmtl Black_12
-Kd 0.171844035 0.171844035 0.171844035
+newmtl Black_(Instance)_93
+Kd 0.171843976 0.171843976 0.171843976
 d 1
 illum 2
-newmtl VeryDark_13
-Kd 0.0610084981 0.08610416 0.08610416
+newmtl DarkMetal_(Instance)_94
+Kd 0.293371916 0.293371916 0.293371916
 d 1
 illum 2
-newmtl Orange_14
-Kd 0.9776915 0.4613561 0.171844035
+newmtl DarkMetal_(Instance)_95
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_96
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_97
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_98
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_99
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl VeryDark_(Instance)_100
+Kd 0.0610084534 0.08610412 0.08610412
+d 1
+illum 2
+newmtl Black_(Instance)_101
+Kd 0.171843976 0.171843976 0.171843976
+d 1
+illum 2
+newmtl Black_(Instance)_102
+Kd 0.171843976 0.171843976 0.171843976
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_103
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl DarkMetal_(Instance)_104
+Kd 0.293371916 0.293371916 0.293371916
+d 1
+illum 2
+newmtl Black_(Instance)_105
+Kd 0.171843976 0.171843976 0.171843976
+d 1
+illum 2
+newmtl Orange_(Instance)_106
+Kd 0.9776915 0.4613561 0.171843976
+d 1
+illum 2
+newmtl Silver_(Instance)_107
+Kd 0.6799757 0.6799757 0.6799757
+d 1
+illum 2
+newmtl Silver_(Instance)_108
+Kd 0.6799757 0.6799757 0.6799757
+d 1
+illum 2
+newmtl Silver_(Instance)_109
+Kd 0.6799757 0.6799757 0.6799757
+d 1
+illum 2
+newmtl Silver_(Instance)_110
+Kd 0.6799757 0.6799757 0.6799757
+d 1
+illum 2
+newmtl Silver_(Instance)_111
+Kd 0.6799757 0.6799757 0.6799757
 d 1
 illum 2

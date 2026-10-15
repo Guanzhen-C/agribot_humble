@@ -33,6 +33,6 @@ rtk_map_initializer:
     maximum_georeference_yaw_rmse_deg: 2.0
     allow_unvalidated_georeference_yaw: true
     base_to_master_antenna_m:
-    - 0.10552810877561569
-    - 0.33400094509124756
-    - 1.0573921203613281
+    - 0.18062394857406616
+    - 0.334000825881958
+    - 1.0560436248779297

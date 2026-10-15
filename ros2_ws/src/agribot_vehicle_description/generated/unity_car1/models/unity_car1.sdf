@@ -5,22 +5,22 @@
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
-        <pose>0.312528043985 5.96046447754e-08 0.230181902647 0 0 0</pose>
+        <pose>0.312528043985 5.96046447754e-08 0.230182856321 0 0 0</pose>
         <mass>50</mass>
         <inertia>
-          <ixx>3.90098214149</ixx>
+          <ixx>3.90099358559</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>8.18287086487</iyy>
+          <iyy>8.18288230896</iyy>
           <iyz>0</iyz>
           <izz>7.67456102371</izz>
         </inertia>
       </inertial>
       <collision name="vehicle_body_collision">
-        <pose>0.312528043985 5.96046447754e-08 0.230181902647 0 0 0</pose>
+        <pose>0.312528043985 5.96046447754e-08 0.230182856321 0 0 0</pose>
         <geometry>
           <box>
-            <size>1.19782054424 0.638060092926 0.727402925491</size>
+            <size>1.19782054424 0.638060092926 0.72740483284</size>
           </box>
         </geometry>
       </collision>
@@ -42,7 +42,7 @@
         <plugin name="imu_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <visual name="lidar_cad_visual">
-        <pose>0.243228211999 0.00300005986355 0.573192596436 0 0 0</pose>
+        <pose>0.285124033689 0.00303386058658 0.572944641113 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car1/models/sensor_lidar_visual.obj</uri>
@@ -60,7 +60,7 @@
         <plugin name="right_camera_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <visual name="rtk_master_cad_visual">
-        <pose>0.105528108776 0.334000945091 1.05739212036 0 0 0</pose>
+        <pose>0.180623948574 0.334000825882 1.05604362488 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car1/models/sensor_rtk_master_visual.obj</uri>
@@ -124,7 +124,7 @@
         </plugin>
       </sensor>
       <sensor name="lslidar_c16_points" type="ray">
-        <pose>0.243228211999 0.00300005986355 0.573192596436 0 0 0</pose>
+        <pose>0.285124033689 0.00303386058658 0.572944641113 0 0 0</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>

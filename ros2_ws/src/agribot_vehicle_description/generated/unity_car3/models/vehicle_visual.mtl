@@ -1,24 +1,444 @@
-newmtl LvDai_BlackPowder_0
+newmtl LvDai_BlackPowder_(Instance)_0
 Kd 0.75 0.75 0.75
 d 1
 illum 2
-newmtl LvDai_BrushedMetal_1
+newmtl LvDai_BlackPowder_(Instance)_1
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_2
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_3
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_4
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_5
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_6
 Kd 0.72 0.74 0.76
 d 1
 illum 2
-newmtl LvDai_FrostedLightCover_2
+newmtl LvDai_BlackPowder_(Instance)_7
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_FrostedLightCover_(Instance)_8
 Kd 0.85 0.88 0.86
 d 1
 illum 2
-newmtl LvDai_WarmWhitePaint_3
+newmtl LvDai_BlackPowder_(Instance)_9
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_10
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_11
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_12
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_13
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_14
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_15
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_16
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_17
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_18
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_WarmWhitePaint_(Instance)_19
 Kd 0.86 0.86 0.8
 d 1
 illum 2
-newmtl RubberTread_4
+newmtl LvDai_WarmWhitePaint_(Instance)_20
+Kd 0.86 0.86 0.8
+d 1
+illum 2
+newmtl LvDai_WarmWhitePaint_(Instance)_21
+Kd 0.86 0.86 0.8
+d 1
+illum 2
+newmtl LvDai_WarmWhitePaint_(Instance)_22
+Kd 0.86 0.86 0.8
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_23
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_24
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_25
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_26
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_27
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_28
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_29
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_30
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_31
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_32
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_33
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_34
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_35
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_36
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_37
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_38
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_39
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_40
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_41
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_42
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_43
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_44
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_45
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_46
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_47
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_48
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_49
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_50
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_51
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_52
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_53
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_54
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_55
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_56
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_57
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_58
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_59
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_60
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_61
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_62
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_63
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_64
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_65
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_66
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BrushedMetal_(Instance)_67
+Kd 0.72 0.74 0.76
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_68
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl RubberTread_(Instance)_69
 Kd 1 1 1
 d 1
 illum 2
-newmtl RubberTrack_5
+newmtl RubberTrack_(Instance)_70
 Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_71
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_72
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_73
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_74
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_75
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_76
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_77
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_78
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_79
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_80
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_81
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_82
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_83
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_84
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_85
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_86
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_87
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_88
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_89
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_90
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_91
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_92
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_93
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_94
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_95
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_96
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_97
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_98
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_99
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_100
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_101
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_102
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_103
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_104
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_105
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_106
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTrack_(Instance)_107
+Kd 1 1 1
+d 1
+illum 2
+newmtl RubberTread_(Instance)_108
+Kd 1 1 1
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_109
+Kd 0.75 0.75 0.75
+d 1
+illum 2
+newmtl LvDai_BlackPowder_(Instance)_110
+Kd 0.75 0.75 0.75
 d 1
 illum 2

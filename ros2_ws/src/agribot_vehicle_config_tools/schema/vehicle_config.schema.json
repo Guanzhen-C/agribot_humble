@@ -127,7 +127,21 @@
       "minItems": 1,
       "items": {"$ref": "#/$defs/sensor"}
     },
-    "metadata": {"type": "object"}
+    "metadata": {"type": "object"},
+    "manipulators": {
+      "type": "array", "maxItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["model", "parentFrameId", "pose", "demoEnabled"],
+        "properties": {
+          "model": {"const": "lite6"},
+          "parentFrameId": {"const": "base_link"},
+          "pose": {"$ref": "#/$defs/pose"},
+          "demoEnabled": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    }
   },
   "$defs": {
     "vector3": {

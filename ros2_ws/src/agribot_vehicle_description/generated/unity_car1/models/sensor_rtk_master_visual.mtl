@@ -1,20 +1,108 @@
-newmtl Default-Material_0
+newmtl Default-Material_(Instance)_0
 Kd 1 1 1
 d 1
 illum 2
-newmtl Dark_1
-Kd 0.381091774 0.395881176 0.4100208
+newmtl Default-Material_(Instance)_1
+Kd 1 1 1
 d 1
 illum 2
-newmtl Metal_2
+newmtl Default-Material_(Instance)_2
+Kd 1 1 1
+d 1
+illum 2
+newmtl Default-Material_(Instance)_3
+Kd 1 1 1
+d 1
+illum 2
+newmtl Default-Material_(Instance)_4
+Kd 1 1 1
+d 1
+illum 2
+newmtl Dark_(Instance)_5
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl Metal_(Instance)_6
 Kd 0.7673755 0.7797062 0.797737658
 d 1
 illum 2
-newmtl Black_3
-Kd 0.171844035 0.171844035 0.171844035
+newmtl Metal_(Instance)_7
+Kd 0.7673755 0.7797062 0.797737658
 d 1
 illum 2
-newmtl White_4
+newmtl Black_(Instance)_8
+Kd 0.171843976 0.171843976 0.171843976
+d 1
+illum 2
+newmtl Metal_(Instance)_9
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Dark_(Instance)_10
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl Dark_(Instance)_11
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl White_(Instance)_12
 Kd 0.9452768 0.954687059 0.9639762
+d 1
+illum 2
+newmtl Metal_(Instance)_13
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Metal_(Instance)_14
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Metal_(Instance)_15
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Dark_(Instance)_16
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl Metal_(Instance)_17
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Metal_(Instance)_18
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Black_(Instance)_19
+Kd 0.171843976 0.171843976 0.171843976
+d 1
+illum 2
+newmtl Metal_(Instance)_20
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Dark_(Instance)_21
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl Dark_(Instance)_22
+Kd 0.3810917 0.395881116 0.410020739
+d 1
+illum 2
+newmtl White_(Instance)_23
+Kd 0.9452768 0.954687059 0.9639762
+d 1
+illum 2
+newmtl Metal_(Instance)_24
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Metal_(Instance)_25
+Kd 0.7673755 0.7797062 0.797737658
+d 1
+illum 2
+newmtl Metal_(Instance)_26
+Kd 0.7673755 0.7797062 0.797737658
 d 1
 illum 2

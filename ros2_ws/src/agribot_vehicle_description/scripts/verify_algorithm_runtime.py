@@ -177,6 +177,8 @@ class Probe(Node):
         self.initial_truth = None
         self.max_startup_motion = 0.0
         self.max_startup_command = 0.0
+        self.max_chassis_linear_speed = 0.0
+        self.max_chassis_angular_speed = 0.0
         self.motion_dispatched = False
         self.clock_samples = []
         self.position_errors = []
@@ -229,6 +231,10 @@ class Probe(Node):
             self.record_pose_error()
         elif topic == "/odom":
             self.truth = message.pose.pose
+            self.max_chassis_linear_speed = max(
+                self.max_chassis_linear_speed, abs(message.twist.twist.linear.x))
+            self.max_chassis_angular_speed = max(
+                self.max_chassis_angular_speed, abs(message.twist.twist.angular.z))
             self.truth_history.append((stamp, self.truth))
             if self.initial_truth is None:
                 self.initial_truth = self.truth
@@ -242,6 +248,7 @@ class Probe(Node):
                     self.trace.append({"wall_monotonic": now,
                                        "stamp": message.header.stamp.sec + message.header.stamp.nanosec * 1e-9,
                                        "truth": [self.truth.position.x, self.truth.position.y, self.truth.position.z],
+                                       "chassis_twist": [message.twist.twist.linear.x, message.twist.twist.angular.z],
                                        "estimate": [self.estimate.position.x, self.estimate.position.y, self.estimate.position.z],
                                        "truth_quaternion": [getattr(self.truth.orientation, key) for key in ("x", "y", "z", "w")],
                                        "estimate_quaternion": [getattr(self.estimate.orientation, key) for key in ("x", "y", "z", "w")]})
@@ -577,6 +584,8 @@ def run_case(case, args, output, waypoints):
             result["checks"]["truth_displacement_m"] = displacement
             if status != GoalStatus.STATUS_SUCCEEDED or displacement < 1.0:
                 raise RuntimeError("Controller failed or the Gazebo vehicle did not move")
+            result["checks"]["max_chassis_linear_speed_mps"] = node.max_chassis_linear_speed
+            result["checks"]["max_chassis_angular_speed_radps"] = node.max_chassis_angular_speed
             if args.terminal_yaw_offset:
                 yaw = result["checks"]["requested_terminal_yaw_rad"]
                 error = heading_error(node.truth, yaw)

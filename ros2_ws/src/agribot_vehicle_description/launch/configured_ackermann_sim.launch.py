@@ -27,7 +27,42 @@ def _gazebo_transport_compat_path():
     return directory if version == "11.10.2" else ""
 
 
-def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None):
+def _write_simulation_rviz_config(source_file, vision_mode="off"):
+    with open(source_file, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream)
+    rgb = next(display for display in config["Visualization Manager"]["Displays"]
+               if display["Name"] == "RGB Image")
+    rgb["Enabled"] = True
+    rgb["Value"] = True
+    rgb["Queue Size"] = 1
+    image_topic = "/camera/rgb/image_raw" if vision_mode == "off" else "/vision/annotated_image"
+    rgb["Topic"].update({"Value": image_topic, "Depth": 1,
+                         "Reliability Policy": "Best Effort"})
+    target = os.path.join(tempfile.gettempdir(), "configured_vehicle_camera.generated.rviz")
+    with open(target, "w", encoding="utf-8") as stream:
+        yaml.safe_dump(config, stream, sort_keys=False)
+    return target
+
+
+def _replace_manipulator(root, vehicle, sdf):
+    from agribot_vehicle_config_tools.manipulator import append_sdf, append_urdf
+    for child in list(root):
+        name = child.get("name", "")
+        if name.startswith("manipulator_") or name.startswith("vehicle_manipulator_"):
+            root.remove(child)
+    (append_sdf if sdf else append_urdf)(root, vehicle)
+
+
+def _write_manipulator_urdf(source_file, vehicle):
+    tree = ET.parse(source_file)
+    _replace_manipulator(tree.getroot(), vehicle, False)
+    target = os.path.join(tempfile.gettempdir(), "configured_manipulator_vehicle.urdf")
+    ET.indent(tree, space="  ")
+    tree.write(target, encoding="unicode")
+    return target
+
+
+def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=None):
     """Prepare the generated vehicle for real-time Gazebo Classic sensing.
 
     The canonical Unity export keeps the physical C16 and camera resolution.
@@ -41,6 +76,8 @@ def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None):
         tempfile.gettempdir(), "configured_ackermann_vehicle.generated.sdf"
     )
     model_tree = ET.parse(source_file)
+    if vehicle is not None:
+        _replace_manipulator(model_tree.getroot().find("model"), vehicle, True)
     for uri in model_tree.getroot().iter("uri"):
         value = (uri.text or "").strip()
         for prefix in ("package://", "model://"):
@@ -462,6 +499,8 @@ def _generated_mounts(generated):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("vehicle_id", default_value="ackermann_current"),
+        DeclareLaunchArgument("manipulator", default_value="configured", choices=["configured", "true", "false"]),
+        DeclareLaunchArgument("arm_demo", default_value="configured", choices=["configured", "true", "false"]),
         OpaqueFunction(function=_launch_vehicle),
     ])
 
@@ -476,14 +515,29 @@ def _launch_vehicle(context):
     if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", vehicle_id):
         raise ValueError("Invalid vehicle_id")
     generated = os.path.join(description_share, "generated", vehicle_id)
+    with open(os.path.join(generated, "vehicle_config.json"), encoding="utf-8") as stream:
+        import json
+        vehicle = json.load(stream)
+    had_manipulator = bool(vehicle.get("manipulators"))
+    arm_option = LaunchConfiguration("manipulator").perform(context)
+    from agribot_vehicle_config_tools.manipulator import default_manipulator
+    if arm_option == "true" and not had_manipulator:
+        vehicle["manipulators"] = [default_manipulator(vehicle)]
+    elif arm_option == "false":
+        vehicle["manipulators"] = []
+    arm_installed = bool(vehicle.get("manipulators"))
+    demo_option = LaunchConfiguration("arm_demo").perform(context)
+    if arm_installed and demo_option != "configured":
+        vehicle["manipulators"][0]["demoEnabled"] = demo_option == "true"
     self_filter_enabled = vehicle_id != "ackermann_current"
     vehicle_model = _write_gazebo_vehicle_model(
         os.path.join(generated, "models", vehicle_id + ".sdf"),
         "/configured/unfiltered_lidar_points" if self_filter_enabled else None,
+        vehicle if had_manipulator or arm_installed else None,
     )
-    with open(os.path.join(generated, "vehicle_config.json"), encoding="utf-8") as stream:
-        import json
-        vehicle = json.load(stream)
+    robot_description_file = os.path.join(generated, "urdf", vehicle_id + ".urdf.xacro")
+    if had_manipulator or arm_installed:
+        robot_description_file = _write_manipulator_urdf(robot_description_file, vehicle)
     lidar_sensor = next(sensor for sensor in vehicle["sensors"] if sensor["id"] == "lidar")
     extents = vehicle["geometry"]["bodyExtents"]
     collision = vehicle["collision"]
@@ -553,6 +607,10 @@ def _launch_vehicle(context):
             ),
             DeclareLaunchArgument("gui", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("rviz_config", default_value=_write_simulation_rviz_config(
+                os.path.join(get_package_share_directory("agribot_autonomy"), "rviz",
+                             "robot_map_global_plan_only.rviz"),
+                LaunchConfiguration("vision_mode", default="off").perform(context))),
             DeclareLaunchArgument("headless", default_value="false"),
             DeclareLaunchArgument("run_waypoints", default_value="true"),
             DeclareLaunchArgument("waypoint_startup_delay", default_value="1.0"),
@@ -630,6 +688,15 @@ def _launch_vehicle(context):
                 condition=IfCondition("true" if self_filter_enabled else "false"),
             ),
             Node(
+                package="agribot_manipulator_sim",
+                executable="arm_demo",
+                output="screen",
+                remappings=[("/cmd_vel", "/nav2/cmd_vel")],
+                parameters=[{"use_sim_time": True,
+                             "demo_enabled": vehicle["manipulators"][0]["demoEnabled"] if arm_installed else False}],
+                condition=IfCondition("true" if arm_installed else "false"),
+            ),
+            Node(
                 package="agribot_vehicle_description",
                 executable="simulation_initial_pose.py",
                 output="screen",
@@ -674,6 +741,7 @@ def _launch_vehicle(context):
                 launch_arguments={
                     "gui": LaunchConfiguration("gui"),
                     "rviz": LaunchConfiguration("rviz"),
+                    "rviz_config": LaunchConfiguration("rviz_config"),
                     "headless": LaunchConfiguration("headless"),
                     "initial_pose_z": str(spawn_z),
                     "gazebo_pause_until_spawn": "true",
@@ -707,11 +775,7 @@ def _launch_vehicle(context):
                     "map_file": LaunchConfiguration("map_file"),
                     "world": world_file,
                     "gazebo_spawn_file": vehicle_model,
-                    "robot_description_file": os.path.join(
-                        generated,
-                        "urdf",
-                        vehicle_id + ".urdf.xacro",
-                    ),
+                    "robot_description_file": robot_description_file,
                     "navsat_static_nav2_params_file": _nav2_profile_config(
                         navsat_nav2_profiles
                     ),

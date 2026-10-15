@@ -44,8 +44,8 @@ rtk_master:
   parent_frame: base_link
   child_frame: rtk_link
   xyz:
-  - -0.1038043200969696
-  - 0.32621896266937256
+  - 0.0481957346200943
+  - 0.3262191116809845
   - 0.9468536376953125
   rpy:
   - 0.0
@@ -57,8 +57,8 @@ rtk_secondary:
   parent_frame: base_link
   child_frame: rtk_secondary_link
   xyz:
-  - -0.10380421578884125
-  - -0.32378262281417847
+  - 0.048195842653512955
+  - -0.3237825632095337
   - 0.9468536376953125
   rpy:
   - 0.0

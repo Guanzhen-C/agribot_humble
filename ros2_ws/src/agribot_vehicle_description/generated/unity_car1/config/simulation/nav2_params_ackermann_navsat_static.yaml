@@ -220,7 +220,7 @@ global_costmap:
           marking: true
           clearing: false
           obstacle_range: 8.0
-          min_obstacle_height: 0.5931925964355469
+          min_obstacle_height: 0.5929446411132813
           max_obstacle_height: 0.8725
           expected_update_rate: 0.0
           observation_persistence: 0.0
@@ -287,7 +287,7 @@ local_costmap:
           marking: true
           clearing: false
           obstacle_range: 4.0
-          min_obstacle_height: 0.5931925964355469
+          min_obstacle_height: 0.5929446411132813
           max_obstacle_height: 0.8725
           expected_update_rate: 0.0
           observation_persistence: 0.0

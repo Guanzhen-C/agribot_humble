@@ -32,8 +32,44 @@
           </mesh>
         </geometry>
       </visual>
+      <visual name="imu_cad_visual">
+        <pose>0.142499953508 1.09291818262e-07 0.142997741699 0.000572424090933 -0.00913954898715 -2.61600916929e-06</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/sensor_imu_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="imu_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="lidar_cad_visual">
+        <pose>0.479999929667 7.1564620896e-08 0.232997894287 -0.00764848804101 -0.00183566054329 7.01999897501e-06</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/sensor_lidar_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="lidar_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="right_camera_cad_visual">
+        <pose>0.575500011444 9.52900123252e-08 0.153997421265 0 3.54046791884e-10 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/sensor_right_camera_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="right_camera_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="rtk_master_cad_visual">
+        <pose>0.142499923706 0.295258581638 0.784757614136 0 3.54046791884e-10 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/ackermann_current/models/sensor_rtk_master_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="rtk_master_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
       <sensor name="n300pro_imu" type="imu">
-        <pose>0.142500117421 -4.16096668232e-08 0.142999082804 0.000572423858102 -0.00913954805583 -2.61646141553e-06</pose>
+        <pose>0.142499953508 1.09291818262e-07 0.142997741699 0.000572424090933 -0.00913954898715 -2.61600916929e-06</pose>
         <always_on>true</always_on>
         <update_rate>100</update_rate>
         <visualize>false</visualize>
@@ -88,7 +124,7 @@
         </plugin>
       </sensor>
       <sensor name="lslidar_c16_points" type="ray">
-        <pose>0.480000048876 -8.73142695923e-08 0.23299922049 -0.00764848897234 -0.00183566112537 7.02045099388e-06</pose>
+        <pose>0.479999929667 7.1564620896e-08 0.232997894287 -0.00764848804101 -0.00183566054329 7.01999897501e-06</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -131,7 +167,7 @@
         </plugin>
       </sensor>
       <sensor name="hikrobot_right_camera" type="camera">
-        <pose>0.575500071049 -6.9207942488e-08 0.153998762369 3.98870910259e-12 3.83765547118e-10 9.01187069413e-10</pose>
+        <pose>0.575500011444 9.52900123252e-08 0.153997421265 0 3.54046791884e-10 0</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -174,7 +210,7 @@
       </sensor>
     </link>
     <link name="front_left_steering_link">
-      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
+      <pose relative_to="__model__">0.525849163532 0.294998288155 0.000398635689635 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -187,7 +223,7 @@
       </inertial>
     </link>
     <link name="front_right_steering_link">
-      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
+      <pose relative_to="__model__">0.527325689793 -0.294998109341 -0.000999450916424 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -200,7 +236,7 @@
       </inertial>
     </link>
     <link name="front_left_wheel_link">
-      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
+      <pose relative_to="__model__">0.525849163532 0.294998288155 0.000398635689635 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -245,7 +281,7 @@
       </visual>
     </link>
     <link name="front_right_wheel_link">
-      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
+      <pose relative_to="__model__">0.527325689793 -0.294998109341 -0.000999450916424 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -290,7 +326,7 @@
       </visual>
     </link>
     <link name="rear_left_wheel_link">
-      <pose relative_to="__model__">4.38546038595e-07 0.29499900341 0.000733767054044 0 0 0</pose>
+      <pose relative_to="__model__">3.90425213936e-07 0.294999241829 0.000696182192769 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -335,7 +371,7 @@
       </visual>
     </link>
     <link name="rear_right_wheel_link">
-      <pose relative_to="__model__">-2.09537219575e-07 -0.294999182224 -0.000736798800062 0 0 0</pose>
+      <pose relative_to="__model__">-4.17683509113e-07 -0.294999063015 -0.00069999700645 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
@@ -380,7 +416,7 @@
       </visual>
     </link>
     <joint name="front_left_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
+      <pose relative_to="__model__">0.525849163532 0.294998288155 0.000398635689635 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_left_steering_link</child>
       <axis>
@@ -397,7 +433,7 @@
       </axis>
     </joint>
     <joint name="front_right_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
+      <pose relative_to="__model__">0.527325689793 -0.294998109341 -0.000999450916424 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_right_steering_link</child>
       <axis>
@@ -414,7 +450,7 @@
       </axis>
     </joint>
     <joint name="front_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.525849282742 0.294998079538 0.000502977753058 0 0 0</pose>
+      <pose relative_to="__model__">0.525849163532 0.294998288155 0.000398635689635 0 0 0</pose>
       <parent>front_left_steering_link</parent>
       <child>front_left_wheel_link</child>
       <axis>
@@ -428,7 +464,7 @@
       </axis>
     </joint>
     <joint name="front_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.527325928211 -0.294998198748 -0.000969495449681 0 0 0</pose>
+      <pose relative_to="__model__">0.527325689793 -0.294998109341 -0.000999450916424 0 0 0</pose>
       <parent>front_right_steering_link</parent>
       <child>front_right_wheel_link</child>
       <axis>
@@ -442,7 +478,7 @@
       </axis>
     </joint>
     <joint name="rear_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">4.38546038595e-07 0.29499900341 0.000733767054044 0 0 0</pose>
+      <pose relative_to="__model__">3.90425213936e-07 0.294999241829 0.000696182192769 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_left_wheel_link</child>
       <axis>
@@ -456,7 +492,7 @@
       </axis>
     </joint>
     <joint name="rear_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">-2.09537219575e-07 -0.294999182224 -0.000736798800062 0 0 0</pose>
+      <pose relative_to="__model__">-4.17683509113e-07 -0.294999063015 -0.00069999700645 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_right_wheel_link</child>
       <axis>
@@ -491,6 +527,426 @@
       <publish_rate>30.0</publish_rate>
       <publish_tf>false</publish_tf>
       <wheel_torque>200.0</wheel_torque>
+    </plugin>
+    <link name="manipulator_link_base">
+      <pose relative_to="base_link">0.2527782023 0.0006425103056 0.1394004822 0.002361407736 0.003225819673 6.398016922e-06</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link_base_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link_base.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link1">
+      <pose relative_to="manipulator_link_base">0 0 0.2435 0 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link1_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link2">
+      <pose relative_to="manipulator_link1">0 0 0 1.5708 -1.5708 3.1416</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link3">
+      <pose relative_to="manipulator_link2">0.2002 0 0 -3.1416 0 1.5708</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link3_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link3.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link4">
+      <pose relative_to="manipulator_link3">0.087 -0.22761 0 1.5708 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link4_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link4.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link5">
+      <pose relative_to="manipulator_link4">0 0 0 1.5708 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link5_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link5.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_link6">
+      <pose relative_to="manipulator_link5">0 0.0625 0 -1.5708 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_link6_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/link6.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.60 0.64 0.68 1</ambient>
+          <diffuse>0.60 0.64 0.68 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_gripper_shell">
+      <pose relative_to="manipulator_link6">0 0 0 0 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_gripper_shell_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/gripper_shell.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.85 0.88 0.90 1</ambient>
+          <diffuse>0.85 0.88 0.90 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_finger1">
+      <pose relative_to="manipulator_gripper_shell">0 0 0.0543 0 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_finger1_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/finger1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.20 0.22 0.24 1</ambient>
+          <diffuse>0.20 0.22 0.24 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="manipulator_finger2">
+      <pose relative_to="manipulator_gripper_shell">0 0 0.0543 0 0 0</pose>
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>0.0001</ixx>
+          <iyy>0.0001</iyy>
+          <izz>0.0001</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="manipulator_finger2_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_manipulator_sim/models/lite6/meshes/finger2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.20 0.22 0.24 1</ambient>
+          <diffuse>0.20 0.22 0.24 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <joint name="manipulator_mount_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>manipulator_link_base</child>
+    </joint>
+    <joint name="manipulator_joint1" type="revolute">
+      <parent>manipulator_link_base</parent>
+      <child>manipulator_link1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.283185307179586</lower>
+          <upper>6.283185307179586</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_joint2" type="revolute">
+      <parent>manipulator_link1</parent>
+      <child>manipulator_link2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.61799</lower>
+          <upper>2.61799</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_joint3" type="revolute">
+      <parent>manipulator_link2</parent>
+      <child>manipulator_link3</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.061087</lower>
+          <upper>5.235988</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_joint4" type="revolute">
+      <parent>manipulator_link3</parent>
+      <child>manipulator_link4</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.283185307179586</lower>
+          <upper>6.283185307179586</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_joint5" type="revolute">
+      <parent>manipulator_link4</parent>
+      <child>manipulator_link5</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.1642</lower>
+          <upper>2.1642</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_joint6" type="revolute">
+      <parent>manipulator_link5</parent>
+      <child>manipulator_link6</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.283185307179586</lower>
+          <upper>6.283185307179586</upper>
+          <effort>50</effort>
+          <velocity>3.14</velocity>
+        </limit>
+        <dynamics>
+          <damping>1.0</damping>
+          <friction>1.0</friction>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="manipulator_gripper_mount" type="fixed">
+      <parent>manipulator_link6</parent>
+      <child>manipulator_gripper_shell</child>
+    </joint>
+    <joint name="manipulator_finger_joint1" type="prismatic">
+      <parent>manipulator_gripper_shell</parent>
+      <child>manipulator_finger1</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>0.0089</upper>
+          <effort>5</effort>
+          <velocity>0.05</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="manipulator_finger_joint2" type="prismatic">
+      <parent>manipulator_gripper_shell</parent>
+      <child>manipulator_finger2</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>0.0089</upper>
+          <effort>5</effort>
+          <velocity>0.05</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <plugin name="vehicle_manipulator_trajectory" filename="libgazebo_ros_joint_pose_trajectory.so">
+      <ros>
+        <remapping>set_joint_trajectory:=/manipulator/joint_trajectory</remapping>
+        <argument>--ros-args</argument>
+        <argument>--log-level</argument>
+        <argument>warn</argument>
+      </ros>
+      <update_rate>50</update_rate>
+    </plugin>
+    <plugin name="vehicle_manipulator_state" filename="libgazebo_ros_joint_state_publisher.so">
+      <ros>
+        <remapping>joint_states:=/joint_states</remapping>
+      </ros>
+      <update_rate>20</update_rate>
+      <joint_name>manipulator_joint1</joint_name>
+      <joint_name>manipulator_joint2</joint_name>
+      <joint_name>manipulator_joint3</joint_name>
+      <joint_name>manipulator_joint4</joint_name>
+      <joint_name>manipulator_joint5</joint_name>
+      <joint_name>manipulator_joint6</joint_name>
+      <joint_name>manipulator_finger_joint1</joint_name>
+      <joint_name>manipulator_finger_joint2</joint_name>
     </plugin>
   </model>
 </sdf>

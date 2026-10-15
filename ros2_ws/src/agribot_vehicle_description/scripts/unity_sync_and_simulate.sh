@@ -618,7 +618,7 @@ set +e
 colcon build \
   --symlink-install \
   --parallel-workers "${AGRIBOT_BUILD_WORKERS:-4}" \
-  --packages-select agribot_vehicle_config_tools agribot_visual_perception agribot_vehicle_description
+  --packages-select agribot_vehicle_config_tools agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description
 BUILD_RESULT=$?
 set -e
 if ((BUILD_RESULT != 0)); then
