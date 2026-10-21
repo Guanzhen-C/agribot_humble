@@ -2,6 +2,27 @@
 
 本包为 Unity 导出车辆提供 Gazebo Classic 场景、同源二维占据地图、可选回归路线和场景级 RTK 地理基准。仅用于仿真，不改变真机安装参数。
 
+## 自然语言推荐
+
+Unity Linux App 的车库和现有算法选择窗口增加“智能推荐”。输入自然语言后，DeepSeek Flash 只选择候选 ID；本地服务再从确认记录解析车型、机具、场景和算法。点击“选择这套装配”会安装四类传感器和机具、选择场景及算法，并打开方案窗口；仍需用户明确点击“启动仿真”，不会自动派发经停点或驱动车辆。
+
+界面分别提供配置顾问、当前装配的算法顾问，以及全局操作助手。算法模式固定当前车型、机具和场景，不隐式更换装配；操作问答不强行生成推荐。最近六条对话仅在内存中用于上下文，不落盘。试验文件名、确认分组、哈希和内部验收信息不显示给用户。车库预览由当前实际模型生成，构建时校验源模型指纹，不能继续打包已过期的车型截图。
+
+候选来自 `manual_confirmations*.json` 与 `compatibility.json`，必须同时满足 PASS、当前车辆配置 SHA-256 相符、当前场景算法相符、确认时明确包含该机具。代表试验与用户分组确认分开显示；未来新增机具、旧车型结构、已排除场景不自动继承通过标签。所有规则只表示仿真导航，不表示真实耕作、农具避障或安全认证。应用前再次校验记录，拒绝模型虚构、重复或失效的 ID。
+
+接口凭据只在工作站本机读取，不写入 Unity 项目、构建程序或 Git。使用 `DEEPSEEK_API_KEY`，或配置权限为 600 的 `~/.config/agribot/llm.json`：字段为 `api_key`、`base_url`（`https://api.deepseek.com`）和 `model`（`deepseek-flash`）。Unity 通过标准输入把文本交给 `/usr/bin/python3`，不把用户文本作为命令执行。`AGRIBOT_WORKSPACE_SRC` 可覆盖 ROS 源码目录；默认沿用当前同步脚本所在工作区。
+
+离线核对候选不需要凭据或网络：
+
+```bash
+cd ~/agribot_ws/ros2_ws
+PYTHONPATH=src/agribot_farm_sim:src/agribot_vehicle_config_tools \
+  /usr/bin/python3 -m agribot_farm_sim.natural_recommendation \
+  --workspace-src "$PWD/src" --catalog-only
+```
+
+网络不可用、超时或无匹配时只提示错误/补充问题，不修改当前车辆配置。取消或关闭推荐窗口会结束本次推荐进程，不影响已启动的仿真。原手动安装、算法库和启动命令保持不变。
+
 ## Car3 当前轮心配置
 
 2026-10-21按用户要求，`prepare_compact_track_contacts.py`从当前可见的前后导向轮及履带零位姿网格推导接地几何，资源更新为`compact_tracks/ros_v4_real_centers`。前轮x约0.44894m、后轮x约-0.38806m，左y约0.30368m、右y约-0.29751m，z约-0.10694m；轴距约0.83700m，左右轮距约0.60118m。接地半径约0.11815m，包含导向轮外侧履带支撑包络，不再采用旧±0.201m轮心、0.22492m大圆柱。
