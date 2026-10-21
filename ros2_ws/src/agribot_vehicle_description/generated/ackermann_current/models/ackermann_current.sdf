@@ -526,7 +526,7 @@
       <command_timeout>0.5</command_timeout>
       <publish_rate>30.0</publish_rate>
       <publish_tf>false</publish_tf>
-      <wheel_torque>200.0</wheel_torque>
+      <wheel_torque>200</wheel_torque>
     </plugin>
     <link name="manipulator_link_base">
       <pose relative_to="base_link">0.2527782023 0.0006425103056 0.1394004822 0.002361407736 0.003225819673 6.398016922e-06</pose>

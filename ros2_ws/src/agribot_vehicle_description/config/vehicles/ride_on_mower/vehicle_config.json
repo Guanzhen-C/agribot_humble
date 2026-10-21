@@ -1,0 +1,427 @@
+{
+  "schemaVersion": "1.0",
+  "vehicleId": "ride_on_mower",
+  "displayName": "骑乘式割草机",
+  "vehicleType": "ackermann",
+  "coordinateConvention": "ROS_FLU",
+  "baseFrame": {
+    "frameId": "base_link",
+    "reference": "rear_axle_midpoint"
+  },
+  "geometry": {
+    "bodyExtents": {
+      "frontM": 1.4042478799819946,
+      "rearM": 0.39215007424354553,
+      "leftM": 0.9137567281723022,
+      "rightM": 0.6884636878967285
+    },
+    "wheelbaseM": 1.2468892335891724,
+    "frontTrackM": 0.8499979078769684,
+    "rearTrackM": 1.1608161926269531,
+    "wheelRadiusM": 0.25309378653764725,
+    "wheelWidthM": 0.1737084984779358,
+    "maxSteeringAngleRad": 0.5,
+    "minTurningRadiusM": 2.2824154324204295,
+    "wheelCenters": [
+      {
+        "id": "front_left",
+        "position": [
+          1.2468892335891724,
+          0.42406514286994934,
+          -0.1124008372426033
+        ],
+        "radiusM": 0.14069294929504395,
+        "widthM": 0.11003518104553223,
+        "massKg": 3.0,
+        "steering": true,
+        "driven": false,
+        "steeringMassKg": 1.5,
+        "steeringAssembly": {
+          "pivotPosition": [
+            1.3018147945404053,
+            0.4240000247955322,
+            0.10286802053451538
+          ],
+          "damping": 0.02,
+          "meshUri": "package://agribot_vehicle_description/generated/ride_on_mower/models/front_left_caster.obj"
+        }
+      },
+      {
+        "id": "front_right",
+        "position": [
+          1.2468892335891724,
+          -0.42593276500701904,
+          -0.11306025087833405
+        ],
+        "radiusM": 0.1400335356593132,
+        "widthM": 0.11003503203392029,
+        "massKg": 3.0,
+        "steering": true,
+        "driven": false,
+        "steeringMassKg": 1.5,
+        "steeringAssembly": {
+          "pivotPosition": [
+            1.3018851280212402,
+            -0.4259999990463257,
+            0.10212059319019318
+          ],
+          "damping": 0.02,
+          "meshUri": "package://agribot_vehicle_description/generated/ride_on_mower/models/front_right_caster.obj"
+        }
+      },
+      {
+        "id": "rear_left",
+        "position": [
+          0.0,
+          0.580478310585022,
+          2.991408109664917e-05
+        ],
+        "radiusM": 0.2531237006187439,
+        "widthM": 0.1737084984779358,
+        "massKg": 8.0,
+        "steering": false,
+        "driven": true
+      },
+      {
+        "id": "rear_right",
+        "position": [
+          0.0,
+          -0.5803378820419312,
+          -2.991408109664917e-05
+        ],
+        "radiusM": 0.2530638724565506,
+        "widthM": 0.17376476526260376,
+        "massKg": 8.0,
+        "steering": false,
+        "driven": true
+      }
+    ]
+  },
+  "navigation": {
+    "clearance": {
+      "frontM": 0.10000000149011612,
+      "rearM": 0.10000000149011612,
+      "leftM": 0.15000000596046448,
+      "rightM": 0.15000000596046448
+    },
+    "maxLinearSpeedMps": 0.3,
+    "maxAngularSpeedRadps": 0.13143970012587036,
+    "allowReverse": false,
+    "inflationRadiusM": 1.8,
+    "costScalingFactor": 3.0,
+    "obstacleMinHeightM": -0.07,
+    "obstacleMaxHeightM": 1.6
+  },
+  "chassis": {
+    "commandMaxLinearSpeedMps": 0.3,
+    "commandMaxAngularSpeedRadps": 0.13143970012587036,
+    "minimumMotionSpeedMps": 0.019999999552965164
+  },
+  "dynamics": {
+    "massKg": 180.0,
+    "centerOfMass": [
+      0.45,
+      0.0,
+      0.24
+    ],
+    "inertia": {
+      "ixx": 21.936000000000003,
+      "iyy": 36.33599999999999,
+      "izz": 44.4,
+      "ixy": 0.0,
+      "ixz": 0.0,
+      "iyz": 0.0
+    },
+    "maxAccelerationMps2": 0.5,
+    "maxSteeringRateRadps": 1.2000000476837158,
+    "wheelTorqueNm": 100.0
+  },
+  "collision": {
+    "center": [
+      0.45,
+      0.0,
+      0.24
+    ],
+    "size": [
+      1.4,
+      1.0,
+      0.68
+    ]
+  },
+  "visuals": [
+    {
+      "name": "vehicle_body",
+      "pose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "meshUri": "package://agribot_vehicle_description/generated/ride_on_mower/models/vehicle_visual.obj"
+    }
+  ],
+  "sensors": [
+    {
+      "id": "imu",
+      "sensorType": "imu",
+      "model": "Hipnuc N300Pro",
+      "role": "inertial",
+      "parentFrameId": "base_link",
+      "frameId": "imu_link",
+      "pose": {
+        "xyz": [
+          0.95,
+          -0.15,
+          0.1391509406492114
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/imu/data",
+      "updateRateHz": 100.0
+    },
+    {
+      "id": "lidar",
+      "sensorType": "lidar",
+      "model": "LSLiDAR C16 V4",
+      "role": "mapping",
+      "parentFrameId": "base_link",
+      "frameId": "lidar_link",
+      "pose": {
+        "xyz": [
+          1.1,
+          0.0,
+          0.16818094795942307
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/lidar/points",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "right_camera",
+      "sensorType": "camera",
+      "model": "Hikrobot MV-CU013-A0UC",
+      "role": "visual_odometry",
+      "parentFrameId": "base_link",
+      "frameId": "right_camera_link",
+      "pose": {
+        "xyz": [
+          1.1253000000000002,
+          0.0,
+          0.286768158569932
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "right_camera_optical_frame",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          -1.5707963267948966,
+          0.0,
+          -1.5707963267948966
+        ],
+        "quaternion": [
+          -0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "topic": "/camera/rgb/image_raw",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_master",
+      "sensorType": "gnss_antenna",
+      "model": "Dual-antenna RTK",
+      "role": "master_left",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_link",
+      "pose": {
+        "xyz": [
+          0.8,
+          0.32500068843364716,
+          0.6493487486839294
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/fix",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_secondary",
+      "sensorType": "gnss_antenna",
+      "model": "Dual-antenna RTK",
+      "role": "secondary_right",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_secondary_link",
+      "pose": {
+        "xyz": [
+          0.8,
+          -0.32500068843364716,
+          0.6493487486839294
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/heading",
+      "updateRateHz": 10.0
+    }
+  ],
+  "manipulators": [],
+  "metadata": {
+    "authoringTool": "inspected_local_CAD_profile",
+    "profileVersion": "2.0.0",
+    "calibrationState": "unity_nominal_simulation_only",
+    "simulationVelocityFromPose": true,
+    "notes": "Original-size ride-on mower CAD; source +Y up, +Z forward, -X left. Rear axle midpoint is base_link. Rear differential drive and two passive front caster forks, not Ackermann steering. Front fork and wheel assembly is neutralized from its source swivel angle and levelled to the rear tyre contact plane. Nominal masses and limits support simulation only; no manufacturer calibration, cutting forces, blade motion or grass removal is claimed. Colours are presentation choices, not manufacturer textures. Fixed sensor CAD reused from the existing garage; mounting bases supported by the hood. User-requested nominal Ackermann simulation conversion: rear drive, controlled front fork steering; original CAD caster geometry retained, not manufacturer calibration.",
+    "steeringConversion": "rear_drive_controlled_front_ackermann"
+  },
+  "implements": []
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car9_arable_navsat_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car9",
+  "scenario": "arable_field",
+  "sceneName": "玉米试验田",
+  "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["navsat"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0013",
+  "userStatement": "很好，这个Car9在这个场景下的所有农机具使用该算法都是通过的，在开始下一个之前，请为我们的差速履带车也换一个类似的这种的小履带，颜色要搭配，模型要适配",
+  "limitations": [
+    "当前Car9仅开放谷物收割割台；不包含裸车、未来新增机具或其他场景。",
+    "本结论是用户对人工经停点导航的确认，不覆盖原自动路线，也不代表真实收割作业通过。",
+    "保留历史失败记录；不将本记录混入独立自动全程验收计数。",
+    "机具不参与导航碰撞的现有规则保持，不提供割台防撞安全保证。"
+  ],
+  "confirmations": [
+    {"binding": "Car9__combine_header", "vehicleId": "harvester_header", "implementName": "谷物收割割台", "status": "PASS", "vehicleConfigSha256": "b3b18507fb5082af15c109c8c94fb7148a22285ef29d722b149d257dced7c8d1"}
+  ]
+}

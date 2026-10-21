@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car4_arable_navsat_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car4",
+  "scenario": "arable_field",
+  "sceneName": "玉米试验田",
+  "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+  "allowedLocalizationModes": ["navsat"],
+  "rejectedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0003",
+  "userStatement": "很好，这个农机不能使用fastlivo2+rtk这个定位方法，只能使用navsat，这个农机在这个场景下使用所有他能挂载的农机具都是没问题的，前提是使用navsat，这些组合都可以打上通过的标签了",
+  "limitations": [
+    "通过标签来源于用户对本车、本场景全部可挂载机具组合的确认，不冒充逐机具独立自动验收。",
+    "不覆盖裸车或其他车型、场景，不代表任意目标路线可行或真实农具作业已经验证。",
+    "采用人工经停点，原预设路线和失败记录保留，不重新标记为自动全程通过。",
+    "GNSS、IMU、航向和地理基准必须有效；保持已确认的主机尺寸、缓冲、限速和参数。",
+    "配置SHA变化后需要复核；机具不参与导航碰撞，不提供农具防撞安全保证。"
+  ],
+  "confirmations": [
+    {"binding": "Car4__compact_chisel_plow", "vehicleId": "car4_chisel", "implementName": "凿式犁", "status": "PASS", "vehicleConfigSha256": "28301249877809af90a0850cc34c5d920f6398e4ee289bdb6209ebb28219de94"},
+    {"binding": "Car4__mounted_disc_harrow", "vehicleId": "car4_harrow", "implementName": "圆盘耙", "status": "PASS", "vehicleConfigSha256": "672368cd110694b0024c31af5ec868aa8e1fd95bc608906eb45f69ac81b32d35"},
+    {"binding": "Car4__groove_maker", "vehicleId": "car4_groove", "implementName": "六行开沟机", "status": "PASS", "vehicleConfigSha256": "8fae33d855fe51f7dc1fa4ea122f50e35534df2b15ebd0f1c8a17ef292e3fbee"},
+    {"binding": "Car4__mounted_cultivator", "vehicleId": "car4_cultivator", "implementName": "悬挂式中耕机", "status": "PASS", "vehicleConfigSha256": "bf6f8f7230c36d84a604373f2ffac1caf73d3d804117c727bcaeccd236e5b389"},
+    {"binding": "Car4__forest_chain_crusher", "vehicleId": "car4_crusher", "implementName": "悬挂式林地粉碎机", "status": "PASS", "vehicleConfigSha256": "608d9180e1543859f589c940b1d888372a8622f25c66dc69d44d0118c89d8973"},
+    {"binding": "Car4__inter_row_milling_cutter", "vehicleId": "car4_interrow", "implementName": "四行铣土机", "status": "PASS", "vehicleConfigSha256": "a4b160e5552bd378142b1bac1d93dbdad43ad52fa8697b7ab07971752ae826dc"},
+    {"binding": "Car4__garlic_planter", "vehicleId": "car4_garlic", "implementName": "大蒜播种机", "status": "PASS", "vehicleConfigSha256": "8ae274241c7fb4bf2fe48240b468250947e9c41c4343c81ddf88cc5bc6d68364"},
+    {"binding": "Car4__mulch_planter", "vehicleId": "car4_mulch", "implementName": "灌水覆膜播种机", "status": "PASS", "vehicleConfigSha256": "d9c0f09ba72236357e4cc58710eee4a8dfaaa3e76e26fd917c86c5135913ba1e"}
+  ]
+}

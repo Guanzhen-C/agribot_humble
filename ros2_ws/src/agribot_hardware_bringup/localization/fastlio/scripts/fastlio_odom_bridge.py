@@ -95,6 +95,24 @@ def inverse_transform(matrix: np.ndarray) -> np.ndarray:
     return inverse
 
 
+def pose_delta_twist(previous: np.ndarray, current: np.ndarray, dt: float):
+    """Express finite-difference base velocity in the current base frame."""
+    if not 1e-4 < dt <= 0.5:
+        return np.zeros(3), np.zeros(3)
+    rotation = current[:3, :3]
+    linear = rotation.T @ (current[:3, 3] - previous[:3, 3]) / dt
+    delta = rotation @ previous[:3, :3].T
+    quaternion = np.asarray(quaternion_from_matrix(delta))
+    if quaternion[3] < 0:
+        quaternion = -quaternion
+    sine = np.linalg.norm(quaternion[:3])
+    angular = np.zeros(3)
+    if sine > 1e-12:
+        angular = rotation.T @ (quaternion[:3] / sine) * (
+            2.0 * np.arctan2(sine, quaternion[3]) / dt)
+    return linear, angular
+
+
 class FastLioOdomBridge(Node):
     def __init__(self) -> None:
         super().__init__("fastlio_odom_bridge")
@@ -112,6 +130,9 @@ class FastLioOdomBridge(Node):
             self.declare_parameter("stamp_with_current_time", False).value
         )
         self.is_simulation = bool(self.declare_parameter("is_simulation", False).value)
+        self.twist_from_pose = bool(self.declare_parameter("twist_from_pose", False).value)
+        self.previous_base_pose = None
+        self.previous_pose_stamp = None
 
         if self.is_simulation:
             # In simulation, Gazebo's IMU plugin compensates for gravity,
@@ -185,6 +206,15 @@ class FastLioOdomBridge(Node):
                 linear_body, self.cross_product(angular_body, self.translation_body_base)
             )
         )
+        if self.twist_from_pose:
+            measurement_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            linear_base, angular_base = np.zeros(3), np.zeros(3)
+            if self.previous_base_pose is not None:
+                linear_base, angular_base = pose_delta_twist(
+                    self.previous_base_pose, odom_to_base,
+                    measurement_time - self.previous_pose_stamp)
+            self.previous_base_pose = odom_to_base.copy()
+            self.previous_pose_stamp = measurement_time
 
         output = Odometry()
         output.header.stamp = stamp

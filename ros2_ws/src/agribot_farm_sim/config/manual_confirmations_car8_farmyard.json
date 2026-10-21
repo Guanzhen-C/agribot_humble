@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car8_farmyard_ackermann_all_implements_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car8",
+  "scenario": "farmyard",
+  "sceneName": "农场运输区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "coversAllCurrentSupportedImplements": true,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0037",
+  "userStatement": "很好，Car8在当前场景下用它适配的农机具通过了，下一个",
+  "limitations": [
+    "仅覆盖Car8受控前轮阿克曼版本搭载当前唯一开放的前置割草刀杆，在农场运输区使用默认FAST-LIVO2+RTK、Smac Hybrid、MPPI的人工选点验证。",
+    "不包含裸车、未来新增机具、其他场景、其他算法或旧差速脚轮结构；旧版本记录保留。",
+    "来自用户人工确认，不增加自动全程验收次数，不代表真实农具作业或碰撞安全认证；配置变化后需复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car8__front_sickle_bar",
+      "vehicleId": "mower_front_cutter",
+      "implementName": "前置割草刀杆",
+      "status": "PASS",
+      "vehicleConfigSha256": "0ad31e2ab2fc632e863ca35ac8c3b80532838d5690924717125dec1c980564ac"
+    }
+  ]
+}

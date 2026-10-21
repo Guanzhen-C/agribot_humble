@@ -64,4 +64,4 @@ Car1-Car5 在 Unity 完成当前车辆配置后可点击“导出真机配置”
 ROS_FLU 安装位姿、导航几何、运动学、FAST-LIVO2 外参和 SHA-256 清单，
 `manifest.json` 明确标记 `calibrationVerified=false` 与 `deployable=false`。
 它不包含底盘协议或固件，不能导入当前农机控制台或直接用于真车运动。
-Car000 仍使用上文的已验证导出流程。
+Car0 仍使用上文的已验证导出流程。

@@ -21,7 +21,7 @@
     localization_ready_topic: /localization/ready
     localization_ready_timeout_sec: 2.5
     headlight: false
-    wheelbase_m: 0.4020000100135803
+    wheelbase_m: 0.8370031098092812
     max_steering_angle_rad: 0.6108652353286743
     max_linear_velocity: 0.800000011920929
     max_angular_velocity: 0.699999988079071

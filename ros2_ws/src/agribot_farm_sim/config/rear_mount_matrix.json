@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "nominal_simulation_design_only",
+  "hosts": [
+    {"car": "Car1", "baseVehicleId": "unity_car1", "prefix": "car1", "source": "original_tractors_metric_v5/unity_car1"},
+    {"car": "Car2", "baseVehicleId": "unity_car2", "prefix": "car2", "source": "original_tractors_metric_v5/unity_car2"},
+    {"car": "Car4", "baseVehicleId": "unity_car4", "prefix": "car4", "source": "original_tractors_metric_v5/unity_car4"},
+    {"car": "Car5", "baseVehicleId": "unity_car5", "prefix": "car5", "source": "original_tractors_metric_v5/unity_car5"},
+    {"car": "Car6", "baseVehicleId": "compact_tractor", "prefix": "tractor", "source": "compact_tractor/ros_v6"},
+    {"car": "Car7", "baseVehicleId": "cab_tractor", "prefix": "cab", "source": "cab_tractor/ros_v7"}
+  ],
+  "implements": [
+    {"id": "compact_chisel_plow", "suffix": "chisel", "unityType": "ChiselPlow", "name": "凿式犁", "source": "compact_chisel_plow/ros_v1"},
+    {"id": "mounted_disc_harrow", "suffix": "harrow", "unityType": "DiscHarrow", "name": "圆盘耙", "source": "mounted_disc_harrow/ros_v1"},
+    {"id": "groove_maker", "suffix": "groove", "unityType": "GrooveMaker", "name": "六行开沟机", "source": "groove_maker/ros_v1"},
+    {"id": "mounted_cultivator", "suffix": "cultivator", "unityType": "Cultivator", "name": "悬挂式中耕机", "source": "mounted_cultivator/ros_v2"},
+    {"id": "forest_chain_crusher", "suffix": "crusher", "unityType": "ChainCrusher", "name": "悬挂式林地粉碎机", "source": "forest_chain_crusher/ros_v1"},
+    {"id": "inter_row_milling_cutter", "suffix": "interrow", "unityType": "InterrowMill", "name": "四行铣土机", "source": "inter_row_milling_cutter/ros_v1"},
+    {"id": "garlic_planter", "suffix": "garlic", "unityType": "GarlicPlanter", "name": "大蒜播种机", "source": "garlic_planter/ros_v1"},
+    {"id": "mulch_planter", "suffix": "mulch", "unityType": "MulchPlanter", "name": "灌水覆膜播种机", "source": "mulch_planter/ros_v1"}
+  ],
+  "designReviews": [
+    {"car": "Car6", "implement": "forest_chain_crusher", "reason": "当前名义质量与安装位置会使前轴卸载，需先设计配重并重新验证。"},
+    {"car": "Car6", "implement": "inter_row_milling_cutter", "reason": "当前名义质量与安装位置会使前轴卸载，需先设计配重并重新验证。"}
+  ],
+  "limitations": [
+    "连杆几何、名义静态轴荷与运输空间检查不能代替真实接口、结构强度、液压、PTO或举升能力验证。",
+    "已生成及可安装不表示已经完成场景全程验收；所有组合继续按精确模型与算法指纹记录运行结果。",
+    "待设计搭配不永久排除；明确配重或结构方案后重新审查，不通过修改验收阈值放行。"
+  ]
+}

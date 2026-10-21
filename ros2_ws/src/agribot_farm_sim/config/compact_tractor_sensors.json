@@ -1,0 +1,8 @@
+{
+  "surfaceProbes": {
+    "imu": [0.95, -0.10],
+    "lidar": [2.0, 0.0],
+    "rtk_master": [0.8, 0.0]
+  },
+  "notes": "Nominal simulation mounts. Move the shared lidar/camera stack ahead of solid_30, which obstructed 27 of 35 central forward camera rays at the old x=1.6 hood mount. The new mount remains on the hood and clears those rays. IMU and GNSS stay unchanged."
+}

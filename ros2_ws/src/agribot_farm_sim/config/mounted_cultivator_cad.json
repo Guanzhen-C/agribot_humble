@@ -1,0 +1,19 @@
+{
+  "id": "mounted_cultivator",
+  "displayName": "悬挂式中耕机",
+  "sourceArchive": "01.SolidWorks格式132套/工作宽度3m的中耕机.zip",
+  "sourceMember": "工作宽度3m的中耕机/Osnovna ramska konstrukcija.stp",
+  "sourceSha256": "22039ccd70823bab4b71b8e794549f6bc88499959658b26668216ceaee4f1b41",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[1, 0, 0], [0, 0, 1], [0, -1, 0]],
+  "maxVisualFaces": 65000,
+  "expectedSizeRangeM": [[2.2, 2.4], [2.6, 2.8], [1.0, 1.2]],
+  "tasks": ["中耕", "松土", "播种前整地"],
+  "notes": [
+    "Source CAD -Y is up, +X points toward the three-point hitch and +Z spans the tool rows.",
+    "Preserve the original approximately 2.68 m outer width; do not resize to the archive's claimed 3 m working width.",
+    "Origin is front ground centre of the mesh bounds, not a calibrated hitch pin.",
+    "Nominal cab-tractor fixed transport mount only; compact tractor front axle unloads with this nominal 180 kg rear implement.",
+    "No soil force, depth control or disc rotation."
+  ]
+}

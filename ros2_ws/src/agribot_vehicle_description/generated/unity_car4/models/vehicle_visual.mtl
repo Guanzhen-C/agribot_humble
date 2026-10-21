@@ -30,3 +30,7 @@ newmtl 02_暖白轮毂与饰板_7
 Kd 0.9058823 0.8470588 0.717647
 d 1
 illum 2
+
+newmtl NominalSensorMount
+Kd 0.18 0.20 0.21
+Ka 0.03 0.03 0.03

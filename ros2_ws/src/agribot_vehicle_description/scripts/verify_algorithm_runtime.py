@@ -24,14 +24,15 @@ from rclpy.parameter import Parameter
 from rclpy.qos import qos_profile_sensor_data
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from action_msgs.msg import GoalStatus
+from diagnostic_msgs.msg import DiagnosticArray
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import ComputePathThroughPoses, ComputePathToPose, FollowPath
 from nav2_msgs.srv import GetCostmap
 from nav_msgs.msg import Odometry, Path as PathMessage
 from rosgraph_msgs.msg import Clock
-from sensor_msgs.msg import Image, Imu, PointCloud2
-from std_msgs.msg import String
+from sensor_msgs.msg import Image, Imu, JointState, NavSatFix, PointCloud2
+from std_msgs.msg import Bool, String
 import yaml
 
 
@@ -46,6 +47,31 @@ SAFE_DOMAINS = tuple(domain for domain in (*range(1, 102), *range(215, 233))
 
 def case_domain(base, index, reuse=False):
     return base if reuse else SAFE_DOMAINS[(SAFE_DOMAINS.index(base) + index) % len(SAFE_DOMAINS)]
+
+
+def waypoint_acceptance_radii(count, wheelbase, full_route):
+    if not math.isfinite(wheelbase) or wheelbase <= 0:
+        raise ValueError("Final-position acceptance requires a positive finite wheelbase")
+    radii = [0.75] * count
+    if radii and full_route:
+        radii[-1] = wheelbase * 0.5
+    return radii
+
+
+def terminal_motion_stopped(command, twist):
+    return (len(command) == len(twist) == 2
+            and all(math.isfinite(value) for value in (*command, *twist))
+            and all(abs(value) < 1e-5 for value in command)
+            and all(abs(value) < 0.02 for value in twist))
+
+
+def check_settled_position(observation, waypoint, radius, sample_allowance):
+    point = observation["truth"]
+    target = waypoint.pose.position
+    error = math.hypot(point[0] - target.x, point[1] - target.y)
+    if not math.isfinite(error) or error > radius + sample_allowance:
+        raise RuntimeError("Vehicle stopped outside the final half-wheelbase position tolerance")
+    return error
 
 
 def abnormal_exits(log):
@@ -152,20 +178,52 @@ def path_prefix(path, distance):
 def ordered_waypoint_distances(path, waypoints):
     if not path.poses:
         raise ValueError("Planner returned an empty path")
-    index = 0
-    errors = []
+    if not waypoints:
+        return []
+    # Minimize the largest ordered miss. A greedy nearest point can jump to a
+    # later lap and incorrectly reject an otherwise valid out-and-back route.
+    costs = [0.0] * len(path.poses)
+    predecessors = []
     for target in waypoints:
-        candidates = [math.hypot(p.pose.position.x - target.pose.position.x,
-                                 p.pose.position.y - target.pose.position.y)
-                      for p in path.poses[index:]]
-        nearest = min(range(len(candidates)), key=candidates.__getitem__)
-        index += nearest
-        errors.append(candidates[nearest])
-    return errors
+        best = 0
+        parents = []
+        next_costs = []
+        for index, item in enumerate(path.poses):
+            if costs[index] < costs[best]:
+                best = index
+            distance = math.hypot(item.pose.position.x - target.pose.position.x,
+                                  item.pose.position.y - target.pose.position.y)
+            next_costs.append(max(costs[best], distance))
+            parents.append(best)
+        predecessors.append(parents)
+        costs = next_costs
+    index = min(range(len(costs)), key=costs.__getitem__)
+    errors = []
+    for target, parents in zip(reversed(waypoints), reversed(predecessors)):
+        item = path.poses[index].pose.position
+        errors.append(math.hypot(item.x - target.pose.position.x,
+                                 item.y - target.pose.position.y))
+        index = parents[index]
+    return errors[::-1]
+
+
+def driven_waypoint_distances(path, waypoints, terminal_observation, full_route):
+    if not full_route or not waypoints:
+        return ordered_waypoint_distances(path, waypoints)
+    # Intermediate neighborhoods share one radius. The final, differently
+    # sized neighborhood must use the actual stationary endpoint, not an
+    # arbitrary tied sample from the minimax trajectory assignment.
+    errors = ordered_waypoint_distances(path, waypoints[:-1])
+    point = terminal_observation["truth"]
+    target = waypoints[-1].pose.position
+    final_error = math.hypot(point[0] - target.x, point[1] - target.y)
+    if not math.isfinite(final_error):
+        raise ValueError("Final stationary position must be finite")
+    return errors + [final_error]
 
 
 class Probe(Node):
-    def __init__(self):
+    def __init__(self, localization):
         super().__init__(f"algorithm_runtime_acceptance_{time.monotonic_ns()}", parameter_overrides=[
             Parameter("use_sim_time", value=True)])
         self.counts = {}
@@ -192,18 +250,40 @@ class Probe(Node):
         self.latest_plan = None
         self.plan_updates = 0
         self.vision_result = None
+        self.fusion_fixed_active = False
+        self.fusion_diagnostics = {}
         self.trace = []
+        self.capture_terminal = False
+        self.terminal_observation = None
+        self.latest_command = [0.0, 0.0]
+        self.joint_names = set()
+        self.navigation_twist = None
+        self.navigation_odom_topic = {
+            "fastlivo_rtk": "/fastlivo_rtk/odometry",
+            "fast_lio": "/fastlio/odometry",
+            "navsat": "/odometry/filtered_navsat",
+            "kiss_icp": "/kiss/odometry",
+        }.get(localization, "/odom")
         self.last_trace_at = 0.0
         self.subscriptions_kept = []
         for topic, kind in (("/lidar/points", PointCloud2), ("/imu/data", Imu),
                             ("/configured/localization_points", PointCloud2),
                             ("/configured/obstacle_points", PointCloud2),
                             ("/camera/rgb/image_raw", Image), ("/odom", Odometry),
+                            ("/navsat/fix", NavSatFix),
+                            ("/joint_states", JointState),
+                            ("/fastlivo_rtk/fixed_active", Bool),
+                            ("/diagnostics", DiagnosticArray),
                             ("/amcl_pose", PoseWithCovarianceStamped),
                             ("/clock", Clock), ("/nav2/cmd_vel", Twist),
                             ("/vision/results", String), ("/vision/annotated_image", Image)):
             self.subscriptions_kept.append(self.create_subscription(
                 kind, topic, lambda msg, t=topic: self.on_message(t, msg),
+                qos_profile_sensor_data))
+        if self.navigation_odom_topic != "/odom":
+            self.subscriptions_kept.append(self.create_subscription(
+                Odometry, self.navigation_odom_topic,
+                lambda msg: self.on_message(self.navigation_odom_topic, msg),
                 qos_profile_sensor_data))
         self.subscriptions_kept.append(self.create_subscription(
             PathMessage, "/plan", lambda msg: self.on_message("/plan", msg), qos_profile_sensor_data))
@@ -222,13 +302,27 @@ class Probe(Node):
         if isinstance(message, PointCloud2) and message.width * message.height > 0:
             self.nonempty_clouds[topic] = self.nonempty_clouds.get(topic, 0) + 1
             self.cloud_sizes.setdefault(topic, []).append(message.width * message.height)
+        if topic == self.navigation_odom_topic:
+            self.navigation_twist = {
+                "topic": topic, "stamp": stamp, "frame": message.child_frame_id,
+                "linear": [getattr(message.twist.twist.linear, axis) for axis in ("x", "y", "z")],
+                "angular": [getattr(message.twist.twist.angular, axis) for axis in ("x", "y", "z")],
+            }
         if topic == "/clock":
             self.clock_samples.append((time.monotonic(), message.clock.sec +
                                        message.clock.nanosec * 1e-9))
+        elif topic == "/joint_states":
+            self.joint_names.update(message.name)
         elif topic == "/amcl_pose":
             self.estimate = message.pose.pose
             self.estimate_stamp = stamp
             self.record_pose_error()
+        elif topic == "/fastlivo_rtk/fixed_active":
+            self.fusion_fixed_active = bool(message.data)
+        elif topic == "/diagnostics":
+            for status in message.status:
+                if status.name == "agribot/fastlivo_rtk_fusion":
+                    self.fusion_diagnostics = {item.key: item.value for item in status.values}
         elif topic == "/odom":
             self.truth = message.pose.pose
             self.max_chassis_linear_speed = max(
@@ -244,20 +338,24 @@ class Probe(Node):
             if self.estimate is not None:
                 self.record_pose_error()
                 now = time.monotonic()
-                if now - self.last_trace_at >= 0.5:
+                if self.capture_terminal or now - self.last_trace_at >= 0.5:
                     self.trace.append({"wall_monotonic": now,
                                        "stamp": message.header.stamp.sec + message.header.stamp.nanosec * 1e-9,
                                        "truth": [self.truth.position.x, self.truth.position.y, self.truth.position.z],
                                        "chassis_twist": [message.twist.twist.linear.x, message.twist.twist.angular.z],
+                                       "command": self.latest_command,
+                                       "navigation_twist": self.navigation_twist,
                                        "estimate": [self.estimate.position.x, self.estimate.position.y, self.estimate.position.z],
                                        "truth_quaternion": [getattr(self.truth.orientation, key) for key in ("x", "y", "z", "w")],
                                        "estimate_quaternion": [getattr(self.estimate.orientation, key) for key in ("x", "y", "z", "w")]})
                     self.last_trace_at = now
         elif topic == "/vision/results":
             self.vision_result = json.loads(message.data)
-        elif topic == "/nav2/cmd_vel" and not self.motion_dispatched:
-            self.max_startup_command = max(self.max_startup_command,
-                abs(message.linear.x), abs(message.angular.z))
+        elif topic == "/nav2/cmd_vel":
+            self.latest_command = [message.linear.x, message.angular.z]
+            if not self.motion_dispatched:
+                self.max_startup_command = max(self.max_startup_command,
+                    abs(message.linear.x), abs(message.angular.z))
         elif topic == "/camera/rgb/image_raw" and len(self.image_dynamic_ranges) < 5:
             samples = message.data[::max(1, len(message.data) // 4096)]
             if samples:
@@ -428,12 +526,21 @@ class Probe(Node):
         last_read = 0.0
         last_progress = 0.0
         succeeded = False
+        last_motion = time.monotonic()
+        motion_anchor = None
 
         def finished():
-            nonlocal last_read, last_progress, succeeded
+            nonlocal last_read, last_progress, succeeded, last_motion, motion_anchor
             now = time.monotonic()
             if process.poll() is not None:
                 raise RuntimeError("Production launch exited during route execution")
+            if self.truth is not None and getattr(self, "stall_timeout", 0) > 0:
+                point = self.truth.position
+                current = (point.x, point.y)
+                if motion_anchor is None or math.dist(current, motion_anchor) >= 0.3:
+                    motion_anchor, last_motion = current, now
+                elif now - last_motion > self.stall_timeout:
+                    raise RuntimeError(f"No physical route progress for {self.stall_timeout:.0f}s; validation stopped")
             if now - last_progress >= 30 and self.truth is not None:
                 point = self.truth.position
                 print(f"Production route: truth=({point.x:.2f}, {point.y:.2f}), "
@@ -446,7 +553,44 @@ class Probe(Node):
 
         if not self.until(finished, seconds):
             raise TimeoutError("Production waypoint runner did not complete the full route")
+        self.observe_native_stop()
         return GoalStatus.STATUS_SUCCEEDED, self.displacement(start)
+
+
+    def observe_native_stop(self):
+        # The regular 2 Hz trace can end before braking finishes on a small car.
+        # Observe fresh truth at its native rate; never publish a stop command.
+        previous_count = len(self.trace)
+        stable_since = None
+        self.capture_terminal = True
+
+        def settled():
+            nonlocal stable_since
+            now = time.monotonic()
+            fresh = (len(self.trace) > previous_count
+                     and 0.0 <= now - self.trace[-1]["wall_monotonic"] <= 0.25)
+            stopped = fresh and terminal_motion_stopped(
+                self.latest_command, self.trace[-1]["chassis_twist"])
+            if not stopped:
+                stable_since = None
+                return False
+            if stable_since is None:
+                stable_since = now
+            return now - stable_since >= 1.0
+
+        try:
+            if not self.until(settled, 10):
+                raise RuntimeError("Native success was not followed by fresh stationary odometry and zero command")
+            self.terminal_observation = {
+                "protocol": "native_success_then_fresh_stationary_odometry_v1",
+                "fresh_terminal_samples": len(self.trace) - previous_count,
+                "stationary_hold_s": time.monotonic() - stable_since,
+                "truth": list(self.trace[-1]["truth"]),
+                "command": list(self.latest_command),
+                "chassis_twist": list(self.trace[-1]["chassis_twist"]),
+            }
+        finally:
+            self.capture_terminal = False
 
 
 def stop_session(process):
@@ -482,23 +626,27 @@ def run_case(case, args, output, waypoints):
     case_id = "_".join(case)
     result = {"id": case_id, "scope": args.scope, "status": "RUNNING",
               "vehicle_id": args.vehicle_id,
+              "scenario": args.scenario,
               "ros_domain_id": int(os.environ["ROS_DOMAIN_ID"]),
               "full_route": "NOT_RUN", "checks": {}, "started": time.strftime("%FT%T%z")}
     result_file = output / f"{case_id}.json"
     log_file = output / f"{case_id}.log"
     result_file.write_text(json.dumps(result, indent=2) + "\n")
     command = ["ros2", "launch", "agribot_vehicle_description",
-               "configured_ackermann_sim.launch.py", "gui:=false", "rviz:=false",
+               "configured_ackermann_sim.launch.py", f"gui:={str(args.gui).lower()}", f"rviz:={str(args.rviz).lower()}",
                f"vehicle_id:={args.vehicle_id}",
+               f"scenario:={args.scenario}",
                f"rmw_implementation:={args.rmw}",
                f"run_waypoints:={'true' if args.scope == 'full-route' else 'false'}", f"perception_mode:={perception}",
                f"localization_mode:={localization}", f"controller_mode:={controller}",
                f"planner_mode:={'smac_hybrid' if planner == 'direct' else planner}",
                f"route_mode:={'direct' if planner == 'direct' else 'planned'}",
-               f"vision_mode:={vision}", f"vision_python:={args.vision_python}"]
+               f"vision_mode:={vision}", f"vision_python:={args.vision_python}",
+               f"manipulator:={args.manipulator}", f"arm_demo:={args.arm_demo}"]
     started = time.monotonic()
     try:
-        node = Probe()
+        node = Probe(localization)
+        node.stall_timeout = args.stall_timeout
     except Exception as exc:
         result["status"] = "FAIL"
         result["error"] = f"Probe initialization failed: {type(exc).__name__}: {exc}"
@@ -519,6 +667,27 @@ def run_case(case, args, output, waypoints):
             libraries = loaded_library_paths(Path(f"/proc/{pid}/maps").read_text(),
                                              "libgazebo_transport.so")
             result["checks"]["gazebo_transport_libraries"] = libraries
+            if controller == "rpp":
+                control_process = re.search(
+                    r"\[controller_server-\d+\]: process started with pid \[(\d+)\]", log_file.read_text())
+                if control_process is None:
+                    raise RuntimeError("RPP controller process was not started")
+                rpp_libraries = loaded_library_paths(
+                    Path(f"/proc/{control_process[1]}/maps").read_text(),
+                    "libagribot_position_only_rpp_controller.so")
+                result["checks"]["position_only_rpp_libraries"] = rpp_libraries
+                if not rpp_libraries:
+                    raise RuntimeError("Position-only RPP adapter was not loaded")
+            if args.gui:
+                client = re.search(r"\[gzclient-\d+\]: process started with pid \[(\d+)\]",
+                                   log_file.read_text())
+                if client is None:
+                    raise RuntimeError("Gazebo GUI process was not started")
+                client_maps = Path(f"/proc/{client[1]}/maps").read_text()
+                catalogs = loaded_library_paths(client_maps, "libagribot_gazebo_local_model_catalog.so")
+                result["checks"]["gazebo_local_catalog_libraries"] = catalogs
+                if not catalogs:
+                    raise RuntimeError("Gazebo offline model catalog protection was not loaded")
             sensor_filter = loaded_library_paths(Path(f"/proc/{pid}/maps").read_text(),
                                                  "libagribot_simulation_sensor_collision_filter.so")
             result["checks"]["sensor_collision_filter_libraries"] = sensor_filter
@@ -578,6 +747,7 @@ def run_case(case, args, output, waypoints):
                 result["full_route"] = "RUNNING"
                 status, displacement = node.observe_production_route(log_file, process, args.motion_timeout)
                 result["checks"]["production_plan_updates"] = node.plan_updates
+                result["checks"]["terminal_stop_observation"] = node.terminal_observation
             else:
                 status, displacement = node.follow(selected, args.motion_timeout)
             result["checks"]["controller_action_status"] = status
@@ -599,12 +769,26 @@ def run_case(case, args, output, waypoints):
             if expected_waypoints:
                 driven = PathMessage()
                 driven.poses = [pose(item["truth"][0], item["truth"][1], 0) for item in node.trace]
-                errors = ordered_waypoint_distances(driven, expected_waypoints)
+                errors = driven_waypoint_distances(
+                    driven, expected_waypoints, node.terminal_observation, args.scope == "full-route")
                 result["checks"]["driven_waypoints"] = len(expected_waypoints)
                 result["checks"]["driven_waypoint_errors_m"] = errors
+                contract = json.loads((Path(get_package_share_directory("agribot_vehicle_description")) /
+                    "generated" / args.vehicle_id / "vehicle_config.json").read_text())
+                final_radius = float(contract["geometry"]["wheelbaseM"]) * 0.5
+                full_route = args.scope == "full-route"
+                radii = waypoint_acceptance_radii(len(errors), final_radius * 2, full_route)
+                sample_allowance = 0.03 if full_route else 0.0
                 result["checks"]["waypoint_neighborhood_radius_m"] = 0.75
-                if max(errors) > 0.75:
-                    raise RuntimeError("Vehicle did not visit all mandatory waypoint neighborhoods within 0.75m")
+                result["checks"]["driven_waypoint_acceptance_radii_m"] = radii
+                result["checks"]["final_waypoint_radius_m"] = radii[-1]
+                result["checks"]["final_sample_allowance_m"] = sample_allowance
+                if any(error > radius + (sample_allowance if i == len(errors) - 1 else 0.0)
+                       for i, (error, radius) in enumerate(zip(errors, radii))):
+                    raise RuntimeError("Vehicle missed an intermediate 0.75m neighborhood or final half-wheelbase tolerance")
+                if full_route:
+                    result["checks"]["settled_final_waypoint_error_m"] = check_settled_position(
+                        node.terminal_observation, expected_waypoints[-1], radii[-1], sample_allowance)
             for topic in ("/lidar/points", "/configured/obstacle_points", "/imu/data", "/camera/rgb/image_raw", "/odom"):
                 if node.counts.get(topic, 0) < 3:
                     raise RuntimeError(f"Sensor topic missing: {topic}")
@@ -617,12 +801,27 @@ def run_case(case, args, output, waypoints):
             if localization in ("fast_lio", "fastlivo_rtk"):
                 if node.nonempty_clouds.get("/configured/localization_points", 0) < 3:
                     raise RuntimeError("Simulation localization time adapter produced no clouds")
+            if localization in ("navsat", "fastlivo_rtk"):
+                if node.counts.get("/navsat/fix", 0) < 3:
+                    raise RuntimeError("Simulated RTK fixes are missing")
+            if localization == "fastlivo_rtk":
+                result["checks"]["rtk_fixed_active"] = node.fusion_fixed_active
+                result["checks"]["fusion_diagnostics"] = node.fusion_diagnostics
+                if int(node.fusion_diagnostics.get("fixed_rtk_factors", "0")) < 2:
+                    raise RuntimeError("Fusion did not accept enough RTK factors")
+                if not node.fusion_fixed_active:
+                    raise RuntimeError("FAST-LIVO2/RTK fusion did not activate fixed-position constraints")
             if vision != "off":
                 if not node.until(lambda: node.counts.get("/vision/results", 0) >= 3
                                   and node.counts.get("/vision/annotated_image", 0) >= 3, 30):
                     raise RuntimeError("Real visual inference produced no outputs")
                 if node.vision_result["mode"] != vision:
                     raise RuntimeError("Visual output mode is not the selected mode")
+            if args.manipulator == "true":
+                arm_joints = sorted(name for name in node.joint_names if name.startswith("manipulator_"))
+                result["checks"]["manipulator_feedback_joints"] = arm_joints
+                if len(arm_joints) < 8:
+                    raise RuntimeError("Mounted arm did not publish all six joints and two gripper joints")
             result["status"] = "PASS"
             if args.scope == "full-route":
                 result["full_route"] = "PASS"
@@ -683,6 +882,12 @@ def main():
     parser.add_argument("--suite", choices=("coverage", "navigation-matrix", "direct-matrix", "matrix"), default="coverage")
     parser.add_argument("--case", help="Exact canonical combination ID")
     parser.add_argument("--vehicle-id", default="ackermann_current")
+    parser.add_argument("--manipulator", choices=("configured", "true", "false"), default="configured")
+    parser.add_argument("--arm-demo", choices=("configured", "true", "false"), default="configured")
+    parser.add_argument("--gui", action="store_true", help="Display Gazebo during runtime validation")
+    parser.add_argument("--rviz", action="store_true", help="Display RViz during runtime validation")
+    parser.add_argument("--scenario", choices=("orchard", "arable_field", "greenhouse", "farmyard", "tomato_greenhouse", "strawberry_field", "vineyard", "vegetable_field", "wide_headland"),
+                        default="orchard")
     parser.add_argument("--controller-filter", choices=CONTROLLERS,
                         help="Retest one controller across the selected suite")
     parser.add_argument("--scope", choices=("smoke", "full-route"), default="smoke")
@@ -693,11 +898,13 @@ def main():
                         help="Use one domain for a separate restart/reuse stress test")
     parser.add_argument("--startup-timeout", type=float, default=120)
     parser.add_argument("--motion-timeout", type=float, default=90)
+    parser.add_argument("--stall-timeout", type=float, default=0,
+                        help="Optional validation-only no-motion timeout; zero disables the observer")
     parser.add_argument("--motion-distance", type=float, default=2.0)
     parser.add_argument("--terminal-yaw-offset", type=float, default=0.0,
                         help="Smoke-only terminal heading change in radians for differential controller checks")
     parser.add_argument("--local-maneuver", action="store_true",
-                        help="Plan a short forward target at the actual spawn pose instead of the orchard mission")
+                        help="Plan a short forward target at the actual spawn pose instead of the scene mission")
     parser.add_argument("--maneuver-lateral-offset", type=float, default=0.0,
                         help="Local-maneuver target lateral offset in meters")
     parser.add_argument("--vision-python", default=str(
@@ -708,10 +915,12 @@ def main():
         parser.error("Invalid vehicle ID")
     if not math.isfinite(args.motion_distance) or args.motion_distance < 1.5:
         parser.error("--motion-distance must be finite and >= 1.5m")
+    if not math.isfinite(args.stall_timeout) or args.stall_timeout < 0:
+        parser.error("--stall-timeout must be finite and nonnegative")
     if args.domain not in SAFE_DOMAINS:
         parser.error("Use Linux-safe domains 1..101 or 215..232, excluding Unity 37")
     if args.scope == "full-route" and args.motion_timeout < 2000:
-        parser.error("Full orchard route requires --motion-timeout >= 2000")
+        parser.error("Full route requires --motion-timeout >= 2000")
     if not math.isfinite(args.terminal_yaw_offset) or (
             args.terminal_yaw_offset and args.scope != "smoke"):
         parser.error("--terminal-yaw-offset must be finite and is only supported for smoke checks")
@@ -725,6 +934,8 @@ def main():
     os.environ["RMW_IMPLEMENTATION"] = args.rmw
     share = Path(get_package_share_directory("agribot_vehicle_description"))
     vehicle = json.loads((share / "generated" / args.vehicle_id / "vehicle_config.json").read_text())
+    if args.manipulator == "true" and args.vehicle_id not in ("ackermann_current", "unity_car3"):
+        parser.error("Manipulator is supported only on Car0 and Car3")
     if args.terminal_yaw_offset and vehicle["vehicleType"] == "ackermann":
         parser.error("Terminal heading maneuvers require a differential or tracked vehicle")
     if args.rmw == "rmw_cyclonedds_cpp":
@@ -751,9 +962,20 @@ def main():
         cases = [case for case in cases if case[-1] == args.controller_filter]
     waypoint_file = Path(get_package_share_directory("agribot_ackermann_mppi")) / \
         "config/orchard_waypoints_ackermann_smac.yaml"
+    scenario_files = []
+    if args.scenario != "orchard":
+        from agribot_farm_sim.scenarios import build, write_vehicle_route
+        scene = build(args.scenario, Path.home() / ".cache/agribot/scenarios")
+        waypoint_file = write_vehicle_route(args.scenario, vehicle, scene)
+        scenario_files = [scene / name for name in ("world.sdf", "map.yaml", "geometry.json")]
+        image = Path(yaml.safe_load((scene / "map.yaml").read_text())["image"])
+        scenario_files.append(image if image.is_absolute() else scene / image)
+        scenario_files.append(Path(get_package_share_directory("agribot_farm_sim")) / "config/scenarios.json")
     waypoints = [pose(p["x"], p["y"], p["yaw"])
                  for p in yaml.safe_load(waypoint_file.read_text())["waypoints"]]
     summary = {"scope": args.scope, "vehicle_id": args.vehicle_id,
+               "scenario": args.scenario,
+               "manipulator": args.manipulator, "arm_demo": args.arm_demo,
                "planned_cases": len(cases), "results": [],
                "motion_distance_m": args.motion_distance,
                "terminal_yaw_offset_rad": args.terminal_yaw_offset,
@@ -764,7 +986,9 @@ def main():
     summary["host"] = {"machine": platform.machine(), "node": platform.node(),
                        "os": platform.platform(), "ros_distro": os.environ.get("ROS_DISTRO"),
                        "rmw_implementation": os.environ.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")}
-    snapshot_files = [Path(__file__), share / "launch/configured_ackermann_sim.launch.py",
+    snapshot_files = scenario_files + [Path(__file__), share / "launch/configured_ackermann_sim.launch.py",
+                      Path(get_package_prefix("agribot_autonomy")) /
+                      "lib/agribot_autonomy/snake_waypoint_runner.py",
                       share / f"generated/{args.vehicle_id}/vehicle_config.json", waypoint_file,
                       share / f"generated/{args.vehicle_id}/models/{args.vehicle_id}.sdf",
                       share / f"generated/{args.vehicle_id}/urdf/{args.vehicle_id}.urdf.xacro",
@@ -777,6 +1001,12 @@ def main():
                       "lib/agribot_hardware_bringup/navsat_pose_bridge.py",
                       Path(get_package_prefix("fast_livo")) / "lib/fast_livo/fastlivo_mapping"]
     snapshot_files += [share / "config/ackermann_mppi_simulation.yaml",
+                      share / "config/nominal_ackermann_navigation.yaml",
+                      share / "config/tracked_contact_simulation.yaml",
+                      share / "config/terminal_stop_simulation.yaml",
+                      share / "config/behavior_trees/navigate_initial_plan_with_recovery.xml",
+                      share / "config/behavior_trees/navigate_through_poses_initial_plan_with_recovery.xml",
+                      share / "config/rpp_controller.yaml",
                       share / "config/dwb_controller.yaml",
                       share / "config/differential_controllers.yaml",
                       Path(get_package_prefix("agribot_vehicle_description")) /
@@ -785,8 +1015,25 @@ def main():
                       "lib/agribot_vehicle_description/simulation_initial_pose.py",
                       Path(get_package_prefix("agribot_vehicle_description")) /
                       "lib/libagribot_ackermann_trajectory_generator.so",
+                      Path(get_package_prefix("agribot_vehicle_description")) /
+                      "lib/libagribot_route_progress_goal_checker.so",
                       Path(get_package_share_directory("agribot_ackermann_mppi")) /
                       "launch/ackermann_waypoint_depth_collect_sim.launch.py"]
+    snapshot_files += list((share / "generated" / args.vehicle_id / "config").rglob("*.yaml"))
+    snapshot_files.append(Path(get_package_prefix("agribot_vehicle_description")) /
+                          "lib/agribot_vehicle_description/simulation_vehicle_cloud_filter.py")
+    if args.rviz:
+        snapshot_files += [
+            Path(get_package_share_directory("scout_viz")) / "scripts/run_rviz2_clean_env.sh",
+            Path(get_package_prefix("scout_viz")) / "lib/libscout_image_display.so",
+        ]
+    if any(case[-1] == "rpp" for case in cases):
+        snapshot_files += [share / "position_only_rpp_plugins.xml",
+            Path(get_package_prefix("agribot_vehicle_description")) /
+            "lib/libagribot_position_only_rpp_controller.so"]
+    if args.gui:
+        snapshot_files.append(Path(get_package_prefix("agribot_ackermann_mppi")) /
+                              "lib/libagribot_gazebo_local_model_catalog.so")
     compat = Path(get_package_prefix("agribot_vehicle_description")) / \
         "lib/agribot_gazebo_transport_compat/libgazebo_transport.so.11"
     if compat.is_file():

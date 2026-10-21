@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car8_arable_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car8",
+  "scenario": "arable_field",
+  "sceneName": "玉米试验田",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0009",
+  "userStatement": "很好，这个Car8在这个场景下的所有农机具使用该默认算法都是通过的，下一个",
+  "limitations": [
+    "按用户对全部已开放机具的确认记录，当前Car8仅开放前置割草刀杆；不包含裸车或未来新增机具。",
+    "仅对应本场景人工经停点，保留原自动路线与历史结果，不代表任意路线或真实割草作业通过。",
+    "配置SHA变化后需要复核；不将用户确认混入独立自动全程验收计数。",
+    "机具不参与导航碰撞的限制保持，不提供机具防撞安全保证。"
+  ],
+  "confirmations": [
+    {"binding": "Car8__front_sickle_bar", "vehicleId": "mower_front_cutter", "implementName": "前置割草刀杆", "status": "PASS", "vehicleConfigSha256": "83db23aacca008b7daa9d0a402c86b53aa5eabdcb26f95746e31ce0148e3de01"}
+  ]
+}

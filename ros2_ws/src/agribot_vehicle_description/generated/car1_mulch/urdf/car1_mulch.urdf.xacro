@@ -1,0 +1,228 @@
+<?xml version="1.0"?>
+<robot name="car1_mulch">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="1.26617140659 0 0.15" rpy="0 0 0" />
+      <mass value="6000" />
+      <inertia ixx="7517.18824707" ixy="0" ixz="0" iyy="15768.3593833" iyz="0" izz="14788.8277172" />
+    </inertial>
+    <collision>
+      <origin xyz="1.25238674609 2.38852379999e-07 0.922406689519" rpy="0 0 0" />
+      <geometry>
+        <box size="4.79999988057 2.55688415478 2.91491336289" />
+      </geometry>
+    </collision>
+    <visual name="vehicle_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/vehicle_visual.obj" scale="1 1 1" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/sensor_imu_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="imu_mount_joint" type="fixed">
+    <origin xyz="2.57 0 1.32060797228" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/sensor_lidar_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="lidar_mount_joint" type="fixed">
+    <origin xyz="2.8 0 1.46963798028" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="lidar_link" />
+  </joint>
+  <link name="right_camera_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/sensor_right_camera_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_camera_mount_joint" type="fixed">
+    <origin xyz="2.8253 0 1.58822498028" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="right_camera_link" />
+  </joint>
+  <link name="right_camera_optical_frame" />
+  <joint name="right_camera_measurement_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679" />
+    <parent link="right_camera_link" />
+    <child link="right_camera_optical_frame" />
+  </joint>
+  <link name="rtk_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/sensor_rtk_master_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rtk_master_mount_joint" type="fixed">
+    <origin xyz="0.6 0.325 2.71803069037" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_link" />
+  </joint>
+  <link name="rtk_secondary_link">
+  </link>
+  <joint name="rtk_secondary_mount_joint" type="fixed">
+    <origin xyz="0.6 -0.325 2.71803069037" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_secondary_link" />
+  </joint>
+  <link name="front_left_steering_link" />
+  <joint name="front_left_steering_joint" type="revolute">
+    <origin xyz="2.81371399801 0.949440360166 -0.198884554409" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_left_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.742035886603" upper="0.742035886603" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/front_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.760324032115" length="0.617600240684" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_left_steering_link" />
+    <child link="front_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="front_right_steering_link" />
+  <joint name="front_right_steering_joint" type="revolute">
+    <origin xyz="2.81371423686 -0.949439643608 -0.198884793262" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_right_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.742035886603" upper="0.742035886603" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/front_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.760323793262" length="0.617600240684" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_right_steering_link" />
+    <child link="front_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/rear_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.959208586524" length="0.710278905187" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <origin xyz="-1.60036992584e-07 0.915599874394 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/rear_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.959208586524" length="0.710279263466" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <origin xyz="5.82590000213e-08 -0.91559981468 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="mulch_planter_link">
+    <inertial>
+      <origin xyz="-0.160563423769 0 0.571" rpy="0 0 0" />
+      <mass value="80.0" />
+      <inertia ixx="16.231212846209797" iyy="41.060638505359236" izz="39.84203801823569" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual name="mulch_planter_visual">
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_mulch/models/implement_mulch_planter_visual.obj" />
+      </geometry>
+    </visual>
+    <collision name="implement_envelope">
+      <origin xyz="-0.630370020866 0 0.543172478676" rpy="0 0 0" />
+      <geometry>
+        <box size="1.26274004173 1.06110599232 1.08834495735" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_left">
+      <origin xyz="0.212306597098 0.352 0.54" rpy="0 0 0" />
+      <geometry>
+        <box size="0.390613194196 0.276 0.086" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_right">
+      <origin xyz="0.212306597098 -0.352 0.54" rpy="0 0 0" />
+      <geometry>
+        <box size="0.390613194196 0.276 0.086" />
+      </geometry>
+    </collision>
+    <collision name="hitch_top_link">
+      <origin xyz="0.478806597098 0 1.059" rpy="0 0 0" />
+      <geometry>
+        <box size="0.923613194196 0.172 0.168" />
+      </geometry>
+    </collision>
+    <collision name="hitch_receiver_frame">
+      <origin xyz="-0.21086641611 0.0315 0.787609765219" rpy="0 0 0" />
+      <geometry>
+        <box size="0.590267167779 0.862 0.655909108932" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="mulch_planter_mount_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="mulch_planter_link" />
+    <origin xyz="-1.4476131942 0 -0.268" rpy="0 0 0" />
+  </joint>
+  <link name="mulch_planter_work_frame" />
+  <joint name="mulch_planter_work_joint" type="fixed">
+    <parent link="mulch_planter_link" />
+    <child link="mulch_planter_work_frame" />
+    <origin xyz="-0.819481027126 0 0" rpy="0 0 0" />
+  </joint>
+</robot>

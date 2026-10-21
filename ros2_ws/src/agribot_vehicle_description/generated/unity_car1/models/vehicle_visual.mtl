@@ -1,740 +1,124 @@
-newmtl Body_paint_(Instance)_0
+newmtl Body_paint_0
 Kd 1 1 1
 d 1
 illum 2
-newmtl Steel_(Instance)_1
+newmtl Steel_1
 Kd 0.567896545 0.5714868 0.589021
 d 1
 illum 2
-newmtl Rubber_black_(Instance)_2
-Kd 0.180858433 0.180858433 0.180858433
+newmtl Rubber_black_2
+Kd 0.180858463 0.180858463 0.180858463
 d 1
 illum 2
-newmtl Plastic_black_(Instance)_3
-Kd 0.269015133 0.269015133 0.269015133
+newmtl Plastic_black_3
+Kd 0.269015163 0.269015163 0.269015163
 d 1
 illum 2
-newmtl Aluminium_(Instance)_4
+newmtl Aluminium_4
 Kd 0.7764671 0.7788681 0.7860137
 d 1
 illum 2
-newmtl radiator_(Instance)_5
+newmtl radiator_5
 Kd 1 1 1
 d 1
 illum 2
-newmtl Rubber_black_(Instance)_6
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Steel_(Instance)_7
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_8
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_9
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_10
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_11
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_12
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_13
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_14
+newmtl Chrome_6
 Kd 0.625413954 0.634878 0.650259435
 d 1
 illum 2
-newmtl Body_paint_(Instance)_15
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_16
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_17
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_18
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_19
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_20
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_21
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_22
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_23
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_24
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_25
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_26
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_27
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_28
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_29
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_30
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_31
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_32
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_33
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_34
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Emitter_(Instance)_35
+newmtl Emitter_7
 Kd 1 0.9965443 0.955603063
 d 1
 illum 2
-newmtl Body_paint_(Instance)_36
-Kd 1 1 1
-d 1
-illum 2
-newmtl mirror_(Instance)_37
+newmtl mirror_8
 Kd 0.85959065 0.85959065 0.85959065
 d 1
 illum 2
-newmtl Steel_(Instance)_38
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl color_plastics_(Instance)_39
+newmtl color_plastics_9
 Kd 1 1 1
 d 1
 illum 2
-newmtl headlights_cap01_(Instance)_40
+newmtl headlights_cap01_10
 Kd 0.880315065 0.880315065 0.880315065
 d 0.299999952
 illum 2
-newmtl headlights_cap02_(Instance)_41
+newmtl headlights_cap02_11
 Kd 0.6592671 0.5532369 0
 d 0.399999976
 illum 2
-newmtl headlights_cap03_(Instance)_42
+newmtl headlights_cap03_12
 Kd 0.804665 0.806956947 0.806956947
 d 0.299999952
 illum 2
-newmtl Glass_windows_(Instance)_43
-Kd 0.229735017 0.432587177 0.5457181
+newmtl Glass_windows_13
+Kd 0.229735047 0.4325872 0.5457181
 d 0.199999988
 illum 2
-newmtl Plastic_black_(Instance)_44
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_45
+newmtl Dashboard_14
 Kd 1 1 1
 d 1
 illum 2
-newmtl Steel_(Instance)_46
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Aluminium_(Instance)_47
-Kd 0.7764671 0.7788681 0.7860137
-d 1
-illum 2
-newmtl Dashboard_(Instance)_48
-Kd 1 1 1
-d 1
-illum 2
-newmtl color_plastics_(Instance)_49
-Kd 1 1 1
-d 1
-illum 2
-newmtl fill_holes_(Instance)_50
+newmtl fill_holes_15
 Kd 0 0 0
 d 1
 illum 2
-newmtl Cabin_floor_(Instance)_51
+newmtl Cabin_floor_16
 Kd 0.589021 0.589021 0.595850945
 d 1
 illum 2
-newmtl Body_paint_(Instance)_52
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_53
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_54
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_55
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_56
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_57
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_58
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_59
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_60
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_61
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_62
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_63
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Steel_(Instance)_64
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Dashboard_(Instance)_65
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_66
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Chrome_(Instance)_67
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl katafot_(Instance)_68
+newmtl katafot_17
 Kd 1 0.790730655 0
 d 0.5
 illum 2
-newmtl color_plastics_(Instance)_69
-Kd 1 1 1
+newmtl black_grill02_18
+Kd 0.269015163 0.269015163 0.269015163
 d 1
 illum 2
-newmtl Body_paint_(Instance)_70
-Kd 1 1 1
-d 1
-illum 2
-newmtl Chrome_(Instance)_71
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl black_grill02_(Instance)_72
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Steel_(Instance)_73
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_74
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_75
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Aluminium_(Instance)_76
-Kd 0.7764671 0.7788681 0.7860137
-d 1
-illum 2
-newmtl Body_paint_(Instance)_77
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_78
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_79
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_80
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_81
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Chrome_(Instance)_82
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_83
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_84
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Chrome_(Instance)_85
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Steel_(Instance)_86
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Chrome_(Instance)_87
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_88
-Kd 1 1 1
-d 1
-illum 2
-newmtl black_grill02_(Instance)_89
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Steel_(Instance)_90
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Chrome_(Instance)_91
-Kd 0.625413954 0.634878 0.650259435
-d 1
-illum 2
-newmtl Body_paint_(Instance)_92
-Kd 1 1 1
-d 1
-illum 2
-newmtl black_grill02_(Instance)_93
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_94
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_95
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_96
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_97
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl black_grill02_(Instance)_98
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_99
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_100
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_101
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_102
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_103
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_104
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_105
-Kd 1 1 1
-d 1
-illum 2
-newmtl Body_paint_(Instance)_106
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_107
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_108
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_109
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_110
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_111
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_112
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_113
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_114
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_115
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_116
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_117
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Body_paint_(Instance)_118
-Kd 1 1 1
-d 1
-illum 2
-newmtl flasher_(Instance)_119
+newmtl flasher_19
 Kd 0.741777539 0 0
 d 0.399999976
 illum 2
-newmtl Aluminium_(Instance)_120
-Kd 0.7764671 0.7788681 0.7860137
-d 1
-illum 2
-newmtl mirror_(Instance)_121
-Kd 0.85959065 0.85959065 0.85959065
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_122
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Emitter_(Instance)_123
-Kd 1 0.9965443 0.955603063
-d 1
-illum 2
-newmtl Dashboard_(Instance)_124
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_125
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl flasher_(Instance)_126
-Kd 0.741777539 0 0
-d 0.399999976
-illum 2
-newmtl backlights_cap_(Instance)_127
+newmtl backlights_cap_20
 Kd 0.6592671 0.5785821 0
 d 0.399999976
 illum 2
-newmtl Body_paint_(Instance)_128
+newmtl pedal_21
+Kd 0.180858463 0.180858463 0.180858463
+d 1
+illum 2
+newmtl Seat_cloth02_22
 Kd 1 1 1
 d 1
 illum 2
-newmtl color_plastics_(Instance)_129
+newmtl Seat_cloth01_23
 Kd 1 1 1
 d 1
 illum 2
-newmtl Rubber_black_(Instance)_130
-Kd 0.180858433 0.180858433 0.180858433
+newmtl cloth_24
+Kd 0.2598333 0.250260323 0.229735047
 d 1
 illum 2
-newmtl Glass_windows_(Instance)_131
-Kd 0.229735017 0.432587177 0.5457181
-d 0.199999988
-illum 2
-newmtl Dashboard_(Instance)_132
-Kd 1 1 1
+newmtl black_grill01_25
+Kd 0.150005162 0.150005162 0.150005162
 d 1
 illum 2
-newmtl Aluminium_(Instance)_133
-Kd 0.7764671 0.7788681 0.7860137
+newmtl Steel_black_26
+Kd 0.150005162 0.150005162 0.150005162
 d 1
 illum 2
-newmtl color_plastics_(Instance)_134
-Kd 1 1 1
-d 1
-illum 2
-newmtl pedal_(Instance)_135
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Dashboard_(Instance)_136
-Kd 1 1 1
-d 1
-illum 2
-newmtl Seat_cloth02_(Instance)_137
-Kd 1 1 1
-d 1
-illum 2
-newmtl Seat_cloth01_(Instance)_138
-Kd 1 1 1
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_139
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl cloth_(Instance)_140
-Kd 0.259833276 0.2502603 0.229735017
-d 1
-illum 2
-newmtl Steel_(Instance)_141
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl fill_holes_(Instance)_142
-Kd 0 0 0
-d 1
-illum 2
-newmtl Aluminium_(Instance)_143
-Kd 0.7764671 0.7788681 0.7860137
-d 1
-illum 2
-newmtl Glass_windows_(Instance)_144
-Kd 0.229735017 0.432587177 0.5457181
-d 0.199999988
-illum 2
-newmtl Dashboard_(Instance)_145
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_146
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Glass_windows_(Instance)_147
-Kd 0.229735017 0.432587177 0.5457181
-d 0.199999988
-illum 2
-newmtl Dashboard_(Instance)_148
-Kd 1 1 1
-d 1
-illum 2
-newmtl color_plastics_(Instance)_149
-Kd 1 1 1
-d 1
-illum 2
-newmtl Glass_windows_(Instance)_150
-Kd 0.229735017 0.432587177 0.5457181
-d 0.199999988
-illum 2
-newmtl Plastic_black_(Instance)_151
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_152
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Dashboard_(Instance)_153
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_154
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_155
-Kd 1 1 1
-d 1
-illum 2
-newmtl headlights_cap01_(Instance)_156
-Kd 0.880315065 0.880315065 0.880315065
-d 0.299999952
-illum 2
-newmtl black_grill01_(Instance)_157
-Kd 0.150005132 0.150005132 0.150005132
-d 1
-illum 2
-newmtl Body_paint_(Instance)_158
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_159
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Steel_black_(Instance)_160
-Kd 0.150005132 0.150005132 0.150005132
-d 1
-illum 2
-newmtl color_plastics_(Instance)_161
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_162
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl black_grill02_(Instance)_163
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl mirror_(Instance)_164
-Kd 0.85959065 0.85959065 0.85959065
-d 1
-illum 2
-newmtl headlights_reflector_(Instance)_165
+newmtl headlights_reflector_27
 Kd 0.6562824 0.6592671 0.665185034
 d 1
 illum 2
-newmtl Plastic_black_(Instance)_166
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Rubber_black_(Instance)_167
-Kd 0.180858433 0.180858433 0.180858433
-d 1
-illum 2
-newmtl Dashboard_(Instance)_168
-Kd 1 1 1
-d 1
-illum 2
-newmtl Dashboard_(Instance)_169
-Kd 1 1 1
-d 1
-illum 2
-newmtl Glass_windows_(Instance)_170
-Kd 0.229735017 0.432587177 0.5457181
-d 0.199999988
-illum 2
-newmtl color_plastics_(Instance)_171
-Kd 1 1 1
-d 1
-illum 2
-newmtl Plastic_black_(Instance)_172
-Kd 0.269015133 0.269015133 0.269015133
-d 1
-illum 2
-newmtl Body_paint_(Instance)_173
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_174
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Tyres_front_(Instance)_175
+newmtl Tyres_front_28
 Kd 0 0 0
 d 1
 illum 2
-newmtl Body_paint_(Instance)_176
-Kd 1 1 1
-d 1
-illum 2
-newmtl Steel_(Instance)_177
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Tyres_front_(Instance)_178
+newmtl Tyres_rear_29
 Kd 0 0 0
 d 1
 illum 2
-newmtl Steel_(Instance)_179
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_180
-Kd 1 1 1
-d 1
-illum 2
-newmtl Tyres_rear_(Instance)_181
-Kd 0 0 0
-d 1
-illum 2
-newmtl Steel_(Instance)_182
-Kd 0.567896545 0.5714868 0.589021
-d 1
-illum 2
-newmtl Body_paint_(Instance)_183
-Kd 1 1 1
-d 1
-illum 2
-newmtl Tyres_rear_(Instance)_184
-Kd 0 0 0
-d 1
-illum 2
+
+newmtl NominalSensorMount
+Kd 0.18 0.20 0.21
+Ka 0.03 0.03 0.03

@@ -1,3 +1,17 @@
+# Unity导出车辆：启动仿真后由用户选取经停点，不自动行驶
+# Unity中点击“启动仿真”即可；以下是使用已有ROS导出文件的等效入口
+# vehicle_id替换为当前车辆导出ID，scenario替换为所选场景；此示例为原阿克曼车/苹果园
+# RViz的Navigation 2面板：先点Waypoint / Nav Through Poses Mode，
+# 再用Nav2 Goal依次点击并拖出各点方向，最后点Start Nav Through Poses
+source /opt/ros/humble/setup.bash
+source /home/cgz/agribot_ws/ros2_ws/install/setup.bash
+export ROS_DOMAIN_ID=37
+export ROS_LOCALHOST_ONLY=1
+ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
+  vehicle_id:=ackermann_current \
+  scenario:=orchard \
+  gui:=true rviz:=true run_waypoints:=false
+
 # ROS 2 编译（首次运行或修改代码后执行）
 cd /home/cgz/agribot_ws/ros2_ws
 ./build_ros2_humble.sh

@@ -1,0 +1,21 @@
+# Large nominal simulation vehicles only; Car0 and physical profiles are unchanged.
+FollowPath:
+  time_steps: 60
+  CostCritic:
+    cost_weight: 2.5
+  PathAlignCritic:
+    cost_weight: 6.0
+  PathFollowCritic:
+    cost_weight: 5.0
+  PathAngleCritic:
+    cost_weight: 14.0
+    offset_from_furthest: 12
+    max_angle_to_furthest: 0.10
+GridBased:
+  downsample_costmap: false
+  downsampling_factor: 1
+  max_iterations: 5000000
+  analytic_expansion_ratio: 2.0
+  non_straight_penalty: 1.05
+  cost_penalty: 1.5
+  retrospective_penalty: 0.0

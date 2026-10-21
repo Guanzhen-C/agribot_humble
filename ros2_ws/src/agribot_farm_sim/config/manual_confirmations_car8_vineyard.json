@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car8_vineyard_all_implements_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car8",
+  "scenario": "vineyard",
+  "sceneName": "葡萄园",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "coversAllCurrentSupportedImplements": true,
+  "groupPolicy": "manual_validation_policy.json",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0066",
+  "userStatement": "通过，下一个",
+  "limitations": [
+    "按用户代表机具规则确认当前Car8受控前轮阿克曼版本在vineyard、默认融合定位/Smac Hybrid/MPPI下的适配机具组，当前仅前置割草刀杆。",
+    "代表试验0066为人工选点验证；不扩展到裸车、其他车型、场景、算法、旧差速脚轮结构或未来新增机具。",
+    "不增加自动全路线验收次数，不代表真实割草作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car8__front_sickle_bar",
+      "vehicleId": "mower_front_cutter",
+      "implementName": "前置割草刀杆",
+      "status": "PASS",
+      "vehicleConfigSha256": "0ad31e2ab2fc632e863ca35ac8c3b80532838d5690924717125dec1c980564ac"
+    }
+  ]
+}

@@ -149,7 +149,7 @@ def footprint(config: dict[str, Any]) -> list[list[float]]:
     rear = body["rearM"] + clearance["rearM"]
     left = body["leftM"] + clearance["leftM"]
     right = body["rightM"] + clearance["rightM"]
-    from .sprayer import collision_boxes
+    from .implements import collision_boxes
     for box in collision_boxes(config):
         front = max(front, box[3] + clearance["frontM"])
         rear = max(rear, -box[0] + clearance["rearM"])
@@ -246,10 +246,41 @@ def validate(config: dict[str, Any]) -> list[str]:
         for key in ("radiusM", "widthM"):
             if wheel.get(key, 0) != 0:
                 _positive(wheel[key], f"wheelCenters[{index}].{key}")
+        for key in ("massKg", "steeringMassKg"):
+            if key in wheel:
+                _positive(wheel[key], f"wheelCenters[{index}].{key}")
         if config["vehicleType"] != "ackermann" and wheel["steering"]:
             raise ConfigError("differential/tracked wheels must not have steering joints")
+        if "steeringAssembly" in wheel:
+            assembly = wheel["steeringAssembly"]
+            if config["vehicleType"] != "ackermann" or not wheel["steering"] or "caster" in wheel:
+                raise ConfigError("controlled steering assembly requires an Ackermann steering wheel, not a caster")
+            _require_keys(assembly, ("pivotPosition", "damping", "meshUri"), "steeringAssembly")
+            _vector(assembly["pivotPosition"], 3, "steeringAssembly.pivotPosition")
+            _positive(assembly["damping"], "steeringAssembly.damping")
+            expected = f"package://agribot_vehicle_description/generated/{config['vehicleId']}/models/{wheel['id']}_caster.obj"
+            if assembly["meshUri"] != expected:
+                raise ConfigError("steeringAssembly.meshUri must use the canonical vehicle-local fork mesh")
+        if "caster" in wheel:
+            caster = wheel["caster"]
+            if config["vehicleType"] != "differential" or wheel["driven"] or wheel["steering"]:
+                raise ConfigError("passive casters require undriven differential wheels")
+            _require_keys(caster, ("pivotPosition", "massKg", "damping", "meshUri"), "caster")
+            _vector(caster["pivotPosition"], 3, "caster.pivotPosition")
+            _positive(caster["massKg"], "caster.massKg")
+            _positive(caster["damping"], "caster.damping")
+            expected = f"package://agribot_vehicle_description/generated/{config['vehicleId']}/models/{wheel['id']}_caster.obj"
+            if caster["meshUri"] != expected:
+                raise ConfigError("caster.meshUri must use the canonical vehicle-local mesh")
     if wheel_ids != required_wheels:
         raise ConfigError("wheel IDs must be front_left, front_right, rear_left and rear_right")
+    if any("caster" in wheel for wheel in wheels):
+        for axle in ("front", "rear"):
+            pair = [wheel for wheel in wheels if wheel["id"].startswith(axle)]
+            if pair[0]["driven"] != pair[1]["driven"]:
+                raise ConfigError("differential driven wheels must form left/right axle pairs")
+        if not any(wheel["driven"] for wheel in wheels):
+            raise ConfigError("differential vehicle requires a driven axle")
 
     navigation = config["navigation"]
     _require_keys(
@@ -272,6 +303,13 @@ def validate(config: dict[str, Any]) -> list[str]:
     _positive(navigation["maxAngularSpeedRadps"], "navigation.maxAngularSpeedRadps")
     _positive(navigation["inflationRadiusM"], "navigation.inflationRadiusM", allow_zero=True)
     _positive(navigation["costScalingFactor"], "navigation.costScalingFactor")
+    height_keys = ("obstacleMinHeightM", "obstacleMaxHeightM")
+    if any(key in navigation for key in height_keys):
+        if not all(key in navigation for key in height_keys):
+            raise ConfigError("navigation obstacle height bounds must be provided together")
+        heights = _vector([navigation[key] for key in height_keys], 2, "navigation.obstacleHeight")
+        if heights[0] >= heights[1]:
+            raise ConfigError("navigation obstacle minimum height must be below maximum height")
 
     chassis = config["chassis"]
     _require_keys(
@@ -319,7 +357,7 @@ def validate(config: dict[str, Any]) -> list[str]:
                 raise ConfigError(f"{path}.measurementFramePose is required with measurementFrameId")
             _validate_pose(sensor["measurementFramePose"], f"{path}.measurementFramePose")
 
-    from .sprayer import validate_implements
+    from .implements import validate_implements
     validate_implements(config, frame_ids | {"base_link"})
     from .manipulator import validate_manipulators
     validate_manipulators(config, frame_ids | {"base_link"})

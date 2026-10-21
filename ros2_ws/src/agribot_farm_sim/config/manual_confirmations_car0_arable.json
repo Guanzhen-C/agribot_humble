@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "scenario": "arable_field",
+  "sceneName": "玉米试验田",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": [
+    "fastlivo_rtk"
+  ],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "仅覆盖当前玉米试验田、当前默认算法下已开放的适配机具；不包含裸车、其他场景、其他算法及未来新增机具。",
+    "本结论是用户的人工经停点导航确认，不改写历史自动路线成绩，也不增加独立自动全程验收计数。",
+    "当前适配机具仅六轴机械臂与夹爪；不代表真实采摘、抓取、碰撞安全或载荷能力验证。"
+  ],
+  "confirmationId": "car0_arable_default_user_20261021",
+  "vehicle": "Car0",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0017",
+  "userStatement": "car0也在当前玉米田下的所有适配的农机具在当前默认算法下是没有问题的",
+  "confirmations": [
+    {
+      "binding": "Car0__lite6",
+      "vehicleId": "ackermann_current",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "ced25ef76649310a028bdcfd1a4307e858f350194b716387711d12e3dcb38f87"
+    }
+  ]
+}

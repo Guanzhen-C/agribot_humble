@@ -1,0 +1,222 @@
+<?xml version="1.0"?>
+<robot name="car1_groove">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="1.26617140659 0 0.15" rpy="0 0 0" />
+      <mass value="6000" />
+      <inertia ixx="7517.18824707" ixy="0" ixz="0" iyy="15768.3593833" iyz="0" izz="14788.8277172" />
+    </inertial>
+    <collision>
+      <origin xyz="1.25238674609 2.38852379999e-07 0.922406689519" rpy="0 0 0" />
+      <geometry>
+        <box size="4.79999988057 2.55688415478 2.91491336289" />
+      </geometry>
+    </collision>
+    <visual name="vehicle_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/vehicle_visual.obj" scale="1 1 1" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/sensor_imu_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="imu_mount_joint" type="fixed">
+    <origin xyz="2.57 0 1.32060797228" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/sensor_lidar_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="lidar_mount_joint" type="fixed">
+    <origin xyz="2.8 0 1.46963798028" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="lidar_link" />
+  </joint>
+  <link name="right_camera_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/sensor_right_camera_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_camera_mount_joint" type="fixed">
+    <origin xyz="2.8253 0 1.58822498028" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="right_camera_link" />
+  </joint>
+  <link name="right_camera_optical_frame" />
+  <joint name="right_camera_measurement_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679" />
+    <parent link="right_camera_link" />
+    <child link="right_camera_optical_frame" />
+  </joint>
+  <link name="rtk_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/sensor_rtk_master_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rtk_master_mount_joint" type="fixed">
+    <origin xyz="0.6 0.325 2.71803069037" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_link" />
+  </joint>
+  <link name="rtk_secondary_link">
+  </link>
+  <joint name="rtk_secondary_mount_joint" type="fixed">
+    <origin xyz="0.6 -0.325 2.71803069037" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_secondary_link" />
+  </joint>
+  <link name="front_left_steering_link" />
+  <joint name="front_left_steering_joint" type="revolute">
+    <origin xyz="2.81371399801 0.949440360166 -0.198884554409" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_left_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.742035886603" upper="0.742035886603" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/front_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.760324032115" length="0.617600240684" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_left_steering_link" />
+    <child link="front_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="front_right_steering_link" />
+  <joint name="front_right_steering_joint" type="revolute">
+    <origin xyz="2.81371423686 -0.949439643608 -0.198884793262" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_right_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.742035886603" upper="0.742035886603" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/front_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.760323793262" length="0.617600240684" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_right_steering_link" />
+    <child link="front_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/rear_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.959208586524" length="0.710278905187" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <origin xyz="-1.60036992584e-07 0.915599874394 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/rear_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.959208586524" length="0.710279263466" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <origin xyz="5.82590000213e-08 -0.91559981468 0" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="groove_maker_link">
+    <inertial>
+      <origin xyz="-0.129469409124 0 1.05221498013" rpy="0 0 0" />
+      <mass value="220.0" />
+      <inertia ixx="638.657039960241" iyy="165.31816196776526" izz="641.283472088451" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual name="groove_maker_visual">
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car1_groove/models/implement_groove_maker_visual.obj" />
+      </geometry>
+    </visual>
+    <collision name="implement_envelope">
+      <origin xyz="-0.599276006222 0 1.05221498013" rpy="0 0 0" />
+      <geometry>
+        <box size="1.20055201244 5.51350989532 2.10642996025" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_left">
+      <origin xyz="-0.0476934029022 0.382 0.958" rpy="0 0 0" />
+      <geometry>
+        <box size="0.910613194196 0.216 0.086" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_right">
+      <origin xyz="-0.0476934029022 -0.382 0.958" rpy="0 0 0" />
+      <geometry>
+        <box size="0.910613194196 0.216 0.086" />
+      </geometry>
+    </collision>
+    <collision name="hitch_top_link">
+      <origin xyz="0.346806597098 -0.0023 1.47805" rpy="0 0 0" />
+      <geometry>
+        <box size="1.1876131942 0.1766 0.1701" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="groove_maker_mount_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="groove_maker_link" />
+    <origin xyz="-1.4476131942 0 -0.686" rpy="0 0 0" />
+  </joint>
+  <link name="groove_maker_work_frame" />
+  <joint name="groove_maker_work_joint" type="fixed">
+    <parent link="groove_maker_link" />
+    <child link="groove_maker_work_frame" />
+    <origin xyz="-0.779058808088 0 0" rpy="0 0 0" />
+  </joint>
+</robot>

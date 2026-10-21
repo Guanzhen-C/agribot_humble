@@ -160,8 +160,8 @@
     },
     {
       "path": "models/ackermann_current.sdf",
-      "sizeBytes": 30648,
-      "sha256": "8474970d9a93b73c98c3c84b4c6d5aee699567339236b8af84abe1842cb32564"
+      "sizeBytes": 30646,
+      "sha256": "20309ebffa15d9d10a46c758412f1de837ef46b5b919efd8009abb4e97e7db34"
     },
     {
       "path": "models/front_left_wheel_visual.obj",
@@ -190,8 +190,8 @@
     },
     {
       "path": "models/sensor_imu_visual.obj",
-      "sizeBytes": 2505,
-      "sha256": "5ea7271a4337ed82e20a365088a6d9662e22886b484773e5791fccefac9ee9b3"
+      "sizeBytes": 2496,
+      "sha256": "a58b8373bf13251923f711f36ce3525574bb250071cbbebcf6259a1cb20ec276"
     },
     {
       "path": "models/sensor_lidar_visual.mtl",
@@ -200,8 +200,8 @@
     },
     {
       "path": "models/sensor_lidar_visual.obj",
-      "sizeBytes": 6356416,
-      "sha256": "dc759b6e01fec81ea5aa141cd43e533b690178c6cec4d3e2a1a406bcb1db2570"
+      "sizeBytes": 6356433,
+      "sha256": "47c9712b43755e5cb5ee3c8343da1bfa29e6b9a4993f7e2068104f2f42d8cc43"
     },
     {
       "path": "models/sensor_right_camera_visual.mtl",

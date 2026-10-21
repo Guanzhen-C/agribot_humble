@@ -1,0 +1,17 @@
+{
+  "id": "compact_chisel_plow",
+  "displayName": "紧凑型凿式犁",
+  "sourceArchive": "02.UG CATIA及通用格式等27套/錾式犁头step.zip",
+  "sourceMember": "Chisel Plow JV-Classic.STEP",
+  "sourceSha256": "2d9789686b6b0fe96023158d57545274d76767fc200029fb59885c753ae36849",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+  "maxVisualFaces": 65000,
+  "expectedSizeRangeM": [[1.8, 2.1], [2.1, 2.4], [1.2, 1.4]],
+  "tasks": ["浅耕", "土壤松整"],
+  "notes": [
+    "Source CAD +Y is up, +Z points toward the three-point hitch and +X is lateral.",
+    "Keep original dimensions. This asset is not a certified physical tractor/implement combination.",
+    "Origin is the front ground centre of the mesh bounds; hitch and moving parts require separate validation."
+  ]
+}

@@ -70,4 +70,13 @@ if [ -z "${workspace_setup}" ] || [ ! -r "${workspace_setup}" ]; then
 fi
 source "${workspace_setup}"
 
+# Humble can unload Nav2's panel before RViz destroys its shared ROS node.
+# Keep the panel's callback deleters mapped through the node's final cleanup.
+if nav2_prefix="$(ros2 pkg prefix nav2_rviz_plugins 2>/dev/null)"; then
+  nav2_panel_library="${nav2_prefix}/lib/libnav2_rviz_plugins.so"
+  if [ -r "${nav2_panel_library}" ]; then
+    export LD_PRELOAD="${nav2_panel_library}${LD_PRELOAD:+:$LD_PRELOAD}"
+  fi
+fi
+
 exec rviz2 -d "$RVIZ_CONFIG" --ros-args -p use_sim_time:=true

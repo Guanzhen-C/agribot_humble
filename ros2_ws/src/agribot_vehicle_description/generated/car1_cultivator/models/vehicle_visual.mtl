@@ -1,0 +1,124 @@
+newmtl Body_paint_0
+Kd 1 1 1
+d 1
+illum 2
+newmtl Steel_1
+Kd 0.567896545 0.5714868 0.589021
+d 1
+illum 2
+newmtl Rubber_black_2
+Kd 0.180858463 0.180858463 0.180858463
+d 1
+illum 2
+newmtl Plastic_black_3
+Kd 0.269015163 0.269015163 0.269015163
+d 1
+illum 2
+newmtl Aluminium_4
+Kd 0.7764671 0.7788681 0.7860137
+d 1
+illum 2
+newmtl radiator_5
+Kd 1 1 1
+d 1
+illum 2
+newmtl Chrome_6
+Kd 0.625413954 0.634878 0.650259435
+d 1
+illum 2
+newmtl Emitter_7
+Kd 1 0.9965443 0.955603063
+d 1
+illum 2
+newmtl mirror_8
+Kd 0.85959065 0.85959065 0.85959065
+d 1
+illum 2
+newmtl color_plastics_9
+Kd 1 1 1
+d 1
+illum 2
+newmtl headlights_cap01_10
+Kd 0.880315065 0.880315065 0.880315065
+d 0.299999952
+illum 2
+newmtl headlights_cap02_11
+Kd 0.6592671 0.5532369 0
+d 0.399999976
+illum 2
+newmtl headlights_cap03_12
+Kd 0.804665 0.806956947 0.806956947
+d 0.299999952
+illum 2
+newmtl Glass_windows_13
+Kd 0.229735047 0.4325872 0.5457181
+d 0.199999988
+illum 2
+newmtl Dashboard_14
+Kd 1 1 1
+d 1
+illum 2
+newmtl fill_holes_15
+Kd 0 0 0
+d 1
+illum 2
+newmtl Cabin_floor_16
+Kd 0.589021 0.589021 0.595850945
+d 1
+illum 2
+newmtl katafot_17
+Kd 1 0.790730655 0
+d 0.5
+illum 2
+newmtl black_grill02_18
+Kd 0.269015163 0.269015163 0.269015163
+d 1
+illum 2
+newmtl flasher_19
+Kd 0.741777539 0 0
+d 0.399999976
+illum 2
+newmtl backlights_cap_20
+Kd 0.6592671 0.5785821 0
+d 0.399999976
+illum 2
+newmtl pedal_21
+Kd 0.180858463 0.180858463 0.180858463
+d 1
+illum 2
+newmtl Seat_cloth02_22
+Kd 1 1 1
+d 1
+illum 2
+newmtl Seat_cloth01_23
+Kd 1 1 1
+d 1
+illum 2
+newmtl cloth_24
+Kd 0.2598333 0.250260323 0.229735047
+d 1
+illum 2
+newmtl black_grill01_25
+Kd 0.150005162 0.150005162 0.150005162
+d 1
+illum 2
+newmtl Steel_black_26
+Kd 0.150005162 0.150005162 0.150005162
+d 1
+illum 2
+newmtl headlights_reflector_27
+Kd 0.6562824 0.6592671 0.665185034
+d 1
+illum 2
+newmtl Tyres_front_28
+Kd 0 0 0
+d 1
+illum 2
+newmtl Tyres_rear_29
+Kd 0 0 0
+d 1
+illum 2
+
+newmtl NominalSensorMount
+Kd 0.18 0.20 0.21
+Ka 0.18 0.20 0.21

@@ -16,9 +16,9 @@ pcd_initial_localizer:
     enable_fpfh: false
     automatic_global_localization: false
     base_to_body_xyz:
-    - 0.5083001255989075
-    - 0.004981516860425472
-    - 0.4319190979003906
+    - 2.7
+    - 0.0
+    - 1.270177296209783
     base_to_body_rpy:
     - 0.0
     - 0.0

@@ -1,0 +1,228 @@
+<?xml version="1.0"?>
+<robot name="car2_garlic">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="1.24139535061 0 0.15" rpy="0 0 0" />
+      <mass value="7000" />
+      <inertia ixx="8946.67863643" ixy="0" ixz="0" iyy="20061.5601656" iyz="0" izz="20431.7826044" />
+    </inertial>
+    <collision>
+      <origin xyz="1.4876421676 -0.000500111190689 0.780742306554" rpy="0 0 0" />
+      <geometry>
+        <box size="5.19999979123 2.82593616478 2.71131852967" />
+      </geometry>
+    </collision>
+    <visual name="vehicle_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/vehicle_visual.obj" scale="1 1 1" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/sensor_imu_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="imu_mount_joint" type="fixed">
+    <origin xyz="2.47 0 1.12114728821" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/sensor_lidar_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="lidar_mount_joint" type="fixed">
+    <origin xyz="2.7 0 1.27017729621" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="lidar_link" />
+  </joint>
+  <link name="right_camera_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/sensor_right_camera_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_camera_mount_joint" type="fixed">
+    <origin xyz="2.7253 0 1.38876429621" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="right_camera_link" />
+  </joint>
+  <link name="right_camera_optical_frame" />
+  <joint name="right_camera_measurement_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679" />
+    <parent link="right_camera_link" />
+    <child link="right_camera_optical_frame" />
+  </joint>
+  <link name="rtk_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/sensor_rtk_master_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rtk_master_mount_joint" type="fixed">
+    <origin xyz="0.6 0.325 2.71425545582" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_link" />
+  </joint>
+  <link name="rtk_secondary_link">
+  </link>
+  <joint name="rtk_secondary_mount_joint" type="fixed">
+    <origin xyz="0.6 -0.325 2.71425545582" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_secondary_link" />
+  </joint>
+  <link name="front_left_steering_link" />
+  <joint name="front_left_steering_joint" type="revolute">
+    <origin xyz="2.75903525425 1.16976331097 -0.196197242286" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_left_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.783345204608" upper="0.783345204608" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/front_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.748474069886" length="0.590832258396" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_left_steering_link" />
+    <child link="front_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="front_right_steering_link" />
+  <joint name="front_right_steering_joint" type="revolute">
+    <origin xyz="2.75827678882 -1.16976278905 -0.196605494189" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_right_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.783345204608" upper="0.783345204608" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/front_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.748065817983" length="0.590831840854" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_right_steering_link" />
+    <child link="front_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/rear_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.9445222496" length="0.805523489339" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <origin xyz="0.000210136543533 1.02086775631 -0.000149062571552" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/rear_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.944820374743" length="0.805523489339" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <origin xyz="-0.000210660217011 -1.02086775631 0.000149062571552" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="garlic_planter_link">
+    <inertial>
+      <origin xyz="0.00662688684734 0 0.638335656086" rpy="0 0 0" />
+      <mass value="60.0" />
+      <inertia ixx="15.399022196013847" iyy="42.169283746822565" izz="41.218302697125274" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual name="garlic_planter_visual">
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car2_garlic/models/implement_garlic_planter_visual.obj" />
+      </geometry>
+    </visual>
+    <collision name="implement_envelope">
+      <origin xyz="-0.648051977158 0 0.280566990376" rpy="0 0 0" />
+      <geometry>
+        <box size="1.29810395432 1.20200004768 0.563133980751" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_left">
+      <origin xyz="0.201678864005 0.386 0.460335656086" rpy="0 0 0" />
+      <geometry>
+        <box size="0.39935772801 0.344 0.135328687828" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_right">
+      <origin xyz="0.201678864005 -0.3852 0.460335656086" rpy="0 0 0" />
+      <geometry>
+        <box size="0.39935772801 0.3424 0.135328687828" />
+      </geometry>
+    </collision>
+    <collision name="hitch_top_link">
+      <origin xyz="0.656178864005 0 1.13983565609" rpy="0 0 0" />
+      <geometry>
+        <box size="1.30835772801 0.172 0.275671312172" />
+      </geometry>
+    </collision>
+    <collision name="hitch_receiver_frame">
+      <origin xyz="-0.192995042125 -0.015 0.736302097477" rpy="0 0 0" />
+      <geometry>
+        <box size="0.52600991575 0.932 0.64795165914" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="garlic_planter_mount_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="garlic_planter_link" />
+    <origin xyz="-1.41235772801 0 -0.794671312172" rpy="0 0 0" />
+  </joint>
+  <link name="garlic_planter_work_frame" />
+  <joint name="garlic_planter_work_joint" type="fixed">
+    <parent link="garlic_planter_link" />
+    <child link="garlic_planter_work_frame" />
+    <origin xyz="-0.842467570305 0 0" rpy="0 0 0" />
+  </joint>
+</robot>

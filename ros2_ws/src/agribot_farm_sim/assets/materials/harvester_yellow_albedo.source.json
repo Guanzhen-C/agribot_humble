@@ -1,0 +1,6 @@
+{
+  "asset": "harvester_yellow_albedo.png",
+  "toolMode": "built-in image_gen",
+  "use": "Car9 combine harvester body paint albedo; no manufacturer branding",
+  "prompt": "Use case: stylized-concept. Asset type: seamless base-color texture for a 3D grain combine harvester painted body panel. Generate a square, uniformly lit, orthographic flat surface of clean industrial harvest-yellow enamel paint with very subtle fine powder-coated metal grain and extremely light realistic wear. Warm saturated combine yellow, not orange or brown. Seamlessly tileable on all four edges. No vehicle, no objects, no panel seams, no logos, no text, no bolts, no shadows, no lighting gradient, no perspective. This is an actual physically plausible albedo texture that will be UV mapped onto an existing combine harvester CAD mesh, not an illustration of a harvester."
+}

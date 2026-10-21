@@ -1,0 +1,20 @@
+{
+  "id": "tracked_harvester",
+  "displayName": "履带式联合收割机主机",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/New Holland CR1090 INVENTOR STP.zip",
+  "sourceSha256": "ca629cdf2fdd57d9b91a020f6e56b3c25859602bc4c4801175e24c4fecf9d617",
+  "sourceToFluRotation": [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+  "sourceOriginM": [0.0017, 0.052, 0.02],
+  "nominalScale": 10.0,
+  "headerSolidIndexRange": [448, 1340],
+  "headerOpenSurfaceRegion": {"minimumM": [-0.65, 0.06, 0.432], "maximumM": [0.65, 0.23, 0.75]},
+  "headerMountSourceM": [0.0017, 0.135, 0.432],
+  "solidCount": 1345,
+  "includeOpenSurfaces": true,
+  "maxVisualFaces": 130000,
+  "trackSolids": [409, 433],
+  "rearWheelSolids": [1341, 1342, 1343, 1344],
+  "rearWheelGroundCorrectionM": -0.0181,
+  "redistributionLicense": "unverified_user_supplied",
+  "notes": "The miniature CAD assembly is enlarged by an explicit nominal factor of 10 in the prepared geometry, contact rollers, collision and navigation configuration. These are simulation design dimensions, not verified manufacturer measurements. Host and removable combine header are separate assets. Nominal four-contact differential transport model; no harvesting or rear-steering mechanism is simulated."
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "suite": "metric_transport_acceptance",
+  "cases": [
+    {"id":"Car9_header_headland","binding":"Car9__combine_header","vehicleId":"harvester_header","scenario":"wide_headland","algorithm":"stvl_off_navsat_smac_hybrid_rpp","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car0_arm_tomato","binding":"Car0__lite6","vehicleId":"ackermann_current","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"true","armDemo":"false"},
+    {"id":"Car1_cultivator_tomato","binding":"Car1__mounted_cultivator","vehicleId":"car1_cultivator","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car2_cultivator_tomato","binding":"Car2__mounted_cultivator","vehicleId":"car2_cultivator","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car3_arm_tomato","binding":"Car3__lite6","vehicleId":"unity_car3","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"true","armDemo":"false"},
+    {"id":"Car4_chisel_tomato","binding":"Car4__compact_chisel_plow","vehicleId":"car4_chisel","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car5_harrow_tomato","binding":"Car5__mounted_disc_harrow","vehicleId":"car5_harrow","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car6_chisel_tomato","binding":"Car6__compact_chisel_plow","vehicleId":"tractor_chisel","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car7_cultivator_tomato","binding":"Car7__mounted_cultivator","vehicleId":"cab_cultivator","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"},
+    {"id":"Car8_cutter_tomato","binding":"Car8__front_sickle_bar","vehicleId":"mower_front_cutter","scenario":"tomato_greenhouse","algorithm":"stvl_off_fastlivo_rtk_smac_hybrid_mppi","scope":"full-route","manipulator":"false","armDemo":"false"}
+  ]
+}

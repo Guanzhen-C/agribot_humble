@@ -81,7 +81,13 @@
         "maxAngularSpeedRadps": {"type": "number", "exclusiveMinimum": 0},
         "allowReverse": {"type": "boolean"},
         "inflationRadiusM": {"type": "number", "minimum": 0},
-        "costScalingFactor": {"type": "number", "exclusiveMinimum": 0}
+        "costScalingFactor": {"type": "number", "exclusiveMinimum": 0},
+        "obstacleMinHeightM": {"type": "number"},
+        "obstacleMaxHeightM": {"type": "number"}
+      },
+      "dependentRequired": {
+        "obstacleMinHeightM": ["obstacleMaxHeightM"],
+        "obstacleMaxHeightM": ["obstacleMinHeightM"]
       },
       "additionalProperties": false
     },
@@ -106,6 +112,7 @@
         "centerOfMass": {"$ref": "#/$defs/vector3"},
         "inertia": {"$ref": "#/$defs/inertia"},
         "maxAccelerationMps2": {"type": "number", "exclusiveMinimum": 0},
+        "wheelTorqueNm": {"type": "number", "exclusiveMinimum": 0},
         "maxSteeringRateRadps": {"type": "number", "exclusiveMinimum": 0}
       },
       "additionalProperties": false
@@ -128,6 +135,10 @@
       "items": {"$ref": "#/$defs/sensor"}
     },
     "metadata": {"type": "object"},
+    "implements": {
+      "type": "array", "maxItems": 1,
+      "items": {"$ref": "#/$defs/implement"}
+    },
     "manipulators": {
       "type": "array", "maxItems": 1,
       "items": {
@@ -144,6 +155,62 @@
     }
   },
   "$defs": {
+    "implement": {
+      "type": "object",
+      "required": ["id", "implementType", "parentFrameId", "frameId", "workFrameId", "pose", "workingWidthM", "massKg"],
+      "properties": {
+        "id": {"enum": ["sprayer", "compact_chisel_plow", "mounted_disc_harrow", "groove_maker", "mounted_cultivator", "forest_chain_crusher", "inter_row_milling_cutter", "front_sickle_bar", "garlic_planter", "mulch_planter", "farm_trailer", "combine_header"]},
+        "implementType": {"enum": ["sprayer", "compact_chisel_plow", "mounted_disc_harrow", "groove_maker", "mounted_cultivator", "forest_chain_crusher", "inter_row_milling_cutter", "front_sickle_bar", "garlic_planter", "mulch_planter", "farm_trailer", "combine_header"]},
+        "parentFrameId": {"const": "base_link"},
+        "frameId": {"type": "string"},
+        "workFrameId": {"type": "string"},
+        "pose": {"$ref": "#/$defs/pose"},
+        "workingWidthM": {"type": "number", "exclusiveMinimum": 0},
+        "massKg": {"type": "number", "exclusiveMinimum": 0},
+        "mountMode": {"enum": ["fixed_transport", "articulated_transport"]},
+        "yawLimitRad": {"type": "number", "exclusiveMinimum": 0, "maximum": 1.0471975512},
+        "pitchLimitRad": {"type": "number", "exclusiveMinimum": 0, "maximum": 0.3},
+        "wheels": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {
+            "type": "object", "required": ["id", "position", "radiusM", "widthM", "massKg", "meshFile"],
+            "properties": {
+              "id": {"enum": ["front_left", "front_right", "rear_left", "rear_right"]},
+              "position": {"$ref": "#/$defs/vector3"},
+              "radiusM": {"type": "number", "exclusiveMinimum": 0},
+              "widthM": {"type": "number", "exclusiveMinimum": 0},
+              "massKg": {"type": "number", "exclusiveMinimum": 0},
+              "meshFile": {"type": "string", "pattern": "^trailer_(front|rear)_(left|right)\\.obj$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "simulationOnly": {"const": true},
+        "meshFile": {"type": "string", "pattern": "^implement_[a-z_]+_visual\\.obj$"},
+        "workOffset": {"$ref": "#/$defs/vector3"},
+        "collisionBoxes": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "required": ["name", "center", "size"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "center": {"$ref": "#/$defs/vector3"},
+              "size": {"$ref": "#/$defs/vector3"},
+              "visualize": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "allOf": [{
+        "if": {"properties": {"implementType": {"enum": ["compact_chisel_plow", "mounted_disc_harrow", "groove_maker", "mounted_cultivator", "forest_chain_crusher", "inter_row_milling_cutter", "front_sickle_bar", "garlic_planter", "mulch_planter", "combine_header"]}}},
+        "then": {"required": ["mountMode", "simulationOnly", "meshFile", "workOffset", "collisionBoxes"], "properties": {"mountMode": {"const": "fixed_transport"}}}
+      }, {
+        "if": {"properties": {"implementType": {"const": "farm_trailer"}}},
+        "then": {"required": ["mountMode", "simulationOnly", "meshFile", "workOffset", "collisionBoxes", "wheels", "yawLimitRad", "pitchLimitRad"], "properties": {"mountMode": {"const": "articulated_transport"}}}
+      }],
+      "additionalProperties": false
+    },
     "vector3": {
       "type": "array",
       "items": {"type": "number"},
@@ -185,8 +252,33 @@
           "enum": ["front_left", "front_right", "rear_left", "rear_right"]
         },
         "position": {"$ref": "#/$defs/vector3"},
+        "radiusM": {"type": "number", "minimum": 0},
+        "widthM": {"type": "number", "minimum": 0},
+        "massKg": {"type": "number", "exclusiveMinimum": 0},
+        "steeringMassKg": {"type": "number", "exclusiveMinimum": 0},
         "steering": {"type": "boolean"},
-        "driven": {"type": "boolean"}
+        "driven": {"type": "boolean"},
+        "steeringAssembly": {
+          "type": "object",
+          "required": ["pivotPosition", "damping", "meshUri"],
+          "properties": {
+            "pivotPosition": {"$ref": "#/$defs/vector3"},
+            "damping": {"type": "number", "exclusiveMinimum": 0},
+            "meshUri": {"type": "string"}
+          },
+          "additionalProperties": false
+        },
+        "caster": {
+          "type": "object",
+          "required": ["pivotPosition", "massKg", "damping", "meshUri"],
+          "properties": {
+            "pivotPosition": {"$ref": "#/$defs/vector3"},
+            "massKg": {"type": "number", "exclusiveMinimum": 0},
+            "damping": {"type": "number", "exclusiveMinimum": 0},
+            "meshUri": {"type": "string"}
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

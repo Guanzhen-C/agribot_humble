@@ -5,64 +5,64 @@ imu:
   parent_frame: base_link
   child_frame: imu_link
   xyz:
-  - 0.3530280590057373
-  - 0.007899058982729912
-  - 0.29447364807128906
+  - 1.72
+  - 0.0
+  - 0.9203686560509968
   rpy:
   - 0.0
   - 0.0
   - 0.0
-  model: N300
+  model: Hipnuc N300Pro
   role: inertial
 lidar:
   parent_frame: base_link
   child_frame: lidar_link
   xyz:
-  - 0.6333362460136414
-  - 0.0008157626143656671
-  - 0.41477394104003906
+  - 1.95
+  - 0.0
+  - 1.3593986640509967
   rpy:
   - 0.0
   - 0.0
   - 0.0
-  model: C16
-  role: perception
+  model: LSLiDAR C16 V4
+  role: mapping
 right_camera:
   parent_frame: base_link
   child_frame: right_camera_optical_frame
   xyz:
-  - 0.6586333236532695
-  - 0.003444413723563855
-  - 0.5170726776123047
+  - 1.9753
+  - 0.0
+  - 1.4779856640509967
   rpy:
-  - -1.5707963705062866
+  - -1.5707963267948966
   - -0.0
-  - -1.5707963705062866
-  model: Hikrobot
-  role: visual
+  - -1.5707963267948966
+  model: Hikrobot MV-CU013-A0UC
+  role: visual_odometry
 rtk_master:
   parent_frame: base_link
   child_frame: rtk_link
   xyz:
-  - 0.5227815508842468
-  - 0.31459176540374756
-  - 0.8077716827392578
+  - 1.6
+  - 0.325
+  - 1.4455081254632947
   rpy:
   - 0.0
   - 0.0
   - 0.0
-  model: RTK
+  model: Dual-antenna RTK
   role: master_left
 rtk_secondary:
   parent_frame: base_link
   child_frame: rtk_secondary_link
   xyz:
-  - 0.5235161781311035
-  - -0.3354092538356781
-  - 0.8077716827392578
+  - 1.6
+  - -0.325
+  - 1.4455081254632947
   rpy:
   - 0.0
   - 0.0
   - 0.0
-  model: RTK
+  model: Dual-antenna RTK
   role: secondary_right

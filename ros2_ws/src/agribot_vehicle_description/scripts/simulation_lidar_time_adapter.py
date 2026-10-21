@@ -4,11 +4,13 @@
 import array
 import copy
 import math
+import signal
 
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import LivelinessPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import PointCloud2, PointField
 
 
@@ -70,16 +72,31 @@ class SimulationLidarTimeAdapter(Node):
 
 
 def main():
-    rclpy.init()
-    node = SimulationLidarTimeAdapter()
+    # Finish the current message conversion before invalidating its ROS context.
+    stop_requested = False
+
+    def request_stop(_signum, _frame):
+        nonlocal stop_requested
+        stop_requested = True
+
+    previous_handlers = {sig: signal.signal(sig, request_stop)
+                         for sig in (signal.SIGINT, signal.SIGTERM)}
+    node = None
     try:
-        rclpy.spin(node)
+        rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+        node = SimulationLidarTimeAdapter()
+        while rclpy.ok() and not stop_requested:
+            rclpy.spin_once(node, timeout_sec=0.1)
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        try:
+            if node is not None:
+                node.destroy_node()
+            rclpy.try_shutdown()
+        finally:
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
 
 
 if __name__ == "__main__":

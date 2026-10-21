@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "scenarios": [
+    {"id": "wide_headland", "name": "宽地头机具运输区", "tasks": ["大型机具运输", "宽地头转弯"], "source": "wide_headland", "spawn": [-25.0, 0.0, 0.0]},
+    {"id": "orchard", "name": "苹果园", "tasks": ["巡检", "喷洒", "机械臂演示"], "source": "existing_orchard", "spawn": [2, 36, 0]},
+    {"id": "arable_field", "name": "玉米试验田", "tasks": ["巡检", "行间除草", "喷洒"], "source": "maize_field", "spawn": [4.0, 34.0, 0.0]},
+    {"id": "greenhouse", "name": "温室行间", "tasks": ["巡检", "行间除草", "喷洒"], "source": "harbot_greenhouse", "spawn": [-4.0, -10.0, 1.5707963267948966], "spawnZOffset": 0.15},
+    {"id": "farmyard", "name": "农场运输区", "tasks": ["物料运输", "巡检"], "source": "clearpath_farm", "spawn": [0.0, 0.0, 0.0], "spawnZOffset": -0.0847},
+    {"id": "tomato_greenhouse", "name": "番茄温室", "tasks": ["作物巡检", "视觉识别"], "source": "aoc_tomato", "spawn": [-7.0, 0.0, 0.0]},
+    {"id": "strawberry_field", "name": "草莓种植区", "tasks": ["行间巡检", "果实识别", "地头转弯"], "source": "harvester_strawberry", "spawn": [-10.0, -3.0, 0.0]},
+    {"id": "vineyard", "name": "葡萄园", "tasks": ["行间巡检", "植株观察", "地头转弯"], "source": "cropcraft_vineyard", "spawn": [-15.0, -3.0, 0.0]},
+    {"id": "vegetable_field", "name": "蔬菜试验田", "tasks": ["分区巡检", "作物观察", "地头转弯"], "source": "pic4ser_vegetables", "spawn": [-14.0, 0.0, 0.0]}
+  ]
+}

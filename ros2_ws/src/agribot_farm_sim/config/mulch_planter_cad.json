@@ -1,0 +1,17 @@
+{
+  "id": "mulch_planter",
+  "displayName": "灌水覆膜播种机",
+  "sourceArchive": "01.SolidWorks格式132套/灌水覆膜机、覆膜播种机.zip",
+  "sourceMember": "灌水覆膜机、覆膜播种机/灌水覆膜机.STEP",
+  "sourceSha256": "0b6e8265a6b9606a3d9a93e222e051c9f1120b3e612b8af4fadda405615f2119",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[-1, 0, 0], [0, -1, 0], [0, 0, 1]],
+  "maxVisualFaces": 50000,
+  "expectedSizeRangeM": [[1.2, 1.4], [1.0, 1.15], [1.0, 1.2]],
+  "tasks": ["覆膜播种机具运输"],
+  "notes": [
+    "Inspected tank, frame, ground wheels and opener assembly; source +Z is up.",
+    "Original metric CAD scale is retained. Nominal compact-tractor raised transport mount with an empty tank.",
+    "No water, film, seed dispensing or soil interaction is simulated."
+  ]
+}

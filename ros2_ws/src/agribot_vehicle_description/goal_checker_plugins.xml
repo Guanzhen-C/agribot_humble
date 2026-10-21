@@ -1,0 +1,7 @@
+<library path="agribot_route_progress_goal_checker">
+  <class name="agribot_vehicle_description::RouteProgressGoalChecker"
+         type="agribot_vehicle_description::RouteProgressGoalChecker"
+         base_class_type="nav2_core::GoalChecker">
+    <description>Preserve Nav2 tolerances and require ordered route progress before final completion.</description>
+  </class>
+</library>

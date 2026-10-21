@@ -1,0 +1,599 @@
+<sdf version="1.7">
+  <model name="cab_garlic">
+    <allow_auto_disable>false</allow_auto_disable>
+    <link name="base_link">
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <inertial>
+        <pose>1.15 0 0.85 0 0 0</pose>
+        <mass>1500</mass>
+        <inertia>
+          <ixx>1010</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>2316.25</iyy>
+          <iyz>0</iyz>
+          <izz>2116.25</izz>
+        </inertia>
+      </inertial>
+      <collision name="vehicle_body_collision">
+        <pose>1.15 0 0.85 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>3.7 1.8 2.2</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="vehicle_body_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/vehicle_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="imu_cad_visual">
+        <pose>0.8 -0.2 2.3571255997 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/sensor_imu_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="imu_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="lidar_cad_visual">
+        <pose>3.5 0 1.00338125771 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/sensor_lidar_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="lidar_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="right_camera_cad_visual">
+        <pose>3.5253 0 1.12196846832 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/sensor_right_camera_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="right_camera_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <visual name="rtk_master_cad_visual">
+        <pose>0.1 0.325000703335 2.84783203697 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/sensor_rtk_master_visual.obj</uri>
+          </mesh>
+        </geometry>
+        <plugin name="rtk_master_visual_only" filename="libagribot_simulation_sensor_visual.so" />
+      </visual>
+      <sensor name="n300pro_imu" type="imu">
+        <pose>0.8 -0.2 2.3571255997 0 0 0</pose>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <visualize>false</visualize>
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0008023</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0008023</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0008023</stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.01091</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.01091</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.01091</stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
+        <plugin name="n300pro_imu_controller" filename="libgazebo_ros_imu_sensor.so">
+          <ros>
+            <namespace>/</namespace>
+            <remapping>~/out:=imu/data</remapping>
+          </ros>
+          <frame_name>imu_link</frame_name>
+        </plugin>
+      </sensor>
+      <sensor name="lslidar_c16_points" type="ray">
+        <pose>3.5 0 1.00338125771 0 0 0</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>2000</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.141592653589793</min_angle>
+              <max_angle>3.141592653589793</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>16</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.2792526803190927</min_angle>
+              <max_angle>0.24434609527920614</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.3</min>
+            <max>100.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <plugin name="c16_controller" filename="libgazebo_ros_velodyne_laser.so">
+          <ros>
+            <namespace>/</namespace>
+            <remapping>~/out:=lidar/points</remapping>
+          </ros>
+          <frame_name>lidar_link</frame_name>
+          <organize_cloud>false</organize_cloud>
+          <min_range>0.3</min_range>
+          <max_range>100.0</max_range>
+          <gaussian_noise>0.01</gaussian_noise>
+        </plugin>
+      </sensor>
+      <sensor name="hikrobot_right_camera" type="camera">
+        <pose>3.5253 0 1.12196846832 0 0 0</pose>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>false</visualize>
+        <camera name="right_camera">
+          <horizontal_fov>0.9362410911749182</horizontal_fov>
+          <vertical_fov>0.7692094306470061</vertical_fov>
+          <image>
+            <width>1280</width>
+            <height>1024</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>100.0</far>
+          </clip>
+          <distortion>
+            <k1>-0.06420938</k1>
+            <k2>0.07455611</k2>
+            <p1>-0.00096336</p1>
+            <p2>0.00001838</p2>
+            <k3>0.0</k3>
+            <center>0.50993772734375 0.49129508185546875</center>
+          </distortion>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.003</stddev>
+          </noise>
+        </camera>
+        <plugin name="hikrobot_camera_controller" filename="libgazebo_ros_camera.so">
+          <ros>
+            <namespace>/</namespace>
+            <remapping>camera/image_raw:=camera/rgb/image_raw</remapping>
+            <remapping>camera/camera_info:=camera/rgb/camera_info</remapping>
+          </ros>
+          <camera_name>camera</camera_name>
+          <frame_name>right_camera_optical_frame</frame_name>
+          <camera_info_url>package://agribot_ackermann_mppi/config/hikrobot_camera_1280.yaml</camera_info_url>
+        </plugin>
+      </sensor>
+    </link>
+    <link name="front_left_steering_link">
+      <pose relative_to="__model__">3.03728199005 1.26342868805 -0.214990705252 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <inertial>
+        <mass>15</mass>
+        <inertia>
+          <ixx>0.270185198581</ixx>
+          <iyy>0.270185198581</iyy>
+          <izz>0.270185198581</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <link name="front_right_steering_link">
+      <pose relative_to="__model__">3.03728199005 -1.25992584229 -0.216256946325 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <inertial>
+        <mass>15</mass>
+        <inertia>
+          <ixx>0.269353295986</ixx>
+          <iyy>0.269353295986</iyy>
+          <izz>0.269353295986</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <link name="front_left_wheel_link">
+      <pose relative_to="__model__">3.03728199005 1.26342868805 -0.214990705252 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <collision name="wheel_collision">
+        <pose>0 0 0 1.5707963267948966 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.821865558624</radius>
+            <length>0.673990011215</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <kp>1000000000</kp>
+              <kd>1</kd>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>1.8</mu>
+              <mu2>1.5</mu2>
+              <fdir1>1 0 0</fdir1>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="wheel_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/front_left_wheel_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>80</mass>
+        <inertia>
+          <ixx>16.5376768305</ixx>
+          <iyy>27.0185198581</iyy>
+          <izz>16.5376768305</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <link name="front_right_wheel_link">
+      <pose relative_to="__model__">3.03728199005 -1.25992584229 -0.216256946325 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <collision name="wheel_collision">
+        <pose>0 0 0 1.5707963267948966 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.820599317551</radius>
+            <length>0.654273927212</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <kp>1000000000</kp>
+              <kd>1</kd>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>1.8</mu>
+              <mu2>1.5</mu2>
+              <fdir1>1 0 0</fdir1>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="wheel_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/front_right_wheel_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>80</mass>
+        <inertia>
+          <ixx>16.3214939448</ixx>
+          <iyy>26.9353295986</iyy>
+          <izz>16.3214939448</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <link name="rear_left_wheel_link">
+      <pose relative_to="__model__">0 1.12070298195 -0.000338822603226 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <collision name="wheel_collision">
+        <pose>0 0 0 1.5707963267948966 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>1.03651744127</radius>
+            <length>0.8840020895</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <kp>1000000000</kp>
+              <kd>1</kd>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>1.8</mu>
+              <mu2>1.5</mu2>
+              <fdir1>1 0 0</fdir1>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="wheel_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/rear_left_wheel_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>150</mass>
+        <inertia>
+          <ixx>50.0570614054</ixx>
+          <iyy>80.5776304547</iyy>
+          <izz>50.0570614054</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <link name="rear_right_wheel_link">
+      <pose relative_to="__model__">0 -1.12149715424 0.000338822603226 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
+      <collision name="wheel_collision">
+        <pose>0 0 0 1.5707963267948966 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>1.03719508648</radius>
+            <length>0.884203076363</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <kp>1000000000</kp>
+              <kd>1</kd>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>1.8</mu>
+              <mu2>1.5</mu2>
+              <fdir1>1 0 0</fdir1>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="wheel_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/rear_right_wheel_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>150</mass>
+        <inertia>
+          <ixx>50.1142002812</ixx>
+          <iyy>80.6830235562</iyy>
+          <izz>50.1142002812</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name="front_left_steering_joint" type="revolute">
+      <pose relative_to="__model__">3.03728199005 1.26342868805 -0.214990705252 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>front_left_steering_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.615187381494</lower>
+          <upper>0.615187381494</upper>
+          <effort>200</effort>
+          <velocity>1.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>2.0</damping>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="front_right_steering_joint" type="revolute">
+      <pose relative_to="__model__">3.03728199005 -1.25992584229 -0.216256946325 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>front_right_steering_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.615187381494</lower>
+          <upper>0.615187381494</upper>
+          <effort>200</effort>
+          <velocity>1.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>2.0</damping>
+        </dynamics>
+      </axis>
+    </joint>
+    <joint name="front_left_wheel_joint" type="revolute">
+      <pose relative_to="__model__">3.03728199005 1.26342868805 -0.214990705252 0 0 0</pose>
+      <parent>front_left_steering_link</parent>
+      <child>front_left_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <effort>1500</effort>
+          <velocity>100</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="front_right_wheel_joint" type="revolute">
+      <pose relative_to="__model__">3.03728199005 -1.25992584229 -0.216256946325 0 0 0</pose>
+      <parent>front_right_steering_link</parent>
+      <child>front_right_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <effort>1500</effort>
+          <velocity>100</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="rear_left_wheel_joint" type="revolute">
+      <pose relative_to="__model__">0 1.12070298195 -0.000338822603226 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>rear_left_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <effort>1500</effort>
+          <velocity>100</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="rear_right_wheel_joint" type="revolute">
+      <pose relative_to="__model__">0 -1.12149715424 0.000338822603226 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>rear_right_wheel_link</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <effort>1500</effort>
+          <velocity>100</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <plugin name="ackermann_drive" filename="libagribot_ackermann_mppi_drive.so">
+      <ros>
+        <namespace>/</namespace>
+      </ros>
+      <cmd_vel_topic>/nav2/cmd_vel</cmd_vel_topic>
+      <odom_topic>/odom</odom_topic>
+      <joint_state_topic>/joint_states</joint_state_topic>
+      <odom_frame>odom</odom_frame>
+      <base_frame>base_link</base_frame>
+      <wheelbase>3.03728199005</wheelbase>
+      <front_track_width>2.52335453033</front_track_width>
+      <rear_track_width>2.24220013618</rear_track_width>
+      <wheel_radius>1.03685626388</wheel_radius>
+      <max_steering_angle>0.5</max_steering_angle>
+      <max_steering_rate>1.20000004768</max_steering_rate>
+      <max_speed>0.3</max_speed>
+      <max_accel>0.5</max_accel>
+      <min_speed_for_curvature>0.02</min_speed_for_curvature>
+      <command_timeout>0.5</command_timeout>
+      <publish_rate>30.0</publish_rate>
+      <publish_tf>false</publish_tf>
+      <wheel_torque>1500</wheel_torque>
+    </plugin>
+    <plugin name="configured_sensor_collision_filter" filename="libagribot_simulation_sensor_collision_filter.so" />
+    <link name="garlic_planter_link">
+      <pose>-1.513519454 0 -0.886856263876 0 0 0</pose>
+      <inertial>
+        <pose>0.0497077498436 0 0.706428131938 0 0 0</pose>
+        <mass>60.0</mass>
+        <inertia>
+          <ixx>17.28127123714522</ixx>
+          <iyy>46.287126566326926</iyy>
+          <izz>43.550215329181704</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="garlic_planter_visual">
+        <geometry>
+          <mesh>
+            <uri>package://agribot_vehicle_description/generated/cab_garlic/models/implement_garlic_planter_visual.obj</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name="implement_envelope">
+        <pose>-0.648051977158 0 0.280566990376 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.29810395432 1.20200004768 0.563133980751</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name="hitch_lower_left">
+        <pose>0.186759727001 0.4085 0.477428131938 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.369519454002 0.389 0.101143736124</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name="hitch_lower_right">
+        <pose>0.186759727001 -0.4085 0.477428131938 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.369519454002 0.389 0.101143736124</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name="hitch_top_link">
+        <pose>0.699259727001 0 1.20792813194 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.394519454 0.172 0.411856263876</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name="hitch_receiver_frame">
+        <pose>-0.192995042125 -0.015 0.736302097477 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.52600991575 0.932 0.64795165914</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="garlic_planter_mount_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>garlic_planter_link</child>
+    </joint>
+  </model>
+</sdf>

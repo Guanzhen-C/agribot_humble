@@ -14,17 +14,93 @@ after export.
 
 Open `AgriculturalCar_Interior/Assets/Scenes/scene1.unity` on the 218 workstation.
 Enter Play mode, finish the vehicle and sensor setup in the Game configuration
-interface, then click `导出并运行仿真`. The runtime exporter builds or refreshes
+interface, then click `启动仿真`. The runtime exporter builds or refreshes
 the active vehicle configuration from the current scene automatically; the Editor
 initialization menu is not required for this normal workflow.
 
-Car000 opens `scene2` and retains the calibrated Ackermann configuration and
+Car0 opens `scene2` and retains the calibrated Ackermann configuration and
 the existing six action buttons. Car1, Car2, Car4 and Car5 use their own
-Ackermann geometry; Car3 uses four-wheel differential contact dynamics with a
-rigid visual track shell. Track-belt animation is not implemented. Install
+Ackermann geometry; Car3 uses four-wheel differential contact dynamics with
+animated visual rollers and tread segments. Install
 all four sensor types, wait for the installation animation to finish, and use
 the shared algorithm selector before exporting. Stop the managed simulation
 with `停止仿真` before switching vehicles.
+
+Car3's configured Gazebo runtime uses `tracked_contact_simulation.yaml` to
+align lateral friction with each cylinder axle and preserve longitudinal
+traction. The current `car3_visible_idler_centers_v1` profile places each contact
+center at the corresponding front/rear visible idler: x approximately +0.44894
+and -0.38806 m, y +0.30368 and -0.29751 m, z -0.10694 m. Wheelbase is 0.83700 m,
+track width 0.60118 m; contact radius 0.11815 m includes the outer tread envelope.
+Canonical JSON, SDF, URDF, drive diameters, animation ratios and Unity exports
+use the same geometry. Body/base reference and sensor poses are unchanged.
+The current runtime contact profile uses lateral friction 0.36 at both axles,
+longitudinal friction 1.8, and the official Gazebo `WheelSlipPlugin` with lateral
+compliance 0.1 and longitudinal compliance 0 when stopped or driving straight.
+The local `SimulationTrackedWheelSlip` adapter subclasses the official plugin
+without modifying Gazebo sources. It uses the measured left/right wheel-speed
+difference: 0.02--0.08 m/s progressively enables turning slip up to 0.003 m/s/N,
+so low-speed skid turns retain their maneuverability. Wheel normal force is
+estimated from total model mass and four contact wheels. ODE slip starts at
+zero; straight-motion slip is scaled by wheel speed rather than retaining the
+old constant slip1=0.01 that caused lateral creep on farmyard slopes.
+This runtime policy applies across all scenes, not
+only the greenhouse. Legacy short-roller exports retain their old 0.36/0.60 coefficients.
+This is still a four-contact approximation, not a physically measured track/soil
+model or a guarantee of zero slip. Previous manual results belong to their
+original configuration hashes and do not validate this longer-wheelbase model.
+
+The same adaptive-slip runtime is enabled for Car9's `tracked_harvester` and
+`harvester_header` presets. Their larger mass and different wheel radii are
+used for the load estimate; turning slip remains 1e-6 m/s/N, not Car3's 0.003.
+The existing front/rear lateral-friction ratios are preserved while scaling
+both by 2 (rear 0.2, front approximately 0.15301 bare / 0.05699 with header)
+to improve gentle cross-slope grip. Longitudinal friction stays 1.8. Geometry,
+wheel animation, mass, drive plugin, navigation and physical export are not
+changed. These are simulation contact settings, not a full-route acceptance
+or measured harvester/soil calibration.
+
+### Final-position stopping in configured simulations
+
+All configured vehicles and MPPI/RPP/DWB profiles use Nav2's
+`PositionGoalChecker` with an XY tolerance equal to half the vehicle's
+`geometry.wheelbaseM`. Reaching the final position
+ends the task and publishes zero velocity; final yaw is not an acceptance
+condition. MPPI's terminal angle critic and DWB's terminal rotation critic are
+disabled. Pose headings still guide the collision-checked global route.
+Intermediate through-poses goals remain ordered, and the preset continuous
+route retains its existing progress guard.
+
+This is a shared rule for Ackermann, differential and tracked vehicles,
+including future Unity imports; it is not a per-model allowlist. New vehicles
+must provide their own positive, finite front-to-rear `geometry.wheelbaseM`.
+Track width and implement length are not used to compute this tolerance, and
+there is no fixed minimum or maximum overriding half the wheelbase.
+
+This tolerance changes only final-position acceptance, not intermediate goal
+removal, planner search tolerance, localization, footprint or clearance.
+
+Configured simulations do not periodically replan global paths. Dedicated
+simulation behavior trees replace the global-planner
+`RateController` with Nav2's `GoalUpdatedController`: the initial route is
+planned immediately, and a changed request or a reset by failure recovery can
+plan again. All existing recovery subtrees and their retry limits remain.
+MPPI/local obstacle updates retain their existing rates. Physical-vehicle and
+shared XML files are unchanged; explicit custom BT files remain under the
+caller's control. With no periodic planner tick, through-poses feedback may
+retain the initial remaining-goal count between recovery/goal updates; the
+full ordered path is still sent to the controller.
+
+Native Nav2 BT nodes and plan topics are used. The temporary force-finish BT
+adapter and ROS path relay have been removed. The RViz-only NavigationPath
+display clears task paths after completion without changing backend messages.
+
+Navigation uses the host body plus its existing clearance, without implements
+or arms. Temporary SDF/URDF tool descendants have no collision geometry;
+visuals and inertia remain, as do host body/wheel contact and hard obstacle
+checks. Trailer wheel contacts are also excluded by this policy, so this is
+not validation of implement clearance or realistic trailer/soil dynamics.
+Canonical exports and physical deployment templates are unchanged.
 
 The export is written to:
 
@@ -55,7 +131,7 @@ proxies from laser rays. This avoids a whole-CAD box hiding the environment
 when the sensor lies in empty space inside that box. Ground friction and
 physical obstacle contact remain enabled; world obstacles still return rays.
 This is a nominal simulation approximation, not an accurate self-occlusion
-model for physical sensor validation. It does not apply to Car000.
+model for physical sensor validation. It does not apply to Car0.
 New-vehicle LiDAR self-returns are
 removed in the exported base-frame bounding box before localization and
 obstacle processing; point fields and acquisition timestamps are preserved.
@@ -67,14 +143,40 @@ started, and launches the configured Gazebo/RViz entry point. The default ROS
 domain is isolated from physical vehicles (`ROS_DOMAIN_ID=37` and
 `ROS_LOCALHOST_ONLY=1`).
 
-The simulation automatically loads the authored 23-point orchard route,
-preplans one continuous Smac path through every point, and starts the selected
-controller only after that path has been verified. Set
-`AGRIBOT_SIM_RUN_WAYPOINTS=false` only when an interactive RViz goal test is
-explicitly required, or when inspecting the model without movement. That
-inspection mode does not dispatch the preset route: a stationary vehicle and
-no automatic planned path are expected. Restore `--run-waypoints true` for
-the normal automatic route test.
+Normal startup does not dispatch an authored route. Unity explicitly passes
+`--run-waypoints false`; both the shell script and configured ROS launch also
+default to manual goals. The vehicle remains stationary until the user sends
+a navigation task. The default RViz layout includes the official Navigation 2
+panel and Nav2 Goal tool; this selection interface belongs to RViz, not Gazebo.
+
+To collect multiple poses, first click `Waypoint / Nav Through Poses Mode` in
+the Navigation 2 panel. Use `Nav2 Goal` to click and drag each position and
+heading, then click `Start Nav Through Poses` to execute. A single goal in the
+normal mode starts navigation immediately. `Start Waypoint Following` is the
+separate waypoint-task workflow, not the continuous-through-poses command.
+
+Preset routes, including the original 23-point orchard route, remain available
+only for explicit automated validation with `--run-waypoints true` or
+`run_waypoints:=true`. Their historical validation records are not evidence
+that an arbitrary user-selected route is feasible for every vehicle.
+
+### Current simulation implement policy
+
+At the user's request, configured simulation navigation now uses the host
+vehicle's body extents and existing clearance only. Implements retain their
+visuals and inertia, but their SDF/URDF contact geometries are removed in
+temporary runtime copies, including descendant links. This is a visual-only
+implement collision policy, not validation of implement clearance, trailer
+ground support or agricultural contact dynamics. Body and vehicle-wheel
+collisions, sensor mounts and implement self-return filtering remain active.
+Canonical export files and physical deployment profiles are not rewritten.
+
+`nominal_ackermann_navigation.yaml` adjusts large nominal Ackermann simulations:
+a 6 s MPPI horizon, earlier path-angle scoring, and lower soft clearance costs;
+Smac uses the original 5 cm grid and lower turn/traversal penalties. Actual
+speed, steering and minimum-radius limits and hard collision costs are retained.
+Car0's established MPPI overlay and physical parameters are unchanged. Historical
+full-implement-footprint runtime evidence does not certify this new policy.
 
 Before export, the Unity interface presents the available algorithm library.
 Catalog/configuration validation is not evidence that every combination has
@@ -380,6 +482,19 @@ the recorded failures; they do not certify all 480 combinations, the complete
 23-waypoint drive, Unity GUI operation, or a clean third-party machine.
 
 ## 4. Physical-vehicle acceptance
+
+### Configured Gazebo model browser
+
+The configured simulation uses local scene and vehicle assets. Its `gzclient`
+disables the online model catalog by default. Gazebo 11 starts detached Fuel
+HTTPS catalog requests; on this system a pending request raced OpenSSL teardown
+and crashed the GUI after an otherwise successful drive. A process-scoped
+preload returns an empty catalog-server list, while local model loading and the
+simulation server retain their normal behavior. No system library or user-wide
+Gazebo configuration is replaced. `gazebo_online_model_catalog:=true` on the
+underlying `ackermann_waypoint_depth_collect_sim.launch.py` restores upstream
+online browsing for sessions that need it. Runtime verification records the
+loaded protection library and still rejects abnormal process exits.
 
 The configured physical entry point defaults to **no chassis output**:
 

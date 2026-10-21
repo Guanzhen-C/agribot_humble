@@ -5,7 +5,7 @@
 ## 版本与备份
 
 - Unity 工程：`/home/cgz/unity_projects/AgriculturalCar_Interior`。
-- 合并作者最终更新：`95d1809005be2c43fe641559eb9fc656850e9953`，按交付文档将新车导出绑定在 `scene1` 的 `Output_btn`，原 Car000 保留 `scene2` 的 `LastPanel`。
+- 合并作者最终更新：`95d1809005be2c43fe641559eb9fc656850e9953`，按交付文档将新车导出绑定在 `scene1` 的 `Output_btn`，原 Car0 保留 `scene2` 的 `LastPanel`。
 - 更新前完整备份：`/home/cgz/unity_backups/update-20261013-100110/`，包含工程、旧可执行程序、ROS 配置包、桌面入口及说明。
 - 新程序：`/home/cgz/Builds/AgriculturalCar_Interior_Linux_20261013/start_agribot_configurator.sh`；桌面“农机配置平台”指向该版本。
 - 旧程序仍在 `/home/cgz/Builds/AgriculturalCar_Interior_Linux/`，其可执行文件与备份 SHA-256 相同。
@@ -15,7 +15,7 @@
 
 | Unity 车型 | ROS 配置 ID | 运动模型 |
 | --- | --- | --- |
-| Car000 | `ackermann_current` | 原已标定阿克曼车 |
+| Car0 | `ackermann_current` | 原已标定阿克曼车 |
 | Car1 | `unity_car1` | 阿克曼 |
 | Car2 | `unity_car2` | 阿克曼 |
 | Car3 | `unity_car3` | 四轮差速接触动力学、刚性履带外观 |
@@ -28,7 +28,7 @@
 
 新车型传感器 CAD 外观与测量锚点分别处理：外观不并入车体网格。后续补测将简化占位传感器替换为独立 CAD 网格，Gazebo、RViz 均在安装坐标显示；Gazebo 的传感器外观插件将这些 CAD 排除出仿真相机渲染，避免相机看到自己的壳体。新车型的整车简化碰撞盒可能包住处于 CAD 空隙内的雷达，因此新增仅用于这些名义模型的 Gazebo ODE 碰撞分类插件，避免简化代理遮挡全部环境射线；轮地摩擦、世界障碍物的物理接触和雷达回波仍保留。另对近车体自反射点作过滤，保留点字段和测量时间。
 
-这属于仿真近似，不是准确的车体自遮挡验证。插件不作用于 Car000。与更新前备份逐文件比较，原车 canonical JSON 和整个 `generated/ackermann_current` 均未被本次新车适配改变。
+这属于仿真近似，不是准确的车体自遮挡验证。插件不作用于 Car0。与更新前备份逐文件比较，原车 canonical JSON 和整个 `generated/ackermann_current` 均未被本次新车适配改变。
 
 ## 实际测试结果
 

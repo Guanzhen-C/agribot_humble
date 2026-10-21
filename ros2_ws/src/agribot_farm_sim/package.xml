@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_farm_sim</name>
+  <version>0.1.0</version>
+  <description>Agricultural scenario and implement resources for configured vehicle simulation.</description>
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>Apache-2.0</license>
+  <license>BSD-3-Clause</license>
+  <license>MIT</license>
+  <license>CC-BY-SA-4.0</license>
+  <license>CC0-1.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>agribot_vehicle_config_tools</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

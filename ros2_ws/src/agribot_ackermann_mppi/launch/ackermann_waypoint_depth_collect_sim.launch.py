@@ -268,12 +268,29 @@ def generate_launch_description():
             "LD_LIBRARY_PATH", os.pathsep.join(
                 part for part in (directory, os.environ.get("LD_LIBRARY_PATH", "")) if part))]
 
-    gzclient = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(gazebo_ros_share, "launch", "gzclient.launch.py")
-        ),
-        launch_arguments={"verbose": "false"}.items(),
+    def _client_catalog_environment(context):
+        if LaunchConfiguration("gazebo_online_model_catalog").perform(context).lower() == "true":
+            return []
+        library = os.path.join(get_package_prefix("agribot_ackermann_mppi"),
+                               "lib", "libagribot_gazebo_local_model_catalog.so")
+        if not os.path.isfile(library):
+            raise RuntimeError(f"Gazebo local catalog library missing; rebuild agribot_ackermann_mppi: {library}")
+        return [
+            SetEnvironmentVariable("GAZEBO_MODEL_DATABASE_URI", ""),
+            SetEnvironmentVariable("LD_PRELOAD", " ".join(filter(None, (
+                library, context.environment.get("LD_PRELOAD", ""))))),
+        ]
+
+    gzclient = GroupAction(
+        scoped=True,
         condition=IfCondition(LaunchConfiguration("gui")),
+        actions=[
+            OpaqueFunction(function=_client_catalog_environment),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(gazebo_ros_share, "launch", "gzclient.launch.py")),
+                launch_arguments={"verbose": "false"}.items()),
+        ],
     )
 
     gzserver = GroupAction(
@@ -580,6 +597,7 @@ def generate_launch_description():
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
             DeclareLaunchArgument("run_waypoints", default_value="true"),
+            DeclareLaunchArgument("waypoint_goal_checker_id", default_value=""),
             DeclareLaunchArgument(
                 "waypoint_navigation_mode", default_value="follow_path"
             ),
@@ -755,6 +773,8 @@ def generate_launch_description():
                 "fastlio_base_to_body_yaw", default_value="-0.000002616"
             ),
             DeclareLaunchArgument("spawn_orchard_geometry", default_value="false"),
+            DeclareLaunchArgument("gazebo_online_model_catalog", default_value="false",
+                                  description="Enable online model browsing in Gazebo (simulation assets are local)."),
             SetEnvironmentVariable("GAZEBO_IP", LaunchConfiguration("gazebo_ip")),
             SetEnvironmentVariable("GAZEBO_MODEL_PATH", gazebo_model_path),
             SetEnvironmentVariable("GAZEBO_PLUGIN_PATH", gazebo_plugin_path),
@@ -927,7 +947,8 @@ def generate_launch_description():
             Node(
                 package="agribot_hardware_bringup",
                 executable="rtk_eskf_localization",
-                name="ackermann_rtk_eskf_localization",
+                # Match the YAML node key so each exported vehicle's lever arms apply.
+                name="rtk_eskf_localization",
                 output="screen",
                 parameters=[
                     LaunchConfiguration("navsat_ekf_params_file"),
@@ -1214,6 +1235,7 @@ def generate_launch_description():
                         "through_poses_action_name": "navigate_through_poses",
                         "path_action_name": "follow_path",
                         "controller_id": "FollowPath",
+                        "goal_checker_id": LaunchConfiguration("waypoint_goal_checker_id"),
                         "path_step": 0.5,
                         "goal_topic": "/current_goal",
                         "frame_id": "map",

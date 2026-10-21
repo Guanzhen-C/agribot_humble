@@ -1,0 +1,5 @@
+<library path="scout_image_display">
+  <class name="scout_viz/Image" type="scout_viz::ImageDisplay" base_class_type="rviz_common::Display">
+    <description>RViz Image display with idempotent image subscription cleanup.</description>
+  </class>
+</library>

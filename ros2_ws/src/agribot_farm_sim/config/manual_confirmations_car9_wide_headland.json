@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car9_wide_headland_header_navsat_rpp_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car9",
+  "scenario": "wide_headland",
+  "sceneName": "宽地头",
+  "algorithm": "stvl_off_navsat_smac_hybrid_rpp",
+  "confirmedLocalizationModes": [
+    "navsat"
+  ],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "coversAllCurrentSupportedImplements": true,
+  "groupPolicy": "manual_validation_policy.json",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0078",
+  "userStatement": "很好，这个场景通过了，下一个",
+  "limitations": [
+    "仅覆盖当前Car9联合收割机搭载谷物收割割台在wide_headland、NavSat/Smac Hybrid/RPP及当前自适应接地策略下的人工选点试验0078，按代表机具规则确认当前适配机具组（仅割台）。",
+    "不扩展到裸车、其他车型、场景、算法或未来新增机具，不改变农场运输区不适用记录。",
+    "不增加自动全路线验收次数，不代表真实收割作业、独立动力学或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car9__combine_header",
+      "vehicleId": "harvester_header",
+      "implementName": "谷物收割割台",
+      "status": "PASS",
+      "vehicleConfigSha256": "b3b18507fb5082af15c109c8c94fb7148a22285ef29d722b149d257dced7c8d1"
+    }
+  ]
+}

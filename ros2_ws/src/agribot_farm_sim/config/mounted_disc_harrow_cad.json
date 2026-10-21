@@ -1,0 +1,18 @@
+{
+  "id": "mounted_disc_harrow",
+  "displayName": "悬挂式圆盘耙",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/hinged-disc-harrow-unit STP.zip",
+  "sourceMember": "hinged-disc-harrow-unit STP/АБД-2,6.00.00.000 Дискатор.stp",
+  "sourceSha256": "4f2e47df31855d6a68ba818d6ae2d8e0e17631f98e813c01d01800c62b0e7643",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
+  "maxVisualFaces": 70000,
+  "expectedSizeRangeM": [[2.3, 2.6], [2.7, 3.0], [1.0, 1.3]],
+  "tasks": ["耙地", "土壤松整"],
+  "notes": [
+    "Source CAD +Y is up, -X points toward the three-point hitch and +Z is lateral.",
+    "The assembly name refers to 2.6 m working width; mesh outer width includes protruding hardware.",
+    "Only solid geometry is converted. Loose CAD construction surfaces are not included.",
+    "Origin is the front ground centre of the mesh bounds; hitch and moving parts require separate validation."
+  ]
+}

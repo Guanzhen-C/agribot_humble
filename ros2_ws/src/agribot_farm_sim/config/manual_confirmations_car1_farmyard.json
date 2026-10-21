@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "scenario": "farmyard",
+  "sceneName": "农场运输区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "用户在切换到下一组后补充确认Car1通过；仅覆盖试验0027的Car1、凿式犁、农场运输区和默认算法。",
+    "不扩展到Car1其他农机具、裸车、其他场景或算法，不增加自动全路线验收次数。",
+    "关闭时尚无结论的历史记录保留，本记录是后续补充的人工确认，不代表真实作业或碰撞安全认证。"
+  ],
+  "confirmationId": "car1_farmyard_chisel_default_user_20261021",
+  "vehicle": "Car1",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0027",
+  "userStatement": "car1通过了",
+  "confirmations": [
+    {
+      "binding": "Car1__compact_chisel_plow",
+      "vehicleId": "car1_chisel",
+      "implementName": "凿式犁",
+      "status": "PASS",
+      "vehicleConfigSha256": "b2889e9293c8a168941d32f4b073b7b2266b84bd8954e6012d67ab800f23c631"
+    }
+  ]
+}

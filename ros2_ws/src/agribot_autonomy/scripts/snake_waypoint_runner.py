@@ -3,6 +3,7 @@
 from collections import deque
 import math
 from pathlib import Path
+import signal
 import time
 
 import rclpy
@@ -22,6 +23,8 @@ from nav_msgs.msg import Path as NavPath
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.signals import SignalHandlerOptions
+from std_msgs.msg import Bool
 
 
 def normalize_angle(angle: float) -> float:
@@ -46,6 +49,54 @@ def load_waypoints(path: str):
     if not waypoints:
         raise RuntimeError(f"No waypoints found in {path}")
     return waypoints
+
+
+def load_navigation_surface(path: str):
+    with Path(path).open("r", encoding="utf-8") as handle:
+        surface = (yaml.safe_load(handle) or {}).get("navigationSurface")
+    if surface is None:
+        return None
+    bounds, polygon = surface["bounds"], surface["footprint"]
+    margin = surface["marginM"]
+    values = [*bounds, margin, *(value for point in polygon for value in point)]
+    if (len(bounds) != 4 or len(polygon) < 3 or any(len(point) != 2 for point in polygon)
+            or not all(math.isfinite(value) for value in values)
+            or margin < 0 or bounds[2] - bounds[0] <= 2 * margin
+            or bounds[3] - bounds[1] <= 2 * margin):
+        raise ValueError("Invalid physical navigation surface")
+    return surface
+
+
+def path_fits_navigation_surface(path, surface):
+    if surface is None:
+        return True
+    xmin, ymin, xmax, ymax = surface["bounds"]
+    margin = surface["marginM"]
+    previous = None
+    for stamped in path.poses:
+        pose = stamped.pose
+        q = pose.orientation
+        current = (pose.position.x, pose.position.y,
+                   math.atan2(2 * (q.w*q.z + q.x*q.y), 1 - 2 * (q.y*q.y + q.z*q.z)))
+        if not all(math.isfinite(value) for value in current):
+            return False
+        start = previous or current
+        yaw_delta = normalize_angle(current[2] - start[2])
+        count = max(1, math.ceil(math.hypot(current[0] - start[0], current[1] - start[1]) / .05),
+                    math.ceil(abs(yaw_delta) / .02))
+        for index in range(count + 1):
+            fraction = index / count
+            x = start[0] + fraction * (current[0] - start[0])
+            y = start[1] + fraction * (current[1] - start[1])
+            yaw = start[2] + fraction * yaw_delta
+            c, s = math.cos(yaw), math.sin(yaw)
+            for px, py in surface["footprint"]:
+                vx, vy = x + c*px - s*py, y + s*px + c*py
+                if not (xmin + margin <= vx <= xmax - margin
+                        and ymin + margin <= vy <= ymax - margin):
+                    return False
+        previous = current
+    return True
 
 
 def transform_waypoint(waypoint, origin_x, origin_y, origin_yaw):
@@ -178,7 +229,9 @@ class SnakeWaypointRunner(Node):
         self.planner_id = self.declare_parameter("planner_id", "GridBased").value
         self.path_action_name = self.declare_parameter("path_action_name", "follow_path").value
         self.controller_id = self.declare_parameter("controller_id", "FollowPath").value
+        self.goal_checker_id = self.declare_parameter("goal_checker_id", "").value
         self.waypoint_file = self.declare_parameter("waypoint_file", "").value
+        self.navigation_surface = load_navigation_surface(self.waypoint_file) if self.waypoint_file else None
         self.stop_on_failure = bool(self.declare_parameter("stop_on_failure", True).value)
         self.retries_per_waypoint = int(self.declare_parameter("retries_per_waypoint", 0).value)
         self.waypoint_transform_enabled = bool(
@@ -273,6 +326,9 @@ class SnakeWaypointRunner(Node):
         self.sequence_pub = self.create_publisher(PoseArray, self.sequence_topic, latched_qos)
         self.path_pub = self.create_publisher(NavPath, self.path_topic, latched_qos)
         self.plan_pub = self.create_publisher(NavPath, self.plan_topic, latched_qos)
+        self.route_ready_pub = self.create_publisher(Bool, "/waypoint_goal_ready", latched_qos)
+        self.route_ready_state = None
+        self._set_route_goal_ready(False)
         self.pose_client = ActionClient(self, NavigateToPose, self.action_name)
         self.through_poses_client = ActionClient(
             self, NavigateThroughPoses, self.through_poses_action_name
@@ -457,6 +513,14 @@ class SnakeWaypointRunner(Node):
             >= self.preplan_waypoint_path_indices[self.preplan_completed_waypoints]
         ):
             self.preplan_completed_waypoints += 1
+        self._set_route_goal_ready(
+            self.preplan_completed_waypoints >= len(self.preplan_waypoints) - 1
+        )
+
+    def _set_route_goal_ready(self, ready) -> None:
+        if self.route_ready_state != ready:
+            self.route_ready_pub.publish(Bool(data=ready))
+            self.route_ready_state = ready
 
     def _robot_distance_to(self, waypoint) -> float:
         return math.hypot(
@@ -838,6 +902,13 @@ class SnakeWaypointRunner(Node):
             )
             self._schedule_preplan_retry()
             return
+        if not path_fits_navigation_surface(path, self.navigation_surface):
+            self.get_logger().error(
+                "Global preplan leaves the physical ground with the full vehicle footprint; "
+                "vehicle remains stopped"
+            )
+            self._schedule_preplan_retry()
+            return
         waypoint_path_indices = self._preplanned_path_waypoint_indices(
             path, self.preplan_waypoints
         )
@@ -854,6 +925,7 @@ class SnakeWaypointRunner(Node):
         self.preplan_waypoint_path_indices = waypoint_path_indices
         self.preplan_progress_index = 0
         self.preplan_completed_waypoints = 0
+        self._set_route_goal_ready(len(self.preplan_waypoints) <= 1)
         self._publish_path_visuals(path)
         self.get_logger().info(
             f"Global preplan ready: {len(path.poses)} poses, "
@@ -881,6 +953,7 @@ class SnakeWaypointRunner(Node):
         goal = FollowPath.Goal()
         goal.path = self.preplanned_path
         goal.controller_id = self.controller_id
+        goal.goal_checker_id = self.goal_checker_id
         self.get_logger().info(
             "Complete global path is visible and verified; dispatching it to the selected controller"
         )
@@ -1172,10 +1245,16 @@ class SnakeWaypointRunner(Node):
         )
         remaining = self.preplan_waypoints[completed:]
         if not remaining:
-            self.get_logger().info(
-                "Controller ended after every mandatory waypoint was traversed"
+            # Passing the waypoint neighbourhood is not goal-checker success.
+            # Keep the final pose until the controller confirms its completion.
+            remaining = self.preplan_waypoints[-1:]
+            self.get_logger().warn(
+                f"Controller failed with status {status} after traversing the route; "
+                "retrying the final pose instead of treating it as completion"
             )
-            return
+            if not remaining:
+                self.get_logger().error("Cannot retry an empty preplanned route")
+                return
 
         self.get_logger().warn(
             f"Preplanned path failed with status {status}; "
@@ -1423,15 +1502,32 @@ class SnakeWaypointRunner(Node):
 
 
 def main() -> None:
-    rclpy.init()
-    node = SnakeWaypointRunner()
+    # Defer context shutdown until the current callback returns. Humble can
+    # otherwise invalidate a subscription while take_message converts it.
+    stop_requested = False
+
+    def request_stop(_signum, _frame):
+        nonlocal stop_requested
+        stop_requested = True
+
+    previous_handlers = {sig: signal.signal(sig, request_stop)
+                         for sig in (signal.SIGINT, signal.SIGTERM)}
+    node = None
     try:
-        rclpy.spin(node)
+        rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+        node = SnakeWaypointRunner()
+        while rclpy.ok() and not stop_requested:
+            rclpy.spin_once(node, timeout_sec=0.1)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.try_shutdown()
+        try:
+            if node is not None:
+                node.destroy_node()
+            rclpy.try_shutdown()
+        finally:
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "vehicleId": "unity_car1",
-  "displayName": "Car1",
+  "displayName": "Car1 full-size cab tractor",
   "vehicleType": "ackermann",
   "coordinateConvention": "ROS_FLU",
   "baseFrame": {
@@ -10,66 +10,72 @@
   },
   "geometry": {
     "bodyExtents": {
-      "frontM": 0.9114383459091187,
-      "rearM": 0.2863822281360626,
-      "leftM": 0.31903010606765747,
-      "rightM": 0.3190299868583679
+      "frontM": 3.6523868058044813,
+      "rearM": 1.147613194195519,
+      "leftM": 1.2784423162420937,
+      "rightM": 1.2784418385373337
     },
-    "wheelbaseM": 0.7021510004997253,
-    "frontTrackM": 0.4738578200340271,
-    "rearTrackM": 0.4569684863090515,
-    "wheelRadiusM": 0.23936662077903748,
-    "wheelWidthM": 0.17724727094173431,
+    "wheelbaseM": 2.8137142368632873,
+    "frontTrackM": 1.8988800037738676,
+    "rearTrackM": 1.8311997487870093,
+    "wheelRadiusM": 0.959208586524113,
+    "wheelWidthM": 0.7102790843265591,
     "maxSteeringAngleRad": 0.6108652353286743,
-    "minTurningRadiusM": 1.0027755579195923,
+    "minTurningRadiusM": 4.018400403458496,
     "wheelCenters": [
       {
         "id": "front_left",
         "position": [
-          0.7021509408950806,
-          0.2369289994239807,
-          -0.05037879943847656
+          2.813713998010907,
+          0.9494403601655038,
+          -0.19888455440931574
         ],
         "steering": true,
         "driven": false,
-        "radiusM": 0.1897357851266861,
-        "widthM": 0.15411964058876038
+        "radiusM": 0.7603240321147973,
+        "widthM": 0.6176002406835815,
+        "massKg": 150.0,
+        "steeringMassKg": 12.0
       },
       {
         "id": "front_right",
         "position": [
-          0.7021510004997253,
-          -0.2369288206100464,
-          -0.05037879943847656
+          2.8137142368632873,
+          -0.9494396436083639,
+          -0.19888479326169572
         ],
         "steering": true,
         "driven": false,
-        "radiusM": 0.18973572552204132,
-        "widthM": 0.15411964058876038
+        "radiusM": 0.7603237932624173,
+        "widthM": 0.6176002406835815,
+        "massKg": 150.0,
+        "steeringMassKg": 12.0
       },
       {
         "id": "rear_left",
         "position": [
-          -3.993658381773457e-08,
-          0.22848424315452576,
+          -1.6003699258374508e-07,
+          0.9155998743935047,
           0.0
         ],
         "steering": false,
         "driven": true,
-        "radiusM": 0.23936662077903748,
-        "widthM": 0.17724722623825073
+        "radiusM": 0.959208586524113,
+        "widthM": 0.7102789051872741,
+        "massKg": 150.0
       },
       {
         "id": "rear_right",
         "position": [
-          1.453829767683601e-08,
-          -0.22848422825336456,
+          5.825900002130088e-08,
+          -0.9155998146804097,
           0.0
         ],
         "steering": false,
         "driven": true,
-        "radiusM": 0.23936662077903748,
-        "widthM": 0.1772473156452179
+        "radiusM": 0.959208586524113,
+        "widthM": 0.7102792634658441,
+        "massKg": 150.0
       }
     ]
   },
@@ -80,45 +86,48 @@
       "leftM": 0.15000000596046448,
       "rightM": 0.15000000596046448
     },
-    "maxLinearSpeedMps": 0.30000001192092896,
-    "maxAngularSpeedRadps": 0.2984025776386261,
+    "maxLinearSpeedMps": 0.5,
+    "maxAngularSpeedRadps": 0.12442762039583402,
     "allowReverse": false,
-    "inflationRadiusM": 0.5,
-    "costScalingFactor": 3.0
+    "inflationRadiusM": 2.0,
+    "costScalingFactor": 3.0,
+    "obstacleMinHeightM": -0.809208586524113,
+    "obstacleMaxHeightM": 2.8798633709649404
   },
   "chassis": {
-    "commandMaxLinearSpeedMps": 0.800000011920929,
-    "commandMaxAngularSpeedRadps": 0.699999988079071,
+    "commandMaxLinearSpeedMps": 0.5,
+    "commandMaxAngularSpeedRadps": 0.12442762039583402,
     "minimumMotionSpeedMps": 0.019999999552965164
   },
   "dynamics": {
-    "massKg": 50.0,
+    "massKg": 6000.0,
     "centerOfMass": [
-      0.3125280439853668,
-      5.960464477539063e-08,
-      0.23018285632133484
+      1.2661714065884793,
+      0.0,
+      0.15
     ],
     "inertia": {
-      "ixx": 3.900993585586548,
+      "ixx": 7517.188247065616,
+      "iyy": 15768.359383338859,
+      "izz": 14788.827717235348,
       "ixy": 0.0,
       "ixz": 0.0,
-      "iyy": 8.182882308959961,
-      "iyz": 0.0,
-      "izz": 7.674561023712158
+      "iyz": 0.0
     },
-    "maxAccelerationMps2": 0.800000011920929,
-    "maxSteeringRateRadps": 1.2000000476837158
+    "maxAccelerationMps2": 0.5,
+    "maxSteeringRateRadps": 1.2000000476837158,
+    "wheelTorqueNm": 2877.625759572339
   },
   "collision": {
     "center": [
-      0.3125280439853668,
-      5.960464477539063e-08,
-      0.23018285632133484
+      1.252386746091386,
+      2.3885237999851166e-07,
+      0.9224066895187023
     ],
     "size": [
-      1.1978205442428589,
-      0.6380600929260254,
-      0.7274048328399658
+      4.79999988057381,
+      2.5568841547794277,
+      2.9149133628924764
     ]
   },
   "visuals": [
@@ -154,26 +163,26 @@
     {
       "id": "imu",
       "sensorType": "imu",
-      "model": "N300",
+      "model": "Hipnuc N300Pro",
       "role": "inertial",
       "parentFrameId": "base_link",
       "frameId": "imu_link",
       "pose": {
         "xyz": [
-          0.4489282965660095,
-          0.002500060945749283,
-          0.3378028869628906
+          2.57,
+          0.0,
+          1.3206079722838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
         ],
         "quaternion": [
           0.0,
           0.0,
           0.0,
           1.0
-        ],
-        "rpy": [
-          0.0,
-          0.0,
-          0.0
         ]
       },
       "measurementFrameId": "",
@@ -196,31 +205,31 @@
         ]
       },
       "topic": "/imu/data",
-      "updateRateHz": 200.0
+      "updateRateHz": 100.0
     },
     {
       "id": "lidar",
       "sensorType": "lidar",
-      "model": "C16",
-      "role": "perception",
+      "model": "LSLiDAR C16 V4",
+      "role": "mapping",
       "parentFrameId": "base_link",
       "frameId": "lidar_link",
       "pose": {
         "xyz": [
-          0.2851240336894989,
-          0.0030338605865836143,
-          0.5729446411132812
+          2.8,
+          0.0,
+          1.4696379802838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
         ],
         "quaternion": [
           0.0,
           0.0,
           0.0,
           1.0
-        ],
-        "rpy": [
-          0.0,
-          0.0,
-          0.0
         ]
       },
       "measurementFrameId": "",
@@ -248,45 +257,45 @@
     {
       "id": "right_camera",
       "sensorType": "camera",
-      "model": "Hikrobot",
-      "role": "visual",
+      "model": "Hikrobot MV-CU013-A0UC",
+      "role": "visual_odometry",
       "parentFrameId": "base_link",
       "frameId": "right_camera_link",
       "pose": {
         "xyz": [
-          0.5568283200263977,
-          0.006000058725476265,
-          0.3455924987792969
+          2.8253,
+          0.0,
+          1.5882249802838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
         ],
         "quaternion": [
           0.0,
           0.0,
           0.0,
           1.0
-        ],
-        "rpy": [
-          0.0,
-          0.0,
-          0.0
         ]
       },
       "measurementFrameId": "right_camera_optical_frame",
       "measurementFramePose": {
         "xyz": [
-          1.4237167533792672e-07,
-          1.6963493720822953e-08,
+          0.0,
+          0.0,
           0.0
         ],
-        "quaternion": [
-          0.5000000596046448,
-          -0.4999999403953552,
-          0.4999999403953552,
-          -0.5000000596046448
-        ],
         "rpy": [
-          -1.5707963705062866,
+          -1.5707963267948966,
           0.0,
-          -1.5707963705062866
+          -1.5707963267948966
+        ],
+        "quaternion": [
+          -0.5,
+          0.5,
+          -0.5,
+          0.5
         ]
       },
       "topic": "/camera/rgb/image_raw",
@@ -295,26 +304,26 @@
     {
       "id": "rtk_master",
       "sensorType": "gnss_antenna",
-      "model": "RTK",
+      "model": "Dual-antenna RTK",
       "role": "master_left",
       "parentFrameId": "base_link",
       "frameId": "rtk_link",
       "pose": {
         "xyz": [
-          0.18062394857406616,
-          0.334000825881958,
-          1.0560436248779297
+          0.6,
+          0.325,
+          2.718030690367852
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
         ],
         "quaternion": [
           0.0,
           0.0,
           0.0,
           1.0
-        ],
-        "rpy": [
-          0.0,
-          0.0,
-          0.0
         ]
       },
       "measurementFrameId": "",
@@ -342,26 +351,26 @@
     {
       "id": "rtk_secondary",
       "sensorType": "gnss_antenna",
-      "model": "RTK",
+      "model": "Dual-antenna RTK",
       "role": "secondary_right",
       "parentFrameId": "base_link",
       "frameId": "rtk_secondary_link",
       "pose": {
         "xyz": [
-          0.18062402307987213,
-          -0.3160008192062378,
-          1.0560436248779297
+          0.6,
+          -0.325,
+          2.718030690367852
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
         ],
         "quaternion": [
           0.0,
           0.0,
           0.0,
           1.0
-        ],
-        "rpy": [
-          0.0,
-          0.0,
-          0.0
         ]
       },
       "measurementFrameId": "",
@@ -383,15 +392,78 @@
           0.0
         ]
       },
-      "topic": "/rtk/secondary",
+      "topic": "/rtk/heading",
       "updateRateHz": 10.0
     }
   ],
-  "manipulators": [],
   "metadata": {
     "authoringTool": "AgriculturalCar_Interior",
     "profileVersion": "1.0.0",
     "calibrationState": "unity_nominal_simulation_only",
-    "notes": "Geometry and sensor poses derived from the selected Unity vehicle; not a physical calibration."
+    "notes": "Metric body/wheels; original sensor meshes unchanged in size; inspected hood mounts with surface-contact feet.",
+    "simulationVelocityFromPose": true,
+    "nominalDimensions": {
+      "basis": "user-authorized appearance estimate; not manufacturer or measured data",
+      "targetBodyLengthM": 4.8,
+      "sourceScale": 4.00727797134911,
+      "sourceConfigSha256": "45ac181a36039013af882967e43794eac3cd18842fb7406b285d6c59762e0ed0"
+    },
+    "sensorMountContacts": [
+      {
+        "name": "front_2.5199999999999996_-0.1",
+        "xyz": [
+          2.5199999999999996,
+          -0.1,
+          1.2507630159517051
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.5199999999999996_0.1",
+        "xyz": [
+          2.5199999999999996,
+          0.1,
+          1.2507629360978492
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.8699999999999997_-0.1",
+        "xyz": [
+          2.8699999999999997,
+          -0.1,
+          1.200808790248326
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.8699999999999997_0.1",
+        "xyz": [
+          2.8699999999999997,
+          0.1,
+          1.200808824571317
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "rtk_-0.1",
+        "xyz": [
+          0.6,
+          -0.1,
+          2.1378298778489486
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Cab"
+      },
+      {
+        "name": "rtk_0.1",
+        "xyz": [
+          0.6,
+          0.1,
+          2.137829877848742
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Cab"
+      }
+    ],
+    "sensorMountBasis": "Nominal CAD surface intersections, not measured hardware calibration."
   }
 }

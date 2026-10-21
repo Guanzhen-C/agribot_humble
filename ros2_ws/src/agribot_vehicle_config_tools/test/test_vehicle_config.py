@@ -70,7 +70,9 @@ def test_fastlivo_extrinsics_are_derived_from_base_link_sensor_poses():
     assert extrinsics["extrinsic_T"] == pytest.approx(
         [0.338308452, 0.000050633, 0.086911672], abs=2e-6
     )
-    assert extrinsics["Pcl"] == pytest.approx([0.0, -0.079, -0.0955], abs=2e-6)
+    # Preserve the serialized mount rotations rather than rounding them to axes.
+    assert extrinsics["Pcl"] == pytest.approx(
+        [0.000000122800367, -0.079002376748972, -0.095500094196799], abs=2e-6)
 
 
 def test_inconsistent_turning_radius_is_rejected(tmp_path):
@@ -196,6 +198,23 @@ def test_differential_sdf_uses_four_wheel_drive_without_steering(tmp_path, vehic
                 assert link.find("visual") is None
 
 
+def test_nominal_diff_drive_can_disable_wheel_acceleration_integrator(tmp_path):
+    config = _load()
+    config["vehicleType"] = "tracked"
+    for wheel in config["geometry"]["wheelCenters"]:
+        wheel["steering"] = False
+        wheel["driven"] = True
+    original_acceleration = config["dynamics"]["maxAccelerationMps2"]
+    config.setdefault("metadata", {})["simulationDiffDriveWheelAccelerationMps2"] = 0.0
+    root = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    drive = root.find(".//plugin[@name='configured_diff_drive']")
+    assert float(drive.findtext("max_wheel_acceleration")) == 0.0
+    assert config["dynamics"]["maxAccelerationMps2"] == original_acceleration
+    config["metadata"]["simulationDiffDriveWheelAccelerationMps2"] = -1
+    with pytest.raises(ValueError, match="nonnegative"):
+        generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path)
+
+
 def test_ackermann_simulation_keeps_original_contact_friction(tmp_path):
     config = _load()
     root = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
@@ -204,6 +223,32 @@ def test_ackermann_simulation_keeps_original_contact_friction(tmp_path):
         contact = root.find(f".//link[@name='{wheel['id']}_wheel_link']/collision/surface/friction/ode")
         assert float(contact.findtext("mu")) == 1.8
         assert float(contact.findtext("mu2")) == 1.5
+
+
+def test_nominal_skid_contact_uses_axle_aligned_lateral_friction(tmp_path):
+    config = _load()
+    config["vehicleType"] = "tracked"
+    for wheel in config["geometry"]["wheelCenters"]:
+        wheel["steering"] = False
+        wheel["driven"] = True
+    config.setdefault("metadata", {})["simulationSkidContact"] = {
+        "lateralFriction": .1, "longitudinalFriction": 1.8, "frontLateralFriction": .03,
+        "lateralSlipMpsPerN": .0001}
+    root = ET.fromstring(generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path))
+    for wheel in config["geometry"]["wheelCenters"]:
+        contact = root.find(f".//link[@name='{wheel['id']}_wheel_link']/collision/surface/friction/ode")
+        assert contact.findtext("fdir1") == "0 0 1"
+        assert float(contact.findtext("mu")) == (.03 if wheel["id"].startswith("front_") else .1)
+        assert float(contact.findtext("mu2")) == 1.8
+        assert float(contact.findtext("slip1")) == .0001
+    for invalid in (-1, float("nan"), True):
+        config["metadata"]["simulationSkidContact"]["lateralSlipMpsPerN"] = invalid
+        with pytest.raises(ValueError, match="slip must"):
+            generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path)
+    config["metadata"]["simulationSkidContact"]["lateralSlipMpsPerN"] = .0001
+    config["metadata"]["simulationSkidContact"]["lateralFriction"] = -1
+    with pytest.raises(ValueError, match="positive"):
+        generate_simulation_sdf(config, WORKSPACE_SRC, tmp_path)
 
 
 def test_multiple_mesh_objects_per_wheel_keep_valid_local_indices(tmp_path):
@@ -287,7 +332,7 @@ def test_generated_runtime_bundle_uses_tuned_templates(tmp_path):
     )
     assert fastlivo["/**"]["ros__parameters"]["vio"]["img_point_cov"] == 200
     assert fastlivo["/**"]["ros__parameters"]["extrin_calib"]["Pcl"] == pytest.approx(
-        [0.0, -0.079, -0.0955], abs=2e-6
+        [0.000000122800367, -0.079002376748972, -0.095500094196799], abs=2e-6
     )
     sdf = ET.parse(output / "models/ackermann_current.sdf").getroot()
     assert sdf.find(".//sensor[@name='n300pro_imu']") is not None
@@ -426,6 +471,22 @@ def test_obj_visual_lod_reduces_faces_and_preserves_material(tmp_path):
     assert "mtllib vehicle_visual.mtl" in simplified
     assert "usemtl blue" in simplified
     assert simplified.count("\nf ") == stats["outputFaces"]
+
+
+def test_small_scale_visuals_can_keep_millimetre_detail_without_changing_default_lod(tmp_path):
+    config = _load()
+    config["vehicleType"] = "tracked"
+    for wheel in config["geometry"]["wheelCenters"]:
+        wheel["steering"] = False
+    (tmp_path/"vehicle_visual.obj").write_text("v 0 0 0\nv .005 0 0\nv 0 .005 0\nf 1 2 3\n")
+    config["metadata"]["simulationBodyLodGridM"] = .002
+    manifest = generate_bundle(config, tmp_path/"vehicle_config.json", tmp_path/"fine")
+    assert manifest["visualLod"]["bodyGridM"] == .002
+    assert manifest["visualLod"]["body"]["outputFaces"] == 1
+    for invalid in (True, 0., .1, float("nan")):
+        config["metadata"]["simulationBodyLodGridM"] = invalid
+        with pytest.raises(ValueError, match="simulationBodyLodGridM"):
+            generate_bundle(config, tmp_path/"vehicle_config.json", tmp_path/"invalid")
 
 
 def test_current_ackermann_runtime_verifier_covers_expected_surface():

@@ -1,0 +1,19 @@
+{
+  "id": "inter_row_milling_cutter",
+  "displayName": "四行铣土机",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/inter-row-milling-cutter SW STP IGS.zip",
+  "sourceMember": "inter-row-milling-cutter SW STP IGS/ПЛ-100 СБ.STEP",
+  "sourceSha256": "cc64c36d359c4a3168307d149dd622437a476877977b4cedea2f6120f30a157b",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[0, 0, -1], [-1, 0, 0], [0, 1, 0]],
+  "maxVisualFaces": 155000,
+  "expectedSizeRangeM": [[1.80, 1.83], [2.99, 3.01], [1.85, 1.89]],
+  "tasks": ["行间中耕", "松土"],
+  "notes": [
+    "Source CAD +Y is up; the three-point hitch projects toward -Z, with the trailing blades toward +Z.",
+    "Retain the original 3 m exterior width and all four cutter units; do not resize to a small vehicle.",
+    "Structural-part LOD protection retains the hopper, hitch and support bars; neutral source material is preserved.",
+    "Origin is front ground centre, not a calibrated hitch pin; mass and working width are nominal simulation values.",
+    "Cab-tractor raised rigid transport only; no rotor, metering or soil-contact dynamics."
+  ]
+}

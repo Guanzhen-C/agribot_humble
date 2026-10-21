@@ -1,0 +1,8 @@
+{
+  "surfaceProbes": {
+    "imu": [0.95, -0.15],
+    "lidar": [1.1, 0.0],
+    "rtk_master": [0.8, 0.0]
+  },
+  "notes": "Reuse existing garage sensor models at fixed forward-deck mounts; nominal unmanned simulation configuration only."
+}

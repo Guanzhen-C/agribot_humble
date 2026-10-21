@@ -42,6 +42,27 @@ target_link_libraries(agribot_ackermann_gazebo_render_workaround
   ${CMAKE_DL_LIBS}
 )
 
+add_library(agribot_gazebo_local_model_catalog SHARED
+  src/gazebo_local_model_catalog.cpp)
+target_include_directories(agribot_gazebo_local_model_catalog PRIVATE
+  ${gazebo_dev_INCLUDE_DIRS})
+target_link_libraries(agribot_gazebo_local_model_catalog ${gazebo_dev_LIBRARIES})
+
+if(BUILD_TESTING)
+  add_executable(fuel_catalog_probe test/fuel_catalog_probe.cpp)
+  target_include_directories(fuel_catalog_probe PRIVATE ${gazebo_dev_INCLUDE_DIRS})
+  target_link_libraries(fuel_catalog_probe ${gazebo_dev_LIBRARIES})
+  add_test(NAME test_local_fuel_catalog
+    COMMAND ${CMAKE_COMMAND} -E env
+      "LD_PRELOAD=$<TARGET_FILE:agribot_gazebo_local_model_catalog>"
+      $<TARGET_FILE:fuel_catalog_probe>)
+  set_tests_properties(test_local_fuel_catalog PROPERTIES
+    PASS_REGULAR_EXPRESSION "^0" TIMEOUT 20)
+  add_test(NAME test_original_fuel_catalog COMMAND fuel_catalog_probe)
+  set_tests_properties(test_original_fuel_catalog PROPERTIES
+    PASS_REGULAR_EXPRESSION "^[1-9]" TIMEOUT 20)
+endif()
+
 add_library(agribot_ackermann_gazebo_scene_sync SHARED
   src/gazebo_scene_sync_plugin.cpp
 )
@@ -74,6 +95,7 @@ target_link_libraries(agribot_ackermann_mppi_drive
 install(TARGETS
   agribot_ackermann_mppi_drive
   agribot_ackermann_gazebo_render_workaround
+  agribot_gazebo_local_model_catalog
   agribot_ackermann_gazebo_scene_sync
   LIBRARY DESTINATION lib
 )

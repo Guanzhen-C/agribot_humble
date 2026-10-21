@@ -54,3 +54,14 @@ def test_self_filter_does_not_hide_malformed_input():
     cloud = PointCloud2(height=1, width=1)
     with pytest.raises(ValueError, match="layout"):
         module.remove_self_returns(cloud, np.eye(3), [0] * 3, [-1] * 3, [1] * 3)
+
+
+def test_implement_box_does_not_hide_gap_between_vehicle_and_implement():
+    cloud = PointCloud2(height=1, width=4, point_step=12, row_step=48)
+    cloud.fields = [PointField(name=name, offset=index * 4, datatype=PointField.FLOAT32, count=1)
+                    for index, name in enumerate(("x", "y", "z"))]
+    cloud.data = array.array("B", struct.pack("<12f", 0, 0, 0, -3, 0, 0, -1.5, 0, 0, 3, 0, 0))
+    result = module.remove_self_returns(cloud, np.eye(3), [0, 0, 0], [-1]*3, [1]*3,
+                                        [[-4, -1, -1, -2, 1, 1]])
+    assert result.width == 2
+    assert struct.unpack("<6f", result.data) == (-1.5, 0, 0, 3, 0, 0)

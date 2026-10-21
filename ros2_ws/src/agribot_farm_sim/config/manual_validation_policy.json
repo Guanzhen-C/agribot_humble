@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "evidenceType": "user_group_confirmation_policy",
+  "userStatement": "别的农机具不测了，就这吧，只要一个农机具跑通，其他的适配的也都没问题",
+  "representativeImplementsPerVehicleScene": 1,
+  "groupVerdictRequiresExplicitRepresentativePass": true,
+  "covers": "current_supported_implements_for_same_vehicle_scene_algorithm_and_vehicle_revision",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "代表组合明确通过后，其余已适配机具按用户规则分组确认，不冒充逐项实测或自动全路线验收。",
+    "不覆盖未适配机具、已排除场景、其他算法、未来新增机具或不同车型版本。",
+    "仅适用于仿真导航，不代表真实农具作业、承载能力或碰撞安全认证。",
+    "单独说下一个不构成当前组合通过结论，保留原始结果与未判定状态。"
+  ]
+}

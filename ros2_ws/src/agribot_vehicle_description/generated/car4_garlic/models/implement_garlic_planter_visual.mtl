@@ -1,0 +1,20 @@
+# Blender MTL File: 'None'
+# Material Count: 1
+
+newmtl cad_default
+Ns 0.000000
+Ka 0.550000 0.620000 0.660000
+Kd 0.550000 0.620000 0.660000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 1
+
+newmtl hitch_painted_steel
+Ka .16 .18 .19
+Kd .16 .18 .19
+
+newmtl hitch_pin_steel
+Ka .48 .50 .52
+Kd .48 .50 .52

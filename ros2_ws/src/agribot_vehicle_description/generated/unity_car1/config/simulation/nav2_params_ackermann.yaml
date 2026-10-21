@@ -127,12 +127,12 @@ controller_server:
       vx_std: 0.15
       vy_std: 0.0
       wz_std: 0.1
-      vx_max: 0.30000001192092896
+      vx_max: 0.5
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 0.2984025776386261
-      ax_max: 0.800000011920929
-      ax_min: -0.800000011920929
+      wz_max: 0.12442762039583402
+      ax_max: 0.5
+      ax_min: -0.5
       ay_min: 0.0
       ay_max: 0.0
       az_max: 0.35
@@ -141,7 +141,7 @@ controller_server:
       gamma: 0.015
       motion_model: Ackermann
       AckermannConstraints:
-        min_turning_r: 1.0027755579195923
+        min_turning_r: 4.018400403458496
       visualize: false
       regenerate_noises: false
       reset_period: 1.0
@@ -227,7 +227,7 @@ global_costmap:
       update_frequency: 2.0
       publish_frequency: 1.0
       track_unknown_space: true
-      footprint: '[[1.0114383473992348,0.46903011202812195],[1.0114383473992348,-0.4690299928188324],[-0.38638222962617874,-0.4690299928188324],[-0.38638222962617874,0.46903011202812195]]'
+      footprint: '[[3.7523868072945974,1.4284423222025582],[3.7523868072945974,-1.4284418444977982],[-1.2476131956856351,-1.4284418444977982],[-1.2476131956856351,1.4284423222025582]]'
       footprint_padding: 0.0
       plugins:
       - static_layer
@@ -258,8 +258,8 @@ global_costmap:
           marking: true
           clearing: false
           obstacle_range: 8.0
-          min_obstacle_height: 0.5929446411132813
-          max_obstacle_height: 0.8725
+          min_obstacle_height: -0.809208586524113
+          max_obstacle_height: 2.8798633709649404
           expected_update_rate: 0.0
           observation_persistence: 0.0
           filter: voxel
@@ -280,7 +280,7 @@ global_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        inflation_radius: 2.0
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -288,13 +288,13 @@ local_costmap:
       global_frame: map
       robot_base_frame: base_link
       rolling_window: true
-      width: 8
-      height: 8
+      width: 13
+      height: 13
       resolution: 0.05
       update_frequency: 5.0
       publish_frequency: 2.0
       transform_tolerance: 0.8
-      footprint: '[[1.0114383473992348,0.46903011202812195],[1.0114383473992348,-0.4690299928188324],[-0.38638222962617874,-0.4690299928188324],[-0.38638222962617874,0.46903011202812195]]'
+      footprint: '[[3.7523868072945974,1.4284423222025582],[3.7523868072945974,-1.4284418444977982],[-1.2476131956856351,-1.4284418444977982],[-1.2476131956856351,1.4284423222025582]]'
       footprint_padding: 0.0
       plugins:
       - static_layer
@@ -325,8 +325,8 @@ local_costmap:
           marking: true
           clearing: false
           obstacle_range: 4.0
-          min_obstacle_height: 0.5929446411132813
-          max_obstacle_height: 0.8725
+          min_obstacle_height: -0.809208586524113
+          max_obstacle_height: 2.8798633709649404
           expected_update_rate: 0.0
           observation_persistence: 0.0
           filter: voxel
@@ -347,7 +347,7 @@ local_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        inflation_radius: 2.0
 map_server:
   ros__parameters:
     use_sim_time: false
@@ -370,8 +370,8 @@ planner_server:
       motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
-      analytic_expansion_max_length: 5.22
-      minimum_turning_radius: 1.0027755579195923
+      analytic_expansion_max_length: 16.073601613833983
+      minimum_turning_radius: 4.018400403458496
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0

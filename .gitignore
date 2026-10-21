@@ -75,3 +75,22 @@ ros2_ws/protobuf_compat/
 # Unreferenced Gazebo source textures
 /ros2_ws/src/scout_gazebo/meshes/GroundMoss001_COL_1K.jpg.001.jpg
 /ros2_ws/src/scout_gazebo/meshes/GroundTireTracks001_COL_3K.jpg.001.jpg
+
+# Locally purchased CAD derivatives; redistribution rights are not verified.
+# Rebuild from agribot_farm_sim/config/compact_tractor_cad.json and the local CAD.
+/ros2_ws/src/agribot_vehicle_description/generated/compact_tractor/
+/ros2_ws/src/agribot_vehicle_description/generated/tractor_chisel/
+/ros2_ws/src/agribot_vehicle_description/generated/tractor_harrow/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_tractor/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_groove/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_cultivator/
+/ros2_ws/src/agribot_vehicle_description/generated/tractor_cultivator/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_crusher/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_interrow/
+/ros2_ws/src/agribot_vehicle_description/generated/ride_on_mower/
+/ros2_ws/src/agribot_vehicle_description/generated/mower_front_cutter/
+/ros2_ws/src/agribot_vehicle_description/generated/tractor_garlic/
+/ros2_ws/src/agribot_vehicle_description/generated/tractor_mulch/
+/ros2_ws/src/agribot_vehicle_description/generated/cab_trailer/
+/ros2_ws/src/agribot_vehicle_description/generated/tracked_harvester/
+/ros2_ws/src/agribot_vehicle_description/generated/harvester_header/

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "scenario": "farmyard",
+  "sceneName": "农场运输区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "仅确认试验0031的Car3、六轴机械臂与夹爪、农场运输区及默认算法，不扩展裸车、其他场景或未来机具。",
+    "使用当前模型轮心和自适应接地策略：直行compliance为0.1，转向slip最大0.003m/s/N，左右轮速差0.02至0.08m/s切换。",
+    "原0030侧滑失败保留；本次人工通过不表示坡地完全无滑移，不冒充自动全路线验收或真实履带/土壤标定。"
+  ],
+  "confirmationId": "car3_farmyard_adaptive_slip_default_user_20261021",
+  "vehicle": "Car3",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0031",
+  "userStatement": "很好，car3测试完了，通过，下一个",
+  "confirmations": [
+    {
+      "binding": "Car3__lite6",
+      "vehicleId": "unity_car3",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "c9f3043c031691504a15bcae8fd3c271e02e6c85132d37b1fbce0f522f396646"
+    }
+  ]
+}

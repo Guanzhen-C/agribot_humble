@@ -5,22 +5,22 @@
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
-        <pose>0.297903060913 0.0118678212166 0.339076757431 0 0 0</pose>
-        <mass>50</mass>
+        <pose>0.749556315148 0 0.15 0 0 0</pose>
+        <mass>1400</mass>
         <inertia>
-          <ixx>4.88102436066</ixx>
+          <ixx>860.773734831</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>10.9684906006</iyy>
+          <iyy>1934.30491427</iyy>
           <iyz>0</iyz>
-          <izz>9.20778274536</izz>
+          <izz>1623.80215389</izz>
         </inertia>
       </inertial>
       <collision name="vehicle_body_collision">
-        <pose>0.297903060913 0.0118678212166 0.339076757431 0 0 0</pose>
+        <pose>0.747626981109 0.0297838609691 0.850957797296 0 0 0</pose>
         <geometry>
           <box>
-            <size>1.35478043556 0.611913323402 0.892753005028</size>
+            <size>3.4 1.53567710675 2.24048128938</size>
           </box>
         </geometry>
       </collision>
@@ -33,7 +33,7 @@
         </geometry>
       </visual>
       <visual name="imu_cad_visual">
-        <pose>0.441098928452 -0.000132109504193 0.201900482178 0 0 0</pose>
+        <pose>1.37 0 0.5468719553 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car5/models/sensor_imu_visual.obj</uri>
@@ -42,7 +42,7 @@
         <plugin name="imu_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <visual name="lidar_cad_visual">
-        <pose>0.577098965645 -0.00013209329336 0.2327003479 0 0 0</pose>
+        <pose>1.6 0 0.6959019633 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car5/models/sensor_lidar_visual.obj</uri>
@@ -51,7 +51,7 @@
         <plugin name="lidar_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <visual name="right_camera_cad_visual">
-        <pose>0.60239893198 0.00246786465868 0.214900970459 0 0 0</pose>
+        <pose>1.6253 0 0.8144889633 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car5/models/sensor_right_camera_visual.obj</uri>
@@ -60,7 +60,7 @@
         <plugin name="right_camera_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <visual name="rtk_master_cad_visual">
-        <pose>0.36309877038 0.324868559837 0.71190071106 0 0 0</pose>
+        <pose>1.1 0.325 1.0600262053 0 0 0</pose>
         <geometry>
           <mesh>
             <uri>package://agribot_vehicle_description/generated/unity_car5/models/sensor_rtk_master_visual.obj</uri>
@@ -69,9 +69,9 @@
         <plugin name="rtk_master_visual_only" filename="libagribot_simulation_sensor_visual.so" />
       </visual>
       <sensor name="n300pro_imu" type="imu">
-        <pose>0.441098928452 -0.000132109504193 0.201900482178 0 0 0</pose>
+        <pose>1.37 0 0.5468719553 0 0 0</pose>
         <always_on>true</always_on>
-        <update_rate>200</update_rate>
+        <update_rate>100</update_rate>
         <visualize>false</visualize>
         <imu>
           <angular_velocity>
@@ -124,7 +124,7 @@
         </plugin>
       </sensor>
       <sensor name="lslidar_c16_points" type="ray">
-        <pose>0.577098965645 -0.00013209329336 0.2327003479 0 0 0</pose>
+        <pose>1.6 0 0.6959019633 0 0 0</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -167,7 +167,7 @@
         </plugin>
       </sensor>
       <sensor name="hikrobot_right_camera" type="camera">
-        <pose>0.60239893198 0.00246786465868 0.214900970459 0 0 0</pose>
+        <pose>1.6253 0 0.8144889633 0 0 0</pose>
         <always_on>true</always_on>
         <update_rate>10</update_rate>
         <visualize>false</visualize>
@@ -210,49 +210,41 @@
       </sensor>
     </link>
     <link name="front_left_steering_link">
-      <pose relative_to="__model__">0.66371512413 0.242358237505 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568055074 0.608229928546 -0.171873288014 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
-        <mass>0.2</mass>
+        <mass>2.8</mass>
         <inertia>
-          <ixx>0.0001</ixx>
-          <iyy>0.0001</iyy>
-          <izz>0.0001</izz>
+          <ixx>0.00497083925064</ixx>
+          <iyy>0.00497083925064</iyy>
+          <izz>0.00497083925064</izz>
         </inertia>
       </inertial>
     </link>
     <link name="front_right_steering_link">
-      <pose relative_to="__model__">0.663715183735 -0.242358058691 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568070033 -0.608229479788 -0.171873269315 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
       <inertial>
-        <mass>0.2</mass>
+        <mass>2.8</mass>
         <inertia>
-          <ixx>0.0001</ixx>
-          <iyy>0.0001</iyy>
-          <izz>0.0001</izz>
+          <ixx>0.0049708399711</ixx>
+          <iyy>0.0049708399711</iyy>
+          <izz>0.0049708399711</izz>
         </inertia>
       </inertial>
     </link>
     <link name="front_left_wheel_link">
-      <pose relative_to="__model__">0.66371512413 0.242358237505 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568055074 0.608229928546 -0.171873288014 0 0 0</pose>
       <gravity>true</gravity>
       <self_collide>false</self_collide>
-      <inertial>
-        <mass>3.0</mass>
-        <inertia>
-          <ixx>0.01223</ixx>
-          <iyy>0.02438</iyy>
-          <izz>0.01223</izz>
-        </inertia>
-      </inertial>
       <collision name="wheel_collision">
         <pose>0 0 0 1.5707963267948966 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.102811448276</radius>
-            <length>0.0696836709976</length>
+            <radius>0.258018875209</radius>
+            <length>0.174880353431</length>
           </cylinder>
         </geometry>
         <surface>
@@ -279,25 +271,25 @@
           </mesh>
         </geometry>
       </visual>
-    </link>
-    <link name="front_right_wheel_link">
-      <pose relative_to="__model__">0.663715183735 -0.242358058691 -0.0844879150391 0 0 0</pose>
-      <gravity>true</gravity>
-      <self_collide>false</self_collide>
       <inertial>
-        <mass>3.0</mass>
+        <mass>35</mass>
         <inertia>
-          <ixx>0.01223</ixx>
-          <iyy>0.02438</iyy>
-          <izz>0.01223</izz>
+          <ixx>0.671721043898</ixx>
+          <iyy>1.16504044937</iyy>
+          <izz>0.671721043898</izz>
         </inertia>
       </inertial>
+    </link>
+    <link name="front_right_wheel_link">
+      <pose relative_to="__model__">1.66568070033 -0.608229479788 -0.171873269315 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
       <collision name="wheel_collision">
         <pose>0 0 0 1.5707963267948966 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.102811455727</radius>
-            <length>0.0696836709976</length>
+            <radius>0.258018893907</radius>
+            <length>0.174880353431</length>
           </cylinder>
         </geometry>
         <surface>
@@ -324,25 +316,25 @@
           </mesh>
         </geometry>
       </visual>
-    </link>
-    <link name="rear_left_wheel_link">
-      <pose relative_to="__model__">-3.61019729667e-08 0.202810227871 0 0 0 0</pose>
-      <gravity>true</gravity>
-      <self_collide>false</self_collide>
       <inertial>
-        <mass>3.0</mass>
+        <mass>35</mass>
         <inertia>
-          <ixx>0.01223</ixx>
-          <iyy>0.02438</iyy>
-          <izz>0.01223</izz>
+          <ixx>0.671721128327</ixx>
+          <iyy>1.16504061823</iyy>
+          <izz>0.671721128327</izz>
         </inertia>
       </inertial>
+    </link>
+    <link name="rear_left_wheel_link">
+      <pose relative_to="__model__">-9.06026577183e-08 0.508978987783 -3.55266059299e-06 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
       <collision name="wheel_collision">
         <pose>0 0 0 1.5707963267948966 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.171295493841</radius>
-            <length>0.162000030279</length>
+            <radius>0.429888610562</radius>
+            <length>0.406560420044</length>
           </cylinder>
         </geometry>
         <surface>
@@ -369,25 +361,25 @@
           </mesh>
         </geometry>
       </visual>
-    </link>
-    <link name="rear_right_wheel_link">
-      <pose relative_to="__model__">1.22517533896e-08 -0.202810272574 0 0 0 0</pose>
-      <gravity>true</gravity>
-      <self_collide>false</self_collide>
       <inertial>
-        <mass>3.0</mass>
+        <mass>35</mass>
         <inertia>
-          <ixx>0.01223</ixx>
-          <iyy>0.02438</iyy>
-          <izz>0.01223</izz>
+          <ixx>2.09913674722</ixx>
+          <iyy>3.23407380609</iyy>
+          <izz>2.09913674722</izz>
         </inertia>
       </inertial>
+    </link>
+    <link name="rear_right_wheel_link">
+      <pose relative_to="__model__">3.07473893416e-08 -0.508979099973 3.55266059304e-06 0 0 0</pose>
+      <gravity>true</gravity>
+      <self_collide>false</self_collide>
       <collision name="wheel_collision">
         <pose>0 0 0 1.5707963267948966 0 0</pose>
         <geometry>
           <cylinder>
-            <radius>0.171298325062</radius>
-            <length>0.162000030279</length>
+            <radius>0.429895715883</radius>
+            <length>0.406560420044</length>
           </cylinder>
         </geometry>
         <surface>
@@ -414,16 +406,24 @@
           </mesh>
         </geometry>
       </visual>
+      <inertial>
+        <mass>35</mass>
+        <inertia>
+          <ixx>2.09919020135</ixx>
+          <iyy>3.23418071435</iyy>
+          <izz>2.09919020135</izz>
+        </inertia>
+      </inertial>
     </link>
     <joint name="front_left_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.66371512413 0.242358237505 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568055074 0.608229928546 -0.171873288014 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_left_steering_link</child>
       <axis>
         <xyz>0 0 1</xyz>
         <limit>
-          <lower>-0.610865235329</lower>
-          <upper>0.610865235329</upper>
+          <lower>-0.754872334327</lower>
+          <upper>0.754872334327</upper>
           <effort>200</effort>
           <velocity>1.5</velocity>
         </limit>
@@ -433,14 +433,14 @@
       </axis>
     </joint>
     <joint name="front_right_steering_joint" type="revolute">
-      <pose relative_to="__model__">0.663715183735 -0.242358058691 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568070033 -0.608229479788 -0.171873269315 0 0 0</pose>
       <parent>base_link</parent>
       <child>front_right_steering_link</child>
       <axis>
         <xyz>0 0 1</xyz>
         <limit>
-          <lower>-0.610865235329</lower>
-          <upper>0.610865235329</upper>
+          <lower>-0.754872334327</lower>
+          <upper>0.754872334327</upper>
           <effort>200</effort>
           <velocity>1.5</velocity>
         </limit>
@@ -450,7 +450,7 @@
       </axis>
     </joint>
     <joint name="front_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.66371512413 0.242358237505 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568055074 0.608229928546 -0.171873288014 0 0 0</pose>
       <parent>front_left_steering_link</parent>
       <child>front_left_wheel_link</child>
       <axis>
@@ -458,13 +458,13 @@
         <limit>
           <lower>-1e16</lower>
           <upper>1e16</upper>
-          <effort>200</effort>
+          <effort>300.924514256</effort>
           <velocity>100</velocity>
         </limit>
       </axis>
     </joint>
     <joint name="front_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">0.663715183735 -0.242358058691 -0.0844879150391 0 0 0</pose>
+      <pose relative_to="__model__">1.66568070033 -0.608229479788 -0.171873269315 0 0 0</pose>
       <parent>front_right_steering_link</parent>
       <child>front_right_wheel_link</child>
       <axis>
@@ -472,13 +472,13 @@
         <limit>
           <lower>-1e16</lower>
           <upper>1e16</upper>
-          <effort>200</effort>
+          <effort>300.924514256</effort>
           <velocity>100</velocity>
         </limit>
       </axis>
     </joint>
     <joint name="rear_left_wheel_joint" type="revolute">
-      <pose relative_to="__model__">-3.61019729667e-08 0.202810227871 0 0 0 0</pose>
+      <pose relative_to="__model__">-9.06026577183e-08 0.508978987783 -3.55266059299e-06 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_left_wheel_link</child>
       <axis>
@@ -486,13 +486,13 @@
         <limit>
           <lower>-1e16</lower>
           <upper>1e16</upper>
-          <effort>200</effort>
+          <effort>300.924514256</effort>
           <velocity>100</velocity>
         </limit>
       </axis>
     </joint>
     <joint name="rear_right_wheel_joint" type="revolute">
-      <pose relative_to="__model__">1.22517533896e-08 -0.202810272574 0 0 0 0</pose>
+      <pose relative_to="__model__">3.07473893416e-08 -0.508979099973 3.55266059304e-06 0 0 0</pose>
       <parent>base_link</parent>
       <child>rear_right_wheel_link</child>
       <axis>
@@ -500,7 +500,7 @@
         <limit>
           <lower>-1e16</lower>
           <upper>1e16</upper>
-          <effort>200</effort>
+          <effort>300.924514256</effort>
           <velocity>100</velocity>
         </limit>
       </axis>
@@ -514,19 +514,19 @@
       <joint_state_topic>/joint_states</joint_state_topic>
       <odom_frame>odom</odom_frame>
       <base_frame>base_link</base_frame>
-      <wheelbase>0.663715183735</wheelbase>
-      <front_track_width>0.484716296196</front_track_width>
-      <rear_track_width>0.405620515347</rear_track_width>
-      <wheel_radius>0.171296909451</wheel_radius>
+      <wheelbase>1.66568070033</wheelbase>
+      <front_track_width>1.21645940833</front_track_width>
+      <rear_track_width>1.01795812515</rear_track_width>
+      <wheel_radius>0.429892163222</wheel_radius>
       <max_steering_angle>0.610865235329</max_steering_angle>
       <max_steering_rate>1.20000004768</max_steering_rate>
-      <max_speed>0.300000011921</max_speed>
-      <max_accel>0.800000011921</max_accel>
+      <max_speed>0.5</max_speed>
+      <max_accel>0.5</max_accel>
       <min_speed_for_curvature>0.02</min_speed_for_curvature>
       <command_timeout>0.5</command_timeout>
       <publish_rate>30.0</publish_rate>
       <publish_tf>false</publish_tf>
-      <wheel_torque>200.0</wheel_torque>
+      <wheel_torque>300.924514256</wheel_torque>
     </plugin>
     <plugin name="configured_sensor_collision_filter" filename="libagribot_simulation_sensor_collision_filter.so" />
   </model>

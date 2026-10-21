@@ -1,0 +1,19 @@
+{
+  "id": "forest_chain_crusher",
+  "displayName": "悬挂式林地粉碎机",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/3-point-tractor-semi-forest-chain-crusher-2.40m SW STP.zip",
+  "sourceMember": "3-point-tractor-semi-forest-chain-crusher-2.40m SW STP/DESBROZADORA 2.4m.STEP",
+  "sourceSha256": "c21407e56b9159310679b172c63eb5bbcc2cf2344862829d156a50bd6506a9a2",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+  "maxVisualFaces": 120000,
+  "expectedSizeRangeM": [[1.10, 1.15], [2.83, 2.87], [1.28, 1.31]],
+  "tasks": ["林地清理", "枝条粉碎"],
+  "notes": [
+    "Source CAD +Y is up, +Z faces the tractor hitch and PTO input, +X is lateral.",
+    "Retain the original approximately 2.85 m exterior width; 2.40 m is the archive's nominal working-width designation.",
+    "Use structural-part LOD protection to retain the large curved support frame.",
+    "Origin is front ground centre, not a calibrated hitch pin; neutral source CAD material is preserved.",
+    "Nominal cab-tractor raised rigid transport only; no PTO, rotor or vegetation-contact simulation."
+  ]
+}

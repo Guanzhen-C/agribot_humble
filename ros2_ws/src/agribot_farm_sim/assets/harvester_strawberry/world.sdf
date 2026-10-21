@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.6">
+  <world name="strawberry">
+    <include>
+      <uri>model://sun</uri>
+    </include>
+    <physics name="ode" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <scene>
+      <ambient>0.55 0.55 0.55 1</ambient>
+      <background>0.65 0.78 0.9 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <gui>
+      <camera name="overview">
+        <pose>-17 -20 17 0 0.6 0.85</pose>
+      </camera>
+    </gui>
+    <model name="agricultural_environment">
+      <static>true</static>
+      <link name="environment">
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>scene.obj</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <mesh>
+              <uri>collision.obj</uri>
+            </mesh>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

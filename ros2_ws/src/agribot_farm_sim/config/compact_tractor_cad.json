@@ -1,0 +1,48 @@
+{
+  "id": "compact_tractor",
+  "displayName": "紧凑型轮式拖拉机",
+  "sourceSha256": "cad518651d7b2ae4d1f9fbb0cc6fdf6714321fc3feb0d8925b63adb2d5900495",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceOriginM": [0.65, 0.055, 0.0],
+  "sourceToFluRotation": [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
+  "maxVisualFaces": 100000,
+  "wheelGroups": {
+    "FLwheel": [51, 52, 53],
+    "FRwheel": [39, 40, 41],
+    "RLwheel": [55, 56, 57, 58, 59],
+    "RRwheel": [42, 43, 44, 45, 46]
+  },
+  "materials": {
+    "paint": {"rgba": [0.13, 0.42, 0.22, 1.0], "solids": [0, 5, 24, 27, 47, 60]},
+    "rubber": {"rgba": [0.035, 0.04, 0.045, 1.0], "solids": [19, 41, 45, 53, 55]},
+    "steel": {"rgba": [0.58, 0.62, 0.64, 1.0], "solids": [39, 40, 42, 43, 44, 46, 51, 52, 56, 57, 58, 59]},
+    "lamp": {"rgba": [0.88, 0.88, 0.72, 1.0], "solids": [25, 26, 50, 54]},
+    "rear_lamp": {"rgba": [0.55, 0.05, 0.035, 1.0], "solids": [48, 49, 61, 62]}
+  },
+  "simulation": {
+    "massKg": 350.0,
+    "frontWheelMassKg": 12.0,
+    "rearWheelMassKg": 40.0,
+    "steeringMassKg": 5.0,
+    "maxSteeringAngleRad": 0.50,
+    "maxLinearSpeedMps": 0.30,
+    "obstacleMinHeightM": -0.39,
+    "obstacleMaxHeightM": 1.41,
+    "bodyCollisionCenter": [0.72, 0.0, 0.29],
+    "bodyCollisionSize": [2.25, 0.98, 0.75],
+    "sensorPositions": {
+      "imu": [0.85, 0.0, 0.85],
+      "lidar": [1.15, 0.0, 1.60],
+      "right_camera": [1.25, 0.0, 1.64],
+      "rtk_master": [0.0, 0.6, 1.3],
+      "rtk_secondary": [0.0, -0.6, 1.3]
+    }
+  },
+  "notes": [
+    "Geometry is derived from the supplied CAD; no real-vehicle calibration is claimed.",
+    "CAD +Y is up and -X is forward. base_link is the rear axle midpoint.",
+    "Front wheel centres are levelled vertically to match front/rear tyre contact heights.",
+    "Mass, sensor positions and steering limit are nominal simulation settings.",
+    "Paint colours are presentation choices; they are not supplied manufacturer textures."
+  ]
+}

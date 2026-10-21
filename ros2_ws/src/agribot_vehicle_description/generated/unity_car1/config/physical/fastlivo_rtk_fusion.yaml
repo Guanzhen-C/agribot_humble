@@ -38,9 +38,9 @@ fastlivo_rtk_fusion:
     rtk_horizontal_sigma_floor_m: 0.1
     rtk_huber_delta: 1.345
     base_to_antenna_xyz:
-    - 0.18062394857406616
-    - 0.334000825881958
-    - 1.0560436248779297
+    - 0.6
+    - 0.325
+    - 2.718030690367852
     gravity_sigma_rad: 0.017453292519943295
     gravity_huber_delta: 1.345
     base_from_imu_rpy:

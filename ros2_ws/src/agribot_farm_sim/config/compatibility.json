@@ -1,0 +1,743 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "defaultAlgorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "sceneAlgorithms": {
+    "arable_field": {
+      "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+      "vehicleSceneGroups": ["large_tractor", "harvester"],
+      "reason": "大型拖拉机和收割机在玉米试验田优先采用NavSat；小型、紧凑型仍先验证默认FAST-LIVO2/RTK，失败后独立测试替代定位。",
+      "conditions": [
+        "GNSS位置、IMU、初始航向及当前场景的地理基准必须有效。",
+        "仅适用于当前arable_field的大型车型，不改变小型车型或真机的默认定位算法。",
+        "沿用本车运动学、限速、主机缓冲轮廓及半轴距终点位置容差；配方不代表全路线已验收。"
+      ]
+    },
+    "wide_headland": {
+      "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+      "allowedLocalizationModes": ["navsat"],
+      "reason": "用户要求宽地头场景所有车型统一使用NavSat，不使用FAST-LIVO2或FAST-LIO定位；保留各组合既有规划和控制。",
+      "conditions": [
+        "GNSS位置、IMU与初始航向有效，并有正确的场景地理基准；不能直接用于无GNSS的真实室内场景。",
+        "适用于当前wide_headland的所有车型与当前适配机具；精确组合可保留RPP等控制选择，但定位必须为NavSat，不改变其他场景规则。",
+        "沿用本车与机具组合的完整缓冲外廓、运动学、限速及全部原规定点；配方不是全路线通过证据。"
+      ]
+    }
+  },
+  "validationLimits": {
+    "maxHorizontalRmseM": 0.3,
+    "maxHorizontalErrorM": 0.75
+  },
+  "components": {
+    "perception": [
+      "stvl",
+      "voxel"
+    ],
+    "vision": [
+      "off",
+      "object_detection",
+      "instance_segmentation",
+      "pose_estimation"
+    ],
+    "localization": [
+      "fastlivo_rtk",
+      "fast_lio",
+      "navsat",
+      "kiss_icp"
+    ],
+    "planner": [
+      "smac_hybrid",
+      "navfn",
+      "theta_star",
+      "smac_2d",
+      "direct"
+    ],
+    "controller": [
+      "mppi",
+      "rpp",
+      "dwb"
+    ]
+  },
+  "vehicles": [
+    {
+      "car": "Car0",
+      "id": "ackermann_current",
+      "name": "阿克曼小车",
+      "type": "ackermann",
+      "sceneGroup": "compact"
+    },
+    {
+      "car": "Car1",
+      "id": "unity_car1",
+      "name": "大型驾驶室拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "large_tractor"
+    },
+    {
+      "car": "Car2",
+      "id": "unity_car2",
+      "name": "宽轮驾驶室拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "large_tractor"
+    },
+    {
+      "car": "Car3",
+      "id": "unity_car3",
+      "name": "履带小车",
+      "type": "tracked",
+      "sceneGroup": "compact",
+      "sceneAlgorithms": {
+        "vineyard": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "allowedLocalizationModes": ["navsat"],
+          "reason": "用户明确要求Car3在葡萄园使用NavSat，不再使用FAST-LIVO2融合定位。",
+          "conditions": [
+            "仅适用于Car3在vineyard场景及其当前适配机具，不外推其他场景或车型。",
+            "GNSS位置、IMU、初始航向和场景地理基准必须有效。",
+            "保留Smac Hybrid、MPPI DiffDrive、车辆尺寸和接地策略；此前FAST-LIVO2人工记录保留为历史，不作为当前推荐。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car4",
+      "id": "unity_car4",
+      "name": "通用轮式拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "compact_tractor",
+      "sceneAlgorithms": {
+        "vineyard": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "allowedLocalizationModes": ["navsat"],
+          "reason": "用户明确要求Car4在葡萄园使用NavSat，不再使用FAST-LIVO2融合定位。",
+          "conditions": [
+            "仅适用于Car4在vineyard场景及其当前适配机具，不外推其他场景或车型。",
+            "GNSS位置、IMU、初始航向和场景地理基准必须有效。",
+            "保留Smac Hybrid、MPPI Ackermann、车辆尺寸与转向约束；当前NavSat组合仍需独立验证。"
+          ]
+        },
+        "arable_field": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "allowedLocalizationModes": ["navsat"],
+          "reason": "用户人工选点测试中，Car4的默认FAST-LIVO2/RTK定位漂移；改用NavSat后由用户确认本场景全部可挂载机具组合可用。",
+          "conditions": [
+            "仅适用于Car4在玉米试验田的人工选点导航；不得外推到其他车型或场景。",
+            "必须使用有效GNSS位置、IMU、初始航向和场景地理基准；本场景不推荐FAST-LIVO2/RTK。",
+            "人工确认标签与原预设路线的自动验收分别记录；原预设路线失败不被改写为通过。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car5",
+      "id": "unity_car5",
+      "name": "紧凑型开式拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "compact_tractor"
+    },
+    {
+      "car": "Car6",
+      "id": "compact_tractor",
+      "name": "紧凑型轮式拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "compact_tractor",
+      "sceneAlgorithms": {
+        "vineyard": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "allowedLocalizationModes": ["navsat"],
+          "reason": "用户明确要求Car6在葡萄园仅使用NavSat，不再使用FAST-LIVO2融合定位。",
+          "conditions": [
+            "仅适用于Car6在vineyard场景及其当前适配机具，不外推其他场景或车型。",
+            "GNSS位置、IMU、初始航向和场景地理基准必须有效。",
+            "保持Smac Hybrid、MPPI Ackermann、车体尺寸及转向约束，NavSat组合需重新确认。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car7",
+      "id": "cab_tractor",
+      "name": "带驾驶室轮式拖拉机",
+      "type": "ackermann",
+      "sceneGroup": "large_tractor"
+    },
+    {
+      "car": "Car8",
+      "id": "ride_on_mower",
+      "name": "骑乘式割草机",
+      "type": "ackermann",
+      "sceneGroup": "compact"
+    },
+    {
+      "car": "Car9",
+      "id": "tracked_harvester",
+      "name": "履带式联合收割机主机",
+      "type": "tracked",
+      "sceneGroup": "harvester"
+    }
+  ],
+  "sceneGroups": {
+    "compact": [
+      "orchard",
+      "arable_field",
+      "greenhouse",
+      "farmyard",
+      "tomato_greenhouse",
+      "strawberry_field",
+      "vineyard",
+      "vegetable_field",
+      "wide_headland"
+    ],
+    "compact_tractor": [
+      "orchard",
+      "arable_field",
+      "farmyard",
+      "tomato_greenhouse",
+      "strawberry_field",
+      "vineyard",
+      "vegetable_field",
+      "wide_headland"
+    ],
+    "large_tractor": [
+      "arable_field",
+      "farmyard",
+      "tomato_greenhouse",
+      "vegetable_field",
+      "wide_headland"
+    ],
+    "harvester": [
+      "arable_field",
+      "farmyard",
+      "wide_headland"
+    ]
+  },
+  "bindings": [
+    {
+      "car": "Car0",
+      "preset": "ackermann_current",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car0",
+      "preset": "ackermann_current",
+      "implement": "lite6",
+      "unityType": "Hand",
+      "name": "六轴机械臂与夹爪",
+      "capability": "kinematic_demo"
+    },
+    {
+      "car": "Car1",
+      "preset": "unity_car1",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "unity_car2",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car3",
+      "preset": "unity_car3",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car3",
+      "preset": "unity_car3",
+      "implement": "lite6",
+      "unityType": "Hand",
+      "name": "六轴机械臂与夹爪",
+      "capability": "kinematic_demo"
+    },
+    {
+      "car": "Car4",
+      "preset": "unity_car4",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport",
+      "sceneAlgorithms": {
+        "wide_headland": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "reason": "此组合在宽地头的默认融合定位发生严重偏离；NavSat替代定位已完成原6点运输路线，保留默认Smac和MPPI。",
+          "conditions": [
+            "GNSS位置、IMU及初始航向可用；无有效GNSS时不能照搬此定位方案。",
+            "仅对应本组合的宽地头运输路线，不外推为所有农田、所有机具或真实耕作已验证。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car5",
+      "preset": "unity_car5",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "compact_tractor",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_tractor",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport",
+      "testScenario": "farmyard",
+      "testDistanceM": 8.0,
+      "testLateralM": 1.5,
+      "sceneAlgorithms": {
+        "wide_headland": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_mppi",
+          "reason": "此组合在宽地头的默认融合定位偏离并持续拒绝RTK因子；NavSat替代定位后完成原6点路线及转弯，规划与控制仍用默认Smac和MPPI。",
+          "conditions": [
+            "GNSS位置、IMU及初始航向有效；卫星定位不可用时不采用此配方。",
+            "运输空间须容纳5.51米宽开沟机和组合外廓；不代表真实开沟作业通过，也不影响其他场景的默认算法。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_crusher",
+      "implement": "forest_chain_crusher",
+      "unityType": "ChainCrusher",
+      "name": "悬挂式林地粉碎机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_interrow",
+      "implement": "inter_row_milling_cutter",
+      "unityType": "InterrowMill",
+      "name": "四行铣土机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_trailer",
+      "implement": "farm_trailer",
+      "unityType": "FarmTrailer",
+      "name": "双轴农用拖车",
+      "capability": "articulated_transport",
+      "sceneGroup": "harvester",
+      "testLateralM": 0.0
+    },
+    {
+      "car": "Car8",
+      "preset": "ride_on_mower",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation"
+    },
+    {
+      "car": "Car8",
+      "preset": "mower_front_cutter",
+      "implement": "front_sickle_bar",
+      "unityType": "FrontCutter",
+      "name": "前置割草刀杆",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car9",
+      "preset": "tracked_harvester",
+      "implement": "none",
+      "name": "裸车",
+      "capability": "navigation",
+      "testScenario": "farmyard"
+    },
+    {
+      "car": "Car9",
+      "preset": "harvester_header",
+      "implement": "combine_header",
+      "unityType": "CombineHeader",
+      "name": "谷物收割割台",
+      "capability": "fixed_transport",
+      "testScenario": "wide_headland",
+      "navigationRecommendationAllowed": true,
+      "sceneAlgorithms": {
+        "wide_headland": {
+          "algorithm": "stvl_off_navsat_smac_hybrid_rpp",
+          "reason": "全尺寸12.73米宽割台组合目前取得合格宽地头全程证据的是NavSat与RPP，保留Smac运动学规划。",
+          "conditions": [
+            "GNSS位置、IMU及初始航向有效，具有容纳组合外廓和12米半径转弯的运输空间。",
+            "仅固定割台运输；未验证收割作业，也不代表默认融合定位与MPPI在此组合中均不适用。"
+          ]
+        }
+      }
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_crusher",
+      "implement": "forest_chain_crusher",
+      "unityType": "ChainCrusher",
+      "name": "悬挂式林地粉碎机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_interrow",
+      "implement": "inter_row_milling_cutter",
+      "unityType": "InterrowMill",
+      "name": "四行铣土机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car1",
+      "preset": "car1_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_crusher",
+      "implement": "forest_chain_crusher",
+      "unityType": "ChainCrusher",
+      "name": "悬挂式林地粉碎机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_interrow",
+      "implement": "inter_row_milling_cutter",
+      "unityType": "InterrowMill",
+      "name": "四行铣土机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car2",
+      "preset": "car2_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_crusher",
+      "implement": "forest_chain_crusher",
+      "unityType": "ChainCrusher",
+      "name": "悬挂式林地粉碎机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_interrow",
+      "implement": "inter_row_milling_cutter",
+      "unityType": "InterrowMill",
+      "name": "四行铣土机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car4",
+      "preset": "car4_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_crusher",
+      "implement": "forest_chain_crusher",
+      "unityType": "ChainCrusher",
+      "name": "悬挂式林地粉碎机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_interrow",
+      "implement": "inter_row_milling_cutter",
+      "unityType": "InterrowMill",
+      "name": "四行铣土机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car5",
+      "preset": "car5_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_groove",
+      "implement": "groove_maker",
+      "unityType": "GrooveMaker",
+      "name": "六行开沟机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car6",
+      "preset": "tractor_cultivator",
+      "implement": "mounted_cultivator",
+      "unityType": "Cultivator",
+      "name": "悬挂式中耕机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_chisel",
+      "implement": "compact_chisel_plow",
+      "unityType": "ChiselPlow",
+      "name": "凿式犁",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_harrow",
+      "implement": "mounted_disc_harrow",
+      "unityType": "DiscHarrow",
+      "name": "圆盘耙",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_garlic",
+      "implement": "garlic_planter",
+      "unityType": "GarlicPlanter",
+      "name": "大蒜播种机",
+      "capability": "fixed_transport"
+    },
+    {
+      "car": "Car7",
+      "preset": "cab_mulch",
+      "implement": "mulch_planter",
+      "unityType": "MulchPlanter",
+      "name": "灌水覆膜播种机",
+      "capability": "fixed_transport"
+    }
+  ],
+  "limitations": [
+    "场景分组是待验证候选范围，不是已经完成路线验收的白名单。",
+    "没有实现土壤耕作、作物切割、播种、喷洒、采摘或载荷物理过程；不能推荐为已验证真实作业。",
+    "NavFn、Theta*、Smac2D不保证阿克曼曲率与终点朝向；直连不保证避障或曲率，仅为基线。",
+    "模拟RTK可在室内场景发布；真机室内NavSat不可据此宣称可用。",
+    "拖车只有保守扫掠轮廓，没有铰接状态空间规划；仅验证低速前进开阔运输。",
+    "机械臂为无接触力学的运动学展示；带臂行驶关闭演示，不代表机械臂全扫掠碰撞避障通过。",
+    "收割机与割台为名义全尺寸仿真，不是厂家真实参数；割台宽约12.73米，不可推荐窄行间。",
+    "视觉检测、实例分割、姿态估计只作独立感知展示，不参与导航控制，也不代表农作物识别精度。",
+    "当前装备面板没有喷洒组件，旧代码支持不等于当前可安装选项。"
+  ]
+}

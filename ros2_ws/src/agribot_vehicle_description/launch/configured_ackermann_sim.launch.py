@@ -1,4 +1,6 @@
 import copy
+import json
+import math
 import os
 import platform
 import subprocess
@@ -27,9 +29,26 @@ def _gazebo_transport_compat_path():
     return directory if version == "11.10.2" else ""
 
 
-def _write_simulation_rviz_config(source_file, vision_mode="off"):
+def _write_simulation_rviz_config(source_file, vision_mode="off", visual_belts=False):
     with open(source_file, encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
+    panels = config.setdefault("Panels", [])
+    if not any(panel.get("Class") == "nav2_rviz_plugins/Navigation 2" for panel in panels):
+        panels.append({"Class": "nav2_rviz_plugins/Navigation 2", "Name": "Navigation 2"})
+    tools = config["Visualization Manager"].setdefault("Tools", [])
+    for tool in tools:
+        if tool.get("Class") == "rviz_default_plugins/SetGoal":
+            tool.clear()
+            tool["Class"] = "nav2_rviz_plugins/GoalTool"
+    if not any(tool.get("Class") == "nav2_rviz_plugins/GoalTool" for tool in tools):
+        tools.append({"Class": "nav2_rviz_plugins/GoalTool"})
+    config.setdefault("Window Geometry", {})["Navigation 2"] = {"collapsed": False}
+    for display in config["Visualization Manager"]["Displays"]:
+        if display["Class"] == "rviz_default_plugins/Image":
+            display["Class"] = "scout_viz/Image"
+        if (display["Class"] == "rviz_default_plugins/Path" and
+                display.get("Topic", {}).get("Value") in ("/plan", "/local_plan", "/waypoint_path")):
+            display["Class"] = "scout_viz/NavigationPath"
     rgb = next(display for display in config["Visualization Manager"]["Displays"]
                if display["Name"] == "RGB Image")
     rgb["Enabled"] = True
@@ -38,6 +57,13 @@ def _write_simulation_rviz_config(source_file, vision_mode="off"):
     image_topic = "/camera/rgb/image_raw" if vision_mode == "off" else "/vision/annotated_image"
     rgb["Topic"].update({"Value": image_topic, "Depth": 1,
                          "Reliability Policy": "Best Effort"})
+    if visual_belts:
+        config["Visualization Manager"]["Displays"].append({
+            "Class": "rviz_default_plugins/MarkerArray", "Name": "Track Animation",
+            "Enabled": True, "Value": True,
+            "Topic": {"Value": "/simulation/track_visuals", "Depth": 2,
+                      "Reliability Policy": "Reliable", "Durability Policy": "Volatile"},
+        })
     target = os.path.join(tempfile.gettempdir(), "configured_vehicle_camera.generated.rviz")
     with open(target, "w", encoding="utf-8") as stream:
         yaml.safe_dump(config, stream, sort_keys=False)
@@ -53,16 +79,132 @@ def _replace_manipulator(root, vehicle, sdf):
     (append_sdf if sdf else append_urdf)(root, vehicle)
 
 
+def _remove_implement_collisions(root, vehicle, sdf):
+    """Simulation implements retain visuals and inertia, but have no contact geometry."""
+    frames = {item["frameId"] for item in vehicle.get("implements", [])}
+    if vehicle.get("manipulators"):
+        from agribot_vehicle_config_tools.manipulator import PREFIX
+        frames.add(PREFIX + "link_base")
+    joints = []
+    for joint in root.findall("joint"):
+        parent, child = joint.find("parent"), joint.find("child")
+        if parent is not None and child is not None:
+            joints.append((parent.text, child.text) if sdf else
+                          (parent.get("link"), child.get("link")))
+    while True:
+        descendants = {child for parent, child in joints if parent in frames}
+        if descendants.issubset(frames):
+            break
+        frames.update(descendants)
+    for link in root.findall("link"):
+        if link.get("name") in frames:
+            for collision in list(link.findall("collision")):
+                link.remove(collision)
+
+
+def _body_navigation_footprint(vehicle):
+    from agribot_vehicle_config_tools.model import footprint
+    body = copy.copy(vehicle)
+    body["implements"] = []
+    return footprint(body)
+
+
+def _final_position_tolerance(vehicle):
+    """Use half the front-to-rear wheelbase for every configured vehicle."""
+    wheelbase = float(vehicle["geometry"]["wheelbaseM"])
+    if not math.isfinite(wheelbase) or wheelbase <= 0.0:
+        raise ValueError("Final-position tolerance requires a positive finite wheelbaseM")
+    return wheelbase * 0.5
+
+
 def _write_manipulator_urdf(source_file, vehicle):
     tree = ET.parse(source_file)
     _replace_manipulator(tree.getroot(), vehicle, False)
+    _remove_implement_collisions(tree.getroot(), vehicle, False)
     target = os.path.join(tempfile.gettempdir(), "configured_manipulator_vehicle.urdf")
     ET.indent(tree, space="  ")
     tree.write(target, encoding="unicode")
     return target
 
 
-def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=None):
+def _configure_tracked_contact(model, vehicle, config_file):
+    with open(config_file, encoding="utf-8") as stream:
+        profile = yaml.safe_load(stream).get(vehicle["vehicleId"])
+    if profile is None:
+        return
+    if vehicle["vehicleType"] != "tracked":
+        raise ValueError("Tracked contact profile requires a tracked vehicle")
+    for key in ("front_lateral_friction", "rear_lateral_friction", "longitudinal_friction"):
+        value = profile[key]
+        if type(value) not in (float, int) or not math.isfinite(value) or value <= 0:
+            raise ValueError("Tracked contact friction must be finite and positive")
+    aligned = vehicle.get("metadata", {}).get("simulationTrackContactGeometry", {}).get("revision") == "car3_visible_idler_centers_v1"
+    adaptive = profile.get("adaptive_slip")
+    if aligned:
+        value = profile["idler_aligned_lateral_friction"]
+        if type(value) not in (float, int) or not math.isfinite(value) or value <= 0:
+            raise ValueError("Tracked contact friction/slip must be finite and positive")
+        adaptive = {
+            "straight_compliance": profile["idler_aligned_slip_compliance"],
+            "turning_slip": profile["idler_aligned_turning_slip"],
+            "turn_start_speed_difference": profile["turn_start_speed_difference"],
+            "turn_full_speed_difference": profile["turn_full_speed_difference"],
+        }
+    if adaptive is not None:
+        if not isinstance(adaptive, dict):
+            raise ValueError("Tracked adaptive slip profile must be a mapping")
+        for key in ("straight_compliance", "turning_slip",
+                    "turn_start_speed_difference", "turn_full_speed_difference"):
+            value = adaptive[key]
+            if type(value) not in (float, int) or not math.isfinite(value) or value <= 0:
+                raise ValueError("Tracked contact friction/slip must be finite and positive")
+        if adaptive["turn_start_speed_difference"] >= adaptive["turn_full_speed_difference"]:
+            raise ValueError("Tracked turn speed transition must be increasing")
+        masses = [float(node.text) for node in model.findall("link/inertial/mass")]
+        if not masses or any(not math.isfinite(mass) or mass <= 0 for mass in masses):
+            raise ValueError("Tracked wheel slip requires finite positive model masses")
+        normal_force = sum(masses) * 9.81 / len(vehicle["geometry"]["wheelCenters"])
+        previous = model.find("plugin[@name='configured_tracked_wheel_slip']")
+        if previous is not None:
+            model.remove(previous)
+        slip_plugin = ET.SubElement(model, "plugin", name="configured_tracked_wheel_slip",
+                                    filename="libagribot_simulation_tracked_wheel_slip.so")
+        for key in ("straight_compliance", "turning_slip",
+                    "turn_start_speed_difference", "turn_full_speed_difference"):
+            ET.SubElement(slip_plugin, key).text = str(adaptive[key])
+    for wheel in vehicle["geometry"]["wheelCenters"]:
+        wheel_id = wheel["id"]
+        lateral_key = "front_lateral_friction" if wheel_id.startswith("front_") else "rear_lateral_friction"
+        link = model.find(f"link[@name='{wheel_id}_wheel_link']")
+        ode = None if link is None else link.find("collision/surface/friction/ode")
+        if ode is None:
+            raise ValueError(f"Tracked wheel is missing ODE friction: {wheel_id}")
+        # Collision-local Z is the cylinder axle and does not rotate with spin.
+        lateral = profile["idler_aligned_lateral_friction"] if aligned else profile[lateral_key]
+        for key, value in (("fdir1", "0 0 1"), ("mu", lateral),
+                           ("mu2", profile["longitudinal_friction"])):
+            element = ode.find(key)
+            if element is None:
+                element = ET.SubElement(ode, key)
+            element.text = str(value)
+        if adaptive is not None:
+            # The official plugin scales ODE slip with wheel speed; constant
+            # slip allowed gravity to move stopped tracks sideways on slopes.
+            for key in ("slip1", "slip2"):
+                element = ode.find(key)
+                if element is None:
+                    element = ET.SubElement(ode, key)
+                element.text = "0"
+            wheel_node = ET.SubElement(slip_plugin, "wheel", link_name=wheel_id + "_wheel_link")
+            for key, value in (("wheel_normal_force", normal_force),
+                               ("wheel_radius", wheel["radiusM"]),
+                               ("slip_compliance_lateral", adaptive["straight_compliance"]),
+                               ("slip_compliance_longitudinal", 0)):
+                ET.SubElement(wheel_node, key).text = str(value)
+
+
+def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=None,
+                                contact_config=None):
     """Prepare the generated vehicle for real-time Gazebo Classic sensing.
 
     The canonical Unity export keeps the physical C16 and camera resolution.
@@ -78,6 +220,9 @@ def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=Non
     model_tree = ET.parse(source_file)
     if vehicle is not None:
         _replace_manipulator(model_tree.getroot().find("model"), vehicle, True)
+        _remove_implement_collisions(model_tree.getroot().find("model"), vehicle, True)
+        if contact_config is not None:
+            _configure_tracked_contact(model_tree.getroot().find("model"), vehicle, contact_config)
     for uri in model_tree.getroot().iter("uri"):
         value = (uri.text or "").strip()
         for prefix in ("package://", "model://"):
@@ -169,6 +314,36 @@ def _write_fastlio_sim_config(source_file, extrinsics_file):
     return target_file
 
 
+def _configure_nominal_footprint_inflation(config):
+    """Keep a nonzero inflation cost at the CAD vehicle's circumscribed radius."""
+    for name in ("global_costmap", "local_costmap"):
+        parameters = config[name][name]["ros__parameters"]
+        points = yaml.safe_load(parameters["footprint"])
+        resolution = float(parameters["resolution"])
+        circumscribed = max(math.hypot(x, y) for x, y in points)
+        edge_distances = []
+        for a, b in zip(points, points[1:] + points[:1]):
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            length_squared = dx * dx + dy * dy
+            t = max(0.0, min(1.0, -(a[0] * dx + a[1] * dy) / length_squared))
+            edge_distances.append(math.hypot(a[0] + t * dx, a[1] + t * dy))
+        inscribed = min(edge_distances)
+        radius = math.ceil(circumscribed / resolution) * resolution + resolution
+        inflation = parameters["inflation_layer"]
+        inflation["inflation_radius"] = max(inflation["inflation_radius"], radius)
+        # Nav2 truncates exponential inflation to uint8. Retain at least cost 5
+        # at the outer circle, including a cell of discretization margin.
+        max_scaling = math.log(252.0 / 5.0) / (radius - inscribed)
+        inflation["cost_scaling_factor"] = min(inflation["cost_scaling_factor"], max_scaling)
+
+
+def _uses_local_cad_profile(vehicle):
+    metadata = vehicle.get("metadata", {})
+    return (metadata.get("calibrationState") == "unity_nominal_simulation_only"
+            and (metadata.get("authoringTool") == "inspected_local_CAD_profile"
+                 or bool(metadata.get("nominalDimensions"))))
+
+
 def _write_nav2_profile_config(
     source_file,
     rpp_overlay_file,
@@ -177,6 +352,9 @@ def _write_nav2_profile_config(
     perception_mode,
     controller_mode,
     planner_mode,
+    nominal_vehicle=False,
+    navigation_footprint=None,
+    final_position_tolerance=0.25,
 ):
     """Build a Nav2 profile while retaining Unity-generated vehicle geometry."""
     target_file = os.path.join(
@@ -189,8 +367,14 @@ def _write_nav2_profile_config(
     with open(source_file, encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
 
+    if navigation_footprint is not None:
+        for name in ("global_costmap", "local_costmap"):
+            config[name][name]["ros__parameters"]["footprint"] = json.dumps(
+                navigation_footprint, separators=(",", ":"))
     _configure_obstacle_height_filter(config)
     _configure_perception(config, perception_mode)
+    if nominal_vehicle:
+        _configure_nominal_footprint_inflation(config)
 
     controller = config["controller_server"]["ros__parameters"]
     mppi = controller["FollowPath"]
@@ -243,13 +427,41 @@ def _write_nav2_profile_config(
         raise ValueError(f"Unsupported controller mode: {controller_mode}")
 
     if controller_mode == "mppi" and not differential:
-        with open(Path(rpp_overlay_file).parent / "ackermann_mppi_simulation.yaml", encoding="utf-8") as stream:
-            tracking = yaml.safe_load(stream)["FollowPath"]
-        for key, value in tracking.items():
-            if isinstance(value, dict):
-                controller["FollowPath"].setdefault(key, {}).update(copy.deepcopy(value))
-            else:
-                controller["FollowPath"][key] = copy.deepcopy(value)
+        tracking_files = ["ackermann_mppi_simulation.yaml"]
+        if nominal_vehicle:
+            tracking_files.append("nominal_ackermann_navigation.yaml")
+        for filename in tracking_files:
+            with open(Path(rpp_overlay_file).parent / filename, encoding="utf-8") as stream:
+                tracking = yaml.safe_load(stream)["FollowPath"]
+            for key, value in tracking.items():
+                if isinstance(value, dict):
+                    controller["FollowPath"].setdefault(key, {}).update(copy.deepcopy(value))
+                else:
+                    controller["FollowPath"][key] = copy.deepcopy(value)
+        # Large-radius vehicles need samples on their attainable angular scale.
+        selected = controller["FollowPath"]
+        sampling_limit = selected["wz_max"] * (0.5 if nominal_vehicle else 1.0)
+        if selected["wz_std"] > sampling_limit:
+            original_std = selected["wz_std"]
+            selected["wz_std"] = 0.5 * selected["wz_max"]
+            # MPPI's control penalty divides gamma by sampling variance. Keep
+            # that angular coefficient when narrowing samples for large vehicles.
+            selected["gamma"] *= (selected["wz_std"] / original_std) ** 2
+            # Begin heading correction within what this horizon can turn, not
+            # the small-car 0.5 rad deadband when total reachable yaw is smaller.
+            angle = selected["PathAngleCritic"]
+            horizon_yaw = selected["wz_max"] * selected["time_steps"] * selected["model_dt"]
+            angle["max_angle_to_furthest"] = min(angle["max_angle_to_furthest"], 0.5 * horizon_yaw)
+            # Humble penalizes turning-radius deficits in metres. Normalize
+            # that soft cost for large tractors; hard curvature limits remain.
+            radius = selected["AckermannConstraints"]["min_turning_r"]
+            selected["ConstraintCritic"]["cost_weight"] *= min(1.0, 1.3 / radius)
+        if nominal_vehicle:
+            # A large Ackermann vehicle needs forward arc length to settle its
+            # final heading; the small-car 0.5 m window can begin too late.
+            radius = selected["AckermannConstraints"]["min_turning_r"]
+            goal_angle = selected["GoalAngleCritic"]
+            goal_angle["threshold_to_consider"] = max(goal_angle["threshold_to_consider"], 0.5 * radius)
 
     if differential:
         with open(Path(rpp_overlay_file).parent / "differential_controllers.yaml", encoding="utf-8") as stream:
@@ -271,6 +483,19 @@ def _write_nav2_profile_config(
         else:
             selected_controller["min_vel_x"] = reverse_speed
             selected_controller.pop("min_turning_radius", None)
+
+    if nominal_vehicle and controller_mode == "rpp":
+        points = yaml.safe_load(config["local_costmap"]["local_costmap"]["ros__parameters"]["footprint"])
+        length = max(point[0] for point in points) - min(point[0] for point in points)
+        # Apply after both kinematic overlays: a small robot's 0.5 m carrot
+        # over-corrects a multi-metre machine, whether steered or skid-steered.
+        selected_controller = controller["FollowPath"]
+        for key, ratio in (("min_lookahead_dist", .15), ("lookahead_dist", .2),
+                           ("max_lookahead_dist", .3)):
+            selected_controller[key] = max(float(selected_controller[key]), ratio * length)
+        selected_controller["lookahead_time"] = max(
+            float(selected_controller["lookahead_time"]),
+            selected_controller["lookahead_dist"] / selected_controller["desired_linear_vel"])
 
     planner = config["planner_server"]["ros__parameters"]
     if planner_mode == "navfn":
@@ -312,6 +537,18 @@ def _write_nav2_profile_config(
     elif planner_mode != "smac_hybrid":
         raise ValueError(f"Unsupported planner mode: {planner_mode}")
 
+    if nominal_vehicle and not differential and planner_mode == "smac_hybrid":
+        with open(Path(rpp_overlay_file).parent / "nominal_ackermann_navigation.yaml", encoding="utf-8") as stream:
+            planner["GridBased"].update(yaml.safe_load(stream)["GridBased"])
+        radius = planner["GridBased"]["minimum_turning_radius"]
+        planner["GridBased"]["analytic_expansion_max_length"] = max(
+            planner["GridBased"]["analytic_expansion_max_length"], 5.0 * radius)
+
+    if differential and planner_mode != "smac_hybrid":
+        # A millimetre-scale final grid segment is not a requested heading.
+        # Keep the goal quaternion so DiffDrive can settle at the target pose.
+        planner["GridBased"]["use_final_approach_orientation"] = False
+
     if controller_mode == "mppi" and planner_mode != "smac_hybrid":
         # These XY planners do not enforce final yaw or Ackermann curvature.
         # Their intermediate orientations are not a heading constraint.
@@ -323,6 +560,20 @@ def _write_nav2_profile_config(
             }
         controller["FollowPath"]["PathAlignCritic"]["use_path_orientations"] = False
         controller["FollowPath"]["GoalAngleCritic"]["enabled"] = differential
+
+    # Apply last so controller-specific overlays cannot restore a yaw-only
+    # terminal manoeuvre after the final position has already been reached.
+    with open(Path(rpp_overlay_file).parent / "terminal_stop_simulation.yaml", encoding="utf-8") as stream:
+        controller["goal_checker"] = yaml.safe_load(stream)["goal_checker"]
+    if not math.isfinite(final_position_tolerance) or final_position_tolerance <= 0.0:
+        raise ValueError("Final-position tolerance must be positive and finite")
+    controller["goal_checker"]["xy_goal_tolerance"] = final_position_tolerance
+    controller["publish_zero_velocity"] = True
+    if controller_mode == "mppi":
+        controller["FollowPath"]["GoalAngleCritic"]["enabled"] = False
+    elif controller_mode == "dwb":
+        critics = controller["FollowPath"]["critics"]
+        controller["FollowPath"]["critics"] = [name for name in critics if name != "RotateToGoal"]
 
     with open(target_file, "w", encoding="utf-8") as stream:
         yaml.safe_dump(config, stream, allow_unicode=True, sort_keys=False)
@@ -408,7 +659,9 @@ def _configure_obstacle_height_filter(config):
         marking["max_obstacle_height"] = 10.0
 
 
-def _write_nav2_profiles(source_file, config_dir, localization_name):
+def _write_nav2_profiles(source_file, config_dir, localization_name, nominal_vehicle=False,
+                         guard_route_progress=False, navigation_footprint=None,
+                         final_position_tolerance=0.25):
     rpp_overlay = os.path.join(config_dir, "rpp_controller.yaml")
     dwb_overlay = os.path.join(config_dir, "dwb_controller.yaml")
     profiles = {}
@@ -424,8 +677,26 @@ def _write_nav2_profiles(source_file, config_dir, localization_name):
                         perception_mode,
                         controller_mode,
                         planner_mode,
+                        nominal_vehicle,
+                        navigation_footprint,
+                        final_position_tolerance,
                     )
                 )
+                if guard_route_progress:
+                    key = (perception_mode, controller_mode, planner_mode)
+                    with open(profiles[key], encoding="utf-8") as stream:
+                        guarded = yaml.safe_load(stream)
+                    controller = guarded["controller_server"]["ros__parameters"]
+                    checker = copy.deepcopy(controller["goal_checker"])
+                    checker["wrapped_plugin"] = checker["plugin"]
+                    checker["plugin"] = "agribot_vehicle_description::RouteProgressGoalChecker"
+                    checker["requested_goal_topic"] = "/current_goal"
+                    checker["requested_goal_frame"] = guarded["local_costmap"]["local_costmap"]["ros__parameters"]["global_frame"]
+                    controller["route_goal_checker"] = checker
+                    controller["goal_checker_plugins"] = list(controller["goal_checker_plugins"]) + ["route_goal_checker"]
+                    profiles[key] = profiles[key].replace(".generated.yaml", ".route.generated.yaml")
+                    with open(profiles[key], "w", encoding="utf-8") as stream:
+                        yaml.safe_dump(guarded, stream)
     return profiles
 
 
@@ -499,6 +770,8 @@ def _generated_mounts(generated):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("vehicle_id", default_value="ackermann_current"),
+        DeclareLaunchArgument("scenario", default_value="orchard",
+                              choices=["orchard", "arable_field", "greenhouse", "farmyard", "tomato_greenhouse", "strawberry_field", "vineyard", "vegetable_field", "wide_headland"]),
         DeclareLaunchArgument("manipulator", default_value="configured", choices=["configured", "true", "false"]),
         DeclareLaunchArgument("arm_demo", default_value="configured", choices=["configured", "true", "false"]),
         OpaqueFunction(function=_launch_vehicle),
@@ -529,14 +802,17 @@ def _launch_vehicle(context):
     demo_option = LaunchConfiguration("arm_demo").perform(context)
     if arm_installed and demo_option != "configured":
         vehicle["manipulators"][0]["demoEnabled"] = demo_option == "true"
-    self_filter_enabled = vehicle_id != "ackermann_current"
+    from agribot_vehicle_config_tools.implements import collision_boxes as implement_collision_boxes
+    implement_boxes = implement_collision_boxes(vehicle, padding=0.03)
+    self_filter_enabled = vehicle_id != "ackermann_current" or bool(implement_boxes)
     vehicle_model = _write_gazebo_vehicle_model(
         os.path.join(generated, "models", vehicle_id + ".sdf"),
         "/configured/unfiltered_lidar_points" if self_filter_enabled else None,
-        vehicle if had_manipulator or arm_installed else None,
+        vehicle,
+        os.path.join(description_share, "config", "tracked_contact_simulation.yaml"),
     )
     robot_description_file = os.path.join(generated, "urdf", vehicle_id + ".urdf.xacro")
-    if had_manipulator or arm_installed:
+    if had_manipulator or arm_installed or vehicle.get("implements"):
         robot_description_file = _write_manipulator_urdf(robot_description_file, vehicle)
     lidar_sensor = next(sensor for sensor in vehicle["sensors"] if sensor["id"] == "lidar")
     extents = vehicle["geometry"]["bodyExtents"]
@@ -565,6 +841,15 @@ def _launch_vehicle(context):
         os.path.join(simulation_share, "config", "fast_lio_c16_physical_sim.yaml"),
         os.path.join(generated, "config", "fastlivo_extrinsics.yaml"),
     )
+    fastlivo_bridge_config = os.path.join(generated, "config", "physical", "fastlivo_bridge.yaml")
+    if vehicle.get("metadata", {}).get("simulationVelocityFromPose") is True:
+        with open(fastlivo_bridge_config, encoding="utf-8") as stream:
+            bridge_config = yaml.safe_load(stream)
+        bridge_config["fastlio_odom_bridge"]["ros__parameters"]["twist_from_pose"] = True
+        fastlivo_bridge_config = os.path.join(tempfile.gettempdir(),
+            f"configured_{vehicle_id}_fastlivo_bridge.generated.yaml")
+        with open(fastlivo_bridge_config, "w", encoding="utf-8") as stream:
+            yaml.safe_dump(bridge_config, stream)
     navsat_mppi_config = os.path.join(
         generated,
         "config",
@@ -582,14 +867,47 @@ def _launch_vehicle(context):
     obstacle_min_height = float(marking["min_obstacle_height"])
     obstacle_max_height = float(marking["max_obstacle_height"])
     config_dir = os.path.join(description_share, "config")
+    nominal_vehicle = _uses_local_cad_profile(vehicle)
+    guard_route_progress = (
+        LaunchConfiguration("run_waypoints", default="false").perform(context).lower() == "true"
+        and LaunchConfiguration("route_mode", default="planned").perform(context) == "planned"
+    )
     navsat_nav2_profiles = _write_nav2_profiles(
-        navsat_mppi_config, config_dir, "navsat"
+        navsat_mppi_config, config_dir, "navsat", nominal_vehicle, guard_route_progress,
+        _body_navigation_footprint(vehicle), _final_position_tolerance(vehicle)
     )
     fastlio_nav2_profiles = _write_nav2_profiles(
-        fastlio_mppi_config, config_dir, "fastlio"
+        fastlio_mppi_config, config_dir, "fastlio", nominal_vehicle, guard_route_progress,
+        _body_navigation_footprint(vehicle), _final_position_tolerance(vehicle)
     )
     is_jetson = platform.machine() in ("aarch64", "arm64")
     world_file = os.path.join(gazebo_share, "worlds", "orchard_barriers.world")
+    map_directory = os.path.join(navigation_share, "maps")
+    map_name = "orchard_v2_map6.yaml"
+    waypoint_file = os.path.join(simulation_share, "config", "orchard_waypoints_ackermann_smac.yaml")
+    spawn_xy_yaw = [2.0, 36.0, 0.0]
+    georeference_file = os.path.join(simulation_share, "config", "orchard_ackermann_sim_georeference.yaml")
+    scenario = LaunchConfiguration("scenario").perform(context)
+    if scenario == "orchard":
+        from agribot_farm_sim.ground import prepare_orchard_ground
+        world_file = prepare_orchard_ground(
+            world_file, os.path.expanduser("~/.cache/agribot/scenarios/orchard"))
+    else:
+        import json
+        from agribot_farm_sim.scenarios import build, vehicle_spawn, write_georeference, write_vehicle_route
+        scenario_share = get_package_share_directory("agribot_farm_sim")
+        with open(os.path.join(scenario_share, "config", "scenarios.json"), encoding="utf-8") as stream:
+            entry = next(item for item in json.load(stream)["scenarios"] if item["id"] == scenario)
+        scene_directory = build(scenario, os.path.expanduser("~/.cache/agribot/scenarios"))
+        world_file = str(scene_directory / "world.sdf")
+        map_directory = str(scene_directory)
+        map_name = "map.yaml"
+        waypoint_file = str(write_vehicle_route(scenario, vehicle, scene_directory))
+        spawn_xy_yaw = vehicle_spawn(vehicle, scenario, entry["spawn"])
+        spawn_z += float(entry.get("spawnZOffset", 0.0))
+        georeference_file = write_georeference(
+            georeference_file, scene_directory / "georeference.yaml",
+            [*spawn_xy_yaw[:2], spawn_z, spawn_xy_yaw[2]], base_to_antenna_xyz, scenario)
     if is_jetson:
         world_file = _write_jetson_world(world_file)
 
@@ -607,12 +925,18 @@ def _launch_vehicle(context):
             ),
             DeclareLaunchArgument("gui", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
+            DeclareLaunchArgument("default_nav_to_pose_bt_xml", default_value=os.path.join(
+                config_dir, "behavior_trees", "navigate_initial_plan_with_recovery.xml")),
+            DeclareLaunchArgument("default_nav_through_poses_bt_xml", default_value=os.path.join(
+                config_dir, "behavior_trees", "navigate_through_poses_initial_plan_with_recovery.xml")),
             DeclareLaunchArgument("rviz_config", default_value=_write_simulation_rviz_config(
                 os.path.join(get_package_share_directory("agribot_autonomy"), "rviz",
                              "robot_map_global_plan_only.rviz"),
-                LaunchConfiguration("vision_mode", default="off").perform(context))),
+                LaunchConfiguration("vision_mode", default="off").perform(context),
+                bool(vehicle.get("metadata", {}).get("simulationVisualBelts")))),
             DeclareLaunchArgument("headless", default_value="false"),
-            DeclareLaunchArgument("run_waypoints", default_value="true"),
+            DeclareLaunchArgument("run_waypoints", default_value="false",
+                                  description="Opt in to preset validation routes; normal use selects poses in RViz"),
             DeclareLaunchArgument("waypoint_startup_delay", default_value="1.0"),
             # Start the readiness gate early. The gate still blocks Nav2 until
             # localization has produced a real map-frame pose.
@@ -670,9 +994,16 @@ def _launch_vehicle(context):
             DeclareLaunchArgument("enable_slam_map", default_value="false"),
             DeclareLaunchArgument(
                 "map_file_location",
-                default_value=os.path.join(navigation_share, "maps"),
+                default_value=map_directory,
             ),
-            DeclareLaunchArgument("map_file", default_value="orchard_v2_map6.yaml"),
+            DeclareLaunchArgument("map_file", default_value=map_name),
+            Node(
+                package="agribot_vehicle_description",
+                executable="simulation_visual_belts.py",
+                output="screen",
+                parameters=[{"use_sim_time": True, "vehicle_config": os.path.join(generated, "vehicle_config.json")}],
+                condition=IfCondition("true" if vehicle.get("metadata", {}).get("simulationVisualBelts") else "false"),
+            ),
             Node(
                 package="agribot_vehicle_description",
                 executable="simulation_vehicle_cloud_filter.py",
@@ -683,6 +1014,8 @@ def _launch_vehicle(context):
                     "lidar_rpy": lidar_sensor["pose"]["rpy"],
                     "self_min": [float(value) for value in self_min],
                     "self_max": [float(value) for value in self_max],
+                    **({"extra_self_boxes": [float(value) for box in implement_boxes for value in box]}
+                       if implement_boxes else {}),
                 }],
                 output="screen",
                 condition=IfCondition("true" if self_filter_enabled else "false"),
@@ -744,6 +1077,9 @@ def _launch_vehicle(context):
                     "rviz_config": LaunchConfiguration("rviz_config"),
                     "headless": LaunchConfiguration("headless"),
                     "initial_pose_z": str(spawn_z),
+                    "initial_pose_x": str(spawn_xy_yaw[0]),
+                    "initial_pose_y": str(spawn_xy_yaw[1]),
+                    "initial_pose_yaw": str(spawn_xy_yaw[2]),
                     "gazebo_pause_until_spawn": "true",
                     # One-time map anchor after settling, never motion feedback.
                     "use_settled_spawn_pose": "true",
@@ -761,12 +1097,9 @@ def _launch_vehicle(context):
                         "waypoint_startup_delay"
                     ),
                     "waypoint_readiness_gate_enabled": "true",
+                    "waypoint_goal_checker_id": "route_goal_checker" if guard_route_progress else "",
                     "rviz_start_delay": LaunchConfiguration("rviz_start_delay"),
-                    "waypoint_file": os.path.join(
-                        simulation_share,
-                        "config",
-                        "orchard_waypoints_ackermann_smac.yaml",
-                    ),
+                    "waypoint_file": waypoint_file,
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "localization_mode": LaunchConfiguration("localization_mode"),
                     "use_static_map": LaunchConfiguration("use_static_map"),
@@ -783,18 +1116,14 @@ def _launch_vehicle(context):
                         fastlio_nav2_profiles
                     ),
                     "fastlivo_lidar_config_file": fastlivo_sim_config,
+                    "fastlivo_georeference_file": georeference_file,
                     "fastlio_config_file": fastlio_sim_config,
                     "fastlivo_camera_config_file": os.path.join(
                         simulation_share,
                         "config",
                         "fastlivo_hikrobot_640_sim.yaml",
                     ),
-                    "fastlivo_bridge_config_file": os.path.join(
-                        generated,
-                        "config",
-                        "physical",
-                        "fastlivo_bridge.yaml",
-                    ),
+                    "fastlivo_bridge_config_file": fastlivo_bridge_config,
                     "fastlivo_rtk_fusion_config_file": os.path.join(
                         generated,
                         "config",
@@ -810,6 +1139,8 @@ def _launch_vehicle(context):
                     "sim_base_to_antenna_x": str(base_to_antenna_xyz[0]),
                     "sim_base_to_antenna_y": str(base_to_antenna_xyz[1]),
                     "sim_base_to_antenna_z": str(base_to_antenna_xyz[2]),
+                    "default_nav_to_pose_bt_xml": LaunchConfiguration("default_nav_to_pose_bt_xml"),
+                    "default_nav_through_poses_bt_xml": LaunchConfiguration("default_nav_through_poses_bt_xml"),
                     "fastlio_base_to_body_x": str(base_to_body_xyz[0]),
                     "fastlio_base_to_body_y": str(base_to_body_xyz[1]),
                     "fastlio_base_to_body_z": str(base_to_body_xyz[2]),

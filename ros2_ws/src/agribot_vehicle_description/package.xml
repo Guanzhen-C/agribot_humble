@@ -12,6 +12,9 @@
   <depend>dwb_core</depend>
   <depend>dwb_plugins</depend>
   <depend>pluginlib</depend>
+  <depend>nav2_core</depend>
+  <depend>nav2_regulated_pure_pursuit_controller</depend>
+  <depend>std_msgs</depend>
   <build_depend>gazebo_dev</build_depend>
   <depend>pkg-config</depend>
   <depend>tbb</depend>
@@ -23,30 +26,34 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>action_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
+  <depend>geometry_msgs</depend>
   <exec_depend>lifecycle_msgs</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav2_rviz_plugins</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>agribot_ackermann_mppi</exec_depend>
   <exec_depend>agribot_autonomy</exec_depend>
   <exec_depend>agribot_vehicle_config_tools</exec_depend>
   <exec_depend>agribot_manipulator_sim</exec_depend>
+  <exec_depend>agribot_farm_sim</exec_depend>
   <exec_depend>agribot_hardware_bringup</exec_depend>
   <exec_depend>agribot_visual_perception</exec_depend>
   <exec_depend>nav2_dwb_controller</exec_depend>
-  <exec_depend>nav2_costmap_2d</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <depend>nav2_costmap_2d</depend>
   <exec_depend>nav2_navfn_planner</exec_depend>
-  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_theta_star_planner</exec_depend>
   <exec_depend>scout_gazebo</exec_depend>
   <exec_depend>scout_navigation</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>nav2_behavior_tree</test_depend>
+  <test_depend>ament_index_cpp</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -1,0 +1,35 @@
+<!-- No periodic global replanning. New goals and failure recovery can plan again. -->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="2" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <GoalUpdatedController>
+          <RecoveryNode number_of_retries="4" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ReactiveFallback name="PathToPoseFallback">
+              <GoalUpdated/>
+              <RoundRobin name="GlobalPlannerRecoveryActions">
+                <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+                <Wait wait_duration="2"/>
+              </RoundRobin>
+            </ReactiveFallback>
+          </RecoveryNode>
+        </GoalUpdatedController>
+        <RecoveryNode number_of_retries="4" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="goal_checker"/>
+          <ReactiveFallback name="FollowPathFallback">
+            <GoalUpdated/>
+            <RoundRobin name="PlannerRecoveryActions">
+              <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+              <Wait wait_duration="2"/>
+            </RoundRobin>
+          </ReactiveFallback>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <Wait wait_duration="5"/>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

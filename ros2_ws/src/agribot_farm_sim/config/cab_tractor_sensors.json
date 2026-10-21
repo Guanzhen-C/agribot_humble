@@ -1,0 +1,8 @@
+{
+  "surfaceProbes": {
+    "imu": [0.8, -0.2],
+    "lidar": [3.5, 0.0],
+    "rtk_master": [0.1, 0.0]
+  },
+  "notes": "Nominal IMU/GNSS roof mounts and forward hood-mounted lidar/camera, using existing garage sensor meshes; not a physical calibration."
+}

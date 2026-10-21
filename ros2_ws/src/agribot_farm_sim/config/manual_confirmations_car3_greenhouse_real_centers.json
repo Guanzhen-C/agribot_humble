@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "scenario": "greenhouse",
+  "sceneName": "温室行间",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "仅覆盖当前Car3、六轴机械臂与夹爪、温室行间和默认算法的人工选点测试，不扩展到裸车、其他场景、其他算法或未来新增机具。",
+    "四个接地中心与当前可见前后导向轮中心对齐，轴距约0.837m、轮距约0.601m；接触仍采用含履带厚度的四圆柱近似，不是实车标定或完整履带动力学。",
+    "本记录为新轮心配置的独立人工确认，不改写0023旧几何确认，也不增加独立自动全路线验收计数，不认证农具真实作业或碰撞安全。"
+  ],
+  "confirmationId": "car3_greenhouse_real_centers_user_20261021",
+  "supersedesConfirmationId": "car3_greenhouse_default_user_20261021",
+  "vehicle": "Car3",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0024",
+  "userStatement": "很好，这个通过了，下一个",
+  "confirmations": [
+    {
+      "binding": "Car3__lite6",
+      "vehicleId": "unity_car3",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "c9f3043c031691504a15bcae8fd3c271e02e6c85132d37b1fbce0f522f396646"
+    }
+  ]
+}

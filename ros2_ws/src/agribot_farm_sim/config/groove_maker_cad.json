@@ -1,0 +1,18 @@
+{
+  "id": "groove_maker",
+  "displayName": "六行开沟机",
+  "sourceArchive": "03.拖拉机SW stp格式 （24套）/Implement - Planting groove maker STP.zip",
+  "sourceMember": "Implement - Planting groove maker.STEP",
+  "sourceSha256": "bacfe6599ed2bc5b306d5d21aad61941d06ea25151e220560fbeee1f8d4252e4",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+  "maxVisualFaces": 65000,
+  "expectedSizeRangeM": [[1.1, 1.3], [5.4, 5.6], [2.0, 2.2]],
+  "tasks": ["开沟", "播种前整地"],
+  "notes": [
+    "Source CAD +Z is up, +Y points toward the tractor and X spans six tool rows.",
+    "Preserve the original 5.51 m width. Only a nominal cab-tractor transport mount is provided.",
+    "Origin is the front ground centre of the mesh bounds, not a calibrated three-point hitch.",
+    "Raised rigid transport; no soil deformation, PTO drive or furrow generation is simulated."
+  ]
+}

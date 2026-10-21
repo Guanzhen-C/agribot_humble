@@ -1,0 +1,6 @@
+# Shared final-position stop policy for configured simulations only.
+# The configured launch fills xy_goal_tolerance with half the vehicle wheelbase.
+# Pose headings still guide planning, but do not gate terminal acceptance.
+goal_checker:
+  plugin: nav2_controller::PositionGoalChecker
+  stateful: true

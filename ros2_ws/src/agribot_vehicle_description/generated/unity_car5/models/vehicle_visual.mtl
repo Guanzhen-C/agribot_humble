@@ -38,3 +38,7 @@ newmtl 09_红色尾灯_9
 Kd 0.6862744 0.09019602 0.125490129
 d 1
 illum 2
+
+newmtl NominalSensorMount
+Kd 0.18 0.20 0.21
+Ka 0.03 0.03 0.03

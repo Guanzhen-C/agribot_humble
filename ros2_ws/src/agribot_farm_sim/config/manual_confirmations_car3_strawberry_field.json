@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car3_strawberry_field_arm_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car3",
+  "scenario": "strawberry_field",
+  "sceneName": "草莓种植区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0051",
+  "userStatement": "这个车也没问题，下一个",
+  "limitations": [
+    "仅覆盖当前Car3搭载六轴机械臂与夹爪，在strawberry_field场景、默认融合定位/Smac Hybrid/MPPI DiffDrive及当前CAD轮心和自适应接地策略下的人工选点试验。",
+    "不扩展到裸车、其他机具、车型、场景或算法。",
+    "不增加自动全路线验收次数，不代表真实采摘作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car3__lite6",
+      "vehicleId": "unity_car3",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "c9f3043c031691504a15bcae8fd3c271e02e6c85132d37b1fbce0f522f396646"
+    }
+  ]
+}

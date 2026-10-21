@@ -1,0 +1,9 @@
+{
+  "surfaceProbes": {
+    "imu": [2.8, -0.4],
+    "lidar": [4.3, 0.0],
+    "rtk_master": [-1.0, 0.0]
+  },
+  "standoffHeightM": {"lidar": 0.8},
+  "notes": "Fixed roof/feeder mounts on the full-size nominal host. The mast lifts the C16 and camera above the detachable header transport envelope; their physical size is unchanged. Nominal simulation only, not a real-machine calibration."
+}

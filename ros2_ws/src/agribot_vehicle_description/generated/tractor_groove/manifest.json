@@ -1,0 +1,257 @@
+{
+  "schemaVersion": "1.0",
+  "vehicleId": "tractor_groove",
+  "sourceFile": "vehicle_config.json",
+  "generator": "agribot_vehicle_config_tools 0.1.0",
+  "coordinateConvention": "ROS_FLU",
+  "runtimeTemplatesApplied": true,
+  "visualLod": {
+    "method": "material_aware_vertex_clustering",
+    "bodyGridM": 0.02,
+    "wheelGridM": 0.01,
+    "body": {
+      "inputVertices": 49695,
+      "outputVertices": 41945,
+      "inputFaces": 46774,
+      "outputFaces": 12190
+    },
+    "wheels": {
+      "front_left": {
+        "inputVertices": 3846,
+        "outputVertices": 11484,
+        "inputFaces": 7736,
+        "outputFaces": 6214
+      },
+      "front_right": {
+        "inputVertices": 3858,
+        "outputVertices": 11535,
+        "inputFaces": 7760,
+        "outputFaces": 6260
+      },
+      "rear_left": {
+        "inputVertices": 9342,
+        "outputVertices": 26435,
+        "inputFaces": 18832,
+        "outputFaces": 14506
+      },
+      "rear_right": {
+        "inputVertices": 9342,
+        "outputVertices": 26547,
+        "inputFaces": 18832,
+        "outputFaces": 14682
+      }
+    }
+  },
+  "files": [
+    {
+      "path": "config/ackermann_kinematics.yaml",
+      "sizeBytes": 651,
+      "sha256": "3626864876e09480fc2fdeac8ab59c24665fb6ce92a41bd0ebf6d10d9506edee"
+    },
+    {
+      "path": "config/fastlivo_extrinsics.yaml",
+      "sizeBytes": 619,
+      "sha256": "2036f0dba209449e24495e22d9931ecd70b32abe7191136d052c6c37bb889988"
+    },
+    {
+      "path": "config/nav2_geometry.yaml",
+      "sizeBytes": 785,
+      "sha256": "c8f79fab1b18354238f0a6eda8282c11fcdaa2633f2446381289ae885fef175d"
+    },
+    {
+      "path": "config/physical/agribot_c16_astra.yaml",
+      "sizeBytes": 2781,
+      "sha256": "882254f78e09da17e2d4b1621e3a5b816a9ae2267f5669a2d15ca75616189cb7"
+    },
+    {
+      "path": "config/physical/chassis_can.yaml",
+      "sizeBytes": 1053,
+      "sha256": "ef729a82d03a77e97598d8954220688c725c8301b8fe569a5566846a5639e89f"
+    },
+    {
+      "path": "config/physical/chassis_serial.yaml",
+      "sizeBytes": 933,
+      "sha256": "3c7eb398b3d44d6bd9116cee24619387c1d0394b4f13f4cf7d563b4b621c09b4"
+    },
+    {
+      "path": "config/physical/fast_lio_c16.yaml",
+      "sizeBytes": 1128,
+      "sha256": "e53648d149a860f62d90fac4e3308192defb299cc0bbab1c5c88170294a4c759"
+    },
+    {
+      "path": "config/physical/fastlio_bridge.yaml",
+      "sizeBytes": 503,
+      "sha256": "11e008e89ca8a05b06e0445e885f4274fbc0c8d4d332134af79dc14ae6e725b7"
+    },
+    {
+      "path": "config/physical/fastlivo_bridge.yaml",
+      "sizeBytes": 520,
+      "sha256": "5aa580e546e794d10569cc0f8d20777e9f46202feebb31775be4da12f508a4fd"
+    },
+    {
+      "path": "config/physical/fastlivo_rtk_fusion.yaml",
+      "sizeBytes": 2204,
+      "sha256": "a7f1120dd268f720088c6a45eeb646aa22efeffdde27bea1039ee4b114276574"
+    },
+    {
+      "path": "config/physical/joint_state_publisher.yaml",
+      "sizeBytes": 428,
+      "sha256": "de29d2e38bd9361b42ea750cdbb3d9c09c0141881c509b5bad241f6ce6780b42"
+    },
+    {
+      "path": "config/physical/kf_gins_n300pro.yaml",
+      "sizeBytes": 2463,
+      "sha256": "5b692eca5a444c3941c54aae30eb5502d68c6c14af0777b72cb57b2c6094b17d"
+    },
+    {
+      "path": "config/physical/nav2_params_ackermann_fastlio_local.yaml",
+      "sizeBytes": 11143,
+      "sha256": "1a502a7eda7b01b851e5a5d236b1530352e4730f63d9e3d5b2643c17ec73e6af"
+    },
+    {
+      "path": "config/physical/nav2_params_ackermann_fastlio_mapped.yaml",
+      "sizeBytes": 11983,
+      "sha256": "957903722ad6821ede3f84d04b7c681ec546750ece964d48f16b66f9a4d3a4c8"
+    },
+    {
+      "path": "config/physical/nav2_params_ackermann_navsat_static.yaml",
+      "sizeBytes": 11999,
+      "sha256": "ccaa7623c190f219fcac00ddeab06e76081c788ea518aa0e6623d2fa28a8e392"
+    },
+    {
+      "path": "config/physical/nav2_params_ackermann_planner_only.yaml",
+      "sizeBytes": 2165,
+      "sha256": "4c01c6de9de4a96552246314e47002bba26a8b28e41fd8ce4a17878d40d9b911"
+    },
+    {
+      "path": "config/physical/pcd_initial_localization.yaml",
+      "sizeBytes": 1652,
+      "sha256": "a65107cdd3d4cbb553307f6e6bd5778205a238597fc5233eb8343a9de05cec49"
+    },
+    {
+      "path": "config/physical/rtk_map_initializer.yaml",
+      "sizeBytes": 1294,
+      "sha256": "12701b619632e07fb8e68fd93bb29532757dcfecc89fa0c48ea45834901af8cf"
+    },
+    {
+      "path": "config/physical/sensor_mounts.yaml",
+      "sizeBytes": 1155,
+      "sha256": "40c5551cfa73cca5825bf23eeae91073cdf164c13bf32ac80c9be9c72f07072d"
+    },
+    {
+      "path": "config/sensor_mounts.yaml",
+      "sizeBytes": 1155,
+      "sha256": "40c5551cfa73cca5825bf23eeae91073cdf164c13bf32ac80c9be9c72f07072d"
+    },
+    {
+      "path": "config/simulation/nav2_params_ackermann.yaml",
+      "sizeBytes": 12295,
+      "sha256": "1e6d8f1bd3cca2b434292dd04d675e2663a9eb55ac778a559160a4ba756c3fa8"
+    },
+    {
+      "path": "config/simulation/nav2_params_ackermann_fastlio_static.yaml",
+      "sizeBytes": 11407,
+      "sha256": "6d5657816220ad5ca0ae0bf977b61c712c8299391b50da24275e02b9e20d7c57"
+    },
+    {
+      "path": "config/simulation/nav2_params_ackermann_navsat_static.yaml",
+      "sizeBytes": 11423,
+      "sha256": "57582f3e075bfea66a0341915e03805c116996f69c33486922a6f0a8711dd16c"
+    },
+    {
+      "path": "models/front_left_wheel_visual.obj",
+      "sizeBytes": 1189067,
+      "sha256": "22fea343f62a6d7ebae6dcaaba8685dd7215a4c5b033796426cb4b4eecbea8c6"
+    },
+    {
+      "path": "models/front_right_wheel_visual.obj",
+      "sizeBytes": 1160628,
+      "sha256": "91e4d61e46d0fbf5339d9aca33fab037d05083ca1d9e014a4ff0ba7c3e7eea12"
+    },
+    {
+      "path": "models/implement_groove_maker_visual.mtl",
+      "sizeBytes": 342,
+      "sha256": "8b7acb9b813e7c72a6e63316d59979c085f88406d0495458c84c07e7a9bd9fe5"
+    },
+    {
+      "path": "models/implement_groove_maker_visual.obj",
+      "sizeBytes": 5026385,
+      "sha256": "e499867406685b96646397acfebe640acd79d7b79e1280cc8d989ba020529880"
+    },
+    {
+      "path": "models/rear_left_wheel_visual.obj",
+      "sizeBytes": 2645529,
+      "sha256": "af504787d864c101f32cb2c409ed2280f3ae5da61defbd98b32cd0c8303d376e"
+    },
+    {
+      "path": "models/rear_right_wheel_visual.obj",
+      "sizeBytes": 2699256,
+      "sha256": "5803c688e1bfe87eff2f42de32db77fdac3eda0697868f2191d069b60cc8cc3e"
+    },
+    {
+      "path": "models/sensor_imu_visual.mtl",
+      "sizeBytes": 60,
+      "sha256": "505b9d181483da4b3bff26a2a29ffafa76f66a8b68b980aa3e670cba1b0905dc"
+    },
+    {
+      "path": "models/sensor_imu_visual.obj",
+      "sizeBytes": 2319,
+      "sha256": "3b323ee6967c89a0fafb324714b3ac2d1ed895f186b771a950388aebb1306985"
+    },
+    {
+      "path": "models/sensor_lidar_visual.mtl",
+      "sizeBytes": 239,
+      "sha256": "50441f62cb7deb6c8087008170e47067a0bbd82ad8ff3a11d3ecff13e1dcb468"
+    },
+    {
+      "path": "models/sensor_lidar_visual.obj",
+      "sizeBytes": 6313100,
+      "sha256": "cb88aa62bed7cd4924152ff314305a6e09f8a51290f560172a10f4930489a7d3"
+    },
+    {
+      "path": "models/sensor_right_camera_visual.mtl",
+      "sizeBytes": 864,
+      "sha256": "19b5526e3842d1b76973981cf14894c675c468334e99e3e078ca82e8d5eeb8c9"
+    },
+    {
+      "path": "models/sensor_right_camera_visual.obj",
+      "sizeBytes": 17546193,
+      "sha256": "d93932b581b83119ee6d4342f3de5bb64adde69c6cbdb4dc597aab65c8d4a38e"
+    },
+    {
+      "path": "models/sensor_rtk_master_visual.mtl",
+      "sizeBytes": 300,
+      "sha256": "6bc8c6f9eda6a36728aa9142d4e36465d1680147c6545a651cda2428c40ec212"
+    },
+    {
+      "path": "models/sensor_rtk_master_visual.obj",
+      "sizeBytes": 648582,
+      "sha256": "f781b6d7513a346dbf7ee4adbbc8373538b94c9338e19f45a97edd7eea3e781e"
+    },
+    {
+      "path": "models/tractor_groove.sdf",
+      "sizeBytes": 19497,
+      "sha256": "4179bf7ad113a3302b7e9cae83785851a916adecdf6415bd1e624ad0b3858a87"
+    },
+    {
+      "path": "models/vehicle_visual.mtl",
+      "sizeBytes": 1124,
+      "sha256": "217d154ba715821ec28084f9fc933b96c2dd5404f784794241feb2cbcac38149"
+    },
+    {
+      "path": "models/vehicle_visual.obj",
+      "sizeBytes": 3871527,
+      "sha256": "6aead183ea7a9ccdf4b2be8027116d749fc6197176b606508f404656736ac97a"
+    },
+    {
+      "path": "urdf/tractor_groove.urdf.xacro",
+      "sizeBytes": 8096,
+      "sha256": "dfbab747cb8a2c769aaab2a9e7b95de0262f5898867c8310a3670cf12ba7e7e7"
+    },
+    {
+      "path": "vehicle_config.json",
+      "sizeBytes": 13827,
+      "sha256": "bca9a623897c25fe1a6bb2b969ebbe1f3f1de7da24ac0c8baab1ebafa1e8e415"
+    }
+  ]
+}

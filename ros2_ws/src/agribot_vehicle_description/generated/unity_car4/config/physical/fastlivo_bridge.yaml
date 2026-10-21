@@ -11,9 +11,9 @@ fastlio_odom_bridge:
     stamp_with_current_time: false
     is_simulation: false
     base_to_body_xyz:
-    - 0.3530280590057373
-    - 0.007899058982729912
-    - 0.29447364807128906
+    - 1.72
+    - 0.0
+    - 0.9203686560509968
     base_to_body_rpy:
     - 0.0
     - 0.0

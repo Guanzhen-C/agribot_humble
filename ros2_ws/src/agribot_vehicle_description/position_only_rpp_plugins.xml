@@ -1,0 +1,7 @@
+<library path="agribot_position_only_rpp_controller">
+  <class name="agribot_vehicle_description::PositionOnlyRegulatedPurePursuitController"
+         type="agribot_vehicle_description::PositionOnlyRegulatedPurePursuitController"
+         base_class_type="nav2_core::Controller">
+    <description>Official Humble RPP without terminal yaw rotation for position-only simulation goals.</description>
+  </class>
+</library>

@@ -84,12 +84,12 @@
     <collision>
       <origin rpy="1.570796326795 0 0" />
       <geometry>
-        <cylinder radius="0.224918439984" length="0.154119610786" />
+        <cylinder radius="0.118148150498" length="0.15" />
       </geometry>
     </collision>
   </link>
   <joint name="front_left_wheel_joint" type="continuous">
-    <origin xyz="0.200999945402 0.294500052929 0" rpy="0 0 0" />
+    <origin xyz="0.448938366814 0.303675957024 -0.106944138711" rpy="0 0 0" />
     <parent link="base_link" />
     <child link="front_left_wheel_link" />
     <axis xyz="0 1 0" />
@@ -98,12 +98,12 @@
     <collision>
       <origin rpy="1.570796326795 0 0" />
       <geometry>
-        <cylinder radius="0.224918439984" length="0.154119729996" />
+        <cylinder radius="0.118148146635" length="0.15" />
       </geometry>
     </collision>
   </link>
   <joint name="front_right_wheel_joint" type="continuous">
-    <origin xyz="0.201000019908 -0.294500023127 0" rpy="0 0 0" />
+    <origin xyz="0.448938430263 -0.297507204115 -0.10694420218" rpy="0 0 0" />
     <parent link="base_link" />
     <child link="front_right_wheel_link" />
     <axis xyz="0 1 0" />
@@ -112,12 +112,12 @@
     <collision>
       <origin rpy="1.570796326795 0 0" />
       <geometry>
-        <cylinder radius="0.224918439984" length="0.154119610786" />
+        <cylinder radius="0.118148150498" length="0.15" />
       </geometry>
     </collision>
   </link>
   <joint name="rear_left_wheel_joint" type="continuous">
-    <origin xyz="-0.201000079513 0.294499993324 0" rpy="0 0 0" />
+    <origin xyz="-0.388064739151 0.303675957024 -0.106944138711" rpy="0 0 0" />
     <parent link="base_link" />
     <child link="rear_left_wheel_link" />
     <axis xyz="0 1 0" />
@@ -126,12 +126,12 @@
     <collision>
       <origin rpy="1.570796326795 0 0" />
       <geometry>
-        <cylinder radius="0.224918439984" length="0.154119610786" />
+        <cylinder radius="0.118148146635" length="0.15" />
       </geometry>
     </collision>
   </link>
   <joint name="rear_right_wheel_joint" type="continuous">
-    <origin xyz="-0.201000005007 -0.294500052929 0" rpy="0 0 0" />
+    <origin xyz="-0.388064683391 -0.297507204115 -0.10694420218" rpy="0 0 0" />
     <parent link="base_link" />
     <child link="rear_right_wheel_link" />
     <axis xyz="0 1 0" />
@@ -317,5 +317,201 @@
     <origin xyz="0 0 0.0543" rpy="0 0 0" />
     <axis xyz="0 -1 0" />
     <limit lower="0" upper="0.0089" effort="5" velocity="0.05" />
+  </joint>
+  <link name="display_left_sprocket_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_sprocket.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_sprocket_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_sprocket_link" />
+    <origin xyz="0.035841906608619245 0.30700362980921403 0.07214649872863443" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="0.9313421109302513" offset="0" />
+  </joint>
+  <link name="display_left_idler_front_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_idler_front.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_idler_front_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_idler_front_link" />
+    <origin xyz="0.44893836681393606 0.30367595702409744 -0.10694413871123133" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="1.3621552730685873" offset="0" />
+  </joint>
+  <link name="display_left_idler_back_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_idler_back.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_idler_back_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_idler_back_link" />
+    <origin xyz="-0.38806473915127737 0.30367595702409744 -0.10694413871123133" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="rear_left_wheel_joint" multiplier="1.3621552730685873" offset="0" />
+  </joint>
+  <link name="display_left_roller_0_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_roller_0.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_roller_0_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_roller_0_link" />
+    <origin xyz="0.2471377092406679 0.30341892689466476 -0.14649352829701656" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="2.4180767559931597" offset="0" />
+  </joint>
+  <link name="display_left_roller_1_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_roller_1.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_roller_1_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_roller_1_link" />
+    <origin xyz="0.1008230393319573 0.30341892689466476 -0.14649221159590836" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="2.4180751998650827" offset="0" />
+  </joint>
+  <link name="display_left_roller_2_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_roller_2.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_roller_2_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_roller_2_link" />
+    <origin xyz="-0.040638400140649455 0.30341892689466476 -0.14649352829701656" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="2.4180751998650827" offset="0" />
+  </joint>
+  <link name="display_left_roller_3_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_left_roller_3.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_left_roller_3_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_left_roller_3_link" />
+    <origin xyz="-0.18583391754294554 0.30341892689466476 -0.14649221159590836" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_left_wheel_joint" multiplier="2.4522298978990795" offset="0" />
+  </joint>
+  <link name="display_right_sprocket_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_sprocket.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_sprocket_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_sprocket_link" />
+    <origin xyz="0.02503175821408432 -0.3059225191757157 0.07214642939517252" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="0.9313419955517421" offset="0" />
+  </joint>
+  <link name="display_right_idler_back_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_idler_back.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_idler_back_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_idler_back_link" />
+    <origin xyz="-0.3880646833907003 -0.2975072041153908 -0.10694420217950963" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="rear_right_wheel_joint" multiplier="1.3621552731342519" offset="0" />
+  </joint>
+  <link name="display_right_idler_front_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_idler_front.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_idler_front_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_idler_front_link" />
+    <origin xyz="0.44893843026264857 -0.2975072041153908 -0.10694420217950963" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="1.3621552731342519" offset="0" />
+  </joint>
+  <link name="display_right_roller_0_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_roller_0.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_roller_0_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_roller_0_link" />
+    <origin xyz="-0.1862639895279778 -0.29658111184835434 -0.14649359047006005" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="2.418075199981649" offset="0" />
+  </joint>
+  <link name="display_right_roller_1_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_roller_1.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_roller_1_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_roller_1_link" />
+    <origin xyz="-0.04831964638873276 -0.29658111184835434 -0.14649227376899496" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="2.452229898017292" offset="0" />
+  </joint>
+  <link name="display_right_roller_2_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_roller_2.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_roller_2_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_roller_2_link" />
+    <origin xyz="0.10151201614371613 -0.29658111184835434 -0.14649359047006005" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="2.4180759780454375" offset="0" />
+  </joint>
+  <link name="display_right_roller_3_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/unity_car3/models/rotor_right_roller_3.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="display_right_roller_3_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="display_right_roller_3_link" />
+    <origin xyz="0.2405754209870814 -0.29658111184835434 -0.14649227376899496" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <mimic joint="front_right_wheel_joint" multiplier="2.4180767561097265" offset="0" />
   </joint>
 </robot>

@@ -21,8 +21,8 @@ planner_server:
       motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
-      analytic_expansion_max_length: 5.22
-      minimum_turning_radius: 1.1248135206918173
+      analytic_expansion_max_length: 15.759078278945399
+      minimum_turning_radius: 3.9397695697363497
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0
@@ -41,7 +41,7 @@ global_costmap:
       update_frequency: 2.0
       publish_frequency: 1.0
       track_unknown_space: true
-      footprint: '[[1.2670315280556679,0.5683102607727051],[1.2670315280556679,-0.5683139562606812],[-0.4175807610154152,-0.5683139562606812],[-0.4175807610154152,0.5683102607727051]]'
+      footprint: '[[4.187642273480248,1.6151726610724801],[4.187642273480248,-1.6151856048812143],[-1.2123577294999843,-1.6151856048812143],[-1.2123577294999843,1.6151726610724801]]'
       footprint_padding: 0.0
       plugins:
       - static_layer
@@ -54,7 +54,7 @@ global_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        inflation_radius: 2.0
       semantic_proximity_layer:
         plugin: agribot_hardware_bringup::SemanticProximityLayer
         enabled: true

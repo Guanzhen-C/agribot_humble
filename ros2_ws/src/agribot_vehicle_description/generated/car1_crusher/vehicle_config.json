@@ -1,0 +1,663 @@
+{
+  "schemaVersion": "1.0",
+  "vehicleId": "car1_crusher",
+  "displayName": "Car1 full-size cab tractor + 悬挂式林地粉碎机",
+  "vehicleType": "ackermann",
+  "coordinateConvention": "ROS_FLU",
+  "baseFrame": {
+    "frameId": "base_link",
+    "reference": "rear_axle_midpoint"
+  },
+  "geometry": {
+    "bodyExtents": {
+      "frontM": 3.6523868058044813,
+      "rearM": 1.147613194195519,
+      "leftM": 1.2784423162420937,
+      "rightM": 1.2784418385373337
+    },
+    "wheelbaseM": 2.8137142368632873,
+    "frontTrackM": 1.8988800037738676,
+    "rearTrackM": 1.8311997487870093,
+    "wheelRadiusM": 0.959208586524113,
+    "wheelWidthM": 0.7102790843265591,
+    "maxSteeringAngleRad": 0.6108652353286743,
+    "minTurningRadiusM": 4.018400403458496,
+    "wheelCenters": [
+      {
+        "id": "front_left",
+        "position": [
+          2.813713998010907,
+          0.9494403601655038,
+          -0.19888455440931574
+        ],
+        "steering": true,
+        "driven": false,
+        "radiusM": 0.7603240321147973,
+        "widthM": 0.6176002406835815,
+        "massKg": 150.0,
+        "steeringMassKg": 12.0
+      },
+      {
+        "id": "front_right",
+        "position": [
+          2.8137142368632873,
+          -0.9494396436083639,
+          -0.19888479326169572
+        ],
+        "steering": true,
+        "driven": false,
+        "radiusM": 0.7603237932624173,
+        "widthM": 0.6176002406835815,
+        "massKg": 150.0,
+        "steeringMassKg": 12.0
+      },
+      {
+        "id": "rear_left",
+        "position": [
+          -1.6003699258374508e-07,
+          0.9155998743935047,
+          0.0
+        ],
+        "steering": false,
+        "driven": true,
+        "radiusM": 0.959208586524113,
+        "widthM": 0.7102789051872741,
+        "massKg": 150.0
+      },
+      {
+        "id": "rear_right",
+        "position": [
+          5.825900002130088e-08,
+          -0.9155998146804097,
+          0.0
+        ],
+        "steering": false,
+        "driven": true,
+        "radiusM": 0.959208586524113,
+        "widthM": 0.7102792634658441,
+        "massKg": 150.0
+      }
+    ]
+  },
+  "navigation": {
+    "clearance": {
+      "frontM": 0.10000000149011612,
+      "rearM": 0.10000000149011612,
+      "leftM": 0.15000000596046448,
+      "rightM": 0.15000000596046448
+    },
+    "maxLinearSpeedMps": 0.5,
+    "maxAngularSpeedRadps": 0.12442762039583402,
+    "allowReverse": false,
+    "inflationRadiusM": 2.0,
+    "costScalingFactor": 3.0,
+    "obstacleMinHeightM": -0.809208586524113,
+    "obstacleMaxHeightM": 2.8798633709649404
+  },
+  "chassis": {
+    "commandMaxLinearSpeedMps": 0.5,
+    "commandMaxAngularSpeedRadps": 0.12442762039583402,
+    "minimumMotionSpeedMps": 0.019999999552965164
+  },
+  "dynamics": {
+    "massKg": 6000.0,
+    "centerOfMass": [
+      1.2661714065884793,
+      0.0,
+      0.15
+    ],
+    "inertia": {
+      "ixx": 7517.188247065616,
+      "iyy": 15768.359383338859,
+      "izz": 14788.827717235348,
+      "ixy": 0.0,
+      "ixz": 0.0,
+      "iyz": 0.0
+    },
+    "maxAccelerationMps2": 0.5,
+    "maxSteeringRateRadps": 1.2000000476837158,
+    "wheelTorqueNm": 2877.625759572339
+  },
+  "collision": {
+    "center": [
+      1.252386746091386,
+      2.3885237999851166e-07,
+      0.9224066895187023
+    ],
+    "size": [
+      4.79999988057381,
+      2.5568841547794277,
+      2.9149133628924764
+    ]
+  },
+  "visuals": [
+    {
+      "name": "vehicle_body",
+      "meshUri": "package://agribot_vehicle_description/generated/car1_crusher/models/vehicle_visual.obj",
+      "pose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ],
+  "sensors": [
+    {
+      "id": "imu",
+      "sensorType": "imu",
+      "model": "Hipnuc N300Pro",
+      "role": "inertial",
+      "parentFrameId": "base_link",
+      "frameId": "imu_link",
+      "pose": {
+        "xyz": [
+          2.57,
+          0.0,
+          1.3206079722838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/imu/data",
+      "updateRateHz": 100.0
+    },
+    {
+      "id": "lidar",
+      "sensorType": "lidar",
+      "model": "LSLiDAR C16 V4",
+      "role": "mapping",
+      "parentFrameId": "base_link",
+      "frameId": "lidar_link",
+      "pose": {
+        "xyz": [
+          2.8,
+          0.0,
+          1.4696379802838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/lidar/points",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "right_camera",
+      "sensorType": "camera",
+      "model": "Hikrobot MV-CU013-A0UC",
+      "role": "visual_odometry",
+      "parentFrameId": "base_link",
+      "frameId": "right_camera_link",
+      "pose": {
+        "xyz": [
+          2.8253,
+          0.0,
+          1.5882249802838215
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "right_camera_optical_frame",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          -1.5707963267948966,
+          0.0,
+          -1.5707963267948966
+        ],
+        "quaternion": [
+          -0.5,
+          0.5,
+          -0.5,
+          0.5
+        ]
+      },
+      "topic": "/camera/rgb/image_raw",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_master",
+      "sensorType": "gnss_antenna",
+      "model": "Dual-antenna RTK",
+      "role": "master_left",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_link",
+      "pose": {
+        "xyz": [
+          0.6,
+          0.325,
+          2.718030690367852
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/fix",
+      "updateRateHz": 10.0
+    },
+    {
+      "id": "rtk_secondary",
+      "sensorType": "gnss_antenna",
+      "model": "Dual-antenna RTK",
+      "role": "secondary_right",
+      "parentFrameId": "base_link",
+      "frameId": "rtk_secondary_link",
+      "pose": {
+        "xyz": [
+          0.6,
+          -0.325,
+          2.718030690367852
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "measurementFrameId": "",
+      "measurementFramePose": {
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "topic": "/rtk/heading",
+      "updateRateHz": 10.0
+    }
+  ],
+  "metadata": {
+    "authoringTool": "AgriculturalCar_Interior",
+    "profileVersion": "1.0.0",
+    "calibrationState": "unity_nominal_simulation_only",
+    "notes": "Metric body/wheels; original sensor meshes unchanged in size; inspected hood mounts with surface-contact feet.",
+    "simulationVelocityFromPose": true,
+    "nominalDimensions": {
+      "basis": "user-authorized appearance estimate; not manufacturer or measured data",
+      "targetBodyLengthM": 4.8,
+      "sourceScale": 4.00727797134911,
+      "sourceConfigSha256": "45ac181a36039013af882967e43794eac3cd18842fb7406b285d6c59762e0ed0"
+    },
+    "sensorMountContacts": [
+      {
+        "name": "front_2.5199999999999996_-0.1",
+        "xyz": [
+          2.5199999999999996,
+          -0.1,
+          1.2507630159517051
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.5199999999999996_0.1",
+        "xyz": [
+          2.5199999999999996,
+          0.1,
+          1.2507629360978492
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.8699999999999997_-0.1",
+        "xyz": [
+          2.8699999999999997,
+          -0.1,
+          1.200808790248326
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "front_2.8699999999999997_0.1",
+        "xyz": [
+          2.8699999999999997,
+          0.1,
+          1.200808824571317
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Nose"
+      },
+      {
+        "name": "rtk_-0.1",
+        "xyz": [
+          0.6,
+          -0.1,
+          2.1378298778489486
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Cab"
+      },
+      {
+        "name": "rtk_0.1",
+        "xyz": [
+          0.6,
+          0.1,
+          2.137829877848742
+        ],
+        "sourcePart": "SM2_John_Deere_6195M_Cab"
+      }
+    ],
+    "sensorMountBasis": "Nominal CAD surface intersections, not measured hardware calibration.",
+    "implementSourceSha256": "c21407e56b9159310679b172c63eb5bbcc2cf2344862829d156a50bd6506a9a2",
+    "implementRedistributionLicense": "unverified_user_supplied",
+    "implementDynamics": "Nominal mass and box inertia; raised rigid transport only, no soil or cutting forces.",
+    "implementGroundClearanceM": 0.674708586524113,
+    "implementHitch": {
+      "pose": [
+        -1.447613194195519,
+        0.0,
+        -0.2845
+      ],
+      "links": [
+        {
+          "name": "lower_left",
+          "hostPoint": [
+            -1.083,
+            0.404,
+            0.272
+          ],
+          "hostPart": "NS_John_Deere_6195M_Rear_Holder_02",
+          "toolPoint": [
+            -0.028,
+            0.404,
+            0.556
+          ],
+          "toolPart": "solid_1222",
+          "start": [
+            0.3646131941955191,
+            0.404,
+            0.5565
+          ],
+          "end": [
+            -0.028,
+            0.404,
+            0.556
+          ],
+          "lengthM": 0.39261351257490923
+        },
+        {
+          "name": "lower_right",
+          "hostPoint": [
+            -1.083,
+            -0.404,
+            0.272
+          ],
+          "hostPart": "NS_John_Deere_6195M_Rear_Holder_02",
+          "toolPoint": [
+            -0.028,
+            -0.404,
+            0.557
+          ],
+          "toolPart": "solid_1223",
+          "start": [
+            0.3646131941955191,
+            -0.404,
+            0.5565
+          ],
+          "end": [
+            -0.028,
+            -0.404,
+            0.557
+          ],
+          "lengthM": 0.39261351257490923
+        },
+        {
+          "name": "top_link",
+          "hostPoint": [
+            -0.55,
+            0.0,
+            0.75
+          ],
+          "hostPart": "NS_John_Deere_6195M_Rear_Holder_01",
+          "toolPoint": [
+            -0.069,
+            0.0,
+            1.269
+          ],
+          "toolPart": "solid_1221",
+          "start": [
+            0.897613194195519,
+            0.0,
+            1.0345
+          ],
+          "end": [
+            -0.069,
+            0.0,
+            1.269
+          ],
+          "lengthM": 0.9946513545925849
+        }
+      ],
+      "receiverFrame": null,
+      "basis": "Inspected normalized CAD hooks/pins with nominal three-point adapter links; frame-only tools use a separate nominal rail-clamped receiver. Rigid raised transport only, not a lifting-capacity or hardware-fit certification."
+    },
+    "implementTransportBalance": {
+      "totalMassKg": 6974.0,
+      "centerOfMassXM": 1.1427542770111245,
+      "frontAxleLoadFraction": 0.40613731869572123,
+      "scope": "Nominal level-ground static check only; not a dynamic stability or real lifting-capacity rating."
+    },
+    "implementWheelClearance": {
+      "minimumSeparationLowerBoundM": 0.10559746019194571,
+      "scope": "Conservative boxes versus wheel cylinders/steering spheres; not articulation or deformation simulation."
+    }
+  },
+  "implements": [
+    {
+      "id": "forest_chain_crusher",
+      "implementType": "forest_chain_crusher",
+      "parentFrameId": "base_link",
+      "frameId": "forest_chain_crusher_link",
+      "workFrameId": "forest_chain_crusher_work_frame",
+      "pose": {
+        "xyz": [
+          -1.447613194195519,
+          0.0,
+          -0.2845
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "meshFile": "implement_forest_chain_crusher_visual.obj",
+      "mountMode": "fixed_transport",
+      "simulationOnly": true,
+      "massKg": 350.0,
+      "workingWidthM": 2.4,
+      "workOffset": [
+        -0.7312357425689697,
+        0.0,
+        0.0
+      ],
+      "collisionBoxes": [
+        {
+          "name": "implement_envelope",
+          "center": [
+            -0.5624890327453613,
+            0.0,
+            0.6463785171508789
+          ],
+          "size": [
+            1.1269780654907227,
+            2.8482378978729246,
+            1.2947570343017578
+          ]
+        },
+        {
+          "name": "hitch_lower_left",
+          "center": [
+            0.16830659709775952,
+            0.404,
+            0.55625
+          ],
+          "size": [
+            0.47861319419551906,
+            0.172,
+            0.08650000000000002
+          ]
+        },
+        {
+          "name": "hitch_lower_right",
+          "center": [
+            0.16830659709775952,
+            -0.404,
+            0.5567500000000001
+          ],
+          "size": [
+            0.47861319419551906,
+            0.172,
+            0.08650000000000013
+          ]
+        },
+        {
+          "name": "hitch_top_link",
+          "center": [
+            0.4143065970977595,
+            0.0,
+            1.1517499999999998
+          ],
+          "size": [
+            1.052613194195519,
+            0.17200000000000001,
+            0.3205
+          ]
+        }
+      ]
+    }
+  ]
+}

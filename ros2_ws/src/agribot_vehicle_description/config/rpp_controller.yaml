@@ -1,13 +1,15 @@
 # Regulated Pure Pursuit controller overlay for Unity-configured Ackermann simulation.
 # Vehicle speed and minimum turning radius are filled from the generated MPPI
 # configuration at launch time so both controllers use the same Unity geometry.
+# The local adapter delegates tracking/collision to official RPP and omits only
+# terminal yaw rotation; the real goal checker retains its half-wheelbase limit.
 goal_checker:
   plugin: nav2_controller::PositionGoalChecker
   xy_goal_tolerance: 0.25
   stateful: false
 
 FollowPath:
-  plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+  plugin: agribot_vehicle_description::PositionOnlyRegulatedPurePursuitController
   desired_linear_vel: 0.30
   lookahead_dist: 0.80
   min_lookahead_dist: 0.50

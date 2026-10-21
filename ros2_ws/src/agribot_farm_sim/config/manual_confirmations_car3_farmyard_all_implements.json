@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmedDate": "2026-10-21",
+  "scenario": "farmyard",
+  "sceneName": "农场运输区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": [
+    "fastlivo_rtk"
+  ],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "limitations": [
+    "仅覆盖Car3在当前农场运输区、当前默认算法及自适应接地策略下的全部已开放机具；当前只有六轴机械臂与夹爪，不包含裸车或未来新增机具。",
+    "代表试验0031，配置与此前单组合确认完全相同；本事件补充全部当前适配机具的范围，不重复计数，也不扩展到其他场景或算法。",
+    "0030侧滑失败和原单组合确认事件保留；不声称坡地零滑移，不增加独立自动全路线验收次数，不代表真实履带或农具作业认证。"
+  ],
+  "confirmationId": "car3_farmyard_all_implements_adaptive_slip_default_user_20261021",
+  "vehicle": "Car3",
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0031",
+  "userStatement": "这个car3及其适配的所有农机具在当前场景通过了，下一个",
+  "confirmations": [
+    {
+      "binding": "Car3__lite6",
+      "vehicleId": "unity_car3",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "c9f3043c031691504a15bcae8fd3c271e02e6c85132d37b1fbce0f522f396646"
+    }
+  ],
+  "supersedesConfirmationId": "car3_farmyard_adaptive_slip_default_user_20261021",
+  "coversAllCurrentSupportedImplements": true
+}

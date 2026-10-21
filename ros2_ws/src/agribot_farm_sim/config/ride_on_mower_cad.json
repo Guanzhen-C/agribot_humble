@@ -1,0 +1,47 @@
+{
+  "id": "ride_on_mower",
+  "displayName": "骑乘式割草机",
+  "vehicleType": "ackermann",
+  "sourceSha256": "b3e065b96e7715eca6199dffa1eafa4df046e92939c8280b8821adfaa5a8376d",
+  "redistributionLicense": "unverified_user_supplied",
+  "solidCount": 324,
+  "sourceOriginM": [-0.001, -0.10315, 0.21315],
+  "sourceToFluRotation": [[0, 0, 1], [-1, 0, 0], [0, 1, 0]],
+  "maxVisualFaces": 100000,
+  "recalculateNormals": true,
+  "alignAxleCenters": true,
+  "wheelGroups": {
+    "FLwheel": [275, 277], "FRwheel": [276, 278],
+    "RLwheel": [269, 272, 273], "RRwheel": [270, 271, 274]
+  },
+  "casters": {
+    "FLwheel": {"sourcePivotM": [-0.425, 0.0, 1.515], "neutralYawRad": 0.255, "massKg": 1.5,
+      "forkSolids": [65, 66, 67, 167, 168, 170, 173]},
+    "FRwheel": {"sourcePivotM": [0.425, 0.0, 1.515], "neutralYawRad": 0.255, "massKg": 1.5,
+      "forkSolids": [62, 63, 64, 166, 169, 171, 172]}
+  },
+  "materials": {
+    "paint": {"rgba": [0.62, 0.09, 0.06, 1.0], "solids": [21, 56, 57, 58, 59, 68, 70, 130, 131, 132, 133, 134, 135, 137, 139, 140, 143, 250, 251]},
+    "rubber": {"rgba": [0.035, 0.04, 0.045, 1.0], "solids": [273, 274, 277, 278, 279]},
+    "steel": {"rgba": [0.65, 0.67, 0.68, 1.0], "solids": [269, 270, 271, 272, 275, 276, 62, 65]}
+  },
+  "simulation": {
+    "massKg": 180.0, "frontWheelMassKg": 3.0, "rearWheelMassKg": 8.0,
+    "steeringMassKg": 1.5, "frontWheelDriven": false, "maxSteeringAngleRad": 0.5,
+    "maxLinearSpeedMps": 0.3, "maxAngularSpeedRadps": 0.4, "wheelTorqueNm": 100.0,
+    "inflationRadiusM": 1.8, "obstacleMinHeightM": -0.07, "obstacleMaxHeightM": 1.6,
+    "bodyCollisionCenter": [0.45, 0.0, 0.24], "bodyCollisionSize": [1.40, 1.0, 0.68],
+    "sensorPositions": {
+      "imu": [0.94, 0.0, 0.13], "lidar": [1.15, 0.0, 0.20],
+      "right_camera": [1.18, 0.0, 0.35],
+      "rtk_master": [-0.20, 0.35, 0.8], "rtk_secondary": [-0.20, -0.35, 0.8]
+    }
+  },
+  "notes": [
+    "Original-size ride-on mower CAD; source +Y up, +Z forward, -X left.",
+    "Rear axle midpoint is base_link. User-requested nominal Ackermann conversion: rear drive and actively controlled front forks; not the original manufacturer steering mechanism.",
+    "Front fork and wheel assembly is neutralized from its source swivel angle and levelled to the rear tyre contact plane.",
+    "Nominal masses and limits support simulation only; no manufacturer calibration, cutting forces, blade motion or grass removal is claimed.",
+    "Colours are presentation choices, not manufacturer textures."
+  ]
+}

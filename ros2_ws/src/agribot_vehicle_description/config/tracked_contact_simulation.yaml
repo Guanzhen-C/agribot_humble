@@ -1,0 +1,37 @@
+# Scoped four-contact skid proxies, not physical track/soil calibrations.
+# Axle-aligned fdir1 selects lateral friction; mu2 retains rolling traction.
+unity_car3:
+  front_lateral_friction: 0.36
+  rear_lateral_friction: 0.60
+  longitudinal_friction: 1.8
+  # Real visual-idler centers must not retain the old rear-biased skid pivot.
+  idler_aligned_lateral_friction: 0.36
+  # WheelSlipPlugin scales compliance by wheel speed and normal load, so a
+  # stopped wheel does not retain the old force-dependent sideways creep.
+  idler_aligned_slip_compliance: 0.1
+  idler_aligned_turning_slip: 0.003
+  turn_start_speed_difference: 0.02
+  turn_full_speed_difference: 0.08
+
+# Preserve each combine's load-balanced front/rear ratio; raise transverse
+# grip above the old 0.1 rear coefficient for gentle slopes. The turning slip
+# remains mass-appropriate (1e-6), not Car3's 0.003.
+tracked_harvester:
+  front_lateral_friction: 0.15301364067209588
+  rear_lateral_friction: 0.2
+  longitudinal_friction: 1.8
+  adaptive_slip:
+    straight_compliance: 0.1
+    turning_slip: 0.000001
+    turn_start_speed_difference: 0.02
+    turn_full_speed_difference: 0.08
+
+harvester_header:
+  front_lateral_friction: 0.05698845108626831
+  rear_lateral_friction: 0.2
+  longitudinal_friction: 1.8
+  adaptive_slip:
+    straight_compliance: 0.1
+    turning_slip: 0.000001
+    turn_start_speed_difference: 0.02
+    turn_full_speed_difference: 0.08

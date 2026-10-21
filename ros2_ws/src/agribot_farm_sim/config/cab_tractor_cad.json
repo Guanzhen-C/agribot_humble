@@ -1,0 +1,45 @@
+{
+  "id": "cab_tractor",
+  "displayName": "带驾驶室轮式拖拉机",
+  "sourceArchive": "03.拖拉机SW stp格式 （24套）/deutz-fahr-traktoren STP.zip",
+  "sourceMember": "Deutz Tractor Rev-1.step",
+  "sourceSha256": "1933b6a3974f92cce74c27991de92e3b0b8b5ab2ea0a3ef2e7325b5813c09357",
+  "redistributionLicense": "unverified_user_supplied",
+  "solidCount": 216,
+  "sourceOriginM": [0.0, 3.0345, 0.2235],
+  "sourceToFluRotation": [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+  "maxVisualFaces": 100000,
+  "alignAxleCenters": true,
+  "wheelNeutralYawRad": {"FLwheel": -0.4368159025, "FRwheel": -0.4601002705},
+  "wheelGroups": {
+    "FLwheel": [115, 116], "FRwheel": [121, 122],
+    "RLwheel": [119, 120], "RRwheel": [117, 118]
+  },
+  "materials": {
+    "paint": {"rgba": [0.14, 0.40, 0.20, 1.0], "solids": [91, 124, 131, 210, 211, 212, 213]},
+    "rubber": {"rgba": [0.035, 0.04, 0.045, 1.0], "solids": [116, 118, 120, 122, 132, 133]},
+    "steel": {"rgba": [0.65, 0.67, 0.66, 1.0], "solids": [115, 117, 119, 121]},
+    "glass": {"rgba": [0.20, 0.30, 0.34, 1.0], "solids": [125, 126, 127, 128, 129, 130]}
+  },
+  "simulation": {
+    "massKg": 1500.0, "frontWheelMassKg": 80.0, "rearWheelMassKg": 150.0,
+    "steeringMassKg": 15.0, "frontWheelDriven": false,
+    "maxSteeringAngleRad": 0.50, "maxLinearSpeedMps": 0.30,
+    "inflationRadiusM": 5.0,
+    "wheelTorqueNm": 1500.0,
+    "obstacleMinHeightM": -0.85, "obstacleMaxHeightM": 1.17,
+    "bodyCollisionCenter": [1.15, 0.0, 0.85], "bodyCollisionSize": [3.7, 1.8, 2.2],
+    "sensorPositions": {
+      "imu": [0.9, -0.15, 2.4], "lidar": [1.0, 0.0, 2.6],
+      "right_camera": [1.03, 0.0, 2.8],
+      "rtk_master": [0.1, 0.6, 2.5], "rtk_secondary": [0.1, -0.6, 2.5]
+    }
+  },
+  "notes": [
+    "Geometry is from supplied CAD, at original metric scale; redistribution permission is unverified.",
+    "Source +Z is up and -Y is forward; base_link is the rear axle midpoint.",
+    "The two front tyre axes were measured by PCA and rotated to neutral steering; axle x and tyre ground contacts are levelled.",
+    "The simulation uses front steering and rear drive; mass, limits and collision boxes are nominal, not manufacturer calibration.",
+    "Presentation colours are assigned locally. Existing garage sensor CAD is mounted at fixed roof positions."
+  ]
+}

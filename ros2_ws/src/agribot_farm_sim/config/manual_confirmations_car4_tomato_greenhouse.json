@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car4_tomato_greenhouse_chisel_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car4",
+  "scenario": "tomato_greenhouse",
+  "sceneName": "番茄温室",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0043",
+  "userStatement": "这个车也没问题，下一个",
+  "limitations": [
+    "仅覆盖当前Car4搭载凿式犁，在tomato_greenhouse场景、默认融合定位/Smac Hybrid/MPPI下的人工选点试验。",
+    "不扩展到未确认机具、其他车型、场景或算法；不改变玉米田仅允许NavSat的既有规则。",
+    "不增加自动全路线验收次数，不代表真实农具作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car4__compact_chisel_plow",
+      "vehicleId": "car4_chisel",
+      "implementName": "凿式犁",
+      "status": "PASS",
+      "vehicleConfigSha256": "28301249877809af90a0850cc34c5d920f6398e4ee289bdb6209ebb28219de94"
+    }
+  ]
+}

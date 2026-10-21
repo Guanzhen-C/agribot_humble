@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-16",
+  "purpose": "Intake and provenance only. Runtime choices are defined separately in scenarios.json.",
+  "sources": [
+    {
+      "id": "pic4ser_vegetables", "environment": "vegetable_plots", "status": "integrated",
+      "runtimeScenario": "vegetable_field", "runtimeSelectable": true, "url": "https://github.com/PIC4SeR/AutomaticRowCropGenerator",
+      "inspectedCommit": "7d8ebd6e52ade4ce8e0c89b67e2f048ec9e6989e",
+      "licenseScope": "README states all repository code and models are MIT; full upstream notice retained",
+      "evidence": "assets/pic4ser_vegetables/source.json",
+      "validationScope": "Car0 full route only; Car3 terminal convergence pending; not all vehicles or algorithm combinations",
+      "runtimeEvidence": ["20261016_vegetables_car0_off_track_goal: Car0, all 16 waypoints, PASS", "20261016_vegetables_car3: Car3 reached terminal neighborhood but did not converge; INTERRUPTED, not a pass"],
+      "pending": ["tracked_terminal_convergence"]
+    },
+    {
+      "id": "fre_maize", "environment": "maize_rows", "status": "integrated",
+      "runtimeScenario": "arable_field", "url": "https://github.com/FieldRobotEvent/virtual_maize_field",
+      "licenseScope": "Selected maize meshes CC-BY-SA-4.0; not the entire upstream repository",
+      "evidence": "assets/maize_field/source.json"
+    },
+    {
+      "id": "harbot", "environment": "greenhouse", "status": "integrated",
+      "runtimeScenario": "greenhouse", "url": "https://github.com/AV-Lab/harbot-greenhouse-models",
+      "licenseScope": "MIT", "evidence": "assets/harbot_greenhouse/source.json"
+    },
+    {
+      "id": "clearpath_agriculture", "environment": "farmyard", "status": "integrated",
+      "runtimeScenario": "farmyard", "url": "https://github.com/clearpathrobotics/cpr_gazebo",
+      "licenseScope": "BSD-3-Clause; retain model notices", "evidence": "assets/clearpath_farm/source.json"
+    },
+    {
+      "id": "aoc_tomato", "environment": "tomato_greenhouse", "status": "integrated",
+      "runtimeScenario": "tomato_greenhouse", "url": "https://github.com/LCAS/aoc_tomato_farm",
+      "licenseScope": "Apache-2.0", "evidence": "assets/aoc_tomato/source.json"
+    },
+    {
+      "id": "bacchus_vineyard", "environment": "vineyard", "status": "source_inspected",
+      "runtimeSelectable": false, "url": "https://github.com/LCAS/bacchus_lcas",
+      "inspectedCommit": "0973c01a1e3d321e07e327cd99e44e0e5eb3ce35",
+      "licenseScope": "Repository MIT; externally downloaded model archive requires separate review",
+      "evidence": "https://github.com/LCAS/bacchus_lcas/blob/master/LICENSE",
+      "observedIssue": "External Nextcloud model URL timed out during the 2026-10-16 check",
+      "pending": ["external_nextcloud_models", "asset_license", "classic_geometry_import", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "cottonsim", "environment": "cotton_field", "status": "missing_geometry",
+      "runtimeSelectable": false, "url": "https://github.com/imtheva/CottonSim",
+      "inspectedCommit": "c812bb0b549fa4cdbf233c80b0603a335f03b9f4",
+      "licenseScope": "BSD-3-Clause with upstream third-party notices",
+      "evidence": "https://github.com/imtheva/CottonSim/blob/main/THIRD_PARTY_NOTICES",
+      "observedIssue": "cotton_geometry.urdf.xacro references cotton_world.dae, cotton_branch.dae, cotton_leaves.dae, cotton_dead_leaves.dae, cotton_flower_base.dae and cotton.dae; none is present in the inspected git tree",
+      "pending": ["obtain_missing_meshes", "mesh_and_texture_completeness", "ros1_geometry_only_import", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "harvester_strawberry", "environment": "strawberry", "status": "integrated",
+      "runtimeScenario": "strawberry_field", "url": "https://github.com/jsather/harvester-sim",
+      "inspectedCommit": "14ff00da0e3c5955f8f6934171978c9523ce8003",
+      "licenseScope": "BSD-2-Clause (Jonathon Sather 2019); local procedural perimeter fence separately identified",
+      "evidence": "assets/harvester_strawberry/source.json",
+      "runtimeEvidence": ["20261016_strawberry_arc_route: Car0, all five waypoints", "20261016_strawberry_tracked_route: Car3, all five waypoints"]
+    },
+    {
+      "id": "cropcraft_vineyard", "environment": "vineyard", "status": "integrated",
+      "runtimeScenario": "vineyard", "url": "https://github.com/Romea/cropcraft",
+      "inspectedCommit": "7128cd2acade50cc4a5a1761210b55989ab62527",
+      "licenseScope": "Apache-2.0; locally generated trellis and CC0 Poly Haven soil separately identified",
+      "evidence": "assets/cropcraft_vineyard/source.json",
+      "runtimeEvidence": ["20261016_vineyard_tangent_route: Car0, all seven waypoints", "20261016_vineyard_tracked_route: Car3, all seven waypoints"]
+    },
+    {
+      "id": "fields_ignition", "environment": "procedural_tomato_rows", "status": "source_inspected",
+      "runtimeSelectable": false, "url": "https://github.com/azazdeaz/fields-ignition",
+      "inspectedCommit": "d1992a432ca39924d8beedc7649b3b833893a5b7",
+      "licenseScope": "MIT",
+      "evidence": "https://github.com/azazdeaz/fields-ignition/blob/master/LICENSE",
+      "observedIssue": "Includes complete tomato meshes and textures; related to existing AOC tomato scene, not counted as a separate integrated environment",
+      "pending": ["ignition_to_classic_geometry", "asset_review", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "fira_2025", "environment": "crop_rows_barn_slope", "status": "candidate",
+      "runtimeSelectable": false, "url": "https://github.com/FiraHackathon/hackathon2025_ws",
+      "licenseScope": "Not yet established for dependent model archives",
+      "evidence": "https://github.com/FiraHackathon/hackathon2025_ws/blob/main/README.md",
+      "pending": ["dependency_and_model_license", "source_download", "geometry_import", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "forest3d", "environment": "forest_and_terrain", "status": "license_review_required",
+      "runtimeSelectable": false, "url": "https://github.com/unitsSpaceLab/Forest3D",
+      "licenseScope": "Generator AGPL-3.0; model assets and generated outputs need separate review",
+      "evidence": "https://github.com/unitsSpaceLab/Forest3D/blob/main/LICENSE",
+      "pending": ["license_and_dependency_review", "asset_review", "harmonic_to_classic_geometry", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "feldfreund_devkit", "environment": "field_and_terrain", "status": "source_inspected",
+      "runtimeSelectable": false, "url": "https://github.com/Agroecology-Lab/feldfreund_devkit_ros",
+      "inspectedCommit": "140413d7f947c3cf89510fc402c892da6af68c63",
+      "licenseScope": "Repository MIT; bundled Forest3D model assets require separate provenance review",
+      "evidence": "https://github.com/Agroecology-Lab/feldfreund_devkit_ros/blob/caatinga-dev/LICENSE",
+      "observedIssue": "Downloaded Jazzy devkit includes primitive crop rows and terrain assets; not counted as a new integrated scene",
+      "pending": ["third_party_asset_license", "geometry_review", "classic_import", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "soil_fertility_farm", "environment": "crop_rows_and_access_track", "status": "candidate",
+      "runtimeSelectable": false, "url": "https://github.com/ujwalwag/soil-fertility-rover",
+      "licenseScope": "Repository MIT; check individual model assets",
+      "evidence": "https://github.com/ujwalwag/soil-fertility-rover",
+      "pending": ["source_download", "asset_review", "harmonic_to_classic_geometry", "map_and_routes", "runtime_validation"]
+    },
+    {
+      "id": "botanbot", "environment": "agricultural_uneven_terrain", "status": "candidate",
+      "runtimeSelectable": false, "url": "https://github.com/NMBURobotics/botanbot_sim",
+      "licenseScope": "Repository Apache-2.0; individual scene and external model assets not yet inspected",
+      "evidence": "https://github.com/NMBURobotics/botanbot_sim/blob/main/README.md",
+      "observedIssue": "Upstream targets ROS 2 Foxy and vox_nav; only geometry is a candidate, not a replacement navigation stack",
+      "pending": ["source_download", "model_and_dependency_license", "geometry_review", "map_and_routes", "runtime_validation"]
+    }
+  ]
+}

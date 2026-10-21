@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car6_farmyard_all_implements_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car6",
+  "scenario": "farmyard",
+  "sceneName": "农场运输区",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": [
+    "fastlivo_rtk"
+  ],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "coversAllCurrentSupportedImplements": true,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0034",
+  "userStatement": "这个car6及其适配的所有农机具在当前场景通过了，下一个",
+  "limitations": [
+    "仅覆盖Car6在当前农场运输区、默认FAST-LIVO2+RTK、Smac Hybrid、MPPI下的全部六种已开放机具，不包含裸车、其他场景、其他算法或未来新增机具。",
+    "重型林地粉碎机和四行铣土机未开放给Car6，不在本组通过范围内。",
+    "分组结论来自用户人工确认；代表试验为凿式犁组合0034，其他机具未逐个重跑，不冒充六次独立自动全路线验收。",
+    "保留原始试验和历史结果，不增加自动全程通过计数，不代表真实农具作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car6__compact_chisel_plow",
+      "vehicleId": "tractor_chisel",
+      "implementName": "凿式犁",
+      "status": "PASS",
+      "vehicleConfigSha256": "26252fec5693b3910e00670f2c777f53f927e9dabdb3ca2e6bfe4db6dcbcd07d"
+    },
+    {
+      "binding": "Car6__mounted_disc_harrow",
+      "vehicleId": "tractor_harrow",
+      "implementName": "圆盘耙",
+      "status": "PASS",
+      "vehicleConfigSha256": "8a87a7258a100654dd3aec8b5e29038ce78c6d3170a4c9a7c9186f95a3a30fa1"
+    },
+    {
+      "binding": "Car6__garlic_planter",
+      "vehicleId": "tractor_garlic",
+      "implementName": "大蒜播种机",
+      "status": "PASS",
+      "vehicleConfigSha256": "9c539d8f8885cab128b8dcd552700bb9b20ddcc25f0b36a2518cdef387484ec4"
+    },
+    {
+      "binding": "Car6__mulch_planter",
+      "vehicleId": "tractor_mulch",
+      "implementName": "灌水覆膜播种机",
+      "status": "PASS",
+      "vehicleConfigSha256": "f8e962a8e0a6d07b31bb184af86b8a80f4f869a7f6d98a960b26038601b96341"
+    },
+    {
+      "binding": "Car6__groove_maker",
+      "vehicleId": "tractor_groove",
+      "implementName": "六行开沟机",
+      "status": "PASS",
+      "vehicleConfigSha256": "bca9a623897c25fe1a6bb2b969ebbe1f3f1de7da24ac0c8baab1ebafa1e8e415"
+    },
+    {
+      "binding": "Car6__mounted_cultivator",
+      "vehicleId": "tractor_cultivator",
+      "implementName": "悬挂式中耕机",
+      "status": "PASS",
+      "vehicleConfigSha256": "ebad897a2d3b8a3c0263015bdcb3a5188ea5f7a895b4c153acb6989165a3de2a"
+    }
+  ]
+}

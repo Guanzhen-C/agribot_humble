@@ -3,11 +3,11 @@
   ros__parameters:
     odom_topic: /wheel/odometry
     joint_states_topic: /joint_states
-    wheelbase_m: 0.6637151837348938
+    wheelbase_m: 1.6656807003286134
     max_steering_angle_rad: 0.6108652353286743
-    front_track_m: 0.4847162961959839
-    rear_track_m: 0.4056205153465271
-    wheel_radius_m: 0.17129690945148468
+    front_track_m: 1.2164594083339653
+    rear_track_m: 1.0179581251525553
+    wheel_radius_m: 0.42989216322229434
     min_linear_speed_mps: 0.02
     feedback_timeout_sec: 0.6
     publish_rate_hz: 30.0

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car7_vegetable_field_all_implements_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car7",
+  "scenario": "vegetable_field",
+  "sceneName": "蔬菜试验田",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": [
+    "fastlivo_rtk"
+  ],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "coversAllCurrentSupportedImplements": true,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0074",
+  "userStatement": "通过，下一个",
+  "limitations": [
+    "按用户代表机具分组规则确认Car7在vegetable_field、默认融合定位/Smac Hybrid/MPPI下的当前九种适配机具；代表试验0074为凿式犁人工选点验证，其余机具未逐项重跑。",
+    "拖车组合具有独立的限转角和最小转弯半径，按用户口径分组确认，不视为独立动力学或自动推荐验收；仍保留单独复核标志。",
+    "不扩展到裸车、其他车型、场景、算法或未来新增机具，不改变农场运输区不适用记录。",
+    "不增加自动全路线验收次数，不代表真实农具作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car7__groove_maker",
+      "vehicleId": "cab_groove",
+      "implementName": "六行开沟机",
+      "status": "PASS",
+      "vehicleConfigSha256": "bc875855f062b280305833b32800451cd461521e267ea5d6e30ed4b8f378b303"
+    },
+    {
+      "binding": "Car7__mounted_cultivator",
+      "vehicleId": "cab_cultivator",
+      "implementName": "悬挂式中耕机",
+      "status": "PASS",
+      "vehicleConfigSha256": "6e8d7c9706f0c10869813be4891c458d00dd9210be798b4fc303ffde565c6f7f"
+    },
+    {
+      "binding": "Car7__forest_chain_crusher",
+      "vehicleId": "cab_crusher",
+      "implementName": "悬挂式林地粉碎机",
+      "status": "PASS",
+      "vehicleConfigSha256": "98b17e534f56348e3d4b4705f23589cbc8318b7de8aadd7e7ef13237f0a40f9c"
+    },
+    {
+      "binding": "Car7__inter_row_milling_cutter",
+      "vehicleId": "cab_interrow",
+      "implementName": "四行铣土机",
+      "status": "PASS",
+      "vehicleConfigSha256": "b66ea6bf1994e97e412df3880ac7f49f16ad4c2358c73b717691b526752c7972"
+    },
+    {
+      "binding": "Car7__farm_trailer",
+      "vehicleId": "cab_trailer",
+      "implementName": "双轴农用拖车",
+      "status": "PASS",
+      "vehicleConfigSha256": "271a6ec041df4f79db3e1287cec1385dd7621a23d76d0264695438143f9dd906",
+      "requiresIndividualDynamicsReview": true,
+      "individualAutomaticRecommendationAllowed": false
+    },
+    {
+      "binding": "Car7__compact_chisel_plow",
+      "vehicleId": "cab_chisel",
+      "implementName": "凿式犁",
+      "status": "PASS",
+      "vehicleConfigSha256": "36afccc37fd460ab76647f5beefa4a4ddea4ccd964a57a5e30038d0781f4441b"
+    },
+    {
+      "binding": "Car7__mounted_disc_harrow",
+      "vehicleId": "cab_harrow",
+      "implementName": "圆盘耙",
+      "status": "PASS",
+      "vehicleConfigSha256": "84067ef99efe95c65e3d4b1d5cc3e57e588a33b734eb96db2746375d1d4bab20"
+    },
+    {
+      "binding": "Car7__garlic_planter",
+      "vehicleId": "cab_garlic",
+      "implementName": "大蒜播种机",
+      "status": "PASS",
+      "vehicleConfigSha256": "47e2479e23fd40243d2560298b7eb7a32eb6524e4dbdee1cca17ffb935bfbc33"
+    },
+    {
+      "binding": "Car7__mulch_planter",
+      "vehicleId": "cab_mulch",
+      "implementName": "灌水覆膜播种机",
+      "status": "PASS",
+      "vehicleConfigSha256": "5e9ad1210040582a53d9f12f2cf38c24d4d5994e2a17617db1b60fc1fcdff285"
+    }
+  ],
+  "groupPolicy": "manual_validation_policy.json"
+}

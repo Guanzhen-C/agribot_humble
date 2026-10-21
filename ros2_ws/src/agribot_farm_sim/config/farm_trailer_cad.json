@@ -1,0 +1,20 @@
+{
+  "id": "farm_trailer",
+  "displayName": "双轴农用拖车",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/agricultural-two-axis-dumper STP.zip",
+  "sourceMember": "agricultural-two-axis-dumper STP/ASM DUMPER 2 ASSI.stp",
+  "sourceSha256": "a782840c73c0cf31af12a6ad2f97b3b04898bad35ec751743adbfa7cd0e2e583",
+  "sourceToFluRotation": [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+  "sourceHitchM": [0.0, -0.12, 0.994],
+  "sourceWheelCenters": {
+    "front_left": [1.163, -0.38438, -1.909],
+    "front_right": [-1.163, -0.38438, -1.909],
+    "rear_left": [1.163, -0.38438, -3.0],
+    "rear_right": [-1.163, -0.38438, -3.0]
+  },
+  "wheelRadiusM": 0.445,
+  "wheelWidthM": 0.399,
+  "maxVisualFaces": 75000,
+  "redistributionLicense": "unverified_user_supplied",
+  "notes": "Original metric geometry; source +Y is up and +Z points to the drawbar. Wheel solids are separated by inspected axle regions. Empty-body transport only, no tipping actuation. Nominal passive wheels and yaw hitch on the cab tractor; no manufacturer mass or load rating is claimed."
+}

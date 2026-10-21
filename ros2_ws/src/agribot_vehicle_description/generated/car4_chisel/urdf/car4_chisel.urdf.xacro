@@ -1,0 +1,222 @@
+<?xml version="1.0"?>
+<robot name="car4_chisel">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.983305886074 0 0.15" rpy="0 0 0" />
+      <mass value="2500" />
+      <inertia ixx="1689.54889862" ixy="0" ixz="0" iyy="3654.81444006" iyz="0" izz="3434.73445856" />
+    </inertial>
+    <collision>
+      <origin xyz="0.792445141963 -0.000142551923975 0.714486632087" rpy="0 0 0" />
+      <geometry>
+        <box size="3.6 1.87795777404 2.14081977576" />
+      </geometry>
+    </collision>
+    <visual name="vehicle_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/vehicle_visual.obj" scale="1 1 1" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/sensor_imu_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="imu_mount_joint" type="fixed">
+    <origin xyz="1.72 0 0.920368656051" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="imu_link" />
+  </joint>
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/sensor_lidar_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="lidar_mount_joint" type="fixed">
+    <origin xyz="1.95 0 1.35939866405" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="lidar_link" />
+  </joint>
+  <link name="right_camera_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/sensor_right_camera_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_camera_mount_joint" type="fixed">
+    <origin xyz="1.9753 0 1.47798566405" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="right_camera_link" />
+  </joint>
+  <link name="right_camera_optical_frame" />
+  <joint name="right_camera_measurement_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679" />
+    <parent link="right_camera_link" />
+    <child link="right_camera_optical_frame" />
+  </joint>
+  <link name="rtk_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/sensor_rtk_master_visual.obj" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="rtk_master_mount_joint" type="fixed">
+    <origin xyz="1.6 0.325 1.44550812546" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_link" />
+  </joint>
+  <link name="rtk_secondary_link">
+  </link>
+  <joint name="rtk_secondary_mount_joint" type="fixed">
+    <origin xyz="1.6 -0.325 1.44550812546" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rtk_secondary_link" />
+  </joint>
+  <link name="front_left_steering_link" />
+  <joint name="front_left_steering_joint" type="revolute">
+    <origin xyz="2.18423784074 0.784406377413 -0.313106738531" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_left_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.751980612199" upper="0.751980612199" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/front_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.402899934555" length="0.151246320345" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_left_steering_link" />
+    <child link="front_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="front_right_steering_link" />
+  <joint name="front_right_steering_joint" type="revolute">
+    <origin xyz="2.18601040802 -0.784406109835 -0.3132023306" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="front_right_steering_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.751980612199" upper="0.751980612199" effort="200" velocity="1.5" />
+  </joint>
+  <link name="front_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/front_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.402804342486" length="0.151246320345" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_joint" type="continuous">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="front_right_steering_link" />
+    <child link="front_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_left_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/rear_left_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.716013964573" length="0.324794959434" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <origin xyz="-0.00100688748051 0.89256602754 7.29148742995e-06" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_left_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="rear_right_wheel_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/rear_right_wheel_visual.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.570796326795 0 0" />
+      <geometry>
+        <cylinder radius="0.715999381599" length="0.324795227012" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <origin xyz="0.0010068736966 -0.89256555928 -7.29148743006e-06" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="rear_right_wheel_link" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <link name="compact_chisel_plow_link">
+    <inertial>
+      <origin xyz="-0.420016133871 -5.96046447754e-08 0.655855536461" rpy="0 0 0" />
+      <mass value="60.0" />
+      <inertia ixx="34.30067459728756" iyy="54.26567834744384" izz="71.30798511355916" ixy="0" ixz="0" iyz="0" />
+    </inertial>
+    <visual name="compact_chisel_plow_visual">
+      <geometry>
+        <mesh filename="package://agribot_vehicle_description/generated/car4_chisel/models/implement_compact_chisel_plow_visual.obj" />
+      </geometry>
+    </visual>
+    <collision name="implement_envelope">
+      <origin xyz="-0.964793562889 -5.96046447754e-08 0.655855536461" rpy="0 0 0" />
+      <geometry>
+        <box size="1.93158712578 2.2658989687 1.31371107292" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_left">
+      <origin xyz="0.120277429019 0.4183 0.519503336543" rpy="0 0 0" />
+      <geometry>
+        <box size="0.532554858037 0.2406 0.222993326914" />
+      </geometry>
+    </collision>
+    <collision name="hitch_lower_right">
+      <origin xyz="0.120277429019 -0.4194 0.517503336543" rpy="0 0 0" />
+      <geometry>
+        <box size="0.532554858037 0.2428 0.226993326914" />
+      </geometry>
+    </collision>
+    <collision name="hitch_top_link">
+      <origin xyz="0.464777429019 0 1.06950333654" rpy="0 0 0" />
+      <geometry>
+        <box size="1.25155485804 0.172 0.372993326914" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="compact_chisel_plow_mount_joint" type="fixed">
+    <parent link="base_link" />
+    <child link="compact_chisel_plow_link" />
+    <origin xyz="-1.30755485804 0 -0.566006673086" rpy="0 0 0" />
+  </joint>
+  <link name="compact_chisel_plow_work_frame" />
+  <joint name="compact_chisel_plow_work_joint" type="fixed">
+    <parent link="compact_chisel_plow_link" />
+    <child link="compact_chisel_plow_work_frame" />
+    <origin xyz="-1.25423163176 0 0" rpy="0 0 0" />
+  </joint>
+</robot>

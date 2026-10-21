@@ -89,12 +89,12 @@ controller_server:
       vx_std: 0.15
       vy_std: 0.0
       wz_std: 0.1
-      vx_max: 0.30000001192092896
+      vx_max: 0.5
       vx_min: 0.0
       vy_max: 0.0
-      wz_max: 0.28557536005973816
-      ax_max: 0.800000011920929
-      ax_min: -0.800000011920929
+      wz_max: 0.16022145027945797
+      ax_max: 0.5
+      ax_min: -0.5
       ay_min: 0.0
       ay_max: 0.0
       az_max: 0.35
@@ -103,7 +103,7 @@ controller_server:
       gamma: 0.015
       motion_model: Ackermann
       AckermannConstraints:
-        min_turning_r: 1.0395002896969898
+        min_turning_r: 3.1206807773110334
       visualize: false
       regenerate_noises: false
       reset_period: 1.0
@@ -192,7 +192,7 @@ global_costmap:
       update_frequency: 2.0
       publish_frequency: 1.0
       track_unknown_space: false
-      footprint: '[[0.9635448232293129,0.5014088451862335],[0.9635448232293129,-0.5014087855815887],[-0.43561703711748123,-0.5014087855815887],[-0.43561703711748123,0.5014088451862335]]'
+      footprint: '[[2.6924451434529977,1.204963379429187],[2.6924451434529977,-1.204963379429187],[-1.1075548595272342,-1.204963379429187],[-1.1075548595272342,1.204963379429187]]'
       footprint_padding: 0.0
       plugins:
       - stvl_layer
@@ -240,7 +240,7 @@ global_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        inflation_radius: 2.0
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -254,7 +254,7 @@ local_costmap:
       update_frequency: 5.0
       publish_frequency: 2.0
       transform_tolerance: 0.8
-      footprint: '[[0.9635448232293129,0.5014088451862335],[0.9635448232293129,-0.5014087855815887],[-0.43561703711748123,-0.5014087855815887],[-0.43561703711748123,0.5014088451862335]]'
+      footprint: '[[2.6924451434529977,1.204963379429187],[2.6924451434529977,-1.204963379429187],[-1.1075548595272342,-1.204963379429187],[-1.1075548595272342,1.204963379429187]]'
       footprint_padding: 0.0
       plugins:
       - stvl_layer
@@ -302,7 +302,7 @@ local_costmap:
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
         cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        inflation_radius: 2.0
 map_server:
   ros__parameters:
     use_sim_time: false
@@ -325,8 +325,8 @@ planner_server:
       motion_model_for_search: DUBIN
       angle_quantization_bins: 72
       analytic_expansion_ratio: 3.5
-      analytic_expansion_max_length: 5.22
-      minimum_turning_radius: 1.0395002896969898
+      analytic_expansion_max_length: 12.482723109244134
+      minimum_turning_radius: 3.1206807773110334
       change_penalty: 0.0
       non_straight_penalty: 1.2
       cost_penalty: 2.0

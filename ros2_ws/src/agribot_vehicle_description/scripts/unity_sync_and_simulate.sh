@@ -4,9 +4,10 @@ set -Eeuo pipefail
 
 WORKSPACE="${AGRIBOT_ROS_WORKSPACE:-$HOME/agribot_ws/ros2_ws}"
 EXPORT_DIR=""
+SCENARIO="${AGRIBOT_SIM_SCENARIO:-orchard}"
 GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
-RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-true}"
+RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-false}"
 ALGORITHM="${AGRIBOT_SIM_ALGORITHM:-fastlivo_rtk_mppi}"
 PERCEPTION="${AGRIBOT_SIM_PERCEPTION:-stvl}"
 VISION="${AGRIBOT_SIM_VISION:-off}"
@@ -252,7 +253,8 @@ Options:
   --workspace PATH       ROS 2 workspace (default: ~/agribot_ws/ros2_ws)
   --gui true|false       Open Gazebo GUI (default: true)
   --rviz true|false      Open RViz (default: true)
-  --run-waypoints BOOL   Run the preset orchard route (default: true)
+  --run-waypoints BOOL   Run a preset validation route (default: false; select poses in RViz)
+  --scenario ID          orchard, arable_field, greenhouse, farmyard, tomato_greenhouse, strawberry_field, vineyard, vegetable_field or wide_headland
   --perception ID        Select perception plugin: stvl or voxel
   --vision ID            Select independent visual perception algorithm
   --localization ID      Select localization adapter
@@ -276,6 +278,14 @@ while (($#)); do
   case "$1" in
     --export-dir)
       EXPORT_DIR="${2:?missing value for --export-dir}"
+      shift 2
+      ;;
+    --scenario)
+      SCENARIO="${2:?missing value for --scenario}"
+      case "$SCENARIO" in
+        orchard|arable_field|greenhouse|farmyard|tomato_greenhouse|strawberry_field|vineyard|vegetable_field|wide_headland) ;;
+        *) echo "ERROR: Unknown scenario: $SCENARIO" >&2; exit 2 ;;
+      esac
       shift 2
       ;;
     --workspace)
@@ -394,19 +404,19 @@ fi
 
 resolve_components
 
-if [[ "$RESOLVE_ONLY" == "true" ]]; then
-  printf 'algorithm=%s\nperception=%s\nvision=%s\nlocalization=%s\nplanner=%s\ncontroller=%s\nroute=%s\n' \
-    "$ALGORITHM" "$PERCEPTION_MODE" "$VISION_MODE" "$LOCALIZATION_MODE" \
-    "$PLANNER_MODE" "$CONTROLLER_MODE" "$ROUTE_MODE"
-  exit 0
-fi
-
 for value in "$GUI" "$RVIZ" "$RUN_WAYPOINTS"; do
   if [[ "$value" != "true" && "$value" != "false" ]]; then
     echo "ERROR: boolean arguments must be true or false: $value" >&2
     exit 2
   fi
 done
+
+if [[ "$RESOLVE_ONLY" == "true" ]]; then
+  printf 'algorithm=%s\nperception=%s\nvision=%s\nlocalization=%s\nplanner=%s\ncontroller=%s\nroute=%s\nrun_waypoints=%s\n' \
+    "$ALGORITHM" "$PERCEPTION_MODE" "$VISION_MODE" "$LOCALIZATION_MODE" \
+    "$PLANNER_MODE" "$CONTROLLER_MODE" "$ROUTE_MODE" "$RUN_WAYPOINTS"
+  exit 0
+fi
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agribot-unity-sim"
 PID_FILE="$STATE_DIR/simulation.pid"
@@ -618,7 +628,7 @@ set +e
 colcon build \
   --symlink-install \
   --parallel-workers "${AGRIBOT_BUILD_WORKERS:-4}" \
-  --packages-select agribot_vehicle_config_tools agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description
+  --packages-select agribot_vehicle_config_tools agribot_farm_sim agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description
 BUILD_RESULT=$?
 set -e
 if ((BUILD_RESULT != 0)); then
@@ -660,6 +670,7 @@ set_status "starting"
 log "启动 Gazebo 和 RViz（ROS_DOMAIN_ID=$ROS_DOMAIN_ID）..."
 launch_arguments=(
   "vehicle_id:=$VEHICLE_ID"
+  "scenario:=$SCENARIO"
   "gui:=$GUI"
   "rviz:=$RVIZ"
   "run_waypoints:=$RUN_WAYPOINTS"

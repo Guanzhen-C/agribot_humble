@@ -1,0 +1,5 @@
+<library path="scout_navigation_path_display">
+  <class name="scout_viz/NavigationPath" type="scout_viz::NavigationPathDisplay" base_class_type="rviz_common::Display">
+    <description>Native Path display cleared when the navigation task finishes; no motion or path-topic changes.</description>
+  </class>
+</library>

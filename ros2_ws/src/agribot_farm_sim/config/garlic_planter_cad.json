@@ -1,0 +1,17 @@
+{
+  "id": "garlic_planter",
+  "displayName": "大蒜播种机",
+  "sourceArchive": "04.今年新增更新61套-压缩包内含效果图/implement-garlic-planter STP.zip",
+  "sourceMember": "implement-garlic-planter STP/Assy Planter.STEP",
+  "sourceSha256": "9f4704fb247d1a3dd1f8e1b884632d1bd17851cae8a978b4ad4fd669218b7d40",
+  "redistributionLicense": "unverified_user_supplied",
+  "sourceToFluRotation": [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+  "maxVisualFaces": 100000,
+  "expectedSizeRangeM": [[1.2, 1.4], [1.1, 1.3], [0.5, 0.7]],
+  "tasks": ["播种机具运输"],
+  "notes": [
+    "Inspected seed hopper, drive chains and four planting rows; source +Z is up and +Y faces the carrier.",
+    "Original metric CAD scale is retained. The front-ground origin is a transport reference, not a calibrated hitch pin.",
+    "Nominal raised fixed mount on the compact tractor; no seed dispensing or soil interaction."
+  ]
+}

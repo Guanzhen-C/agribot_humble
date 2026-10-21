@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "simulation_only",
+  "confirmationId": "car0_tomato_greenhouse_default_user_20261021",
+  "confirmedDate": "2026-10-21",
+  "vehicle": "Car0",
+  "scenario": "tomato_greenhouse",
+  "sceneName": "番茄温室",
+  "algorithm": "stvl_off_fastlivo_rtk_smac_hybrid_mppi",
+  "confirmedLocalizationModes": ["fastlivo_rtk"],
+  "status": "PASS",
+  "evidenceType": "user_group_confirmation",
+  "routeSource": "user_selected_waypoints",
+  "individualAutomaticFullRouteAcceptance": false,
+  "representativeInteractiveTrial": "/home/cgz/.local/state/agribot-algorithm-validation/20261021_manual_waypoint_trials/runs/0039",
+  "userStatement": "这个车没问题，下一个",
+  "limitations": [
+    "仅覆盖当前Car0搭载六轴机械臂与夹爪，在tomato_greenhouse场景、默认融合定位/Smac Hybrid/MPPI下的人工选点试验。",
+    "不扩展到其他机具、车型、场景或算法；与greenhouse场景的记录分别保存。",
+    "不增加自动全路线验收次数，不代表真实农具作业或碰撞安全认证；配置变化后需要复核。"
+  ],
+  "confirmations": [
+    {
+      "binding": "Car0__lite6",
+      "vehicleId": "ackermann_current",
+      "implementName": "六轴机械臂与夹爪",
+      "status": "PASS",
+      "vehicleConfigSha256": "ced25ef76649310a028bdcfd1a4307e858f350194b716387711d12e3dcb38f87"
+    }
+  ]
+}
