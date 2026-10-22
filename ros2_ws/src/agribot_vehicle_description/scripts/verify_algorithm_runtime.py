@@ -643,6 +643,10 @@ def run_case(case, args, output, waypoints):
                f"route_mode:={'direct' if planner == 'direct' else 'planned'}",
                f"vision_mode:={vision}", f"vision_python:={args.vision_python}",
                f"manipulator:={args.manipulator}", f"arm_demo:={args.arm_demo}"]
+    if getattr(args, "scene_manifest", None):
+        command.append(f"scene_manifest:={args.scene_manifest.resolve()}")
+        result["scene_manifest"] = str(args.scene_manifest.resolve())
+        result["scenario"] = "external_scene"
     started = time.monotonic()
     try:
         node = Probe(localization)
@@ -882,6 +886,8 @@ def main():
     parser.add_argument("--suite", choices=("coverage", "navigation-matrix", "direct-matrix", "matrix"), default="coverage")
     parser.add_argument("--case", help="Exact canonical combination ID")
     parser.add_argument("--vehicle-id", default="ackermann_current")
+    parser.add_argument("--scene-manifest", type=Path,
+                        help="Use an external prepared scene and its route instead of a farm scene")
     parser.add_argument("--manipulator", choices=("configured", "true", "false"), default="configured")
     parser.add_argument("--arm-demo", choices=("configured", "true", "false"), default="configured")
     parser.add_argument("--gui", action="store_true", help="Display Gazebo during runtime validation")
@@ -963,7 +969,17 @@ def main():
     waypoint_file = Path(get_package_share_directory("agribot_ackermann_mppi")) / \
         "config/orchard_waypoints_ackermann_smac.yaml"
     scenario_files = []
-    if args.scenario != "orchard":
+    if args.scene_manifest:
+        spec = importlib.util.spec_from_file_location(
+            "runtime_external_scene", share / "launch/configured_ackermann_sim.launch.py")
+        external_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(external_module)
+        external = external_module._external_scene_bundle(args.scene_manifest)
+        waypoint_file = Path(external["waypoints"])
+        scenario_files = [args.scene_manifest.resolve(), Path(external["world"]), Path(external["map"])]
+        image = Path(yaml.safe_load(Path(external["map"]).read_text())["image"])
+        scenario_files.append(image if image.is_absolute() else Path(external["map"]).parent / image)
+    elif args.scenario != "orchard":
         from agribot_farm_sim.scenarios import build, write_vehicle_route
         scene = build(args.scenario, Path.home() / ".cache/agribot/scenarios")
         waypoint_file = write_vehicle_route(args.scenario, vehicle, scene)
@@ -983,6 +999,9 @@ def main():
                "local_maneuver": args.local_maneuver,
                "case_ids": ["_".join(case) for case in cases],
                "claim": "Smoke PASS is not complete-route acceptance"}
+    if args.scene_manifest:
+        summary["scene_manifest"] = str(args.scene_manifest.resolve())
+        summary["scenario"] = "external_scene"
     summary["host"] = {"machine": platform.machine(), "node": platform.node(),
                        "os": platform.platform(), "ros_distro": os.environ.get("ROS_DISTRO"),
                        "rmw_implementation": os.environ.get("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")}

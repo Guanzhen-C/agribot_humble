@@ -767,9 +767,33 @@ def _generated_mounts(generated):
     )
 
 
+def _external_scene_bundle(manifest_file):
+    path = Path(manifest_file).expanduser().resolve()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("schema_version") != 1:
+        raise ValueError("Unsupported external simulation scene schema")
+    result = {}
+    for key in ("world", "map", "waypoints"):
+        relative = Path(data[key])
+        target = (path.parent / relative).resolve()
+        if relative.is_absolute() or ".." in relative.parts or not target.is_file():
+            raise ValueError(f"Invalid external scene {key}")
+        result[key] = str(target)
+    spawn = data["spawn"]
+    ground = data["spawn_ground_z"]
+    if (not isinstance(spawn, list) or len(spawn) != 3 or
+            any(type(value) not in (int, float) or not math.isfinite(value)
+                for value in [*spawn, ground])):
+        raise ValueError("External scene requires finite spawn x/y/yaw and ground height")
+    result.update(spawn=spawn, ground=float(ground), directory=path.parent)
+    return result
+
+
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("vehicle_id", default_value="ackermann_current"),
+        DeclareLaunchArgument("scene_manifest", default_value="",
+                              description="Optional local scanned-scene bundle; default farm scenes unchanged"),
         DeclareLaunchArgument("scenario", default_value="orchard",
                               choices=["orchard", "arable_field", "greenhouse", "farmyard", "tomato_greenhouse", "strawberry_field", "vineyard", "vegetable_field", "wide_headland"]),
         DeclareLaunchArgument("manipulator", default_value="configured", choices=["configured", "true", "false"]),
@@ -888,7 +912,19 @@ def _launch_vehicle(context):
     spawn_xy_yaw = [2.0, 36.0, 0.0]
     georeference_file = os.path.join(simulation_share, "config", "orchard_ackermann_sim_georeference.yaml")
     scenario = LaunchConfiguration("scenario").perform(context)
-    if scenario == "orchard":
+    external_manifest = LaunchConfiguration("scene_manifest").perform(context)
+    if external_manifest:
+        from agribot_farm_sim.scenarios import write_georeference
+        external = _external_scene_bundle(external_manifest)
+        world_file = external["world"]
+        map_directory, map_name = os.path.split(external["map"])
+        waypoint_file = external["waypoints"]
+        spawn_xy_yaw = external["spawn"]
+        spawn_z += external["ground"]
+        georeference_file = write_georeference(
+            georeference_file, external["directory"] / "georeference.yaml",
+            [*spawn_xy_yaw[:2], spawn_z, spawn_xy_yaw[2]], base_to_antenna_xyz, "external_scene")
+    elif scenario == "orchard":
         from agribot_farm_sim.ground import prepare_orchard_ground
         world_file = prepare_orchard_ground(
             world_file, os.path.expanduser("~/.cache/agribot/scenarios/orchard"))

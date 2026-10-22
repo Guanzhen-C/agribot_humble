@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agribot_k2_sim</name>
+  <version>0.1.0</version>
+  <description>Private K2 scanned scenes for configured vehicle simulation.</description>
+  <maintainer email="cgz@example.com">cgz</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>agribot_vehicle_description</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-vtk9</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
