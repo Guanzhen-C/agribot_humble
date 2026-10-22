@@ -7,7 +7,7 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/agribot_farm_sim"]),
         ("share/agribot_farm_sim", ["package.xml"]),
-        ("share/agribot_farm_sim/config", glob("config/*.json")),
+        ("share/agribot_farm_sim/config", glob("config/*.json") + glob("config/*.txt")),
     ] + [("share/agribot_farm_sim/" + str(directory),
            [str(path) for path in directory.iterdir() if path.is_file()])
           for directory in Path("assets").rglob("*") if directory.is_dir()],

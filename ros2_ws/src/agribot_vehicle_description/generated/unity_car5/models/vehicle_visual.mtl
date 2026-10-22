@@ -1,5 +1,5 @@
 newmtl 03_细孔橡胶_0
-Kd 1 1 1
+Kd 0.035 0.04 0.045
 d 1
 illum 2
 newmtl 05_石墨铸铁_1
@@ -41,4 +41,4 @@ illum 2
 
 newmtl NominalSensorMount
 Kd 0.18 0.20 0.21
-Ka 0.03 0.03 0.03
+Ka 0.18 0.20 0.21

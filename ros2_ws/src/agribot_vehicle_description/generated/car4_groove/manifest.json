@@ -235,8 +235,8 @@
     },
     {
       "path": "models/vehicle_visual.mtl",
-      "sizeBytes": 634,
-      "sha256": "7d79a8ef92234b889cd14c5d6a9db6585c65372338dba222760fbd9fc0f81d35"
+      "sizeBytes": 645,
+      "sha256": "f1d6ef2f7d2041255fb30b20704a83d4a865db1bce3fef9f0068268702d1f623"
     },
     {
       "path": "models/vehicle_visual.obj",

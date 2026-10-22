@@ -28,7 +28,8 @@ def transform(element):
 def preview_color(material, fallback):
     if material is None:
         return fallback
-    color = tuple(material.diffuse_color)
+    from agribot_farm_sim.materials import canonical_diffuse
+    color = canonical_diffuse(material.name, material.diffuse_color[:3]) + (material.diffuse_color[3],)
     if material.use_nodes:
         shader = next((node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"), None)
         if shader is not None:

@@ -106,6 +106,8 @@ def prepare(source, sensor_source, output, vehicle_id):
     shutil.copy2(source / "vehicle_visual.mtl", output / "vehicle_visual.mtl")
     with (output / "vehicle_visual.mtl").open("a") as material:
         material.write("\nnewmtl NominalSensorMount\nKd 0.18 0.20 0.21\nKa 0.03 0.03 0.03\n")
+    from agribot_farm_sim.materials import normalize_ambient
+    normalize_ambient(output / "vehicle_visual.mtl")
     wheel_id = None
     vertex_count = 0
     with (source / "vehicle_visual.obj").open() as src, (output / "vehicle_visual.obj").open("w") as dst:
