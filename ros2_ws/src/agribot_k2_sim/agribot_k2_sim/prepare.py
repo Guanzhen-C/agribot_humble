@@ -62,7 +62,7 @@ def compile_renderer(reference, destination):
         from ament_index_python.packages import get_package_share_directory
         source = Path(get_package_share_directory("agribot_k2_sim")) / "plugins/K2GaussianVisual.cpp"
     flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "gazebo"], text=True))
-    renderer = reference / "renderer"
+    renderer = (reference / "renderer") if reference is not None else source.parent.parent / "vendor/renderer"
     command = ["/usr/bin/g++", *flags, "-O2", "-std=c++17", "-Wno-register", "-shared", "-fPIC",
                "-I/usr/include/OGRE", "-I/usr/include/OGRE/Paging", "-I/usr/include/OGRE/Terrain",
                "-I/usr/include/OGRE/RTShaderSystem", "-I/usr/include/eigen3",
@@ -72,6 +72,38 @@ def compile_renderer(reference, destination):
                "-lgazebo_rendering", "-lgazebo_common", "-lOgreMain", "-lGLEW", "-lGL",
                "-lsdformat9", "-lignition-math6", "-lboost_system", "-lboost_filesystem", "-pthread"]
     subprocess.run(command, check=True)
+
+
+def write_world(destination, collisions, z_shift, camera_pose, final_directory=None):
+    """Keep rendered Gaussians and physics under the same rigid transform."""
+    final = final_directory or destination
+    sdf = ET.Element("sdf", version="1.6")
+    world = ET.SubElement(sdf, "world", name="k2_automation_world")
+    ET.SubElement(world, "gravity").text = "0 0 -9.81"
+    physics = ET.SubElement(world, "physics", name="ode", type="ode")
+    ET.SubElement(physics, "max_step_size").text = "0.002"
+    ET.SubElement(physics, "real_time_update_rate").text = "500"
+    scene = ET.SubElement(world, "scene")
+    for key, value in (("ambient", "1 1 1 1"), ("background", ".15 .18 .2 1"),
+                       ("shadows", "false"), ("grid", "false")):
+        ET.SubElement(scene, key).text = value
+    append_vehicle_light(world)
+    model = ET.SubElement(world, "model", name="k2_automation_sensor_scene")
+    ET.SubElement(model, "static").text = "true"
+    ET.SubElement(model, "pose").text = f"0 0 {z_shift} 0 0 0"
+    link = ET.SubElement(model, "link", name="scanned_environment")
+    append_gaussian_visual(link, final / "gaussian")
+    for i, collision in enumerate(collisions):
+        element = ET.SubElement(link, "collision", name=f"collision_{i:02d}")
+        mesh = ET.SubElement(ET.SubElement(element, "geometry"), "mesh")
+        ET.SubElement(mesh, "uri").text = (final / "meshes" / collision.name).as_uri()
+        ode = ET.SubElement(ET.SubElement(ET.SubElement(element, "surface"), "friction"), "ode")
+        ET.SubElement(ode, "mu").text = "1.0"
+        ET.SubElement(ode, "mu2").text = "1.0"
+    camera = ET.SubElement(ET.SubElement(world, "gui", fullscreen="0"), "camera", name="user_camera")
+    ET.SubElement(camera, "pose").text = " ".join(map(str, camera_pose))
+    ET.indent(sdf)
+    ET.ElementTree(sdf).write(destination / "world.sdf", encoding="utf-8", xml_declaration=True)
 
 
 def project_map(meshes, ground_z, destination, resolution=.1):
@@ -159,34 +191,7 @@ def prepare(reference, archive, destination):
     ground_z = float(spawn["ground_z"])
     z_shift = -ground_z
     map_report = project_map(meshes, ground_z, destination)
-    sdf = ET.Element("sdf", version="1.6")
-    world = ET.SubElement(sdf, "world", name="k2_automation_world")
-    ET.SubElement(world, "gravity").text = "0 0 -9.81"
-    physics = ET.SubElement(world, "physics", name="ode", type="ode")
-    ET.SubElement(physics, "max_step_size").text = "0.002"
-    ET.SubElement(physics, "real_time_update_rate").text = "500"
-    scene = ET.SubElement(world, "scene")
-    ET.SubElement(scene, "ambient").text = "1 1 1 1"
-    ET.SubElement(scene, "background").text = ".15 .18 .2 1"
-    ET.SubElement(scene, "shadows").text = "false"
-    ET.SubElement(scene, "grid").text = "false"
-    append_vehicle_light(world)
-    model = ET.SubElement(world, "model", name="k2_automation_sensor_scene")
-    ET.SubElement(model, "static").text = "true"
-    ET.SubElement(model, "pose").text = f"0 0 {z_shift} 0 0 0"
-    link = ET.SubElement(model, "link", name="scanned_environment")
-    append_gaussian_visual(link, gaussian_dir)
-    for i, collision in enumerate(collisions):
-        element = ET.SubElement(link, "collision", name=f"collision_{i:02d}")
-        mesh = ET.SubElement(ET.SubElement(element, "geometry"), "mesh")
-        ET.SubElement(mesh, "uri").text = collision.as_uri()
-        ode = ET.SubElement(ET.SubElement(ET.SubElement(element, "surface"), "friction"), "ode")
-        ET.SubElement(ode, "mu").text = "1.0"
-        ET.SubElement(ode, "mu2").text = "1.0"
-    camera = ET.SubElement(ET.SubElement(world, "gui", fullscreen="0"), "camera", name="user_camera")
-    ET.SubElement(camera, "pose").text = f"3.6 -21.5 {-.4 + z_shift} 0 .23 2.15"
-    ET.indent(sdf)
-    ET.ElementTree(sdf).write(destination / "world.sdf", encoding="utf-8", xml_declaration=True)
+    write_world(destination, collisions, z_shift, [3.6, -21.5, -.4 + z_shift, 0, .23, 2.15])
     waypoints = [{"x": .8, "y": -15.5, "yaw": math.pi / 2},
                  {"x": .8, "y": -12.5, "yaw": math.pi / 2}]
     (destination / "waypoints.yaml").write_text(yaml.safe_dump({"waypoints": waypoints}), encoding="utf-8")

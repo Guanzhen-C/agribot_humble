@@ -5,6 +5,7 @@ set -Eeuo pipefail
 WORKSPACE="${AGRIBOT_ROS_WORKSPACE:-$HOME/agribot_ws/ros2_ws}"
 EXPORT_DIR=""
 SCENARIO="${AGRIBOT_SIM_SCENARIO:-orchard}"
+SCENE_MANIFEST=""
 GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
 RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-false}"
@@ -255,6 +256,7 @@ Options:
   --rviz true|false      Open RViz (default: true)
   --run-waypoints BOOL   Run a preset validation route (default: false; select poses in RViz)
   --scenario ID          orchard, arable_field, greenhouse, farmyard, tomato_greenhouse, strawberry_field, vineyard, vegetable_field or wide_headland
+  --scene-manifest PATH  Use an imported local LCC2 scene with the selected vehicle and algorithms
   --perception ID        Select perception plugin: stvl or voxel
   --vision ID            Select independent visual perception algorithm
   --localization ID      Select localization adapter
@@ -286,6 +288,12 @@ while (($#)); do
         orchard|arable_field|greenhouse|farmyard|tomato_greenhouse|strawberry_field|vineyard|vegetable_field|wide_headland) ;;
         *) echo "ERROR: Unknown scenario: $SCENARIO" >&2; exit 2 ;;
       esac
+      shift 2
+      ;;
+    --scene-manifest)
+      SCENE_MANIFEST="${2:?missing value for --scene-manifest}"
+      [[ -f "$SCENE_MANIFEST" ]] || { echo "ERROR: Imported scene manifest missing" >&2; exit 2; }
+      SCENE_MANIFEST="$(realpath -- "$SCENE_MANIFEST")"
       shift 2
       ;;
     --workspace)
@@ -628,7 +636,7 @@ set +e
 colcon build \
   --symlink-install \
   --parallel-workers "${AGRIBOT_BUILD_WORKERS:-4}" \
-  --packages-select agribot_vehicle_config_tools agribot_farm_sim agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description
+  --packages-select agribot_vehicle_config_tools agribot_farm_sim agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description agribot_k2_sim
 BUILD_RESULT=$?
 set -e
 if ((BUILD_RESULT != 0)); then
@@ -684,6 +692,7 @@ launch_arguments=(
 )
 [[ -n "$VISION_PYTHON" ]] && launch_arguments+=("vision_python:=$VISION_PYTHON")
 [[ -n "$VISION_DEVICE" ]] && launch_arguments+=("vision_device:=$VISION_DEVICE")
+[[ -n "$SCENE_MANIFEST" ]] && launch_arguments+=("scene_manifest:=$SCENE_MANIFEST")
 
 setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
   "${launch_arguments[@]}" 9>&- &

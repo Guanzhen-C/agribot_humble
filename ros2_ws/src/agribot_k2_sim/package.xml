@@ -8,6 +8,13 @@
   <buildtool_depend>ament_python</buildtool_depend>
   <exec_depend>agribot_vehicle_description</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>gazebo_dev</exec_depend>
+  <exec_depend>g++</exec_depend>
+  <exec_depend>libglew-dev</exec_depend>
+  <exec_depend>nlohmann-json-dev</exec_depend>
+  <exec_depend>libeigen3-dev</exec_depend>
+  <exec_depend>libboost-dev</exec_depend>
   <exec_depend>python3-vtk9</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-pil</exec_depend>

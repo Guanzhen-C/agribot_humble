@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 
 from .compatibility import GROUP_ORDER, component_cases, read_catalog, select_algorithm
+from .assistant_scenes import SCENE_TOOL, imported_scenes, list_scenes
 
 
 EXCLUSIONS = {('Car7', 'farmyard'), ('Car9', 'farmyard'), ('Car2', 'strawberry_field')}
@@ -100,6 +101,7 @@ def assistant_catalog(workspace_src):
     config_dir = src / 'agribot_farm_sim/config'
     catalog = read_catalog(config_dir / 'compatibility.json')
     scenes = json.loads((config_dir / 'scenarios.json').read_text())['scenarios']
+    scenes = [dict(s, imported=False, source='builtin') for s in scenes] + imported_scenes()
     cars = {v['car']: v for v in catalog['vehicles']}
     confirmed = {r['id']: r for r in candidates(src)}
     choices = []
@@ -113,12 +115,17 @@ def assistant_catalog(workspace_src):
         car = cars[binding['car']]
         extents = config['geometry']['bodyExtents']
         for scene in scenes:
-            if scene['id'] not in catalog['sceneGroups'][binding.get('sceneGroup', car['sceneGroup'])]:
+            imported = scene['imported']
+            if not imported and scene['id'] not in catalog['sceneGroups'][binding.get('sceneGroup', car['sceneGroup'])]:
                 continue
-            if ((car['car'], scene['id']) in EXCLUSIONS or
+            if not imported and ((car['car'], scene['id']) in EXCLUSIONS or
                     (scene['id'] == 'greenhouse' and car['car'] not in ('Car0', 'Car3'))):
                 continue
-            recipe = select_algorithm(catalog, binding, scene['id'])
+            recipe = (dict(algorithm=catalog['defaultAlgorithm'], conditions=[
+                '这是用户导入的扫描场景，未继承内置场景的全路线通过结论；先关闭自动运动检查传感器、定位和规划。',
+                '场景用途、道路净空和纹理条件未由名称确定，按用户说明和车辆真实尺寸选择，不保证大型车辆可通行。',
+                'GNSS为仿真生成，不代表原扫描地点的真实RTK质量；定位退化时可建议NavSat作仿真对照。'])
+                if imported else select_algorithm(catalog, binding, scene['id']))
             options = {key: list(values) for key, values in catalog['components'].items()}
             if recipe.get('allowedLocalizationModes') is not None:
                 options['localization'] = recipe['allowedLocalizationModes']
@@ -126,8 +133,10 @@ def assistant_catalog(workspace_src):
             choices.append(dict(id=identifier, car=car['car'], vehicleName=car['name'], vehicleType=car['type'],
                 preset=binding['preset'], implement=binding['implement'], implementName=binding['name'],
                 scene=scene['id'], sceneName=scene['name'], algorithm=recipe['algorithm'],
+                sceneImported=imported, sceneConfigSha256=scene.get('sceneConfigSha256', ''),
                 vehicleConfigSha256=sha(path), allowedComponents=options, conditions=recipe['conditions'],
-                guidance='沿用既有运行方案' if identifier in confirmed else '按适配关系与算法条件提供建议',
+                guidance=('用户导入场景的待验证配置建议' if imported else
+                          '沿用既有运行方案' if identifier in confirmed else '按适配关系与算法条件提供建议'),
                 geometry=dict(lengthM=extents['frontM'] + extents['rearM'],
                     widthM=extents['leftM'] + extents['rightM'],
                     wheelbaseM=config['geometry']['wheelbaseM'],
@@ -146,7 +155,8 @@ def assistant_catalog(workspace_src):
                                    familiar=row['id'] in confirmed))
     knowledge = dict(inventory=dict(vehicles=inventory, vehicleCount=len(inventory), countsByType=counts),
         components=catalog['components'],
-        scenes=[{key: s[key] for key in ('id', 'name', 'tasks')} for s in scenes],
+        sceneCatalogVersion=hashlib.sha256(json.dumps(scenes, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+        scenes=[{key: value for key, value in s.items() if key != 'sceneConfigSha256'} for s in scenes],
         vehicles={v['car']: dict(name=v['name'], type=v['type'],
             implements=[dict(id=b['implement'], name=b['name']) for b in catalog['bindings'] if b['car'] == v['car']],
             scenes=sorted({r['scene'] for r in choices if r['car'] == v['car']})) for v in catalog['vehicles']},
@@ -176,14 +186,18 @@ def request_model_reply(payload):
         json.dumps(payload, ensure_ascii=False).encode(),
         headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
     try:
-        with urllib.request.urlopen(request, timeout=35) as response:
+        with urllib.request.urlopen(request, timeout=25) as response:
             raw = response.read(512_001)
         if len(raw) > 512_000:
             raise InvalidModelReply('模型返回内容过大。')
         choice = json.loads(raw)['choices'][0]
+        message = choice['message']
+        if message.get('tool_calls') and choice.get('finish_reason') in ('tool_calls', 'stop'):
+            return {'_tool_message': dict(role='assistant', content=message.get('content') or '',
+                                          tool_calls=message['tool_calls'])}
         if choice.get('finish_reason') != 'stop':
             raise InvalidModelReply('模型输出未完整结束，请简洁返回。')
-        return json.loads(choice['message']['content'])
+        return json.loads(message['content'])
     except urllib.error.HTTPError as error:
         raise ValueError(f'DeepSeek接口请求失败（HTTP {error.code}），请检查本机密钥、余额和网络。') from None
     except (urllib.error.URLError, TimeoutError):
@@ -258,12 +272,14 @@ def validate_reply(reply, rows, context=None):
                 limitation='仿真配置建议不代替真实作业与安全评估。')
 
 
-def recommend(text, rows, call=None, mode='assistant', context=None, history=None, knowledge=None, memory=''):
+def recommend(text, rows, call=None, mode='assistant', context=None, history=None, knowledge=None, memory='',
+              scene_catalog=None):
     if not isinstance(text, str) or not text.strip() or len(text) > 2000:
         raise ValueError('请输入1至2000字的任务需求。')
     if mode not in ('assistant', 'vehicle', 'algorithm', 'help'):
         raise ValueError('未知助手模式。')
     context = context if isinstance(context, dict) else {}
+    previous_catalog_version = context.get('sceneCatalogVersion')
     if mode == 'vehicle':
         context = {}
     if mode == 'algorithm':
@@ -281,26 +297,92 @@ def recommend(text, rows, call=None, mode='assistant', context=None, history=Non
     # A caller may scope the permitted choices without hiding the full inventory.
     allowed_ids = {r['id'] for r in rows}
     knowledge = {**knowledge, 'choices': [c for c in knowledge['choices'] if c['id'] in allowed_ids]}
+    # The client retains only a version token; scene facts are always rebuilt locally.
+    catalog_version = knowledge.get('sceneCatalogVersion', '')
+    cached = bool(catalog_version) and previous_catalog_version == catalog_version
+    initial_knowledge = {k: v for k, v in knowledge.items() if k not in ('scenes', 'sceneCatalogVersion')}
+    imported_ids = {r['id'] for r in rows if r.get('sceneImported')}
+    if not cached:
+        initial_knowledge['choices'] = [c for c in knowledge['choices'] if c['id'] not in imported_ids]
+    else:
+        scene_summary = list_scenes(knowledge)
+        initial_knowledge['sceneCatalog'] = {k: scene_summary[k]
+            for k in ('counts', 'builtin_scenes', 'imported_scenes')}
+    initial_knowledge['sceneCatalogStatus'] = 'unchanged' if cached else 'not_loaded'
+    initial_knowledge['sceneCatalogTool'] = 'list_scenes'
+    tool_choice = ('none' if cached else dict(type='function', function=dict(name='list_scenes'))
+                   if context.get('scene') or context.get('latestImportedSceneId') else 'auto')
     turns = [dict(role=t['role'], content=t['content'][:4000]) for t in (history or [])[-40:]
              if isinstance(t, dict) and t.get('role') in ('user', 'assistant') and isinstance(t.get('content'), str)]
     payload = dict(model='deepseek-flash', messages=[dict(role='system', content=prompt),
-        dict(role='system', content=json.dumps(dict(knowledge=knowledge), ensure_ascii=False)), *turns,
-        dict(role='user', content=json.dumps(dict(request=text, mode=mode, current_state=context, memory=memory[:4000]), ensure_ascii=False))],
-        response_format={'type': 'json_object'}, thinking={'type': 'disabled'}, max_tokens=3000, stream=False)
-    for attempt in range(2):
+        dict(role='system', content=json.dumps(dict(knowledge=initial_knowledge), ensure_ascii=False)), *turns,
+        dict(role='user', content=json.dumps(dict(request=text, mode=mode,
+            current_state={k: v for k, v in context.items() if k != 'sceneCatalogVersion'}, memory=memory[:4000]), ensure_ascii=False))],
+        response_format={'type': 'json_object'}, thinking={'type': 'disabled'}, max_tokens=3000, stream=False,
+        tools=[SCENE_TOOL], tool_choice=tool_choice)
+    queried, corrected = False, False
+    for attempt in range(3):
         try:
             reply = (call or request_model_reply)(payload)
+            if isinstance(reply, dict) and '_tool_message' in reply:
+                message = reply['_tool_message']
+                calls = message.get('tool_calls') if isinstance(message, dict) else None
+                if cached or queried or not isinstance(calls, list) or len(calls) != 1:
+                    raise InvalidModelReply('目录未变化时直接复用上下文，变化后每轮最多查询一次。')
+                tool = calls[0]
+                if not isinstance(tool, dict) or not isinstance(tool.get('function'), dict):
+                    raise InvalidModelReply('场景工具调用格式无效。')
+                function = tool.get('function', {})
+                call_id = tool.get('id')
+                if (tool.get('type') != 'function' or function.get('name') != 'list_scenes'
+                        or not isinstance(call_id, str) or not 1 <= len(call_id) <= 128
+                        or not isinstance(function.get('arguments'), str)
+                        or len(function['arguments']) > 1024
+                        or json.loads(function['arguments']) != {}):
+                    raise InvalidModelReply('只提供无参数、只读的 list_scenes 场景查询工具。')
+                if scene_catalog is not None:
+                    rows, knowledge = scene_catalog()
+                    if mode == 'algorithm':
+                        rows = [r for r in rows if all(r[k] == context.get(k) for k in ('car', 'scene', 'implement'))]
+                    ids = {r['id'] for r in rows}
+                    knowledge = {**knowledge, 'choices': [c for c in knowledge['choices'] if c['id'] in ids]}
+                payload['messages'].append(dict(role='assistant', content=str(message.get('content', ''))[:4000], tool_calls=calls))
+                payload['messages'].append(dict(role='tool', tool_call_id=call_id,
+                    content=json.dumps(list_scenes(knowledge), ensure_ascii=False)))
+                payload['tool_choice'] = 'none'
+                queried = True
+                continue
+            if not (queried or cached) and isinstance(reply, dict) and isinstance(reply.get('recommendations'), list):
+                identifiers = [item.get('candidate_id', item.get('id', ''))
+                               for item in reply['recommendations'] if isinstance(item, dict)]
+                if any(isinstance(identifier, str) and len(identifier.split('|')) >= 2 and
+                       identifier.split('|')[1].startswith('scan_') for identifier in identifiers):
+                    # A remembered scene ID is not a fresh catalog lookup, even after a count question.
+                    payload['tool_choice'] = dict(type='function', function=dict(name='list_scenes'))
+                    payload['messages'].append(dict(role='system', content=
+                        '本轮尚未查询场景目录，不能直接沿用上一轮记住的导入场景编号。'
+                        '下一条必须调用无参数的list_scenes；取得本轮工具结果后，'
+                        '重新使用工具返回的基础ID生成完整JSON方案，仍须遵守原有适配限制。'))
+                    continue
             try:
-                return validate_reply(reply, rows, context)
+                visible = rows if queried or cached else [r for r in rows if not r.get('sceneImported')]
+                result = validate_reply(reply, visible, context)
+                result['sceneToolUsed'] = queried
+                result['sceneCatalogReused'] = cached
+                result['sceneCatalogVersion'] = knowledge.get('sceneCatalogVersion', '') if queried or cached else ''
+                result['modelRequestCount'] = attempt + 1
+                return result
             except ValueError as error:
                 raise InvalidModelReply(str(error)) from None
         except (InvalidModelReply, json.JSONDecodeError) as error:
-            if attempt:
+            if corrected or attempt == 2:
                 raise ValueError('助手返回的方案格式或适配关系有误，请重新提问。') from None
+            corrected = True
             payload['messages'].append(dict(role='system', content=
                 '上次输出未通过本地校验。请重新返回完整JSON；方案必须用candidate_id基础ID、action、components、reason，'
                 '不能复制历史中的完整配置对象。严格遵守允许定位和当前状态，不执行操作。校验信息：' +
                 ('JSON格式无效' if isinstance(error, json.JSONDecodeError) else str(error))))
+    raise ValueError('场景查询或助手回复未完成，请重新提问。')
 
 
 def main():
@@ -333,7 +415,8 @@ def main():
                 request = json.load(sys.stdin)
                 result = recommend(request['text'], rows, mode=request.get('mode', 'assistant'), context=request.get('context'),
                     history=request.get('history') if isinstance(request.get('history'), list) else [],
-                    memory=request.get('memory') if isinstance(request.get('memory'), str) else '', knowledge=knowledge)
+                    memory=request.get('memory') if isinstance(request.get('memory'), str) else '', knowledge=knowledge,
+                    scene_catalog=lambda: assistant_catalog(args.workspace_src))
         print(json.dumps(dict(ok=True, **result), ensure_ascii=False))
     except Exception as error:
         # Do not include request headers, SDK traces or response bodies containing secrets.

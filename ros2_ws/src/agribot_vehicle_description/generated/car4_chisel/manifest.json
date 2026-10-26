@@ -11,34 +11,34 @@
     "wheelGridM": 0.01,
     "body": {
       "inputVertices": 553205,
-      "outputVertices": 62698,
+      "outputVertices": 186292,
       "inputFaces": 274120,
-      "outputFaces": 99791
+      "outputFaces": 274120
     },
     "wheels": {
       "front_left": {
         "inputVertices": 50148,
-        "outputVertices": 29470,
+        "outputVertices": 46762,
         "inputFaces": 76440,
-        "outputFaces": 52414
+        "outputFaces": 76440
       },
       "front_right": {
         "inputVertices": 50005,
-        "outputVertices": 29619,
+        "outputVertices": 46744,
         "inputFaces": 76440,
-        "outputFaces": 52689
+        "outputFaces": 76440
       },
       "rear_left": {
         "inputVertices": 125610,
-        "outputVertices": 65845,
+        "outputVertices": 119122,
         "inputFaces": 175366,
-        "outputFaces": 111361
+        "outputFaces": 175366
       },
       "rear_right": {
         "inputVertices": 125430,
-        "outputVertices": 65641,
+        "outputVertices": 118984,
         "inputFaces": 175366,
-        "outputFaces": 111017
+        "outputFaces": 175366
       }
     }
   },
@@ -165,13 +165,13 @@
     },
     {
       "path": "models/front_left_wheel_visual.obj",
-      "sizeBytes": 4825997,
-      "sha256": "fd22269bc2bada612ee25aeaa024fae27bbbb84b7ec712896a56129720f1eb85"
+      "sizeBytes": 9713888,
+      "sha256": "36a9a7cee6443108d5449b05aa0d882ddd3a3c531cd404c1437563fa7a68bcdd"
     },
     {
       "path": "models/front_right_wheel_visual.obj",
-      "sizeBytes": 4849530,
-      "sha256": "1b272fb021d5383eaa5d77c0e6b89e854a747e69ff9eaa3476688dc4afc9c9ab"
+      "sizeBytes": 9686487,
+      "sha256": "49b9b35466283c82371787c411af22003f5c957bd71ed3527f937def51fafba6"
     },
     {
       "path": "models/implement_compact_chisel_plow_visual.mtl",
@@ -185,13 +185,13 @@
     },
     {
       "path": "models/rear_left_wheel_visual.obj",
-      "sizeBytes": 10716524,
-      "sha256": "b699f7419543b4f889511cd390be0cf54b0a60c701916e67e56d637089edad98"
+      "sizeBytes": 24051028,
+      "sha256": "c4bd019da1a4427c8a982fc1916d04802bc7a1cfaa6b4f00450fdd5af36e9165"
     },
     {
       "path": "models/rear_right_wheel_visual.obj",
-      "sizeBytes": 10677430,
-      "sha256": "07ef1459db0c342de21d21cd3ecd943d4b01693227257c815d1765e088bae896"
+      "sizeBytes": 23994262,
+      "sha256": "9c3725bd643f431cc6a13daaaeff46735ffcdb6c00b3c17e294a796f7164873f"
     },
     {
       "path": "models/sensor_imu_visual.mtl",
@@ -240,8 +240,8 @@
     },
     {
       "path": "models/vehicle_visual.obj",
-      "sizeBytes": 9843426,
-      "sha256": "48e36b1b4eedb8c2f028ea698c492ad728dceaa5eba698d10abecb1d77b631ed"
+      "sizeBytes": 37919598,
+      "sha256": "38f6a5ae6ea714de09addaa90e33cd21c55d215254b8480af56ff7e50371feb4"
     },
     {
       "path": "urdf/car4_chisel.urdf.xacro",

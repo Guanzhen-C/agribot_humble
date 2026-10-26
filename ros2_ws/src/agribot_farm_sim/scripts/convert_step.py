@@ -8,6 +8,7 @@ mounting and wheel anchors must be defined separately after visual inspection.
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -17,13 +18,16 @@ def main():
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--deflection-mm", type=float, default=3.0)
+    parser.add_argument("--angular-deflection-rad", type=float, default=0.35)
     parser.add_argument("--include-open-surfaces", action="store_true",
                         help="Also retain open CAD faces omitted by Solid-only tessellation")
     args = parser.parse_args()
     if args.input.suffix.lower() not in (".step", ".stp", ".iges", ".igs"):
         parser.error("input must be a STEP or IGES file")
-    if args.deflection_mm <= 0:
+    if not math.isfinite(args.deflection_mm) or args.deflection_mm <= 0:
         parser.error("deflection must be positive")
+    if not math.isfinite(args.angular_deflection_rad) or not 0 < args.angular_deflection_rad < math.pi:
+        parser.error("angular deflection must be between zero and pi radians")
     sys.path.insert(0, "/usr/lib/freecad-python3/lib")
     import FreeCAD  # Initialize the application before loading Part's extension.
     import Part
@@ -50,7 +54,7 @@ def main():
     components = []
     for index, solid in enumerate(solids):
         mesh = MeshPart.meshFromShape(Shape=solid, LinearDeflection=args.deflection_mm,
-                                      AngularDeflection=0.35, Relative=False)
+                                      AngularDeflection=args.angular_deflection_rad, Relative=False)
         points, triangles = mesh.Topology
         offset = len(vertices)
         vertices.extend(tuple(float(value) / 1000 for value in point) for point in points)
@@ -75,6 +79,8 @@ def main():
     info = {"sourceSha256": hashlib.sha256(args.input.read_bytes()).hexdigest(),
             "sourceFile": str(args.input.resolve()), "units": "metres", "axes": "source_CAD_unverified",
             "status": "mesh_converted_mounting_unverified", "vertices": len(vertices), "faces": len(faces),
+            "linearDeflectionMm": args.deflection_mm,
+            "angularDeflectionRad": args.angular_deflection_rad,
             "includedOpenFaces": len(open_faces),
             "sizeM": [box.XLength / 1000, box.YLength / 1000, box.ZLength / 1000],
             "components": components}

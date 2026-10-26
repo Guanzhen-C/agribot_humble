@@ -45,7 +45,7 @@ def preview_color(material, fallback):
     return color
 
 
-def preview(bundle, workspace, output):
+def preview(bundle, workspace, output, mesh_overrides=None):
     config = json.loads((bundle / "vehicle_config.json").read_text())
     robot = ET.parse(bundle / "urdf" / (config["vehicleId"] + ".urdf.xacro")).getroot()
     # Moving belts are rendered by Gazebo/RViz, not URDF links. Include their
@@ -95,6 +95,11 @@ def preview(bundle, workspace, output):
                 if not uri.startswith("package://"):
                     raise ValueError("only package-local preview meshes are allowed")
                 path = workspace / uri[len("package://"):]
+                if mesh_overrides is not None and path.parent == bundle / "models" and path.name in {
+                    "vehicle_visual.obj", "front_left_wheel_visual.obj", "front_right_wheel_visual.obj",
+                    "rear_left_wheel_visual.obj", "rear_right_wheel_visual.obj"
+                }:
+                    path = mesh_overrides / path.name
                 bpy.ops.import_scene.obj(filepath=str(path.resolve()), axis_forward="Y", axis_up="Z", use_split_objects=True)
                 scale = Matrix.Diagonal(Vector([float(x) for x in node.get("scale", "1 1 1").split()] + [1.]))
             elif node.tag == "box":
@@ -128,16 +133,19 @@ def preview(bundle, workspace, output):
                         for i in range(3):
                             low[i], high[i] = min(low[i], point[i]), max(high[i], point[i])
     output.parent.mkdir(parents=True, exist_ok=True)
+    # Keep individual allocations bounded even for original CAD detail meshes.
+    chunks = [(name, color, points[start:start+2700000]) for (name, color), points in groups.items()
+              for start in range(0, len(points), 2700000)]
     with output.open("wb") as stream:
         stream.write(b"AFM1")
-        stream.write(struct.pack("<I", len(groups)))
-        for (name, color), points in groups.items():
+        stream.write(struct.pack("<I", len(chunks)))
+        for name, color, points in chunks:
             encoded = name.encode("utf-8")
             stream.write(struct.pack("<I", len(encoded)))
             stream.write(encoded)
             stream.write(struct.pack("<4fI", *color, len(points) // 9))
             stream.write(struct.pack("<" + "f" * len(points), *points))
-    return {"meshGroups": len(groups), "triangles": sum(len(p) // 9 for p in groups.values()),
+    return {"meshGroups": len(chunks), "triangles": sum(len(p) // 9 for p in groups.values()),
             "minimumRos": low, "maximumRos": high, "previewSha256": hashlib.sha256(output.read_bytes()).hexdigest()}
 
 
@@ -150,6 +158,8 @@ def main():
                         help="Prepare only these explicitly selected canonical exports")
     parser.add_argument("--appearance-only", action="store_true",
                         help="Prepare a scene vehicle's visual overlay, not a complete farm preset")
+    parser.add_argument("--allow-preview-downgrade", action="store_true",
+                        help="Explicitly replace an original-CAD display preview with simulation LOD")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from agribot_farm_sim.materials import normalize_ambient
@@ -171,6 +181,12 @@ def main():
         preview_group = "LocalVehicleAppearances" if args.appearance_only else "LocalFarmAssets"
         raw = args.unity_project / "Assets/StreamingAssets" / asset_group / key
         display = args.unity_project / "Assets/AgribotConfig/Resources" / preview_group / key
+        manifest_file = raw / "asset_manifest.json"
+        if manifest_file.exists() and not args.allow_preview_downgrade:
+            previous = json.loads(manifest_file.read_text()).get("previewGeometry", {})
+            if previous.get("method") == "original_cad_no_decimation":
+                raise ValueError("Original CAD preview is protected from simulation LOD downgrade: " + key +
+                                 "; use prepare_full_detail_preview.py instead")
         raw.mkdir(parents=True, exist_ok=True)
         config = json.loads((source / "vehicle_config.json").read_text())
         if config["vehicleId"] != key:
