@@ -2,6 +2,9 @@ mobile_gateway:
   ros__parameters:
     http_host: 0.0.0.0
     http_port: 8088
+    # Desktop browsers need HTTPS (secure context) to open the 6750 UART0 via Web Serial.
+    # Certificate: ~/.agribot_mobile/tls/{cert,key}.pem; 0 disables HTTPS.
+    https_port: 8443
     api_token: ""
     map_root: /home/sunrise/agribot_maps/test_site
     bag_root: /mnt/agribot_data/bags

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import MapView from "./MapView";
 import ConsolePanels from "./ConsolePanels";
+import { VCU_PROFILES, VCU_SWITCH_STAGES, useBrowserVcu, useVcuConfig } from "./vcuSerial";
 import { GlassNavigation, GlassSwitch } from "./GlassNavigation";
 import {
   formatDuration,
@@ -123,10 +124,32 @@ function Empty({ children }) {
   return <div className="empty-row">{children}</div>;
 }
 
-function VehicleSelector({ vehicles, vehicleType, setVehicleType, disabled }) {
+function VcuSyncBanner({ vcu, vehicleLabel, vcuSync, onOpenDevices }) {
+  const identity = vcu?.online ? vcu.identity : null;
+  const { profile } = vcuSync;
+  if (vcuSync.status === "writing") {
+    const stage = vcuSync.stage ?? 0;
+    return <div className="vcu-banner switching" role="status">
+      <strong>{vcuSync.text}（{profile.bitrate}）</strong>
+      <ol className="vcu-stages">{VCU_SWITCH_STAGES.map((name, index) => (
+        <li key={name} className={index < stage ? "done" : index === stage ? "active" : ""}>{name}</li>
+      ))}</ol>
+      <div className="vcu-progress"><i style={{ width: `${((stage + 0.5) / VCU_SWITCH_STAGES.length) * 100}%` }} /></div>
+    </div>;
+  }
+  if (!identity || identity.profile === profile.id) return null;
+  const actual = VCU_PROFILES.find(item => item.id === identity.profile);
+  return <div className="vcu-banner mismatch" role="alert">
+    <strong>错误：页面选择「{vehicleLabel}」（需要{profile.label}，{profile.bitrate}），但 6750 内部是{actual?.label || "未知协议"}（{actual?.bitrate || "--"}）</strong>
+    <span>6750 与页面车型不一致，不能运行。请在设备页点击“写入 6750 配置”，或把顶部车型切回与 6750 一致。</span>
+    {onOpenDevices && <button type="button" className="command-button" onClick={onOpenDevices}>前往设备页写入</button>}
+  </div>;
+}
+
+function VehicleSelector({ vehicles, vehicleType, setVehicleType, disabled, switching }) {
   return (
     <div
-      className="segmented vehicle-selector"
+      className={`segmented vehicle-selector${switching ? " switching" : ""}`}
       style={{ gridTemplateColumns: `repeat(${Math.max(vehicles.length, 1)}, 1fr)` }}
       aria-label="底盘类型"
     >
@@ -137,7 +160,7 @@ function VehicleSelector({ vehicles, vehicleType, setVehicleType, disabled }) {
             type="button"
             key={vehicle.id}
             className={vehicleType === vehicle.id ? "selected" : ""}
-            disabled={disabled}
+            disabled={disabled || switching}
             onClick={() => setVehicleType(vehicle.id)}
           >
             <Icon size={16} />
@@ -647,6 +670,10 @@ export default function App() {
   const [semanticPlanning, setSemanticPlanning] = useState(false);
   const [toast, setToast] = useState(null);
   const [motionRequest, setMotionRequest] = useState(null);
+  const browserVcu = useBrowserVcu();
+  const vcuSync = useVcuConfig(browserVcu, vehicleType);
+  // A 6750 UART0 opened in this desktop browser replaces the RDK-side diagnostics.
+  const panelState = useMemo(() => (browserVcu.vcu ? { ...state, vcu: browserVcu.vcu } : state), [state, browserVcu.vcu]);
 
   const refreshCatalogs = async () => {
     const [mapDocument, profileDocument] = await Promise.all([
@@ -687,6 +714,11 @@ export default function App() {
     const activeVehicle = state?.active_runtime?.vehicle_type || state?.active_collection?.vehicle_type;
     if (activeVehicle) setVehicleType(activeVehicle);
   }, [state?.active_runtime?.vehicle_type, state?.active_collection?.vehicle_type]);
+
+  useEffect(() => {
+    if (vcuSync.status === "done") setToast({ tone: "success", text: vcuSync.text });
+    if (vcuSync.status === "failed") setToast({ tone: "error", text: vcuSync.text });
+  }, [vcuSync.status, vcuSync.text]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -787,8 +819,8 @@ export default function App() {
     if (activeTab === "maps") {
       return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} onImportError={(message) => setToast({ tone: "error", text: message })} />;
     }
-    return <ConsolePanels section={activeTab} state={state} connected={connected} vehicleType={vehicleType} diagnostics={<StatusPanel state={connected ? state : null} />} />;
-  }, [activeTab, connected, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
+    return <ConsolePanels section={activeTab} state={panelState} connected={connected} vehicleType={vehicleType} vcuSerial={browserVcu} vcuSync={{ ...vcuSync, selectVehicle: setVehicleType, locked: vehicleLocked }} diagnostics={<StatusPanel state={connected ? state : null} />} />;
+  }, [activeTab, browserVcu, vcuSync, vehicleLocked, connected, panelState, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
 
   const localizationReady = connected && state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
@@ -820,8 +852,9 @@ export default function App() {
       <main id="main-content" className={`workspace page-${activeTab}`} tabIndex={-1}>
         <div className="page-heading">
           <h2>{currentPage.title}</h2>
-          <VehicleSelector vehicles={vehicles} vehicleType={vehicleType} setVehicleType={setVehicleType} disabled={vehicleLocked} />
+          <VehicleSelector vehicles={vehicles} vehicleType={vehicleType} setVehicleType={setVehicleType} disabled={vehicleLocked} switching={vcuSync.status === "writing"} />
         </div>
+        <VcuSyncBanner vcu={panelState?.vcu} vehicleLabel={selectedVehicle?.label || vehicleType} vcuSync={vcuSync} onOpenDevices={activeTab === "devices" ? null : () => setActiveTab("devices")} />
         {activeTab === "navigate" ? <div className="navigation-workspace">
         <div className="map-region">
           <MapView

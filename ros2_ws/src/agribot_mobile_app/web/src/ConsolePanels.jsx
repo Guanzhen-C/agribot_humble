@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Activity, Battery, Cable, Camera, CircleCheck, Cpu, Gauge, Navigation, Network, Radio, Satellite, Settings, ShieldCheck, Wrench } from "lucide-react";
+import { VCU_INTERFACES, VCU_PROFILES } from "./vcuSerial";
 
 const value = (number, unit = "", digits = 1) => Number.isFinite(number) ? `${number.toFixed(digits)}${unit}` : "未提供";
 const hex = number => Number.isInteger(number) ? `0x${number.toString(16).toUpperCase()}` : "未提供";
@@ -20,9 +22,10 @@ function Band({ icon: Icon, title, className = "", children, status }) {
 
 function LinkSequence({ state, connected }) {
   const vcu = state?.vcu;
+  const viaComputer = vcu?.port === "电脑浏览器串口";
   const links = [
     ["手机 / 浏览器 ↔ RDK", "控制台链路", connected, connected ? "已连接" : "离线", Network],
-    ["RDK ↔ HPM6750", "信号转发", connected && vcu?.online, connected && vcu?.online ? "身份已验证" : "未验证", Cpu],
+    ["RDK ↔ HPM6750", "信号转发", connected && vcu?.online, connected && vcu?.online ? viaComputer ? "电脑串口已验证" : "身份已验证" : "未验证", Cpu],
     ["HPM6750 ↔ 执行控制器", "底盘反馈", connected && vcu?.online && vcu?.telemetry?.feedback_fresh,
       connected && vcu?.online && vcu?.telemetry?.feedback_fresh ? "反馈有效" : "未验证", Cable],
   ];
@@ -76,11 +79,73 @@ function Overview({ state, connected, vehicleType }) {
   </>;
 }
 
-function Devices({ state, connected, vehicleType }) {
+function SerialControl({ state, vcuSerial }) {
+  if (!vcuSerial) return null;
+  if (!vcuSerial.available) {
+    const port = state?.console?.https_port;
+    const url = port ? `https://${window.location.hostname}:${port}` : null;
+    return <div className="status-message">
+      6750 诊断串口接在电脑上时，请在电脑上用 Chrome 或 Edge 打开 {url ? <a href={url}>{url}</a> : "控制台的 HTTPS 地址"}，再点击“连接 6750 诊断串口”。手机不支持串口诊断。
+    </div>;
+  }
+  return <div className="serial-control">
+    {vcuSerial.active
+      ? <button type="button" className="command-button secondary" onClick={vcuSerial.disconnect}>断开 6750 诊断串口</button>
+      : <button type="button" className="command-button" disabled={vcuSerial.busy} onClick={vcuSerial.connect}>连接 6750 诊断串口</button>}
+    <small>选择接在本机的 HPM6750 UART0（115200）。连接后可在下方写入 6750 配置。</small>
+  </div>;
+}
+
+function VcuConfigWriter({ vcu, vcuSerial, vcuSync }) {
+  const identity = vcu?.identity;
+  const telemetry = vcu?.telemetry;
+  const [computeInterface, setComputeInterface] = useState(telemetry?.compute_interface || 1);
+  const [confirming, setConfirming] = useState(false);
+  if (!vcuSerial?.active || !identity || !telemetry) return null;
+  const { profile } = vcuSync;
+  const writing = vcuSync.status === "writing";
+  const actual = VCU_PROFILES.find(item => item.id === identity.profile);
+  const same = identity.profile === profile.id && telemetry.compute_interface === computeInterface;
+  const iface = id => VCU_INTERFACES.find(item => item.id === id)?.label || "未知接口";
+  return <div className="vcu-config-writer">
+    <h3>写入 6750 配置</h3>
+    <div className="vcu-config-fields">
+      <label>农机协议（与顶部车型同步）<select value={profile.id} disabled={writing || vcuSync.locked}
+        onChange={event => { setConfirming(false); vcuSync.selectVehicle(event.target.value === "ackermann" ? "ackermann" : "differential"); }}>
+        {VCU_PROFILES.map(item => <option key={item.id} value={item.id}>{item.label} · {hex(item.machine_id)}/{hex(item.protocol_id)} · {item.bitrate}</option>)}
+      </select></label>
+      <label>算力接口（RDK ↔ 6750）<select value={computeInterface} disabled={writing} onChange={event => { setConfirming(false); setComputeInterface(Number(event.target.value)); }}>
+        {VCU_INTERFACES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+      </select></label>
+    </div>
+    <div className={`status-message ${identity.profile === profile.id ? "" : "error-message"}`}>
+      6750 当前：{actual?.label || "未知协议"} · {iface(telemetry.compute_interface)}　→　将写入：{profile.label} · {iface(computeInterface)}
+      {same && "（与当前一致）"}
+    </div>
+    {confirming
+      ? <div className="status-message error-message">
+          写入会改变 6750 的 CAN 协议和波特率。请确认农机已停车、导航和底盘程序已停止发送指令。
+          <div className="serial-control">
+            <button type="button" className="command-button" onClick={() => { setConfirming(false); vcuSync.write(computeInterface); }}>确认写入</button>
+            <button type="button" className="command-button secondary" onClick={() => setConfirming(false)}>取消</button>
+          </div>
+        </div>
+      : <div className="serial-control">
+          <button type="button" className="command-button" disabled={writing || vcuSync.locked} onClick={() => setConfirming(true)}>
+            {writing ? "正在写入…" : "写入 6750 配置"}
+          </button>
+          <small>{vcuSync.locked ? "任务运行中，不能写入 6750。" : "切换顶部车型不会改动 6750，只有点击此按钮才会写入。"}</small>
+        </div>}
+    {vcuSync.status === "done" && <div className="status-message">{vcuSync.text}</div>}
+    {vcuSync.status === "failed" && <div className="status-message error-message">{vcuSync.text}</div>}
+    <p className="vcu-config-note">算力接口是 RDK 与 6750 之间的连接方式，一般保持“标准 CAN”。</p>
+  </div>;
+}
+
+function Devices({ state, connected, vehicleType, vcuSerial, vcuSync }) {
   const vcu = connected && state?.vcu?.online ? state.vcu : null;
   const identity = vcu?.identity;
   const telemetry = vcu?.telemetry;
-  const mismatch = identity && (vehicleType === "ackermann" ? identity.profile !== "ackermann" : identity.profile !== "tracked");
   const installation = state?.vehicle?.id === vehicleType ? state?.vehicle_installation : null;
   return <div className="device-grid">
     <Band icon={Cpu} title="FieldGate VCU · HPM6750" status={<span className={`inline-status ${vcu ? "good" : "muted"}`}><i />{vcu ? "已连接" : "未连接"}</span>}>
@@ -92,8 +157,9 @@ function Devices({ state, connected, vehicleType }) {
         ["硬件状态", identity ? identity.hardware_ready ? "就绪" : "初始化失败" : "未提供"],
         ["控制 / 反馈", telemetry ? `${telemetry.command_fresh ? "有效" : "无新指令"} / ${telemetry.feedback_fresh ? "有效" : "无新反馈"}` : "未提供"],
       ]} />
-      {mismatch && <div className="status-message error-message">6750 固件配置与所选农机不一致，请停止运行并核对固件。</div>}
       {!vcu && <div className="status-message">{state?.vcu?.error || "未配置6750诊断串口"}</div>}
+      <SerialControl state={state} vcuSerial={vcuSerial} />
+      {vcu && vcuSerial?.active && <VcuConfigWriter vcu={vcu} vcuSerial={vcuSerial} vcuSync={vcuSync} />}
     </Band>
     <div className="device-details">
       <Band icon={Cable} title="传感器与数据通道"><Rows rows={CHANNELS.map(([topic, name]) =>
@@ -117,8 +183,8 @@ function SettingsView({ state, vehicleType }) {
       ["感知", algorithms.perception], ["规划", algorithms.planner], ["控制", algorithms.controller],
     ]} /></Band>
     <Band icon={ShieldCheck} title="6750 部署"><Rows rows={[
-      ["固件部署", "人工烧录"], ["诊断模式", "只读"], ["诊断串口", state?.vcu?.port || "未配置"],
-      ["协议来源", "固件预置配置"], ["配置导入", "地图页面"],
+      ["固件部署", "人工烧录"], ["诊断模式", state?.vcu?.port === "电脑浏览器串口" ? "电脑串口：诊断与配置写入" : "只读"], ["诊断串口", state?.vcu?.port || "未配置"],
+      ["协议来源", "设备页写入 6750 配置"], ["配置导入", "地图页面"],
     ]} /></Band>
     <Band icon={Wrench} title="软件信息"><Rows rows={[
       ["控制台", "农机控制台"], ["VCU 界面参考", "FieldGate VCU"], ["原作者", "刘泽禹"],
@@ -139,9 +205,9 @@ function BridgeDiagnostics({ state, connected }) {
   ]} /></Band>;
 }
 
-export default function ConsolePanels({ section, state, connected, vehicleType, diagnostics }) {
+export default function ConsolePanels({ section, state, connected, vehicleType, diagnostics, vcuSerial, vcuSync }) {
   if (section === "status") return <Overview state={state} connected={connected} vehicleType={vehicleType} />;
-  if (section === "devices") return <Devices state={state} connected={connected} vehicleType={vehicleType} />;
+  if (section === "devices") return <Devices state={state} connected={connected} vehicleType={vehicleType} vcuSerial={vcuSerial} vcuSync={vcuSync} />;
   if (section === "settings") return <SettingsView state={state} vehicleType={vehicleType} />;
   return <>
     <div className={`diagnostic-health ${connected ? "connected" : ""}`}><ShieldCheck size={28} /><div><h3>{connected ? "设备诊断" : "等待有效设备反馈"}</h3><p>{connected ? state?.time_sync?.summary?.message || "未收到授时诊断" : "控制台离线，设备状态尚未验证"}</p></div></div>

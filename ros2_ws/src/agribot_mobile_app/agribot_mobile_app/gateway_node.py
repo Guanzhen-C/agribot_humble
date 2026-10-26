@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import socket
 import shutil
+import ssl
 import threading
 import time
 from collections import defaultdict
@@ -156,10 +157,21 @@ class GatewayHttpServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, gateway, static_root):
+    def __init__(self, address, gateway, static_root, tls_context=None):
         self.gateway = gateway
         self.static_root = static_root
         super().__init__(address, GatewayRequestHandler)
+        if tls_context is not None:
+            # Handshake lazily in the request thread so one stalled client
+            # cannot block accept() for everyone else.
+            self.socket = tls_context.wrap_socket(
+                self.socket, server_side=True, do_handshake_on_connect=False
+            )
+
+    def handle_error(self, request, client_address):
+        # Browsers abort the TLS handshake until the self-signed certificate is
+        # trusted; that is expected and must not flood the log with tracebacks.
+        self.gateway.get_logger().debug(f"HTTP连接异常: {client_address}")
 
 
 class GatewayRequestHandler(BaseHTTPRequestHandler):
@@ -360,6 +372,14 @@ class MobileGateway(Node):
         share = Path(get_package_share_directory("agribot_mobile_app"))
         self.http_host = str(self.declare_parameter("http_host", "0.0.0.0").value)
         self.http_port = int(self.declare_parameter("http_port", 8088).value)
+        # HTTPS gives desktop browsers a secure context for Web Serial (6750 UART0
+        # on the operator's computer). Plain HTTP stays for the Android app.
+        self.https_port = int(self.declare_parameter("https_port", 8443).value)
+        tls_root = Path.home() / ".agribot_mobile" / "tls"
+        self.tls_cert_file = Path(str(self.declare_parameter(
+            "tls_cert_file", str(tls_root / "cert.pem")).value)).expanduser()
+        self.tls_key_file = Path(str(self.declare_parameter(
+            "tls_key_file", str(tls_root / "key.pem")).value)).expanduser()
         self.api_token = str(self.declare_parameter("api_token", "").value)
         self.map_root = Path(
             str(self.declare_parameter("map_root", str(Path.home() / "agribot_maps")).value)
@@ -470,6 +490,8 @@ class MobileGateway(Node):
         self._stopping = False
         self._http_server = None
         self._http_thread = None
+        self._https_server = None
+        self._https_thread = None
         self._snapshot_lock = threading.Lock()
         self._snapshot_cache_revision = -1
         self._snapshot_cache = None
@@ -1025,6 +1047,9 @@ class MobileGateway(Node):
                 "physical_config": self.physical_config.public(),
                 "storage": self._disk_state(),
                 "vcu": self.vcu_monitor.snapshot(),
+                "console": {
+                    "https_port": self.https_port if self._https_server is not None else None,
+                },
                 "vehicle_installation": self._vehicle_installations.get(core["vehicle"]["id"]),
             }
             self._snapshot_cache_revision = revision
@@ -1068,8 +1093,39 @@ class MobileGateway(Node):
         self.get_logger().info(
             f"手机端已启动: http://{self.http_host}:{self.http_port}"
         )
+        self._start_https()
         if not self.api_token:
             self.get_logger().warning("未配置api_token，仅应在受控局域网内使用")
+
+    def _start_https(self) -> None:
+        if self.https_port <= 0:
+            return
+        if not (self.tls_cert_file.is_file() and self.tls_key_file.is_file()):
+            self.get_logger().warning(
+                f"未找到HTTPS证书 {self.tls_cert_file}，电脑端6750诊断串口不可用"
+            )
+            return
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(str(self.tls_cert_file), str(self.tls_key_file))
+            self._https_server = GatewayHttpServer(
+                (self.http_host, self.https_port), self, self.static_root, context
+            )
+        except (OSError, ssl.SSLError) as error:
+            self._https_server = None
+            self.get_logger().error(f"HTTPS启动失败: {error}")
+            return
+        self._https_thread = threading.Thread(
+            target=self._https_server.serve_forever,
+            name="agribot-mobile-https",
+            daemon=True,
+        )
+        self._https_thread.start()
+        self._touch()
+        self.get_logger().info(
+            f"电脑端HTTPS已启动: https://{self.http_host}:{self.https_port}"
+        )
 
     def handle_command(self, path: str, body: dict) -> dict | None:
         handlers = {
@@ -1814,11 +1870,15 @@ class MobileGateway(Node):
         self.vcu_monitor.close()
         self._stopping = True
         self._touch()
-        if self._http_server is not None:
-            self._http_server.shutdown()
-            self._http_server.server_close()
-            if self._http_thread is not None:
-                self._http_thread.join(timeout=2.0)
+        for server, thread in (
+            (self._http_server, self._http_thread),
+            (self._https_server, self._https_thread),
+        ):
+            if server is not None:
+                server.shutdown()
+                server.server_close()
+                if thread is not None:
+                    thread.join(timeout=2.0)
         with self._task_transition_lock:
             self.processes.stop_all()
 
