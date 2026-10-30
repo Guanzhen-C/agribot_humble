@@ -16,12 +16,14 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/nav_sat_status.hpp>
+#include <std_msgs/msg/u_int8.hpp>
 
 #include "common/angle.h"
 #include "common/earth.h"
 #include "common/rotation.h"
 
 #include "agribot_hardware_bringup/navsat_frame_conversions.hpp"
+#include "agribot_hardware_bringup/map_georeference.hpp"
 #include "agribot_hardware_bringup/rtk_gi_engine.hpp"
 
 namespace {
@@ -150,6 +152,19 @@ public:
         rtk_heading_covariance_topic_ = declare_parameter<std::string>(
             "rtk_heading_covariance_topic", "/rtk/heading_with_covariance");
         pose_topic_ = declare_parameter<std::string>("pose_topic", "/rtk/odom");
+        required_fix_quality_ = declare_parameter<int>("required_fix_quality", 0);
+        quality_timeout_sec_ = declare_parameter<double>("quality_timeout_sec", 0.3);
+        const auto quality_topic = declare_parameter<std::string>("quality_topic", "/rtk/fix_quality");
+        if (required_fix_quality_ < 0 || !std::isfinite(quality_timeout_sec_) || quality_timeout_sec_ <= 0.0) {
+            throw std::runtime_error("Invalid GNSS quality gate configuration");
+        }
+        if (required_fix_quality_ > 0) {
+            quality_sub_ = create_subscription<std_msgs::msg::UInt8>(quality_topic, 1,
+                [this](const std_msgs::msg::UInt8::SharedPtr message) {
+                    latest_quality_ = message->data;
+                    latest_quality_receipt_ = now().seconds();
+                });
+        }
         pose_message_type_ = declare_parameter<std::string>("pose_message_type", "odometry");
         output_odom_topic_ = declare_parameter<std::string>("output_odom_topic", "/odometry/filtered_navsat");
         raw_pose_topic_ = declare_parameter<std::string>("raw_pose_topic", "/navsat_pose");
@@ -217,6 +232,23 @@ public:
                 declare_parameter<double>("reference_lon_deg", 114.0) * D2R,
                 reference_alt_param_m_);
             reference_blh_initialized_ = true;
+        }
+
+        const auto georeference_file = declare_parameter<std::string>("georeference_file", "");
+        const auto map_file = declare_parameter<std::string>("map_file", "");
+        if (!georeference_file.empty()) {
+            const auto geo = navsat_frames::loadMapGeoreference(georeference_file);
+            if (map_file.empty() || navsat_frames::fingerprintFile(map_file) != geo.map_fingerprint) {
+                throw std::runtime_error("NavSat map/georeference fingerprint mismatch");
+            }
+            reference_blh_ = Eigen::Vector3d(geo.reference_latitude_deg * D2R,
+                geo.reference_longitude_deg * D2R, geo.reference_altitude_m);
+            reference_blh_initialized_ = true;
+            auto_reference_from_first_navsat_fix_ = false;
+            reference_map_position_ = Eigen::Vector3d(geo.map_from_enu_xyz[0],
+                geo.map_from_enu_xyz[1], geo.map_from_enu_xyz[2]);
+            pending_initial_pose_.position = reference_map_position_;
+            map_to_ned_yaw_rad_ = geo.map_from_enu_rpy[2];
         }
 
         odom_pub_ = create_publisher<nav_msgs::msg::Odometry>(output_odom_topic_, 20);
@@ -373,6 +405,13 @@ private:
     }
 
     void handleNavSatFix(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
+        if (required_fix_quality_ > 0 &&
+            (!latest_quality_.has_value() || *latest_quality_ != required_fix_quality_ ||
+             !latest_quality_receipt_.has_value() ||
+             now().seconds() - *latest_quality_receipt_ < 0.0 ||
+             now().seconds() - *latest_quality_receipt_ > quality_timeout_sec_)) {
+            return;
+        }
         if (msg->status.status == sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX ||
             !std::isfinite(msg->latitude) || !std::isfinite(msg->longitude) ||
             !std::isfinite(msg->altitude)) {
@@ -380,6 +419,19 @@ private:
         }
 
         const double fix_time = rclcpp::Time(msg->header.stamp).seconds();
+        if (required_fix_quality_ > 0) {
+            const double age = now().seconds() - fix_time;
+            const bool invalid_covariance = std::any_of(
+                msg->position_covariance.begin(), msg->position_covariance.end(),
+                [](double value) { return !std::isfinite(value); });
+            if (fix_time <= 0.0 || age < -0.05 || age > 0.5 ||
+                msg->latitude < -90.0 || msg->latitude > 90.0 ||
+                msg->longitude < -180.0 || msg->longitude > 180.0 ||
+                invalid_covariance || msg->position_covariance[0] < 0.0 ||
+                msg->position_covariance[4] < 0.0 || msg->position_covariance[8] < 0.0) {
+                return;
+            }
+        }
         const bool have_fresh_rtk_heading =
             use_rtk_heading_ && latest_rtk_heading_yaw_.has_value() &&
             latest_rtk_heading_time_.has_value() &&
@@ -1107,6 +1159,11 @@ private:
     }
 
 private:
+    int required_fix_quality_{0};
+    double quality_timeout_sec_{0.3};
+    std::optional<int> latest_quality_;
+    std::optional<double> latest_quality_receipt_;
+    rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr quality_sub_;
     std::string map_frame_;
     std::string odom_frame_;
     std::string base_frame_;

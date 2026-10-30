@@ -127,6 +127,17 @@ public:
     odom_frame_ = declare_parameter<std::string>("odom_frame", "odom");
     base_frame_ = declare_parameter<std::string>("base_frame", "base_link");
     required_fix_quality_ = declare_parameter<int>("required_fix_quality", 4);
+    wait_for_request_ = declare_parameter<bool>("wait_for_request", false);
+    direct_initialization_ = declare_parameter<bool>("direct_initialization", false);
+    if (direct_initialization_) {
+      wait_for_request_ = true;
+      if (required_fix_quality_ != 4) {
+        throw std::runtime_error("Direct RTK initialization requires position quality 4");
+      }
+    }
+    request_received_ = !wait_for_request_;
+    // Direct RTK still verifies the map below, but has no point-cloud localizer.
+    localizer_available_ = direct_initialization_;
     allowed_heading_solutions_ = declare_parameter<std::vector<std::string>>(
       "allowed_heading_solutions", {"L1_INT", "NARROW_INT"});
     const int required_sample_count = declare_parameter<int>("required_sample_count", 10);
@@ -139,6 +150,9 @@ public:
     maximum_heading_std_deg_ = declare_parameter<double>("maximum_heading_std_deg", 3.0);
     default_horizontal_std_m_ = declare_parameter<double>("default_horizontal_std_m", 0.03);
     maximum_odometry_age_sec_ = declare_parameter<double>("maximum_odometry_age_sec", 0.50);
+    if (direct_initialization_) {
+      maximum_odometry_age_sec_ = std::min(maximum_odometry_age_sec_, 0.20);
+    }
     maximum_georeference_horizontal_rmse_m_ = declare_parameter<double>(
       "maximum_georeference_horizontal_rmse_m", 0.20);
     maximum_georeference_yaw_rmse_deg_ = declare_parameter<double>(
@@ -172,11 +186,22 @@ public:
 
     loadAndVerifyMap();
     publishSeedReady(false);
+    start_request_subscription_ = create_subscription<std_msgs::msg::Bool>(
+      "/localization/rtk_start_request", 10,
+      [this](const std_msgs::msg::Bool::SharedPtr message) {
+        if (!message->data) {return;}
+        samples_.clear();
+        seed_published_ = false;
+        request_received_ = true;
+        publishSeedReady(false);
+        setStatus("initialization requested; collecting fresh fixed RTK samples");
+      });
 
     quality_subscription_ = create_subscription<std_msgs::msg::UInt8>(
       quality_topic_, 20,
       [this](const std_msgs::msg::UInt8::SharedPtr message) {
         latest_quality_ = static_cast<int>(message->data);
+        latest_quality_receipt_ = now();
       });
     solution_subscription_ = create_subscription<std_msgs::msg::String>(
       heading_solution_topic_, 20,
@@ -204,7 +229,9 @@ public:
       localizer_ready_topic_, latched_qos,
       [this](const std_msgs::msg::Bool::SharedPtr message) {
         if (message->data) {
-          setStatus("RTK seed refined and accepted by NDT/GICP localizer");
+          setStatus(direct_initialization_ ?
+            "RTK direct initialization accepted by fusion; no NDT/GICP refinement" :
+            "RTK seed refined and accepted by NDT/GICP localizer");
         }
       });
   }
@@ -258,14 +285,13 @@ private:
       if (georeference_->yaw_validation_passed) {
         setStatus("map georeference verified; waiting for fixed RTK samples");
       } else {
-        setStatus(
-          "position-trajectory map georeference verified; RTK yaw will be a coarse "
-          "NDT/GICP prior");
+        setStatus(direct_initialization_ ?
+          "position-trajectory georeference verified; direct RTK requires fixed heading" :
+          "position-trajectory map georeference verified; RTK yaw will be a coarse NDT/GICP prior");
         RCLCPP_WARN(
           get_logger(),
-          "Using position-trajectory map georeference with yaw RMSE %.3f deg; "
-          "localization readiness remains false until NDT/GICP accepts the pose",
-          georeference_->yaw_rmse_deg);
+          "Using position-trajectory map georeference with yaw RMSE %.3f deg; refinement=%s",
+          georeference_->yaw_rmse_deg, direct_initialization_ ? "RTK-only" : "NDT/GICP");
       }
     } catch (const std::exception & error) {
       map_valid_ = false;
@@ -300,6 +326,9 @@ private:
     }
     const std::string type = latest_heading_solution_->substr(
       latest_heading_solution_->find(',') + 1U);
+    if (direct_initialization_ && type != "L1_INT" && type != "NARROW_INT") {
+      return false;
+    }
     return std::find(
       allowed_heading_solutions_.begin(), allowed_heading_solutions_.end(), type) !=
            allowed_heading_solutions_.end();
@@ -307,20 +336,34 @@ private:
 
   void handleFix(const sensor_msgs::msg::NavSatFix::SharedPtr message)
   {
-    if (!map_valid_ || seed_published_) {
+    if (!map_valid_ || seed_published_ || !request_received_) {
       return;
+    }
+    if (direct_initialization_) {
+      const double age = (now() - rclcpp::Time(message->header.stamp)).seconds();
+      const double quality_age = latest_quality_receipt_.has_value() ?
+        (now() - *latest_quality_receipt_).seconds() : heading_timeout_sec_ + 1.0;
+      if (age < 0.0 || age > heading_timeout_sec_ || quality_age < 0.0 ||
+        quality_age > heading_timeout_sec_)
+      {
+        samples_.clear();
+        waitingStatus("waiting for fresh RTK measurement time");
+        return;
+      }
     }
     if (message->status.status == sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX ||
       !std::isfinite(message->latitude) || !std::isfinite(message->longitude) ||
       !std::isfinite(message->altitude) || !latest_quality_.has_value() ||
       *latest_quality_ != required_fix_quality_)
     {
+      if (direct_initialization_) {samples_.clear();}
       waitingStatus("waiting for RTK quality 4 fixed position");
       return;
     }
     if (!latest_heading_yaw_.has_value() || !latest_heading_stamp_.has_value() ||
       !latest_heading_variance_.has_value() || !headingSolutionAccepted())
     {
+      if (direct_initialization_) {samples_.clear();}
       waitingStatus("waiting for integer-fixed dual-antenna heading");
       return;
     }
@@ -329,11 +372,13 @@ private:
       !latest_solution_receipt_.has_value() ||
       (now() - *latest_solution_receipt_).seconds() > heading_timeout_sec_)
     {
+      if (direct_initialization_) {samples_.clear();}
       waitingStatus("waiting for a fresh RTK heading synchronized to position");
       return;
     }
     const double maximum_heading_std_rad = maximum_heading_std_deg_ * M_PI / 180.0;
     if (*latest_heading_variance_ > maximum_heading_std_rad * maximum_heading_std_rad) {
+      if (direct_initialization_) {samples_.clear();}
       waitingStatus("waiting for RTK heading covariance within the initialization limit");
       return;
     }
@@ -443,7 +488,7 @@ private:
 
   void tryPublishSeed()
   {
-    if (!map_valid_ || seed_published_ || !localizer_available_ ||
+    if (!map_valid_ || seed_published_ || !request_received_ || !localizer_available_ ||
       !latest_odom_to_base_.has_value())
     {
       return;
@@ -506,7 +551,9 @@ private:
     initial_pose_publisher_->publish(initial_pose);
     seed_published_ = true;
     publishSeedReady(true);
-    setStatus("RTK map seed published once; waiting for NDT/GICP acceptance");
+    setStatus(direct_initialization_ ?
+      "RTK map seed published; NDT/GICP explicitly disabled; waiting for fusion" :
+      "RTK map seed published once; waiting for NDT/GICP acceptance");
     RCLCPP_INFO(
       get_logger(), "RTK map seed: x=%.3f y=%.3f yaw=%.2f deg",
       map_to_base.translation().x(), map_to_base.translation().y(),
@@ -547,6 +594,10 @@ private:
   std::string initial_pose_topic_;
   std::string localizer_status_topic_;
   std::string localizer_ready_topic_;
+  bool wait_for_request_{false};
+  bool request_received_{true};
+  bool direct_initialization_{false};
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_request_subscription_;
   std::string status_topic_;
   std::string seed_ready_topic_;
   std::string seed_transform_topic_;
@@ -574,6 +625,7 @@ private:
   std::optional<GeographicLib::LocalCartesian> local_cartesian_;
   Eigen::Isometry3d map_from_enu_{Eigen::Isometry3d::Identity()};
   std::optional<int> latest_quality_;
+  std::optional<rclcpp::Time> latest_quality_receipt_;
   std::optional<double> latest_heading_yaw_;
   std::optional<double> latest_heading_variance_;
   std::optional<rclcpp::Time> latest_heading_stamp_;

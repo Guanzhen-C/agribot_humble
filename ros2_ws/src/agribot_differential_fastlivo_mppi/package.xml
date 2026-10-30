@@ -13,6 +13,8 @@
 
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>agribot_hardware_bringup</exec_depend>
+  <exec_depend>agribot_mobile_app</exec_depend>
+  <exec_depend>gazebo_msgs</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>fast_livo</exec_depend>
   <exec_depend>gazebo_plugins</exec_depend>

@@ -65,6 +65,7 @@ public:
       declare_parameter<bool>("require_sequential_feedback_counter", true);
     require_localization_ready_ =
       declare_parameter<bool>("require_localization_ready", false);
+    read_only_ = declare_parameter<bool>("read_only", false);
     localization_ready_topic_ =
       declare_parameter<std::string>(
       "localization_ready_topic", "/localization/ready");
@@ -74,12 +75,18 @@ public:
 
     adapter_ = adapter_factory(*this);
     validateParameters();
-    openTransport();
+    if (read_only_) {
+      tryOpenReadOnlyTransport();
+    } else {
+      openTransport();
+    }
 
-    command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
-      command_topic_, 20,
-      std::bind(&ChassisCanNode::handleCommand, this, std::placeholders::_1));
-    if (require_localization_ready_) {
+    if (!read_only_) {
+      command_subscription_ = create_subscription<geometry_msgs::msg::Twist>(
+        command_topic_, 20,
+        std::bind(&ChassisCanNode::handleCommand, this, std::placeholders::_1));
+    }
+    if (!read_only_ && require_localization_ready_) {
       localization_ready_subscription_ =
         create_subscription<std_msgs::msg::Bool>(
         localization_ready_topic_,
@@ -96,27 +103,31 @@ public:
       create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
       "/diagnostics", rclcpp::SystemDefaultsQoS());
 
-    const auto send_period = std::chrono::duration<double>(1.0 / send_rate_hz_);
-    send_timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(send_period),
-      std::bind(&ChassisCanNode::sendCommand, this));
+    if (!read_only_) {
+      const auto send_period = std::chrono::duration<double>(1.0 / send_rate_hz_);
+      send_timer_ = create_wall_timer(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(send_period),
+        std::bind(&ChassisCanNode::sendCommand, this));
+    }
     receive_timer_ = create_wall_timer(5ms, std::bind(&ChassisCanNode::receiveFrames, this));
     diagnostics_timer_ = create_wall_timer(
       1s, std::bind(&ChassisCanNode::publishDiagnostics, this));
 
-    context_ = get_node_base_interface()->get_context();
-    pre_shutdown_callback_ = context_->add_pre_shutdown_callback(
-      [this]() {
-        RCLCPP_WARN(get_logger(), "ROS shutdown requested; transmitting CAN safe-stop frames");
-        sendStopFrames();
-      });
-    pre_shutdown_callback_registered_ = true;
+    if (!read_only_) {
+      context_ = get_node_base_interface()->get_context();
+      pre_shutdown_callback_ = context_->add_pre_shutdown_callback(
+        [this]() {
+          RCLCPP_WARN(get_logger(), "ROS shutdown requested; transmitting CAN safe-stop frames");
+          sendStopFrames();
+        });
+      pre_shutdown_callback_registered_ = true;
+    }
 
     RCLCPP_INFO(
       get_logger(),
-      "CAN chassis ready: type=%s transport=%s hardware=%s command=%s rate=%.1f Hz",
-      adapter_->type().c_str(), transport_->type().c_str(),
-      transport_->hardwareId().c_str(), command_topic_.c_str(), send_rate_hz_);
+      "CAN chassis: type=%s transport=%s mode=%s command=%s",
+      adapter_->type().c_str(), can_transport_.c_str(),
+      read_only_ ? "receive-only" : "control", command_topic_.c_str());
   }
 
   ~ChassisCanNode() override
@@ -163,6 +174,30 @@ private:
     config.zqwl_bitrate = zqwl_bitrate_;
     transport_ = makeChassisCanTransport(config, adapter_->feedbackIds());
     transport_open_time_ = SteadyClock::now();
+    last_transport_error_.clear();
+  }
+
+  void tryOpenReadOnlyTransport()
+  {
+    const auto current = SteadyClock::now();
+    if (last_open_attempt_ != SteadyClock::time_point{} &&
+      current - last_open_attempt_ < 1s)
+    {
+      return;
+    }
+    last_open_attempt_ = current;
+    try {
+      openTransport();
+      receive_counters_.clear();
+      startup_reopen_attempted_ = false;
+      feedback_ever_received_ = false;
+    } catch (const std::exception & exception) {
+      last_transport_error_ = exception.what();
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 5000,
+        "Receive-only CAN waiting for adapter (close the desktop CAN GUI): %s",
+        exception.what());
+    }
   }
 
   void handleCommand(const geometry_msgs::msg::Twist::SharedPtr message)
@@ -216,6 +251,9 @@ private:
   void sendCommand()
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
+    if (read_only_) {
+      return;
+    }
     const auto current_time = now();
     const double command_age = (current_time - last_command_time_).seconds();
     const bool command_fresh = command_received_ && command_age >= 0.0 &&
@@ -240,12 +278,21 @@ private:
 
   void writeFrame(const chassis_can::Frame & frame)
   {
+    if (read_only_ || !transport_) {
+      throw std::logic_error("CAN frame transmission is disabled");
+    }
     transport_->writeFrame(frame);
   }
 
   void receiveFrames()
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
+    if (!transport_) {
+      if (read_only_) {
+        tryOpenReadOnlyTransport();
+      }
+      return;
+    }
     try {
       const auto received = transport_->readFrames(64);
       invalid_frames_ += received.invalid_frames;
@@ -254,15 +301,20 @@ private:
       }
     } catch (const std::exception & exception) {
       ++receive_errors_;
+      last_transport_error_ = exception.what();
       RCLCPP_ERROR_THROTTLE(
         get_logger(), *get_clock(), 2000, "CAN receive failed: %s", exception.what());
+      if (read_only_) {
+        transport_.reset();
+        return;
+      }
     }
     recoverSilentZqwlStartup();
   }
 
   void recoverSilentZqwlStartup()
   {
-    if (!recover_zqwl_startup_ || transport_->type() != "zqwl_cdc" ||
+    if (!transport_ || !recover_zqwl_startup_ || transport_->type() != "zqwl_cdc" ||
       startup_reopen_attempted_ || feedback_ever_received_)
     {
       return;
@@ -406,12 +458,20 @@ private:
     array.header.stamp = now();
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.name = "agribot/chassis_can/" + adapter_->type();
-    status.hardware_id = transport_->hardwareId();
+    status.hardware_id = transport_ ? transport_->hardwareId() :
+      (can_transport_ == "socketcan" ? can_interface_ : zqwl_port_);
 
-    const bool fresh = feedbackFresh(now());
-    if (!fresh) {
+    const bool fresh = transport_ && feedbackFresh(now());
+    if (!transport_) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+      status.message = "CAN adapter unavailable; close the desktop CAN GUI: " +
+        last_transport_error_;
+    } else if (!fresh) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
       status.message = "chassis feedback missing or stale";
+    } else if (read_only_) {
+      status.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+      status.message = "CAN feedback healthy; receive-only, control disabled";
     } else if (!feedbackAllowsMotion(now())) {
       status.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
       status.message = "feedback received but motion is inhibited";
@@ -423,7 +483,9 @@ private:
       status.message = "CAN protocol and feedback healthy";
     }
     status.values.push_back(keyValue("chassis_type", adapter_->type()));
-    status.values.push_back(keyValue("can_transport", transport_->type()));
+    status.values.push_back(keyValue("can_transport", can_transport_));
+    status.values.push_back(keyValue("read_only", read_only_ ? "true" : "false"));
+    status.values.push_back(keyValue("transport_error", last_transport_error_));
     status.values.push_back(keyValue("feedback_fresh", fresh ? "true" : "false"));
     status.values.push_back(
       keyValue("command_active", motion_command_active_ ? "true" : "false"));
@@ -451,7 +513,7 @@ private:
   void sendStopFrames() noexcept
   {
     std::lock_guard<std::mutex> guard(state_mutex_);
-    if (!transport_ || stop_frames_sent_) {
+    if (read_only_ || !transport_ || stop_frames_sent_) {
       return;
     }
     stop_frames_sent_ = true;
@@ -490,6 +552,9 @@ private:
   bool require_autonomous_mode_{true};
   bool require_sequential_feedback_counter_{true};
   bool require_localization_ready_{false};
+  bool read_only_{false};
+  std::string last_transport_error_;
+  SteadyClock::time_point last_open_attempt_{};
   std::string localization_ready_topic_{"/localization/ready"};
   double localization_ready_timeout_sec_{2.5};
   bool headlight_{false};

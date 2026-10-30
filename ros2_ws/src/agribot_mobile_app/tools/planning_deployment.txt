@@ -1,0 +1,78 @@
+差速履带车规划模块更新（2026-10-30）
+
+这是已有RDK X5 ROS 2 Humble工程的应用更新，不是6750、STM32或X5系统固件刷机包。
+本包不改变阿克曼参数、传感器外参、时间同步、FAST-LIVO2内部参数、MPPI或CAN协议。
+
+1. 这次修改
+差速Smac State Lattice每段搜索预算2→5秒，解析连接最大长度3→6米，原地旋转惩罚5→2。
+保持1.40×1.06米安全车体轮廓、2米膨胀半径、原有地图分辨率及运动基元。
+安装版与纯规划测试版使用相同的这三个参数。
+控制台增加固定扫描路线一键载入。载入只修改待执行点位，不会自动启动导航或运动。
+PGM读取改为等价查表，大JSON响应启用gzip；不接受gzip的客户端继续使用原始JSON。
+
+2. 两条53点路线
+推荐候选“扫描路线·终点避障版”：只把第53点沿原扫描末段回退2.60米，其余52点不变。
+这是明确改变目标位置的可选方案，不是把停车容差放宽到2.60米。
+原版“扫描原始路线·终点待确认”完整保留原始53个坐标，原始第53点与地图障碍相冲突，
+当前不能整条通过。不要为了通过该终点缩小车体轮廓或擦除真实障碍。
+地图PGM仍是用户10月29日17:27保存的版本，未由本次程序修改。
+两条路线均基于下午扫描轨迹经ECEF转换到当前地图坐标系；不可直接复制下午地图的ENU。
+
+3. 本机验证边界
+完整修正版已在真实Nav2 SmacPlannerLattice上连续规划验证，详见evidence目录。
+这些完整路线耗时来自x86电脑，不代表X5的完整路线耗时，不代表真车控制全程通过。
+X5之前已验证第10点原始方向能通过，但还需明天复测完整修正版及实际手机显示耗时。
+本次没有调用NavigateToPose/NavigateThroughPoses，也没有启动CAN或发送车辆速度。
+静态填充轮廓检查：13760个路径采样点没有落入已知障碍或越界；41个采样轮廓接触未知
+栅格边界。保留原有allow_unknown=true策略，因此这不是“全部区域均已确认可通行”的
+实车安全验收，部署后要结合现场及实时障碍物再次确认这些边界。
+
+4. 明天部署
+先停好车辆并退出导航、采集任务。复制本文件夹到RDK，例如/home/sunrise/agribot_updates/。
+在RDK终端进入本文件夹，然后执行：
+
+  bash apply_planning_update.sh --check
+  bash apply_planning_update.sh --apply
+
+更新脚本先检查包内哈希和已有PCD是否匹配，拒绝覆盖不匹配的三维地图。
+有导航执行中、非零速度命令或采集中会拒绝安装；不会直接杀掉未保存的采集任务。
+更新前会备份源码、参数和原地图文件，备份位置打印在终端。
+只构建agribot_mobile_app这个Python包；差速YAML同时更新到源码及安装目录。
+保留RDK原有网关配置、数据盘路径、HTTP/HTTPS设置、外参和采集流程。
+最后只启动手机网关，不启动定位/导航/底盘运行栈。
+包中不含PCD副本，要求RDK当前已有同名且SHA256一致的PCD。
+
+5. 手机使用
+现有APK在线刷新即可获得新的网页；0.2.9安装包同时更新了离线界面，覆盖安装保留地址。
+APK在code/agribot_mobile_app/web/dist/downloads/，部署后也可从RDK的/downloads/下载。
+选择差速车型及map_lixel_farmland_20260929_xiugai地图，进入导航→经停点。
+在“固定路线”选择明确标识的版本，点“载入扫描路线”，检查所有点和终点调整提示。
+只有定位就绪并且人工单独点击“执行路线”后，才会进入现有Nav2执行与底盘授权流程。
+不得将预览折线当作Smac已经完成碰撞检测的路径。
+
+6. 纯规划复测（不启用底盘）
+终端A：
+  source /opt/ros/humble/setup.bash
+  source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+  export ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1
+  ros2 launch agribot_hardware_bringup differential_state_lattice_validation.launch.py \
+    map:=/home/sunrise/agribot_maps/test_site/map_lixel_farmland_20260929_xiugai.yaml \
+    rviz:=false show_3d_map:=false
+
+终端B：
+  source /opt/ros/humble/setup.bash
+  source /home/sunrise/agribot_ws/ros2_ws/install/setup.bash
+  export ROS_DOMAIN_ID=77 ROS_LOCALHOST_ONLY=1
+  python3 /home/sunrise/agribot_ws/ros2_ws/src/agribot_mobile_app/tools/benchmark_route_planner.py \
+    /home/sunrise/agribot_maps/test_site/map_lixel_farmland_20260929_xiugai_routes.json \
+    /home/sunrise/agribot_route_validation_20261030.json \
+    --route-id scanner_20261029_143812_endpoint_safe --repeat 3
+
+测试结束后终端A按Ctrl+C。只测规划，不要同时启动真机运动栈抢占CPU。
+记录报告的架构、参数、Smac计算时间、Action总时间、各点最近误差和路径碰撞检查。
+正式跑车前仍需重新完成传感器同步、定位就绪、低速控制与急停检查。
+
+7. 回退
+先退出运行栈并停止agribot-mobile-app服务。
+根据脚本打印的备份目录，恢复mobile_source.tgz、两份YAML及maps内原文件，
+重新构建agribot_mobile_app，再启动网关。不要对整个工作区使用git reset --hard。

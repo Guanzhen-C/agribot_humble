@@ -1,5 +1,74 @@
 import { expect, test } from "@playwright/test";
 
+test("outdoor refinement choice is explicit and waits for a button", async ({ page }) => {
+  const posts=[];
+  await mockApi(page,{state:{...mockState,active_runtime:null,
+    processes:{runtime:{running:false}},localization:{...mockState.localization,fusion_ready:false}},
+    onPost:request=>posts.push(request)});
+  await page.goto('/');
+  await page.getByRole('button',{name:'地图',exact:true}).click();
+  await page.getByRole('button',{name:'四轮差速车',exact:true}).click();
+  await page.getByLabel('车辆流程').selectOption('differential_outdoor');
+  await expect(page.getByLabel('使用 NDT/GICP 精配准')).toBeChecked();
+  await page.getByLabel('使用 NDT/GICP 精配准').uncheck();
+  await page.getByRole('button',{name:'启动观察阶段',exact:true}).click();
+  await expect.poll(()=>posts.length).toBe(1);
+  expect(posts[0].body).toMatchObject({motion:false,initialization_refinement:'rtk_only',initialization_wait_for_request:true});
+  expect(posts[0].path).toBe('/api/v1/runtime/start');
+});
+
+test("waypoint localization uses KF-GINS initialization without an NDT choice", async ({ page }) => {
+  const posts=[];
+  await mockApi(page,{waypointLocalization:true,state:{...mockState,active_runtime:null,
+    processes:{runtime:{running:false}},localization:{...mockState.localization,fusion_ready:false}},
+    onPost:request=>posts.push(request)});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await page.getByRole('button',{name:'地图',exact:true}).click();
+  await page.getByRole('button',{name:'四轮差速车',exact:true}).click();
+  await page.getByLabel('车辆流程').selectOption('differential_outdoor');
+  await expect(page.getByLabel('使用 NDT/GICP 精配准')).toHaveCount(0);
+  await page.getByRole('button',{name:'启动观察阶段',exact:true}).click();
+  await expect.poll(()=>posts.length).toBe(1);
+  expect(posts[0].body).toMatchObject({motion:false,initialization_refinement:'rtk_only',initialization_wait_for_request:true});
+  await page.screenshot({path:'/tmp/agribot-waypoint-localization-phone.png',fullPage:true});
+  expect(await page.evaluate(()=>document.body.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("warming localization status remains an active cancellable navigation task", async ({page})=>{
+  const posts=[];
+  await mockApi(page,{waypointLocalization:true,state:{...mockState,
+    navigation:{kind:'saved_path',status:'executing',feedback:{message:'KF-GINS继续定位，FAST-LIVO2＋RTK预热中'}},
+    localization:{...mockState.localization,active_method:'navsat_warming_fastlivo'}},
+    onPost:request=>posts.push(request)});
+  await page.goto('/');
+  await expect(page.getByText('KF-GINS定位 · FAST-LIVO2＋RTK预热中',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'停止导航',exact:true}).first()).toBeEnabled();
+  expect(posts).toEqual([]);
+});
+
+for (const mode of ['ndt_gicp','rtk_only']) {
+  test(`initialization button sends only the trigger: ${mode}`, async ({page})=>{
+    const posts=[];
+    await mockApi(page,{state:{...mockState,
+      active_runtime:{profile_id:'differential_outdoor',vehicle_type:'differential',initialization_refinement:mode,initialization_wait_for_request:true},
+      processes:{runtime:{running:true}},navigation:{status:'idle'},
+      localization:{...mockState.localization,fusion_ready:false,lidar_ready:false,initialization_stage:'wait_request'}},
+      onPost:request=>posts.push(request)});
+    await page.goto('/');
+    await page.getByRole('button',{name:'地图',exact:true}).click();
+    await expect(page.getByLabel('车辆流程')).toHaveValue('differential_outdoor');
+    const checkbox=page.getByLabel('使用 NDT/GICP 精配准');
+    await expect(checkbox).toBeDisabled();
+    if(mode==='rtk_only') await expect(checkbox).not.toBeChecked();
+    else await expect(checkbox).toBeChecked();
+    const name=mode==='rtk_only'?'开始RTK直接初始化':'开始NDT/GICP配准';
+    await page.getByRole('button',{name,exact:true}).click();
+    await expect.poll(()=>posts.length).toBe(1);
+    expect(posts[0]).toEqual({path:'/api/v1/localization/start',body:{}});
+  });
+}
+
 
 function mapGrid() {
   const width = 150;
@@ -47,6 +116,159 @@ test("VCU pages remain truthful offline and never emit motion commands", async (
   expect(posts).toEqual([]);
 });
 
+test("direct CAN feedback works without optional 6750 diagnostics", async ({ page }) => {
+  const posts = [];
+  const state = {
+    ...mockState,
+    vehicle: { ...mockState.vehicle, id: "differential", label: "履带差速农机" },
+    active_runtime: { ...mockState.active_runtime, vehicle_type: "differential", motion: false },
+    chassis: { ...mockState.chassis, battery_voltage: 75.4, left_rpm: 120, right_rpm: 121 },
+    chassis_feedback: { fresh: true, vehicle_type: "differential", read_only: true, message: "CAN feedback healthy" },
+    vcu: { configured: false, online: false },
+  };
+  await mockApi(page, { state, live: true, onPost: request => posts.push(request) });
+  await page.goto("/");
+  await page.getByRole("button", { name: "总览", exact: true }).click();
+  await expect(page.getByText("75.4", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("反馈有效 · 只读", { exact: true })).toBeVisible();
+  await expect(page.getByText("120", { exact: false }).first()).toBeVisible();
+  await page.screenshot({ path: "/tmp/agribot-can-feedback-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByText("反馈有效 · 只读", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "/tmp/agribot-can-feedback-mobile.png", fullPage: true });
+  expect(posts).toEqual([]);
+});
+
+test("a CAN publisher alone does not display stale chassis feedback", async ({ page }) => {
+  await mockApi(page, { live: true, state: {
+    ...mockState, chassis: null,
+    chassis_feedback: { fresh: false, vehicle_type: "ackermann", message: "底盘反馈已超时" },
+    vcu: { configured: false, online: false },
+  } });
+  await page.goto("/");
+  await page.getByRole("button", { name: "总览", exact: true }).click();
+  await expect(page.getByText("底盘反馈已超时", { exact: true })).toBeVisible();
+  await expect(page.getByText("底盘实时反馈", { exact: true })).toHaveCount(0);
+});
+
+for (const width of [390, 1280]) {
+  test(`saved path start preview never executes navigation, width ${width}`, async ({ page }) => {
+    const posts = [];
+    await page.setViewportSize({ width, height: 900 });
+    await mockApi(page, { live: true, onPost: request => posts.push(request), state: {
+      ...mockState, active_runtime: { ...mockState.active_runtime, vehicle_type: "differential" }, navigation: { status: "idle" },
+    } });
+    await page.route("**/api/v1/maps/*/saved-paths", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ routes: [
+      { id: "manual104_saved", label: "人工104点路径", vehicle_type: "differential", anchor_count: 104 },
+    ] }) }));
+    await page.route("**/api/v1/navigation/saved-path/preview", async route => {
+      const body=route.request().postDataJSON();
+      posts.push({path:"/api/v1/navigation/saved-path/preview",body});
+      const markers=Array.from({length:105-body.start_point},(_,index)=>({number:body.start_point+index,x:-2+(index%9)*.4,y:-1+Math.floor(index/9)*.3}));
+      await route.fulfill({contentType:"application/json",body:JSON.stringify({...body,markers,path_points:6013})});
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "经停点", exact: true }).click();
+    await expect(page.getByRole("button", { name: "手动添加路径", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "预先设定路径", exact: true }).click();
+    await expect(page.getByRole("button", { name: "执行路线", exact: true })).toHaveCount(0);
+    await page.getByLabel("保存路径起点").selectOption("51");
+    expect(posts).toEqual([]);
+    await page.getByRole("button", { name: "预览后续路径", exact: true }).click();
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0]).toEqual({ path: "/api/v1/navigation/saved-path/preview", body: {
+      map_id: "map_lio_sam_0811", route_id: "manual104_saved", start_point: 51,
+    } });
+    const labels=page.locator("[data-route-point]");
+    await expect(labels).toHaveCount(54);
+    await expect(labels.first()).toHaveText("51");
+    await expect(labels.last()).toHaveText("104");
+    await expect(page.locator('[data-route-point="50"]')).toHaveCount(0);
+    const overlapping=await labels.evaluateAll(items=>{
+      const boxes=items.map(item=>item.getBoundingClientRect());
+      return boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
+    });
+    expect(overlapping).toBe(false);
+    expect(await page.locator(".map-shell").evaluate(root=>{
+      const labels=[...root.querySelectorAll("[data-route-point]")].map(x=>x.getBoundingClientRect());
+      const tools=[...root.querySelectorAll(".map-tools,.map-legend,.map-scale,.pose-readout")].map(x=>x.getBoundingClientRect());
+      return labels.some(a=>tools.some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
+    })).toBe(false);
+    expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `/tmp/agribot-saved-path-${width}.png`, fullPage: true });
+    await page.getByRole("button", { name: "执行保存路径", exact: true }).click();
+    await expect.poll(() => posts.length).toBe(2);
+    expect(posts[1].path).toBe("/api/v1/navigation/saved-path/execute");
+    expect(posts[1].body.start_point).toBe(51);
+    await page.getByLabel("保存路径起点").selectOption("1");
+    await page.getByRole("button", { name: "预览后续路径", exact: true }).click();
+    await expect(labels).toHaveCount(104);
+    expect(await labels.evaluateAll(items=>{
+      const boxes=items.map(item=>item.getBoundingClientRect());
+      return boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top));
+    })).toBe(false);
+  });
+}
+
+for (const width of [390, 1280]) {
+  test(`manual path mode removes obsolete scanner controls, width ${width}`, async ({ page }) => {
+    const posts = [];
+    await page.setViewportSize({ width, height: 900 });
+    await mockApi(page, { live: true, onPost: (request) => posts.push(request), state: {
+      ...mockState, active_runtime: { ...mockState.active_runtime, vehicle_type: "differential" }, navigation: { status: "idle" },
+    } });
+    const oldRequests=[];
+    page.on("request", request => { if (request.url().endsWith("/routes")) oldRequests.push(request.url()); });
+    await page.goto("/");
+    await page.getByRole("button", { name: "经停点", exact: true }).click();
+    await expect(page.getByLabel("固定路线")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "载入扫描路线", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "手动添加路径", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "执行路线", exact: true })).toBeDisabled();
+    expect(posts).toEqual([]);
+    await page.getByRole("button", { name: "预先设定路径", exact: true }).click();
+    await expect(page.locator(".route-list")).toHaveCount(0);
+    const canvas=page.locator("canvas");
+    const box=await canvas.boundingBox();
+    await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+    await page.getByRole("button", { name: "手动添加路径", exact: true }).click();
+    await expect(page.locator(".route-item")).toHaveCount(0);
+    expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `/tmp/agribot-manual-path-${width}.png`, fullPage: true });
+    expect(oldRequests).toEqual([]);
+    expect(posts).toEqual([]);
+    for (const fraction of [.35, .65]) {
+      await page.mouse.move(box.x+box.width*fraction, box.y+box.height*.5);
+      await page.mouse.down();
+      await page.mouse.move(box.x+box.width*fraction+25, box.y+box.height*.5);
+      await page.mouse.up();
+    }
+    await expect(page.locator(".route-item")).toHaveCount(2);
+    await page.getByRole("button", { name: "执行路线", exact: true }).click();
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0].path).toBe("/api/v1/navigation/route");
+    expect(posts[0].body.poses).toHaveLength(2);
+  });
+}
+
+test("saved paths are unavailable without a compatible vehicle", async ({ page }) => {
+  await mockApi(page, { live: true, state: { ...mockState, navigation: { status: "idle" } } });
+  await page.goto("/");
+  await page.getByRole("button", { name: "经停点", exact: true }).click();
+  await page.getByRole("button", { name: "预先设定路径", exact: true }).click();
+  await expect(page.getByText("当前地图没有预先设定路径", { exact:true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "执行保存路径", exact: true })).toHaveCount(0);
+});
+
+test("route mode switching is disabled during navigation", async ({ page }) => {
+  await mockApi(page, { live: true, state: { ...mockState, active_runtime: { ...mockState.active_runtime, vehicle_type: "differential" } } });
+  await page.goto("/");
+  await page.getByRole("button", { name: "经停点", exact: true }).click();
+  await expect(page.getByRole("button", { name: "手动添加路径", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "预先设定路径", exact: true })).toBeDisabled();
+});
+
 const mockState = {
   revision: 8,
   server_time: Date.now() / 1000,
@@ -75,6 +297,7 @@ const mockState = {
     heading_solution: "SOL_COMPUTED,L1_INT",
   },
   chassis: { linear_velocity: 0.12, angular_velocity: 0.01, control_mode: 1, base_state: 0, fault_code: 0, battery_voltage: 25.4 },
+  chassis_feedback: { fresh: true, vehicle_type: "ackermann", read_only: false, message: "CAN feedback healthy" },
   command: { linear: 0.2, angular: 0.02 },
   navigation: { kind: "route", status: "executing", feedback: { distance_remaining: 7.24, number_of_poses_remaining: 3 }, goal: null, route: [] },
   semantic: {
@@ -137,7 +360,7 @@ const mockState = {
   },
 };
 
-async function mockApi(page, { state = mockState, onPost = () => {}, live = false } = {}) {
+async function mockApi(page, { state = mockState, onPost = () => {}, live = false, waypointLocalization = false } = {}) {
   // A fulfilled SSE response ends immediately; simulate a persistent connection
   // only for tests that explicitly exercise live readiness.
   if (live) await page.addInitScript((initialState) => {
@@ -186,6 +409,10 @@ async function mockApi(page, { state = mockState, onPost = () => {}, live = fals
       await route.fulfill({ contentType: "application/json", body: JSON.stringify({ maps: [{ id: "map_lio_sam_0811", resolution: 0.1, modified_at: "2026-08-15T10:00:00", has_3d: true, has_georeference: true, has_manifest: true, has_semantic: true }] }) });
       return;
     }
+    if (url.pathname.endsWith("/routes")) {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ map_id: state.active_runtime?.map_id || "map_lio_sam_0811", routes: [] }) });
+      return;
+    }
     if (url.pathname === "/api/v1/semantic/config") {
       await route.fulfill({ contentType: "application/json", body: JSON.stringify({ service_url: "http://172.18.80.26:8090", map_ids: ["map_lio_sam_0811"], provider: "alibaba_cloud_bailian" }) });
       return;
@@ -204,7 +431,8 @@ async function mockApi(page, { state = mockState, onPost = () => {}, live = fals
           { id: "ackermann_indoor", label: "室内地图", vehicle_type: "ackermann" },
           { id: "ackermann_outdoor_0811", label: "室外0811", vehicle_type: "ackermann" },
           { id: "differential_indoor", label: "室内地图", vehicle_type: "differential" },
-          { id: "differential_outdoor", label: "室外地图", vehicle_type: "differential" },
+          { id: "differential_outdoor", label: "室外地图", vehicle_type: "differential",
+            localization_strategy: waypointLocalization ? "navsat_waypoint100" : "fastlivo_rtk" },
         ],
         processing_enabled: true,
       }) });

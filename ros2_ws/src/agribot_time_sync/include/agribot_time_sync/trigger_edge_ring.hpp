@@ -162,6 +162,25 @@ public:
 
   bool is_open() const {return storage_ != nullptr;}
 
+  // RuntimeDirectory is removed when the trigger service restarts. The old
+  // mmap remains readable but never receives the new producer's edges.
+  bool refresh_path(const std::string & path)
+  {
+    struct stat current {}, opened {};
+    if (stat(path.c_str(), &current) != 0 ||
+      current.st_size < static_cast<off_t>(sizeof(TriggerEdgeRingStorage)))
+    {
+      return false;
+    }
+    if (storage_ != nullptr && fstat(descriptor_, &opened) == 0 &&
+      opened.st_dev == current.st_dev && opened.st_ino == current.st_ino)
+    {
+      return true;
+    }
+    open_path(path);
+    return true;
+  }
+
   std::uint64_t generation() const
   {
     return storage_ == nullptr ? 0U : storage_->generation;

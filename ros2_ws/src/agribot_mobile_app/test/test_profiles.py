@@ -153,7 +153,7 @@ def test_production_profiles_dispatch_to_each_chassis_stack(tmp_path):
     assert "motion_authorization:=ENABLE_DIFFERENTIAL_MOTION" in differential
 
 
-def test_differential_outdoor_uses_auto_fallback_without_visual_index(tmp_path):
+def test_differential_outdoor_uses_waypoint_handover_without_visual_index(tmp_path):
     profiles = RuntimeProfiles(
         Path(__file__).parents[1] / "config" / "runtime_profiles.yaml"
     )
@@ -165,8 +165,32 @@ def test_differential_outdoor_uses_auto_fallback_without_visual_index(tmp_path):
         "differential_outdoor", map_base, False, "differential"
     )
 
-    assert "differential_outdoor_experiment.launch.py" in command
+    assert command[2:4] == ["agribot_localization_switch", "outdoor_waypoint.launch.py"]
+    assert "initialization_refinement:=rtk_only" in command
     assert "initialization_source:=auto" in command
     assert "enable_rtk_initialization:=true" in command
     assert "enable_visual_initialization:=true" in command
     assert "enable_chassis_output:=false" in command
+
+
+@pytest.mark.parametrize("mode", ["ndt_gicp", "rtk_only"])
+def test_outdoor_initialization_choices_are_explicit_and_do_not_enable_motion(tmp_path, mode):
+    profiles = RuntimeProfiles(Path(__file__).parents[1] / "config/runtime_profiles.yaml")
+    base = tmp_path / "map"
+    for suffix in (".yaml", ".pgm", ".pcd", "_georeference.yaml"):
+        Path(f"{base}{suffix}").touch()
+    command = profiles.command(
+        "differential_outdoor", base, False, "differential",
+        initialization_refinement=mode, initialization_wait_for_request=True,
+    )
+    assert "initialization_refinement:=rtk_only" in command
+    assert "initialization_wait_for_request:=true" in command
+    assert "enable_rtk_initialization:=true" in command
+    assert "enable_chassis_output:=false" in command
+    with pytest.raises(ProfileError):
+        profiles.command("differential_outdoor", base, False, initialization_refinement="invalid")
+    with pytest.raises(ProfileError):
+        profiles.command("ackermann_indoor", base, False, initialization_refinement=mode)
+    if mode == "rtk_only":
+        with pytest.raises(ProfileError, match="按钮"):
+            profiles.command("differential_outdoor", base, False, initialization_refinement=mode)

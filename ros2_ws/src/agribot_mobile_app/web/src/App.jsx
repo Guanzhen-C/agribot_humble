@@ -193,12 +193,48 @@ function ProcessTail({ process }) {
   );
 }
 
+function SavedPathPicker({ mapId, vehicleType, disabled, execute }) {
+  const [routes, setRoutes] = useState([]);
+  const [routeId, setRouteId] = useState("");
+  const [start, setStart] = useState(1);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    setRoutes([]); setRouteId(""); setStart(1); setError("");
+    if (mapId && vehicleType === "differential") getJson(`/api/v1/maps/${encodeURIComponent(mapId)}/saved-paths`, { signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setRoutes(value.routes || []); })
+      .catch((failure) => { if (!controller.signal.aborted) setError(failure.message); });
+    return () => controller.abort();
+  }, [mapId, vehicleType]);
+  const selected = routes.find((route) => route.id === routeId) || routes[0];
+  if (!selected) return error ? <div role="alert" className="status-message">保存路径不可用：{error}</div> : <Empty>当前地图没有预先设定路径</Empty>;
+  const body = { map_id: mapId, route_id: selected.id, start_point: start };
+  return <div className="route-preset-controls">
+    <label className="field-label">已保存路径
+      <select aria-label="已保存路径" value={selected.id} disabled={disabled} onChange={(event) => { setRouteId(event.target.value); setStart(1); }}>
+        {routes.map((route) => <option key={route.id} value={route.id}>{route.label}</option>)}
+      </select>
+    </label>
+    <label className="field-label">起点
+      <select aria-label="保存路径起点" value={start} disabled={disabled} onChange={(event) => setStart(Number(event.target.value))}>
+        {Array.from({ length: selected.anchor_count - 1 }, (_, index) => <option key={index} value={index + 1}>第 {index + 1} 点</option>)}
+      </select>
+    </label>
+    <CommandButton icon={Map} tone="secondary" disabled={disabled} onClick={() => execute("/api/v1/navigation/saved-path/preview", body)}>预览后续路径</CommandButton>
+    <CommandButton icon={Play} disabled={disabled} onClick={() => execute("/api/v1/navigation/saved-path/execute", body)}>执行保存路径</CommandButton>
+  </div>;
+}
+
 function NavigationPanel({
   state,
+  mapId,
+  vehicleType,
   navigationKind,
   setNavigationKind,
   interactionMode,
   setInteractionMode,
+  routeInputMode,
+  setRouteInputMode,
   target,
   route,
   setRoute,
@@ -333,6 +369,11 @@ function NavigationPanel({
             {navigation.status || "idle"}
           </Pill>
         </div>
+        {localization.active_method && <div className="status-message">{{
+          navsat: "KF-GINS定位",
+          navsat_warming_fastlivo: "KF-GINS定位 · FAST-LIVO2＋RTK预热中",
+          fastlivo_rtk: "FAST-LIVO2＋RTK定位",
+        }[localization.active_method] || localization.active_method}</div>}
         {interactionMode === "goal" && (
           <>
             {target ? (
@@ -360,6 +401,14 @@ function NavigationPanel({
         )}
         {interactionMode === "route" && (
           <>
+            <div className="segmented navigation-kind-selector" role="group" aria-label="路径模式">
+              {[{ id: "manual", label: "手动添加路径", icon: MapPin }, { id: "preset", label: "预先设定路径", icon: Route }].map(({ id, label, icon: Icon }) => (
+                <button type="button" key={id} aria-pressed={routeInputMode === id}
+                  className={routeInputMode === id ? "selected" : ""} disabled={running}
+                  onClick={() => setRouteInputMode(id)}><Icon size={16} /><span>{label}</span></button>
+              ))}
+            </div>
+            {routeInputMode === "preset" ? <SavedPathPicker mapId={mapId} vehicleType={vehicleType} disabled={running} execute={execute} /> : <>
             <div className="route-list">
               {route.length === 0 && <Empty>经停点为空</Empty>}
               {route.map((pose, index) => (
@@ -372,6 +421,7 @@ function NavigationPanel({
                     className="icon-button compact"
                     title="删除经停点"
                     aria-label="删除经停点"
+                    disabled={running}
                     onClick={() => setRoute((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   >
                     <Trash2 size={16} />
@@ -383,10 +433,11 @@ function NavigationPanel({
               <CommandButton icon={Route} disabled={route.length < 2 || running} onClick={sendRoute}>
                 执行路线
               </CommandButton>
-              <button type="button" className="icon-button bordered" title="清空经停点" aria-label="清空经停点" onClick={() => setRoute([])} disabled={!route.length}>
+              <button type="button" className="icon-button bordered" title="清空经停点" aria-label="清空经停点" onClick={() => setRoute([])} disabled={!route.length || running}>
                 <Trash2 size={18} />
               </button>
             </div>
+            </>}
           </>
         )}
       </section>
@@ -451,12 +502,28 @@ function CollectionPanel({ state, refreshCatalogs, execute, vehicleType }) {
 
 function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute, onMotionRequest, vehicleType, vehicleLabel, onImportError }) {
   const [profileId, setProfileId] = useState("");
+  const [useNdtGicp, setUseNdtGicp] = useState(true);
+  const waypointLocalization = profiles.find((profile) => profile.id === profileId)?.localization_strategy === "navsat_waypoint100";
+  const optionalRefinement = profileId === "differential_outdoor" && !waypointLocalization;
+  const initializationOptions = waypointLocalization ? {
+    initialization_refinement: "rtk_only",
+    initialization_wait_for_request: true,
+  } : optionalRefinement ? {
+    initialization_refinement: useNdtGicp ? "ndt_gicp" : "rtk_only",
+    initialization_wait_for_request: true,
+  } : {};
   useEffect(() => {
+    const activeProfile = state?.active_runtime?.profile_id;
+    if (state?.processes?.runtime?.running && profiles.some((profile) => profile.id === activeProfile)) {
+      setProfileId(activeProfile);
+      return;
+    }
     if (!profiles.some((profile) => profile.id === profileId)) {
       setProfileId(profiles[0]?.id || "");
     }
-  }, [profileId, profiles]);
+  }, [profileId, profiles, state?.active_runtime?.profile_id, state?.processes?.runtime?.running]);
   const runtime = state?.processes?.runtime;
+  const selectedNdt = runtime?.running ? state?.active_runtime?.initialization_refinement !== "rtk_only" : useNdtGicp;
   const [configBusy, setConfigBusy] = useState(false);
   const config = state?.physical_config;
   const configLocked = configBusy || Object.values(state?.processes || {}).some((process) => process.running);
@@ -508,6 +575,7 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
         <div className="configuration-source">
           <span>{vehicleType === "ackermann" && config?.source === "imported" ? "已导入真机配置" : "程序默认配置"}</span>
           {vehicleType === "ackermann" && <span>FAST-LIVO2 + RTK · Smac · MPPI</span>}
+          {waypointLocalization && <span>KF-GINS / FAST-LIVO2 + RTK · Smac · MPPI</span>}
         </div>
         {vehicleType === "ackermann" && (
           <div className="configuration-actions">
@@ -525,17 +593,29 @@ function MapsPanel({ maps, profiles, selectedMap, setSelectedMap, state, execute
             {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
           </select>
         </label>
+        {optionalRefinement && (
+          <label className="initialization-choice">
+            <input type="checkbox" checked={selectedNdt} disabled={runtime?.running} onChange={(event) => setUseNdtGicp(event.target.checked)} />
+            <span>使用 NDT/GICP 精配准</span>
+          </label>
+        )}
+        {optionalRefinement && !selectedNdt && <div role="note" className="status-message">RTK直接初始化：需要位置和双天线航向固定解，地图地理配准必须有效。</div>}
         {!runtime?.running ? (
           <div className="button-stack">
-            <CommandButton icon={Play} disabled={!selectedMap || !profileId} onClick={() => execute("/api/v1/runtime/start", { profile_id: profileId, map_id: selectedMap, vehicle_type: vehicleType, motion: false })}>
+            <CommandButton icon={Play} disabled={!selectedMap || !profileId} onClick={() => execute("/api/v1/runtime/start", { profile_id: profileId, map_id: selectedMap, vehicle_type: vehicleType, motion: false, ...initializationOptions })}>
               启动观察阶段
             </CommandButton>
-            <CommandButton icon={Navigation} tone="warning" disabled={!selectedMap || !profileId} onClick={() => onMotionRequest({ profileId, mapId: selectedMap, vehicleType, vehicleLabel })}>
+            <CommandButton icon={Navigation} tone="warning" disabled={!selectedMap || !profileId} onClick={() => onMotionRequest({ profileId, mapId: selectedMap, vehicleType, vehicleLabel, initializationOptions })}>
               启动真车阶段
             </CommandButton>
           </div>
         ) : (
           <CommandButton icon={Square} tone="danger" onClick={() => execute("/api/v1/runtime/stop", {})}>停止运行栈</CommandButton>
+        )}
+        {runtime?.running && state?.active_runtime?.initialization_wait_for_request && (
+          <CommandButton icon={LocateFixed} disabled={!['wait_request', 'manual_required'].includes(state?.localization?.initialization_stage) || state?.localization?.fusion_ready === true} onClick={() => execute("/api/v1/localization/start", {})}>
+            {state?.active_runtime?.localization_strategy === 'navsat_waypoint100' ? '开始KF-GINS初始化' : state?.active_runtime?.initialization_refinement === 'rtk_only' ? '开始RTK直接初始化' : '开始NDT/GICP配准'}
+          </CommandButton>
         )}
         {state?.active_runtime && (
           <div className="active-runtime">
@@ -575,7 +655,9 @@ function StatusPanel({ state }) {
         </div>
         <div className="status-table">
           {SENSOR_ROWS.map(([topic, label]) => {
-            const available = state?.topics?.[topic]?.available === true;
+            const available = topic === "/scout_status"
+              ? state?.chassis_feedback?.fresh === true
+              : state?.topics?.[topic]?.available === true;
             return (
               <div className="status-row" key={topic}>
                 <StatusDot ok={available} />
@@ -614,7 +696,7 @@ function StatusPanel({ state }) {
           <div className="status-row"><StatusDot ok={localization.initialization_stage === "ready"} warning={localization.initialization_stage != null} /><span>初始化阶段</span><strong>{stageLabels[localization.initialization_stage] || "未收到"}</strong></div>
           <div className="status-row"><StatusDot ok={["rtk", "visual", "manual"].includes(localization.initialization_source)} /><span>初始化来源</span><strong>{sourceLabels[localization.initialization_source] || "--"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.visual_available === true} warning={localization.visual_available === false} /><span>视觉位置数据库</span><strong>{localization.visual_available == null ? "未收到" : localization.visual_available ? "可用" : "不可用"}</strong></div>
-          <div className="status-row"><StatusDot ok={localization.lidar_ready === true} /><span>NDT/GICP</span><strong>{localization.lidar_ready === true ? "就绪" : "未就绪"}</strong></div>
+          <div className="status-row"><StatusDot ok={localization.lidar_ready === true} /><span>NDT/GICP</span><strong>{state?.active_runtime?.initialization_refinement === 'rtk_only' ? "未启用" : localization.lidar_ready === true ? "就绪" : "未就绪"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.fusion_ready === true} /><span>融合定位</span><strong>{localization.fusion_ready === true ? "就绪" : "未就绪"}</strong></div>
           <div className="status-row"><StatusDot ok={localization.fix_quality === 4} warning={localization.fix_quality != null} /><span>RTK位置质量</span><strong>{localization.fix_quality ?? "--"}</strong></div>
           <div className="status-row"><StatusDot ok={state?.chassis?.fault_code === 0} warning={Boolean(state?.chassis)} /><span>底盘故障码</span><strong>{state?.chassis?.fault_code ?? "--"}</strong></div>
@@ -635,6 +717,7 @@ function MotionDialog({ request, onClose, execute }) {
       map_id: request.mapId,
       motion: true,
       motion_confirmed: true,
+      ...request.initializationOptions,
     });
     if (result) onClose();
   };
@@ -658,6 +741,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [activeTab, setActiveTab] = useState("navigate");
   const [interactionMode, setInteractionMode] = useState("browse");
+  const [routeInputMode, setRouteInputMode] = useState("manual");
   const [navigationKind, setNavigationKind] = useState("manual");
   const [maps, setMaps] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -670,6 +754,7 @@ export default function App() {
   const [semanticPlanning, setSemanticPlanning] = useState(false);
   const [toast, setToast] = useState(null);
   const [motionRequest, setMotionRequest] = useState(null);
+  const navigationMapId = state?.active_runtime?.map_id || selectedMap;
   const browserVcu = useBrowserVcu();
   const vcuSync = useVcuConfig(browserVcu, vehicleType);
   // A 6750 UART0 opened in this desktop browser replaces the RDK-side diagnostics.
@@ -711,6 +796,12 @@ export default function App() {
   }, [vehicleType]);
 
   useEffect(() => {
+    setRoute([]);
+    setTarget(null);
+    setRouteInputMode("manual");
+  }, [navigationMapId, vehicleType]);
+
+  useEffect(() => {
     const activeVehicle = state?.active_runtime?.vehicle_type || state?.active_collection?.vehicle_type;
     if (activeVehicle) setVehicleType(activeVehicle);
   }, [state?.active_runtime?.vehicle_type, state?.active_collection?.vehicle_type]);
@@ -743,6 +834,9 @@ export default function App() {
   const execute = async (path, body) => {
     try {
       const result = await postJson(path, body);
+      if (path === "/api/v1/navigation/saved-path/preview" && Array.isArray(result.markers)) {
+        setState((current) => ({ ...current, saved_path_preview: result }));
+      }
       const replaced = Array.isArray(result.stopped) && result.stopped.length > 0;
       setToast({ tone: "success", text: replaced ? "旧任务已退出，新任务已启动" : "命令已执行" });
       return result;
@@ -798,10 +892,14 @@ export default function App() {
       return (
         <NavigationPanel
           state={state}
+          mapId={navigationMapId}
+          vehicleType={vehicleType}
           navigationKind={navigationKind}
           setNavigationKind={setNavigationKind}
           interactionMode={interactionMode}
           setInteractionMode={setInteractionMode}
+          routeInputMode={routeInputMode}
+          setRouteInputMode={setRouteInputMode}
           target={target}
           route={route}
           setRoute={setRoute}
@@ -820,7 +918,7 @@ export default function App() {
       return <MapsPanel maps={maps} profiles={vehicleProfiles} selectedMap={selectedMap} setSelectedMap={setSelectedMap} state={state} execute={execute} onMotionRequest={setMotionRequest} vehicleType={vehicleType} vehicleLabel={selectedVehicle?.label || vehicleType} onImportError={(message) => setToast({ tone: "error", text: message })} />;
     }
     return <ConsolePanels section={activeTab} state={panelState} connected={connected} vehicleType={vehicleType} vcuSerial={browserVcu} vcuSync={{ ...vcuSync, selectVehicle: setVehicleType, locked: vehicleLocked }} diagnostics={<StatusPanel state={connected ? state : null} />} />;
-  }, [activeTab, browserVcu, vcuSync, vehicleLocked, connected, panelState, interactionMode, maps, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
+  }, [activeTab, browserVcu, vcuSync, vehicleLocked, connected, panelState, interactionMode, routeInputMode, maps, navigationMapId, navigationKind, route, selectedMap, selectedVehicle?.label, semanticInstruction, semanticPlanning, state, target, vehicleProfiles, vehicleType]);
 
   const localizationReady = connected && state?.localization?.fusion_ready === true;
   const navActive = ["sending", "accepted", "executing", "canceling"].includes(state?.navigation?.status);
@@ -860,11 +958,12 @@ export default function App() {
           <MapView
             state={state}
             selectedMap={selectedMap}
-            interactionMode={interactionMode}
-            route={route}
+            interactionMode={interactionMode === "route" && routeInputMode === "preset" ? "browse" : interactionMode}
+            route={routeInputMode === "manual" ? route : []}
+            showSavedPathMarkers={routeInputMode === "preset"}
             target={target}
             onPose={poseCommit}
-            onRoutePoint={(pose) => setRoute((current) => [...current, pose].slice(0, 100))}
+            onRoutePoint={(pose) => setRoute((current) => [...current, pose].slice(0, 110))}
           />
         </div>
         <aside className="control-panel">

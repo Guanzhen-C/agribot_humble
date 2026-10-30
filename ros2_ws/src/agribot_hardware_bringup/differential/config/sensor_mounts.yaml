@@ -16,6 +16,9 @@ lidar:
   # The C16 cable outlet is scan azimuth 0 / point-cloud +Y. With the outlet
   # facing vehicle rearward, point-cloud +X faces vehicle-left (+Y in FLU).
   rpy: [0.0, 0.0, 1.570796327]
+  # Vehicle-forward sector must coincide with PPS, including a swapped C16.
+  # Checked before opening the driver's DIFOP socket; gPTP remains unchanged.
+  pps_target_angle_deg: 180.0
 camera:
   child_frame: right_camera_optical_frame
   xyz: [0.4735, 0.0, 0.96]
@@ -24,7 +27,9 @@ camera:
 rtk:
   child_frame: rtk_link
   # Left master and right secondary antenna measurement points.
-  xyz: [-0.48, 0.35, 0.748]
-  secondary_xyz: [-0.48, -0.35, 0.748]
-  baseline_m: 0.70
+  # Updated 2026-10-28: IMU-relative positions are [0.44, +/-0.32, 0.20].
+  # IMU is at base_link [0, 0, 0.64], with axes aligned to base_link.
+  xyz: [0.44, 0.32, 0.84]
+  secondary_xyz: [0.44, -0.32, 0.84]
+  baseline_m: 0.64
   rpy: [0.0, 0.0, 0.0]

@@ -3,7 +3,7 @@ import { Crosshair, Layers3, LocateFixed, Minus, Plus } from "lucide-react";
 import { getJson } from "./api";
 
 
-const MIN_SCALE = 3;
+const MIN_SCALE = 0.25;
 const MAX_SCALE = 400;
 
 
@@ -102,6 +102,7 @@ export default function MapView({
   selectedMap,
   interactionMode,
   route,
+  showSavedPathMarkers = false,
   target,
   onPose,
   onRoutePoint,
@@ -161,7 +162,7 @@ export default function MapView({
     setView({
       x: centerX,
       y: centerY,
-      scale: Math.max(4, Math.min((size.width - 40) / widthMeters, (size.height - 40) / heightMeters)),
+      scale: clampScale(Math.min((size.width - 40) / widthMeters, (size.height - 40) / heightMeters)),
     });
   }, [baseGrid, size]);
 
@@ -180,6 +181,35 @@ export default function MapView({
     }),
     [size, view],
   );
+
+  const savedPreview = state?.saved_path_preview;
+  const savedLabels = useMemo(() => {
+    if (!showSavedPathMarkers || !savedPreview || savedPreview.map_id !== (state?.active_runtime?.map_id || selectedMap)) return [];
+    const slots = [];
+    const frame = containerRef.current?.getBoundingClientRect();
+    const reserved = frame ? [...containerRef.current.querySelectorAll(".map-tools, .map-legend, .map-scale, .pose-readout")].map((item) => {
+      const box = item.getBoundingClientRect();
+      return { left: box.left - frame.left, right: box.right - frame.left,
+        top: box.top - frame.top, bottom: box.bottom - frame.top };
+    }) : [];
+    for (let y = 12; y < size.height - 10; y += 20) {
+      for (let x = 16; x < size.width - 14; x += 28) {
+        if (!reserved.some((box) => x-14 < box.right && x+14 > box.left && y-10 < box.bottom && y+10 > box.top)) slots.push({ x, y });
+      }
+    }
+    return (savedPreview.markers || []).flatMap((marker) => {
+      const point = worldToScreen(marker.x, marker.y);
+      if (point.x < 0 || point.y < 0 || point.x > size.width || point.y > size.height) return [];
+      let nearest = -1;
+      let distance = Infinity;
+      slots.forEach((slot, index) => {
+        const value = Math.hypot(slot.x - point.x, slot.y - point.y);
+        if (value < distance) { nearest = index; distance = value; }
+      });
+      const label = nearest < 0 ? point : slots.splice(nearest, 1)[0];
+      return [{ ...marker, point, label }];
+    });
+  }, [showSavedPathMarkers, savedPreview, state?.active_runtime?.map_id, selectedMap, size, worldToScreen]);
   const screenToWorld = useCallback(
     (x, y) => ({
       x: view.x + (x - size.width / 2) / view.scale,
@@ -245,6 +275,13 @@ export default function MapView({
     drawPath(state?.paths?.history, "#687782", 2);
     drawPath(state?.paths?.global, "#2463a5", 4);
     drawPath(state?.paths?.local, "#d97706", 3);
+    savedLabels.forEach(({ point, label }) => {
+      context.strokeStyle = "#2463a5";
+      context.lineWidth = 1;
+      context.beginPath(); context.moveTo(point.x, point.y); context.lineTo(label.x, label.y); context.stroke();
+      context.fillStyle = "#2463a5";
+      context.beginPath(); context.arc(point.x, point.y, 3, 0, Math.PI * 2); context.fill();
+    });
     drawPath(route.map((pose) => [pose.x, pose.y]), "#176b5b", 2);
     const semanticDestinations = state?.semantic?.destination_poses || [];
     const semanticAvoidanceZones = state?.semantic?.avoidance_zones || [];
@@ -282,12 +319,24 @@ export default function MapView({
       context.fillText(String(index + 1), point.x, point.y);
     });
 
-    route.forEach((pose, index) => {
-      const point = worldToScreen(pose.x, pose.y);
+    const routePoints = route.map((pose) => worldToScreen(pose.x, pose.y));
+    const labeledPoints = [];
+    const labeledIndices = new Set();
+    const priorities = route.length ? [0, route.length - 1, ...route.map((_, index) => index).slice(1, -1)] : [];
+    priorities.forEach((index) => {
+      const point = routePoints[index];
+      if (point.x < 0 || point.y < 0 || point.x > size.width || point.y > size.height) return;
+      if (labeledPoints.some((other) => Math.hypot(point.x - other.x, point.y - other.y) < 28)) return;
+      labeledPoints.push(point);
+      labeledIndices.add(index);
+    });
+    routePoints.forEach((point, index) => {
+      const labeled = labeledIndices.has(index);
       context.fillStyle = "#176b5b";
       context.beginPath();
-      context.arc(point.x, point.y, 11, 0, Math.PI * 2);
+      context.arc(point.x, point.y, labeled ? 11 : 3, 0, Math.PI * 2);
       context.fill();
+      if (!labeled) return;
       context.fillStyle = "#fff";
       context.font = "600 11px system-ui";
       context.textAlign = "center";
@@ -345,6 +394,7 @@ export default function MapView({
     localBitmap,
     localGrid,
     route,
+    savedLabels,
     size,
     state,
     target,
@@ -498,6 +548,10 @@ export default function MapView({
         onPointerCancel={(event) => finishPointer(event, false)}
         onWheel={wheel}
       />
+      <div className="saved-path-markers" aria-label="预设路径点编号">
+        {savedLabels.map(({ number, label }) => <span key={number} data-route-point={number}
+          aria-label={`路径点 ${number}`} style={{ left: label.x, top: label.y }}>{number}</span>)}
+      </div>
       {!baseGrid && <div className="map-empty">地图未加载</div>}
       <div className="map-tools" role="toolbar" aria-label="地图工具">
         <button type="button" className="icon-button" title="放大" aria-label="放大" onClick={() => setView((current) => ({ ...current, scale: clampScale(current.scale * 1.25) }))}>

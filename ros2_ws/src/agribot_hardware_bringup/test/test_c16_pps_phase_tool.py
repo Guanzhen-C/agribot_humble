@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 PACKAGE_ROOT = Path(__file__).parents[1]
 TOOL_PATH = PACKAGE_ROOT / "scripts" / "c16_pps_phase_tool.py"
@@ -67,3 +69,66 @@ def test_build_config_packet_only_changes_header_target_and_tail():
 def test_parse_negative_angle_error():
     status = TOOL.parse_device_packet(make_device_packet(error=-250))
     assert status["angle_error_deg"] == -2.5
+
+
+class FakeSocket:
+    def __init__(self, packets):
+        self.packets = iter(packets)
+        self.sent = []
+        self.closed = False
+
+    def bind(self, address):
+        pass
+
+    def settimeout(self, timeout):
+        assert timeout > 0
+
+    def recvfrom(self, size):
+        return next(self.packets), ("192.168.1.200", 2369)
+
+    def sendto(self, packet, address):
+        self.sent.append((packet, address))
+
+    def close(self):
+        self.closed = True
+
+
+def run_ensure(monkeypatch, fake):
+    monkeypatch.setattr(TOOL.socket, "socket", lambda *args: fake)
+    monkeypatch.setattr(TOOL, "save_packets", lambda *args: None)
+    monkeypatch.setattr("sys.argv", ["c16", "--target-angle-deg", "180",
+        "--apply", "--ensure", "--require-clock-source", "1"])
+    TOOL.main()
+
+
+def test_ensure_correct_target_sends_nothing(monkeypatch):
+    fake = FakeSocket([make_device_packet(target=18000)])
+    run_ensure(monkeypatch, fake)
+    assert fake.sent == []
+    assert fake.closed
+
+
+def test_ensure_replacement_lidar_updates_once_and_reads_back(monkeypatch):
+    original = make_device_packet(target=9000)
+    fake = FakeSocket([original, original, make_device_packet(target=18000)])
+    run_ensure(monkeypatch, fake)
+    assert len(fake.sent) == 1
+    assert fake.sent[0][0] == TOOL.build_config_packet(original, 180)
+    assert fake.sent[0][0][44:46] == original[44:46]
+    assert fake.closed
+
+
+def test_ensure_wrong_clock_source_never_writes(monkeypatch):
+    packet = bytearray(make_device_packet())
+    packet[44:46] = b"\x00\x00"
+    fake = FakeSocket([bytes(packet)])
+    with pytest.raises(RuntimeError, match="时钟源"):
+        run_ensure(monkeypatch, fake)
+    assert fake.sent == []
+    assert fake.closed
+
+
+def test_receive_has_deadline_even_with_unrelated_packets(monkeypatch):
+    monkeypatch.setattr(TOOL.time, "monotonic", iter([0, 1, 4]).__next__)
+    with pytest.raises(TimeoutError):
+        TOOL.receive_device_packet(FakeSocket([b"unrelated"]), "192.168.1.200", 3)

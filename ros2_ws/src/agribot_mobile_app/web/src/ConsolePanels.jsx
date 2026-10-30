@@ -23,11 +23,11 @@ function Band({ icon: Icon, title, className = "", children, status }) {
 function LinkSequence({ state, connected }) {
   const vcu = state?.vcu;
   const viaComputer = vcu?.port === "电脑浏览器串口";
+  const canFresh = connected && state?.chassis_feedback?.fresh === true;
   const links = [
     ["手机 / 浏览器 ↔ RDK", "控制台链路", connected, connected ? "已连接" : "离线", Network],
-    ["RDK ↔ HPM6750", "信号转发", connected && vcu?.online, connected && vcu?.online ? viaComputer ? "电脑串口已验证" : "身份已验证" : "未验证", Cpu],
-    ["HPM6750 ↔ 执行控制器", "底盘反馈", connected && vcu?.online && vcu?.telemetry?.feedback_fresh,
-      connected && vcu?.online && vcu?.telemetry?.feedback_fresh ? "反馈有效" : "未验证", Cable],
+    ["RDK ↔ 底盘 CAN", "底盘反馈", canFresh, canFresh ? state.chassis_feedback.read_only ? "反馈有效 · 只读" : "反馈有效" : "未收到有效反馈", Cable],
+    ["HPM6750 诊断", "可选诊断", connected && vcu?.online, connected && vcu?.online ? viaComputer ? "电脑串口已验证" : "身份已验证" : vcu?.configured ? "未连接" : "未启用", Cpu],
   ];
   return <div className="link-sequence">{links.map(([name, detail, ok, status, Icon]) => <div key={name}>
     <span className={`link-node ${ok ? "active" : ""}`}><Icon size={20} /></span>
@@ -37,7 +37,8 @@ function LinkSequence({ state, connected }) {
 }
 
 function Overview({ state, connected, vehicleType }) {
-  const fresh = connected && state?.topics?.["/scout_status"]?.available === true;
+  const fresh = connected && state?.chassis_feedback?.fresh === true
+    && state.chassis_feedback.vehicle_type === vehicleType;
   const chassis = fresh ? state?.chassis : null;
   const active = connected ? state?.active_runtime : null;
   const localization = connected ? state?.localization : null;
@@ -52,15 +53,16 @@ function Overview({ state, connected, vehicleType }) {
     <div className="overview-grid">
       <Band icon={Gauge} title="农机状态" status={<span className={`inline-status ${fresh ? "good" : "muted"}`}><i />{fresh ? "反馈有效" : "等待反馈"}</span>}>
         <div className="machine-visual">
-          <div className="drive-reading"><span>左驱动</span><strong>{value(telemetry?.left_rpm, "", 0)}<small>rpm</small></strong></div>
+          <div className="drive-reading"><span>左驱动</span><strong>{value(chassis?.left_rpm ?? telemetry?.left_rpm, "", 0)}<small>rpm</small></strong></div>
           <img src={`./fieldgate/${vehicleType === "ackermann" ? "ackermann-poster" : "tracked-diagram"}.png`} alt={vehicleType === "ackermann" ? "阿克曼车辆示意" : "履带差速车辆示意"} />
-          <div className="drive-reading right"><span>右驱动</span><strong>{value(telemetry?.right_rpm, "", 0)}<small>rpm</small></strong></div>
+          <div className="drive-reading right"><span>右驱动</span><strong>{value(chassis?.right_rpm ?? telemetry?.right_rpm, "", 0)}<small>rpm</small></strong></div>
         </div>
         <div className="machine-facts">
           <div><span>实际角速度</span><strong>{value(chassis?.angular_velocity, " rad/s", 2)}</strong></div>
           <div><span>底盘故障码</span><strong>{chassis?.fault_code ?? "未提供"}</strong></div>
           <div><span>控制来源</span><strong>{active?.motion ? "导航算法" : "未启用导航输出"}</strong></div>
         </div>
+        {connected && state?.chassis_feedback && !fresh && <div className="status-message">{state.chassis_feedback.message}</div>}
       </Band>
       <Band icon={Radio} title="感知与定位">
         <div className="function-list">{CHANNELS.map(([topic, name, Icon]) => {

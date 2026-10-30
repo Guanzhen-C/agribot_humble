@@ -156,6 +156,8 @@ class RuntimeProfiles:
                 "vehicle_type": profile["vehicle_type"],
                 "description": profile["description"],
                 "requires_georeference": profile["requires_georeference"],
+                "localization_strategy": ("navsat_waypoint100"
+                    if profile["launch_package"] == "agribot_localization_switch" else "fastlivo_rtk"),
             }
             for profile in self._profiles.values()
         ]
@@ -190,6 +192,8 @@ class RuntimeProfiles:
         motion: bool,
         vehicle_type: str | None = None,
         parameter_files: dict[str, str] | None = None,
+        initialization_refinement: str | None = None,
+        initialization_wait_for_request: bool = False,
     ) -> list[str]:
         profile = self.get(profile_id)
         if vehicle_type is not None and profile["vehicle_type"] != vehicle_type:
@@ -205,6 +209,17 @@ class RuntimeProfiles:
             if not georeference.is_file():
                 raise ProfileError(f"运行地图缺少地理配准: {georeference}")
         arguments = dict(profile["fixed_args"])
+        if not isinstance(initialization_wait_for_request, bool):
+            raise ProfileError("等待初始化按钮必须是布尔值")
+        if initialization_refinement is not None or initialization_wait_for_request:
+            if profile_id != "differential_outdoor":
+                raise ProfileError("可选RTK直接初始化仅支持差速室外流程")
+            if initialization_refinement not in ("ndt_gicp", "rtk_only"):
+                raise ProfileError("初始化方式必须为ndt_gicp或rtk_only")
+            if initialization_refinement == "rtk_only" and not initialization_wait_for_request:
+                raise ProfileError("RTK直接初始化必须等待按钮明确触发")
+            arguments["initialization_refinement"] = initialization_refinement
+            arguments["initialization_wait_for_request"] = launch_value(initialization_wait_for_request)
         if parameter_files:
             from agribot_vehicle_config_tools.physical_config import TEMPLATES
 
@@ -212,6 +227,9 @@ class RuntimeProfiles:
                 raise ProfileError("导入参数不属于已验证阿克曼方案")
             arguments.update(parameter_files)
         arguments[profile["map_argument"]] = str(map_base)
+        if profile["launch_package"] == "agribot_localization_switch":
+            arguments["initialization_refinement"] = "rtk_only"
+            arguments["initialization_wait_for_request"] = launch_value(initialization_wait_for_request)
         arguments["enable_chassis_output"] = "true" if motion else "false"
         if motion:
             arguments.update(profile["motion_args"])

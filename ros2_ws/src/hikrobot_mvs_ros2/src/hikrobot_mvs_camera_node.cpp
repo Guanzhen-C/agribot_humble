@@ -198,8 +198,24 @@ public:
   }
 
 private:
+  bool refresh_trigger_edge_source()
+  {
+    try {
+      return trigger_edge_reader_.refresh_path(trigger_edge_buffer_path_);
+    } catch (const std::exception & error) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "等待触发沿缓冲恢复: %s", error.what());
+      return false;
+    }
+  }
+
   void publish_physical_trigger_edges()
   {
+    std::lock_guard<std::mutex> lock(trigger_edge_mutex_);
+    if (!refresh_trigger_edge_source()) {
+      return;
+    }
     const std::uint64_t generation = trigger_edge_reader_.generation();
     if (generation == 0U) {
       return;
@@ -403,6 +419,12 @@ private:
   {
     const rclcpp::Time ros_receipt = now();
     if (trigger_enable_ && use_physical_trigger_timestamp_) {
+      std::lock_guard<std::mutex> lock(trigger_edge_mutex_);
+      if (!refresh_trigger_edge_source()) {
+        ++physical_edge_unmatched_frames_;
+        physical_edge_timestamp_valid_.store(false);
+        return std::nullopt;
+      }
       const auto result = trigger_edge_matcher_->match(
         frame_info.nFrameNum, ros_receipt.nanoseconds(), trigger_edge_reader_);
       if (!result.matched) {
@@ -674,6 +696,7 @@ private:
   agribot_time_sync::ClockMapperResult last_clock_result_;
   bool device_timestamp_valid_{false};
   agribot_time_sync::TriggerEdgeRingReader trigger_edge_reader_;
+  std::mutex trigger_edge_mutex_;
   std::unique_ptr<agribot_time_sync::TriggerEdgeMatcher> trigger_edge_matcher_;
   std::atomic<bool> physical_edge_timestamp_valid_{false};
   std::atomic<std::uint64_t> physical_edge_matched_frames_{0U};

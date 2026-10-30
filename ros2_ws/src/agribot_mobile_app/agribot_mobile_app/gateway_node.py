@@ -8,6 +8,7 @@ from action_msgs.srv import CancelGoal
 from ament_index_python.packages import get_package_share_directory
 from array import array
 import json
+import gzip
 import math
 import mimetypes
 import os
@@ -38,6 +39,7 @@ from nav2_msgs.srv import ClearEntireCostmap
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 import rclpy
 from rclpy.action import ActionClient
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import (
@@ -48,6 +50,7 @@ from rclpy.qos import (
 )
 from scout_msgs.msg import ScoutStatus
 from std_msgs.msg import Bool, String, UInt8
+from std_srvs.srv import Trigger
 
 from .catalog import (
     BagCatalog,
@@ -57,10 +60,14 @@ from .catalog import (
     quaternion_yaw,
     validated_identifier,
 )
+from .chassis_feedback import ChassisFeedback
 from .processes import ProcessError, ProcessSlots
 from .profiles import ProfileError, RuntimeProfiles
 from .physical_config import PhysicalConfigError, PhysicalConfigStore
 from .vcu_monitor import VcuMonitor
+from .saved_path import SavedPathStore, numbered_markers, handover_path_index
+from .saved_path_runner import SavedPathRunner
+from .navigation_health import NavigationInputHealth
 from .route_costmap import (
     RouteCorridorPolicy,
     RouteCostmapError,
@@ -71,7 +78,7 @@ from .route_costmap import (
 
 
 MAX_JSON_BODY = 256 * 1024
-MAX_ROUTE_POSES = 100
+MAX_ROUTE_POSES = 110
 MAX_ROUTE_CENTERLINE_POINTS = 10000
 MONITORED_TOPICS = (
     "/lidar/points",
@@ -208,8 +215,24 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         payload = json.dumps(
             document, ensure_ascii=False, separators=(",", ":")
         ).encode("utf-8")
+        compressed = False
+        for item in self.headers.get("Accept-Encoding", "").split(","):
+            name, *parameters = item.lower().strip().split(";")
+            if name.strip() != "gzip":
+                continue
+            quality = dict(part.strip().partition("=")[::2] for part in parameters).get("q", "1")
+            try:
+                compressed = 0 < float(quality) <= 1 and len(payload) >= 65536
+            except ValueError:
+                pass
+            break
+        if compressed:
+            payload = gzip.compress(payload, compresslevel=1, mtime=0)
         self.send_response(status)
         self._headers("application/json; charset=utf-8", len(payload))
+        self.send_header("Vary", "Accept-Encoding")
+        if compressed:
+            self.send_header("Content-Encoding", "gzip")
         self.end_headers()
         self.wfile.write(payload)
 
@@ -273,6 +296,14 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, self.gateway.live_grid(layer).payload(layer))
                 return
             prefix = "/api/v1/maps/"
+            if parsed.path.startswith(prefix) and parsed.path.endswith("/saved-paths"):
+                map_id = unquote(parsed.path[len(prefix):-len("/saved-paths")]).strip("/")
+                self._json(HTTPStatus.OK, self.gateway.saved_paths.public(map_id))
+                return
+            if parsed.path.startswith(prefix) and parsed.path.endswith("/routes"):
+                map_id = unquote(parsed.path[len(prefix):-len("/routes")]).strip("/")
+                self._json(HTTPStatus.OK, self.gateway.map_catalog.route_presets(map_id))
+                return
             suffix = "/grid"
             if parsed.path.startswith(prefix) and parsed.path.endswith(suffix):
                 map_id = unquote(parsed.path[len(prefix) : -len(suffix)]).strip("/")
@@ -450,6 +481,7 @@ class MobileGateway(Node):
                 "trajectory_topic", "/fastlivo_rtk/path"
             ).value
         )
+        self.trajectory_from_pose = bool(self.declare_parameter("trajectory_from_pose", True).value)
         self.footprint_topic = str(
             self.declare_parameter(
                 "footprint_topic", "/local_costmap/published_footprint"
@@ -499,7 +531,15 @@ class MobileGateway(Node):
         self._event_cache = None
         self._grids: dict[str, GridData] = {}
         self._grid_revisions = defaultdict(int)
+        self._navigation_health = NavigationInputHealth()
+        self._pose_callbacks = MutuallyExclusiveCallbackGroup()
+        self._chassis_callbacks = MutuallyExclusiveCallbackGroup()
+        self._navigation_callbacks = MutuallyExclusiveCallbackGroup()
+        self._status_callbacks = MutuallyExclusiveCallbackGroup()
+        self._housekeeping_callbacks = MutuallyExclusiveCallbackGroup()
+        self._grid_callbacks = {layer: MutuallyExclusiveCallbackGroup() for layer in self.grid_topics}
         self._semantic_costmap_source: dict | None = None
+        self._chassis_feedback = ChassisFeedback()
         self._state = {
             "pose": None,
             "paths": {"history": [], "global": [], "local": []},
@@ -567,6 +607,7 @@ class MobileGateway(Node):
                 self._vehicle_installations[vehicle] = None
         self._goal_handle = None
         self._path_updates: dict[str, float] = {}
+        self._history_received_at = 0.0
 
         latched = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
@@ -578,7 +619,9 @@ class MobileGateway(Node):
             OccupancyGrid, self.semantic_proximity_costmap_topic, latched
         )
         normal = QoSProfile(depth=20)
-        self.create_subscription(Odometry, self.pose_topic, self._pose_callback, normal)
+        latest = QoSProfile(depth=1)
+        self.create_subscription(Odometry, self.pose_topic, self._pose_callback, latest,
+                                 callback_group=self._pose_callbacks)
         self.create_subscription(
             NavPath,
             self.global_plan_topic,
@@ -591,12 +634,13 @@ class MobileGateway(Node):
             self._path_callback("local", self.local_plan_topic, 400, 0.15),
             normal,
         )
-        self.create_subscription(
-            NavPath,
-            self.trajectory_topic,
-            self._path_callback("history", self.trajectory_topic, 600, 0.5),
-            latched,
-        )
+        if not self.trajectory_from_pose:
+            self.create_subscription(
+                NavPath,
+                self.trajectory_topic,
+                self._path_callback("history", self.trajectory_topic, 600, 0.5),
+                latched,
+            )
         self.create_subscription(
             PolygonStamped,
             self.footprint_topic,
@@ -605,12 +649,13 @@ class MobileGateway(Node):
         )
         for layer, topic in self.grid_topics.items():
             self.create_subscription(
-                OccupancyGrid, topic, self._grid_callback(layer, topic), latched
+                OccupancyGrid, topic, self._grid_callback(layer, topic), latched,
+                callback_group=self._grid_callbacks[layer],
             )
-        self.create_subscription(Bool, "/localization/ready", self._value_callback("ready"), latched)
-        self.create_subscription(Bool, "/localization/lidar_ready", self._value_callback("lidar_ready"), latched)
-        self.create_subscription(Bool, "/fastlivo_rtk/ready", self._value_callback("fusion_ready"), latched)
-        self.create_subscription(Bool, "/fastlivo_rtk/fixed_active", self._value_callback("fixed_active"), latched)
+        self.create_subscription(Bool, "/localization/ready", self._value_callback("ready"), latched, callback_group=self._status_callbacks)
+        self.create_subscription(Bool, "/localization/lidar_ready", self._value_callback("lidar_ready"), latched, callback_group=self._status_callbacks)
+        self.create_subscription(Bool, "/fastlivo_rtk/ready", self._value_callback("fusion_ready"), latched, callback_group=self._status_callbacks)
+        self.create_subscription(Bool, "/fastlivo_rtk/fixed_active", self._value_callback("fixed_active"), latched, callback_group=self._status_callbacks)
         self.create_subscription(Bool, "/localization/rtk_seed_ready", self._value_callback("rtk_seed_ready"), latched)
         self.create_subscription(String, "/localization/initialization_stage", self._value_callback("initialization_stage"), latched)
         self.create_subscription(String, "/localization/initialization_source", self._value_callback("initialization_source"), latched)
@@ -627,11 +672,14 @@ class MobileGateway(Node):
         )
         self.create_subscription(UInt8, "/rtk/fix_quality", self._value_callback("fix_quality"), normal)
         self.create_subscription(String, "/rtk/heading_solution", self._value_callback("heading_solution"), normal)
-        self.create_subscription(ScoutStatus, "/scout_status", self._chassis_callback, normal)
+        self.create_subscription(ScoutStatus, "/scout_status", self._chassis_callback, latest,
+                                 callback_group=self._chassis_callbacks)
         self.create_subscription(
-            DiagnosticArray, "/diagnostics", self._diagnostics_callback, normal
+            DiagnosticArray, "/diagnostics", self._diagnostics_callback, normal,
+            callback_group=self._status_callbacks,
         )
-        self.create_subscription(Twist, "/nav2/cmd_vel", self._command_callback, normal)
+        self.create_subscription(Twist, "/nav2/cmd_vel", self._command_callback, latest,
+                                 callback_group=self._navigation_callbacks)
         self.create_subscription(
             GoalStatusArray,
             "/navigate_to_pose/_action/status",
@@ -648,9 +696,26 @@ class MobileGateway(Node):
         self._initial_pose_publisher = self.create_publisher(
             PoseWithCovarianceStamped, "/initialpose", 10
         )
-        self._navigate_to_pose = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self._navigate_to_pose = ActionClient(self, NavigateToPose, "navigate_to_pose",
+                                             callback_group=self._navigation_callbacks)
+        self._initialization_start_client = self.create_client(Trigger, "/localization/start")
+        self._handover_client = self.create_client(Trigger, "/localization/switch_to_fastlivo",
+                                                   callback_group=self._navigation_callbacks)
+        self.create_subscription(String, "/localization/active_method",
+                                 self._value_callback("active_method"), latched,
+                                 callback_group=self._status_callbacks)
+        config_path = Path(get_package_share_directory("agribot_hardware_bringup")) / "differential/config/nav2_params_differential_fastlivo_mapped.yaml"
+        self.saved_paths = SavedPathStore(self.map_catalog, config_path)
+        footprint = json.loads(yaml.safe_load(config_path.read_text())["global_costmap"]["global_costmap"]["ros__parameters"]["footprint"])
+        self._saved_plan_publisher = self.create_publisher(NavPath, self.global_plan_topic, 1)
+        self._saved_runner = SavedPathRunner(self, self._saved_observe, self._saved_update,
+                                            self._saved_publish, footprint,
+                                            yaml.safe_load(config_path.read_text())["controller_server"]["ros__parameters"]["goal_checker"]["xy_goal_tolerance"],
+                                            callback_group=self._navigation_callbacks,
+                                            recovery_ready=self._saved_recovery_ready)
         self._navigate_through_poses = ActionClient(
-            self, NavigateThroughPoses, "navigate_through_poses"
+            self, NavigateThroughPoses, "navigate_through_poses",
+            callback_group=self._navigation_callbacks,
         )
         self._clear_global = self.create_client(
             ClearEntireCostmap, "/global_costmap/clear_entirely_global_costmap"
@@ -664,10 +729,11 @@ class MobileGateway(Node):
                 CancelGoal, "/navigate_through_poses/_action/cancel_goal"
             ),
         )
-        self.create_timer(1.0, self._refresh_topic_availability)
+        self.create_timer(2.0, self._refresh_topic_availability,
+                          callback_group=self._housekeeping_callbacks)
         # Coalesce navigation callbacks into one mobile state update. Five Hz is
         # responsive enough for the map while leaving localization CPU headroom.
-        self.create_timer(0.2, self._touch)
+        self.create_timer(0.2, self._touch, callback_group=self._status_callbacks)
 
     @property
     def stopping(self) -> bool:
@@ -730,6 +796,10 @@ class MobileGateway(Node):
         with self._lock:
             state = self._state["time_sync"]
             for status in message.status:
+                if status.name.startswith(("agribot/chassis_can/", "agribot/chassis_serial/")):
+                    self._chassis_feedback.update_diagnostic(status)
+                    changed = True
+                    continue
                 if status.name == "sensor_time_sync/summary":
                     state["summary"] = self._diagnostic_document(status)
                     changed = True
@@ -761,6 +831,8 @@ class MobileGateway(Node):
         pose = message.pose.pose
         twist = message.twist.twist
         with self._lock:
+            self._navigation_health.record("pose", message.header.frame_id,
+                                           self._message_age(message))
             self._state["pose"] = {
                 "frame": message.header.frame_id,
                 "x": pose.position.x,
@@ -775,6 +847,23 @@ class MobileGateway(Node):
                 "linear_speed": math.hypot(twist.linear.x, twist.linear.y),
                 "angular_speed": twist.angular.z,
             }
+            if self.trajectory_from_pose:
+                self._append_display_history(pose.position.x, pose.position.y)
+
+    def _append_display_history(self, x, y):
+        # Derive the phone-only trace from the already received odometry. Taking
+        # a growing ROS Path allocates thousands of Python poses before callback
+        # throttling can run, starving small critical subscriptions on the X5.
+        now = time.monotonic()
+        if now - self._history_received_at < 0.5:
+            return
+        points = self._state["paths"]["history"]
+        if points and math.hypot(x-points[-1][0], y-points[-1][1]) < 0.02:
+            return
+        self._history_received_at = now
+        if len(points) >= 600:
+            points = points[::2]
+        self._state["paths"]["history"] = points + [[x, y]]
 
     def _path_callback(
         self,
@@ -813,8 +902,14 @@ class MobileGateway(Node):
                 "points": points,
             }
 
+    def _message_age(self, message):
+        stamp = message.header.stamp
+        return self.get_clock().now().nanoseconds * 1e-9 - (stamp.sec + stamp.nanosec * 1e-9)
+
     def _grid_callback(self, layer: str, topic: str):
         def callback(message: OccupancyGrid):
+            received_at = time.monotonic()
+            source_age = self._message_age(message) if layer == "local_costmap" else None
             orientation = message.info.origin.orientation
             self._grid_revisions[layer] += 1
             try:
@@ -835,6 +930,9 @@ class MobileGateway(Node):
             )
             with self._lock:
                 self._grids[layer] = grid
+                if layer == "local_costmap":
+                    self._navigation_health.record(layer, message.header.frame_id,
+                                                   source_age, now=received_at)
                 semantic = (
                     self._semantic_costmap_source
                     if layer == "map"
@@ -922,15 +1020,7 @@ class MobileGateway(Node):
         return True
 
     def _chassis_callback(self, message: ScoutStatus):
-        with self._lock:
-            self._state["chassis"] = {
-                "linear_velocity": message.linear_velocity,
-                "angular_velocity": message.angular_velocity,
-                "control_mode": int(message.control_mode),
-                "base_state": int(message.base_state),
-                "fault_code": int(message.fault_code),
-                "battery_voltage": message.battery_voltage,
-            }
+        self._chassis_feedback.update_status(message)
 
     def _command_callback(self, message: Twist):
         with self._lock:
@@ -1033,6 +1123,7 @@ class MobileGateway(Node):
                 if self._snapshot_cache_revision == revision:
                     return self._snapshot_cache
                 core = json.loads(json.dumps(self._state, ensure_ascii=False))
+                core["navigation_inputs"] = self._navigation_health.snapshot()
             document = {
                 "revision": revision,
                 "server_time": time.time(),
@@ -1042,6 +1133,7 @@ class MobileGateway(Node):
                     "localhost_only": os.environ.get("ROS_LOCALHOST_ONLY", "0") == "1",
                 },
                 **core,
+                **self._chassis_feedback.snapshot(core["vehicle"]["id"]),
                 "grids": self._grid_metadata(),
                 "processes": self.processes.snapshot(),
                 "physical_config": self.physical_config.public(),
@@ -1130,8 +1222,11 @@ class MobileGateway(Node):
     def handle_command(self, path: str, body: dict) -> dict | None:
         handlers = {
             "/api/v1/localization/initial-pose": self.publish_initial_pose,
+            "/api/v1/localization/start": self.start_initialization,
             "/api/v1/navigation/goal": self.send_navigation_goal,
             "/api/v1/navigation/route": self.send_navigation_route,
+            "/api/v1/navigation/saved-path/preview": self.preview_saved_path,
+            "/api/v1/navigation/saved-path/execute": self.execute_saved_path,
             "/api/v1/navigation/cancel": self.cancel_navigation,
             "/api/v1/navigation/clear-costmaps": self.clear_costmaps,
             "/api/v1/semantic/route": self.receive_semantic_route,
@@ -1183,13 +1278,39 @@ class MobileGateway(Node):
         self._initial_pose_publisher.publish(message)
         return {"pose": pose}
 
+    def start_initialization(self, _body: dict) -> dict:
+        with self._task_transition_lock:
+            with self._lock:
+                runtime = self._state.get("active_runtime")
+                ready = self._state["localization"].get("fusion_ready")
+                nav = self._state["navigation"].get("status")
+                stage = self._state["localization"].get("initialization_stage")
+            if not runtime or not runtime.get("initialization_wait_for_request"):
+                raise ApiError(HTTPStatus.CONFLICT, "当前运行栈不是按钮初始化模式，请停止后重新选择启动")
+            if ready or nav in ("sending", "accepted", "executing", "canceling"):
+                raise ApiError(HTTPStatus.CONFLICT, "定位已就绪或导航正在运行，禁止重新初始化")
+            if stage not in ("wait_request", "manual_required"):
+                raise ApiError(HTTPStatus.CONFLICT, "初始化正在进行或节点尚未就绪")
+            client = self._initialization_start_client
+            if not client.wait_for_service(timeout_sec=0.3):
+                raise ApiError(HTTPStatus.CONFLICT, "初始化服务尚未就绪")
+            future = client.call_async(Trigger.Request())
+            finished = threading.Event()
+            future.add_done_callback(lambda _: finished.set())
+            if not finished.wait(3.0):
+                raise ApiError(HTTPStatus.GATEWAY_TIMEOUT, "初始化应答超时，请查看初始化状态，勿重复点击")
+            result = future.result()
+            if not result or not result.success:
+                raise ApiError(HTTPStatus.CONFLICT, result.message if result else "初始化请求失败")
+            return {"status": "requested", "message": result.message}
+
     def _assert_navigation_ready(self):
         with self._lock:
             ready = self._state["localization"].get("fusion_ready")
             navigation_status = self._state["navigation"].get("status")
         if ready is not True:
             raise ApiError(HTTPStatus.CONFLICT, "融合定位尚未就绪，禁止下发导航任务")
-        if self._goal_handle is not None or navigation_status in (
+        if (getattr(self, "_saved_runner", None) and self._saved_runner.active) or self._goal_handle is not None or navigation_status in (
             "sending",
             "accepted",
             "executing",
@@ -1235,9 +1356,139 @@ class MobileGateway(Node):
     def send_navigation_route(self, body: dict) -> dict:
         values = body.get("poses")
         if not isinstance(values, list) or not 2 <= len(values) <= MAX_ROUTE_POSES:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "连续路线必须包含2至100个位姿")
+            raise ApiError(HTTPStatus.BAD_REQUEST, "连续路线必须包含2至110个位姿")
         route = [pose_document(value) for value in values]
         return self._send_navigation_route(route, "route")
+
+    def _saved_selection(self, body):
+        map_id = str(body.get("map_id", ""))
+        route, path = self.saved_paths.select(map_id, str(body.get("route_id", "")), body.get("start_point"))
+        if route["vehicle_type"] != "differential":
+            raise ApiError(HTTPStatus.CONFLICT, "保存路径模式目前仅验证差速车")
+        return map_id, route, path
+
+    def preview_saved_path(self, body):
+        if (self._saved_runner.active or self._goal_handle is not None
+                or self._state["navigation"].get("status") in ("sending", "executing", "canceling")):
+            raise ApiError(HTTPStatus.CONFLICT, "导航期间不能切换预览路径")
+        map_id, route, path = self._saved_selection(body)
+        preview = {"map_id": map_id, "route_id": route["id"],
+                   "start_point": body["start_point"],
+                   "markers": numbered_markers(route, body["start_point"])}
+        with self._lock:
+            self._state["saved_path_preview"] = preview
+        self._saved_publish(path)
+        return {**preview, "path_points": len(path)}
+
+    def execute_saved_path(self, body):
+        with self._task_transition_lock:
+            self._assert_navigation_ready()
+            map_id, route, path = self._saved_selection(body)
+            runtime = self._state.get("active_runtime") or {}
+            if runtime.get("map_id") != map_id or runtime.get("vehicle_type") != "differential":
+                raise ApiError(HTTPStatus.CONFLICT, "运行地图或车型与保存路径不匹配")
+            try:
+                self._saved_observe()
+            except RuntimeError as error:
+                raise ApiError(HTTPStatus.CONFLICT, str(error)) from error
+            self._clear_semantic_for_manual_navigation()
+            with self._lock:
+                self._state["saved_path_preview"] = {
+                    "map_id": map_id, "route_id": route["id"], "start_point": body["start_point"],
+                    "markers": numbered_markers(route, body["start_point"])}
+                self._state["navigation"] = {"kind": "saved_path", "status": "sending",
+                                             "feedback": {}, "goal": path[-1], "route": []}
+            try:
+                callback = None
+                if runtime.get("localization_strategy") == "navsat_waypoint100":
+                    callback = self._handover_progress_callback(route, body["start_point"])
+                self._saved_runner.start(path, on_progress=callback)
+            except RuntimeError as error:
+                self._saved_update("failed", str(error))
+                raise ApiError(HTTPStatus.CONFLICT, str(error)) from error
+        return {"route_id": route["id"], "start_point": body["start_point"]}
+
+    def _handover_progress_callback(self, route, start):
+        threshold = handover_path_index(route, start)
+        task = self._state["navigation"]
+        lock = threading.RLock()
+        request = {"future": None, "done": False, "last_try": -math.inf}
+
+        def current():
+            return (self._state["navigation"] is task and not self._saved_runner.stop_event.is_set())
+
+        def completed(future):
+            with lock:
+                if request["future"] is not future:
+                    return
+                request["future"] = None
+                try:
+                    result = future.result()
+                    request["done"] = result is not None and result.success
+                except Exception:
+                    request["done"] = False
+                with self._lock:
+                    if current() and request["done"]:
+                        self._saved_update("executing", "已通过第100点，KF-GINS继续定位，FAST-LIVO2＋RTK预热中")
+
+        def progress(index):
+            if threshold is None or index < threshold:
+                return
+            with lock:
+                if request["done"] or not current():
+                    return
+                now = time.monotonic()
+                future = request["future"]
+                if future is not None:
+                    if now-request["last_try"] <= 5.0:
+                        return
+                    request["future"] = None
+                    future.cancel()
+                if now-request["last_try"] < 1.0:
+                    return
+                request["last_try"] = now
+                if not self._handover_client.service_is_ready():
+                    self.get_logger().warning("第100点定位切换服务未就绪，保持当前定位并等待服务")
+                    return
+                request["future"] = self._handover_client.call_async(Trigger.Request())
+                request["future"].add_done_callback(completed)
+
+        return progress
+
+    def _saved_observe(self):
+        with self._lock:
+            self._navigation_health.require(self._state["localization"].get("fusion_ready") is True)
+            pose, grid = self._state["pose"], self._grids.get("local_costmap")
+            if pose is None or grid is None:
+                raise RuntimeError("定位或实时局部代价地图尚未收到，停止保存路径任务")
+            return dict(pose), grid
+
+    def _saved_recovery_ready(self):
+        with self._lock:
+            # Freshness is required to resume a paused task, not used to abort
+            # a running task. A latched true flag alone cannot prove recovery.
+            return (self._state["localization"].get("fusion_ready") is True
+                    and all(v["ready"] for v in self._navigation_health.snapshot().values()))
+
+    def _saved_update(self, status, message):
+        with self._lock:
+            self._state["navigation"]["status"] = status
+            self._state["navigation"]["feedback"] = {"message": message}
+        if status == "failed":
+            self.get_logger().error(f"保存路径任务失败：{message}")
+        self._touch()
+
+    def _saved_publish(self, path):
+        step = max(1, math.ceil(len(path) / 1200))
+        display = path[::step]
+        if display[-1] is not path[-1]:
+            display.append(path[-1])
+        with self._lock:
+            self._state["paths"]["global"] = [[p["x"], p["y"]] for p in display]
+        # /plan is display-only here. FollowPath still receives the complete
+        # original path, not this bounded visualization copy.
+        self._saved_plan_publisher.publish(self._saved_runner.message(display))
+        self._touch()
 
     def _send_navigation_route(self, route: list[dict], kind: str) -> dict:
         self._assert_navigation_ready()
@@ -1618,6 +1869,9 @@ class MobileGateway(Node):
         self._touch()
 
     def cancel_navigation(self, _body: dict) -> dict:
+        if getattr(self, "_saved_runner", None) and self._saved_runner.active:
+            self._saved_runner.stop()
+            return {"status": "canceled"}
         handle = self._goal_handle
         if handle is None:
             requested = False
@@ -1667,6 +1921,7 @@ class MobileGateway(Node):
             raise ProcessError("旧任务尚未完全退出，禁止启动新任务")
         with self._lock:
             self._goal_handle = None
+            self._chassis_feedback.reset()
             self._state["active_runtime"] = None
             self._state["active_collection"] = None
             self._state["active_processing"] = None
@@ -1784,6 +2039,8 @@ class MobileGateway(Node):
         )
         map_id = str(body.get("map_id", ""))
         motion = bool(body.get("motion", False))
+        refinement = body.get("initialization_refinement")
+        wait_for_request = body.get("initialization_wait_for_request", False)
         if motion and body.get("motion_confirmed") is not True:
             raise ApiError(HTTPStatus.BAD_REQUEST, "真车运动必须再次明确确认")
         map_base = self.map_catalog.map_base(map_id)
@@ -1792,6 +2049,8 @@ class MobileGateway(Node):
             command = self.runtime_profiles.command(
                 profile_id, map_base, motion, vehicle_type,
                 self.physical_config.launch_arguments(vehicle_type),
+                initialization_refinement=refinement,
+                initialization_wait_for_request=wait_for_request,
             )
             stopped = self._stop_active_tasks()
             self.processes.runtime.start(
@@ -1802,13 +2061,33 @@ class MobileGateway(Node):
             with self._lock:
                 self._state["pose"] = None
                 self._state["paths"] = {"history": [], "global": [], "local": []}
+                self._state["saved_path_preview"] = None
                 self._state["footprint"] = None
+                # Readiness belongs to the new runtime, never the previous map/mode.
+                self._state["localization"].update({
+                    "ready": False, "lidar_ready": False, "fusion_ready": False,
+                    "fixed_active": False, "rtk_seed_ready": False,
+                    "initialization_stage": None, "initialization_source": "none",
+                    "initialization_status": "等待初始化节点",
+                    "manual_required": False, "status": "未收到",
+                    "rtk_initializer_status": "未收到",
+                    "fix_quality": None, "heading_solution": "未收到",
+                    "active_method": None,
+                })
                 self._grids.clear()
+                self._navigation_health = NavigationInputHealth()
                 self._state["active_runtime"] = {
+                    "initialization_refinement": ("rtk_only"
+                        if self.runtime_profiles.get(profile_id)["launch_package"] == "agribot_localization_switch"
+                        else refinement or "ndt_gicp"),
+                    "initialization_wait_for_request": wait_for_request,
                     "profile_id": profile_id,
                     "vehicle_type": vehicle_type,
                     "map_id": map_id,
                     "motion": motion,
+                    "localization_strategy": ("navsat_waypoint100"
+                        if self.runtime_profiles.get(profile_id)["launch_package"] == "agribot_localization_switch"
+                        else "fastlivo_rtk"),
                     "configuration_source": (
                         self.physical_config.public()["source"]
                         if vehicle_type == "ackermann" else "default"
@@ -1853,6 +2132,8 @@ class MobileGateway(Node):
             with self._lock:
                 runtime = self._state["active_runtime"]
                 self._goal_handle = None
+                self._chassis_feedback.reset()
+                self._navigation_health = NavigationInputHealth()
                 self._state["active_runtime"] = None
                 self._state["semantic"] = self._empty_semantic_state()
                 self._semantic_costmap_source = None
@@ -1867,6 +2148,10 @@ class MobileGateway(Node):
         return {"runtime": runtime}
 
     def shutdown_gateway(self) -> None:
+        try:
+            self._saved_runner.stop()
+        except RuntimeError as error:
+            self.get_logger().error(str(error))
         self.vcu_monitor.close()
         self._stopping = True
         self._touch()

@@ -72,3 +72,47 @@ TEST(TriggerEdgeMatcher, UsesFrameNumberAcrossDroppedFrames)
   auto duplicate = matcher.match(102U, 1400000000LL, reader);
   EXPECT_FALSE(duplicate.matched);
 }
+
+TEST(TriggerEdgeRing, ReattachesAfterTriggerServiceRecreatesRuntimeDirectory)
+{
+  TemporaryPath temporary;
+  agribot_time_sync::TriggerEdgeRingWriter original(temporary.path());
+  agribot_time_sync::TriggerEdgeRingReader reader;
+  reader.open_path(temporary.path());
+  agribot_time_sync::TriggerEdgeMatcher matcher;
+  original.write(1000000000LL, 1U);
+  ASSERT_TRUE(matcher.match(10U, 1020000000LL, reader).matched);
+  const auto generation = reader.generation();
+
+  ASSERT_EQ(std::remove(temporary.path().c_str()), 0);
+  EXPECT_FALSE(reader.refresh_path(temporary.path()));
+  agribot_time_sync::TriggerEdgeRingWriter restarted(temporary.path());
+  restarted.write(2000000000LL, 1U);
+  ASSERT_TRUE(reader.refresh_path(temporary.path()));
+  EXPECT_NE(reader.generation(), generation);
+  auto recovered = matcher.match(20U, 2020000000LL, reader);
+  ASSERT_TRUE(recovered.matched);
+  EXPECT_EQ(recovered.edge.timestamp_ns, 2000000000LL);
+  EXPECT_EQ(recovered.edge.sequence, 1U);
+}
+
+TEST(TriggerEdgeRing, WaitsForNewProducerWithoutUsingAnUnlinkedOldMapping)
+{
+  TemporaryPath temporary;
+  agribot_time_sync::TriggerEdgeRingWriter original(temporary.path());
+  agribot_time_sync::TriggerEdgeRingReader reader;
+  reader.open_path(temporary.path());
+  original.write(1000000000LL, 1U);
+  ASSERT_EQ(std::remove(temporary.path().c_str()), 0);
+  FILE * empty = std::fopen(temporary.path().c_str(), "wb");
+  ASSERT_NE(empty, nullptr);
+  std::fclose(empty);
+  EXPECT_FALSE(reader.refresh_path(temporary.path()));
+  agribot_time_sync::TriggerEdgeRingWriter restarted(temporary.path());
+  ASSERT_TRUE(reader.refresh_path(temporary.path()));
+  EXPECT_EQ(reader.latest_sequence(), 0U);
+  restarted.write(3000000000LL, 1U);
+  agribot_time_sync::TriggerEdge edge{};
+  ASSERT_TRUE(reader.read(1U, edge));
+  EXPECT_EQ(edge.timestamp_ns, 3000000000LL);
+}

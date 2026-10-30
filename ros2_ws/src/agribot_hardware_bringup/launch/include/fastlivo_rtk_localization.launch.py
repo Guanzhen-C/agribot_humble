@@ -24,12 +24,26 @@ def _validate_paths(context):
     initialization_source = LaunchConfiguration("initialization_source").perform(
         context
     )
+    refinement = LaunchConfiguration("initialization_refinement").perform(context)
+    if refinement not in ("ndt_gicp", "rtk_only"):
+        raise RuntimeError("initialization_refinement must be ndt_gicp or rtk_only")
+    if refinement == "rtk_only" and initialization_source != "auto":
+        raise RuntimeError("RTK-only initialization requires the auto coordinator")
+    wait_requested = LaunchConfiguration("initialization_wait_for_request").perform(
+        context
+    ).lower() in ("true", "1", "yes", "on")
+    if wait_requested and initialization_source != "auto":
+        raise RuntimeError("Button initialization requires the auto coordinator")
+    if refinement == "rtk_only" and not wait_requested:
+        raise RuntimeError("RTK-only initialization requires an explicit start request")
     allow_missing_georeference = LaunchConfiguration(
         "allow_missing_georeference"
     ).perform(context).lower() in ("true", "1", "yes", "on")
     enable_rtk_initialization = LaunchConfiguration(
         "enable_rtk_initialization"
     ).perform(context).lower() in ("true", "1", "yes", "on")
+    if refinement == "rtk_only" and (not enable_rtk_initialization or allow_missing_georeference):
+        raise RuntimeError("RTK-only initialization requires RTK and verified map georeference")
     required = [map_base.with_suffix(".pcd"), map_base.with_suffix(".yaml")]
     if (
         initialization_source == "rtk"
@@ -56,6 +70,7 @@ def _validate_paths(context):
     ).perform(context)
     if (
         initialization_source in ("auto", "rtk")
+        and refinement != "rtk_only"
         and start_initial_localizer.lower() not in ("true", "1", "yes", "on")
     ):
         raise RuntimeError("自动或RTK初始重定位必须启动PCD初始定位器")
@@ -188,6 +203,8 @@ def generate_launch_description():
                 "fastlivo_map_sliding_en", default_value="true"
             ),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
+            DeclareLaunchArgument("initialization_refinement", default_value="ndt_gicp"),
+            DeclareLaunchArgument("initialization_wait_for_request", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument("use_detailed_vehicle_model", default_value="false"),
@@ -452,7 +469,11 @@ def generate_launch_description():
                     },
                 ],
                 condition=IfCondition(
-                    LaunchConfiguration("start_initial_localizer")
+                    PythonExpression([
+                        "'", LaunchConfiguration("start_initial_localizer"),
+                        "'.lower() in ('true', '1', 'yes', 'on') and '",
+                        LaunchConfiguration("initialization_refinement"), "' != 'rtk_only'",
+                    ])
                 ),
             ),
             Node(
@@ -469,7 +490,16 @@ def generate_launch_description():
                         "odometry_topic": "/fastlivo/odometry",
                         "initial_pose_topic": "/localization/rtk_initialpose",
                         "localizer_status_topic": "/localization/status",
-                        "localizer_ready_topic": "/localization/lidar_ready",
+                        "localizer_ready_topic": PythonExpression([
+                            "'/fastlivo_rtk/ready' if '", LaunchConfiguration("initialization_refinement"),
+                            "' == 'rtk_only' else '/localization/lidar_ready'",
+                        ]),
+                        "wait_for_request": ParameterValue(
+                            LaunchConfiguration("initialization_wait_for_request"), value_type=bool
+                        ),
+                        "direct_initialization": PythonExpression([
+                            "'", LaunchConfiguration("initialization_refinement"), "' == 'rtk_only'"
+                        ]),
                     },
                 ],
                 condition=IfCondition(
@@ -527,6 +557,10 @@ def generate_launch_description():
                         ),
                         "visual_enabled": LaunchConfiguration(
                             "enable_visual_initialization"
+                        ),
+                        "refinement_mode": LaunchConfiguration("initialization_refinement"),
+                        "wait_for_request": ParameterValue(
+                            LaunchConfiguration("initialization_wait_for_request"), value_type=bool
                         ),
                     },
                 ],

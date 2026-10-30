@@ -14,6 +14,7 @@ from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 MOTION_AUTHORIZATION = "ENABLE_DIFFERENTIAL_MOTION"
@@ -80,11 +81,7 @@ def generate_launch_description():
     differential_share = os.path.join(hardware_share, "differential")
     use_sim_time = LaunchConfiguration("use_sim_time")
 
-    localization_launch = os.path.join(
-        hardware_share,
-        "launch",
-        "differential_fastlivo_rtk_localization.launch.py",
-    )
+    localization_launch = LaunchConfiguration("localization_launch_file")
     navigation_launch = os.path.join(
         hardware_share, "launch", "include", "navigation_only.launch.py"
     )
@@ -144,12 +141,24 @@ def generate_launch_description():
                 "zqwl_channel": LaunchConfiguration("zqwl_channel"),
                 "zqwl_bitrate": LaunchConfiguration("zqwl_bitrate"),
                 "command_topic": "/nav2/cmd_vel",
+                "read_only": ParameterValue(
+                    PythonExpression([
+                        "'", LaunchConfiguration("enable_chassis_output"),
+                        "'.lower() not in ('true', '1', 'yes', 'on')",
+                    ]),
+                    value_type=bool,
+                ),
                 "require_localization_ready": True,
                 "localization_ready_topic": "/fastlivo_rtk/ready",
                 "localization_ready_timeout_sec": 1.0,
             },
         ],
-        condition=IfCondition(LaunchConfiguration("enable_chassis_output")),
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration("enable_chassis_output"),
+            "'.lower() in ('true', '1', 'yes', 'on') or '",
+            LaunchConfiguration("enable_chassis_feedback"),
+            "'.lower() in ('true', '1', 'yes', 'on')",
+        ])),
     )
 
     return LaunchDescription(
@@ -157,6 +166,8 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "map_base", description="不带扩展名的三维和二维地图绝对路径"
             ),
+            DeclareLaunchArgument("localization_launch_file", default_value=os.path.join(
+                hardware_share, "launch", "differential_fastlivo_rtk_localization.launch.py")),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("start_sensors", default_value="true"),
@@ -177,12 +188,15 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("start_fastlivo", default_value="true"),
             DeclareLaunchArgument("start_navigation", default_value="true"),
+            DeclareLaunchArgument("enable_chassis_feedback", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument(
                 "rviz_config",
                 default_value=os.path.join(hardware_share, "rviz", "navigation.rviz"),
             ),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
+            DeclareLaunchArgument("initialization_refinement", default_value="ndt_gicp"),
+            DeclareLaunchArgument("initialization_wait_for_request", default_value="false"),
             DeclareLaunchArgument(
                 "initialization_source", default_value="manual"
             ),
@@ -286,6 +300,8 @@ def generate_launch_description():
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
                             ),
+                            "initialization_refinement": LaunchConfiguration("initialization_refinement"),
+                            "initialization_wait_for_request": LaunchConfiguration("initialization_wait_for_request"),
                             "enable_rtk_initialization": LaunchConfiguration(
                                 "enable_rtk_initialization"
                             ),

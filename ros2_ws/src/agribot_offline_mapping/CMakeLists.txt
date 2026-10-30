@@ -84,6 +84,9 @@ install(PROGRAMS
   scripts/describe_opengraph_instances_ollama.py
   scripts/export_opengraph_dataset.py
   scripts/finalize_lio_sam_map.py
+  scripts/clean_navigation_grid_regions.py
+  scripts/prepare_lixel_navigation_map.py
+  scripts/create_capture_route_preset.py
   scripts/import_semantic_graph_neo4j.py
   scripts/manual_landmark_editor.py
   scripts/mapping_result_trajectory_publisher.py
@@ -123,6 +126,9 @@ if(BUILD_TESTING)
   target_include_directories(test_rtk_lever_arm PRIVATE include)
   target_link_libraries(test_rtk_lever_arm Eigen3::Eigen)
   ament_add_pytest_test(test_finalize_lio_sam_map test/test_finalize_lio_sam_map.py)
+  ament_add_pytest_test(test_prepare_lixel_navigation_map test/test_prepare_lixel_navigation_map.py)
+  ament_add_pytest_test(test_create_capture_route_preset test/test_create_capture_route_preset.py)
+  ament_add_pytest_test(test_clean_navigation_grid_regions test/test_clean_navigation_grid_regions.py)
   ament_add_pytest_test(
     test_indoor_fastlivo_fusion_validation
     test/test_indoor_fastlivo_fusion_validation.py

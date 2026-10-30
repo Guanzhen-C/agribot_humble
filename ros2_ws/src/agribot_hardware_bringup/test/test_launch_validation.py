@@ -76,6 +76,36 @@ def load_launch(path, module_name):
     return module
 
 
+@pytest.mark.parametrize("skip", ["disabled", "simulation", "unconfigured"])
+def test_sensor_phase_check_skips_non_hardware(skip, monkeypatch):
+    module = load_launch(PACKAGE_ROOT / "launch" / "sensors.launch.py", "phase_skip")
+    context = context_with(start_lidar="false" if skip == "disabled" else "true",
+                           use_sim_time="true" if skip == "simulation" else "false")
+    mounts = {"lidar": {} if skip == "unconfigured" else {"pps_target_angle_deg": 180}}
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: pytest.fail("must not configure"))
+    module._ensure_lidar_phase(context, mounts)
+
+
+def test_sensor_phase_check_precedes_driver_and_is_bounded(monkeypatch):
+    module = load_launch(PACKAGE_ROOT / "launch" / "sensors.launch.py", "phase_setup")
+    context = context_with(start_lidar="true", lidar_config=str(PACKAGE_ROOT / "config" / "c16.yaml"))
+    calls = []
+    monkeypatch.setattr(module, "get_package_prefix", lambda name: "/tmp/install")
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return type("Result", (), {"stdout": "verified"})()
+    monkeypatch.setattr(module.subprocess, "run", run)
+    module._ensure_lidar_phase(context, {"lidar": {"pps_target_angle_deg": 180}})
+    command, kwargs = calls[0]
+    assert command[command.index("--target-angle-deg") + 1] == "180.0"
+    assert "--ensure" in command and "--require-clock-source" in command
+    assert kwargs["timeout"] == 12 and kwargs["check"] is True
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(
+        module.subprocess.TimeoutExpired(a[0], 12)))
+    with pytest.raises(RuntimeError, match="启动检查失败"):
+        module._ensure_lidar_phase(context, {"lidar": {"pps_target_angle_deg": 180}})
+
+
 NAVSAT_LAUNCH = load_launch(NAVSAT_LAUNCH_PATH, "ackermann_mppi_navsat_launch")
 DIFFERENTIAL_FULL_LAUNCH = load_launch(
     DIFFERENTIAL_FULL_LAUNCH_PATH,
@@ -161,6 +191,13 @@ def test_differential_full_stack_filters_obstacles_relative_to_base_link():
     source = DIFFERENTIAL_FULL_LAUNCH_PATH.read_text(encoding="utf-8")
     assert 'executable="differential_obstacle_height_filter"' in source
     assert '"config", "obstacle_height_filter.yaml"' in source
+
+
+def test_differential_observation_receives_can_without_enabling_commands():
+    source = DIFFERENTIAL_FULL_LAUNCH_PATH.read_text(encoding="utf-8")
+    assert 'DeclareLaunchArgument("enable_chassis_feedback", default_value="true")' in source
+    assert '"read_only": ParameterValue(' in source
+    assert 'LaunchConfiguration("enable_chassis_feedback")' in source
 
 
 def test_uncalibrated_camera_is_allowed_only_without_chassis_output():

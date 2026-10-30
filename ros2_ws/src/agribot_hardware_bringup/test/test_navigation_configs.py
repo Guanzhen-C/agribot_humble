@@ -46,6 +46,18 @@ def load_config(name, vehicle=None):
         return yaml.safe_load(stream)
 
 
+def test_differential_planning_search_relaxation_keeps_runtime_and_preview_consistent():
+    for name in ("nav2_params_differential_planner_only.yaml", "nav2_params_differential_fastlivo_mapped.yaml"):
+        config = load_config(name, "differential")
+        planner = config["planner_server"]["ros__parameters"]["GridBased"]
+        assert planner["max_planning_time"] == 5.0
+        assert planner["analytic_expansion_max_length"] == 6.0
+        assert planner["rotation_penalty"] == 2.0
+        costmap = config["global_costmap"]["global_costmap"]["ros__parameters"]
+        assert json.loads(costmap["footprint"]) == [[0.70, 0.53], [0.70, -0.53], [-0.70, -0.53], [-0.70, 0.53]]
+        assert costmap["inflation_layer"]["inflation_radius"] == 2.0
+
+
 def rpy_matrix(rpy):
     roll, pitch, yaw = rpy
     cr, sr = math.cos(roll), math.sin(roll)
@@ -348,7 +360,7 @@ def test_differential_runtime_tolerates_measured_rdk_scheduling_gaps():
     ] == pytest.approx(0.333)
     assert chassis["command_timeout_sec"] >= 3.0 / chassis["send_rate_hz"]
     assert chassis["localization_ready_timeout_sec"] == pytest.approx(1.0)
-    assert fusion["odom_ready_timeout_sec"] == pytest.approx(1.5)
+    assert fusion["odom_ready_timeout_sec"] == pytest.approx(4.0)
 
 
 def test_differential_lattice_matches_costmap_and_supports_in_place_rotation():
@@ -448,11 +460,21 @@ def test_differential_localization_extrinsics_share_one_measured_source():
         [0.0, 0.0, math.pi / 2.0], abs=1.0e-8
     )
     assert mounts["camera"]["xyz"] == pytest.approx([0.4735, 0.0, 0.96])
-    assert mounts["rtk"]["xyz"] == pytest.approx([-0.48, 0.35, 0.748])
+    assert mounts["rtk"]["xyz"] == pytest.approx([0.44, 0.32, 0.84])
     assert mounts["rtk"]["secondary_xyz"] == pytest.approx(
-        [-0.48, -0.35, 0.748]
+        [0.44, -0.32, 0.84]
     )
-    assert mounts["rtk"]["baseline_m"] == pytest.approx(0.70)
+    assert mounts["rtk"]["baseline_m"] == pytest.approx(0.64)
+    assert math.dist(mounts["rtk"]["xyz"], mounts["rtk"]["secondary_xyz"]) == pytest.approx(
+        mounts["rtk"]["baseline_m"]
+    )
+    eskf = load_config("kf_gins_n300pro.yaml", "differential")["rtk_eskf_localization"]["ros__parameters"]
+    assert eskf["antlever_m"] == pytest.approx(matvec(transpose(base_from_imu), [
+        r - i for r, i in zip(mounts["rtk"]["xyz"], mounts["imu"]["xyz"])
+    ]))
+    assert eskf["antlever_m"] == pytest.approx([0.44, 0.32, 0.20])
+    rtk = load_config("rtk_nmea.yaml", "differential")["rtk_nmea"]["ros__parameters"]
+    assert rtk["heading_offset_deg"] == -90.0
     assert fastlivo["time_offset"]["img_time_offset"] == -0.0033
     assert fastlio["mapping"]["extrinsic_R"] == pytest.approx(
         flatten(imu_from_lidar), abs=1.0e-8

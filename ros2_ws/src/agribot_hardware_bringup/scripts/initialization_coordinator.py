@@ -14,9 +14,11 @@ from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger
 
 
 WAIT_RTK = "wait_rtk"
+WAIT_REQUEST = "wait_request"
 RTK_REFINING = "rtk_refining"
 WAIT_VISUAL = "wait_visual"
 VISUAL_REFINING = "visual_refining"
@@ -42,11 +44,16 @@ class InitializationPolicy:
         rtk_wait_sec: float,
         visual_wait_sec: float,
         now: float,
+        wait_for_request: bool = False,
+        rtk_only: bool = False,
     ):
         self.rtk_enabled = rtk_enabled
         self.visual_enabled = visual_enabled
         self.rtk_wait_sec = rtk_wait_sec
         self.visual_wait_sec = visual_wait_sec
+        self.rtk_only = rtk_only
+        if rtk_only and not rtk_enabled:
+            raise ValueError("RTK-only initialization requires RTK")
         self.stage = WAIT_RTK if rtk_enabled else WAIT_VISUAL
         self.source = "none"
         self.deadline = now + (
@@ -58,6 +65,23 @@ class InitializationPolicy:
         if not rtk_enabled and not visual_enabled:
             self.stage = MANUAL_REQUIRED
             self.deadline = math.inf
+        if rtk_only:
+            self.deadline = math.inf
+        if wait_for_request:
+            self.stage = WAIT_REQUEST
+            self.deadline = math.inf
+
+    def request_start(self, now: float) -> list[PolicyAction]:
+        if self.stage not in (WAIT_REQUEST, MANUAL_REQUIRED):
+            return []
+        self.source = "none"
+        self.visual_candidate_count = 0
+        self.visual_candidate_index = -1
+        if self.rtk_enabled:
+            self.stage = WAIT_RTK
+            self.deadline = math.inf if self.rtk_only else now + self.rtk_wait_sec
+            return [PolicyAction("request_rtk")]
+        return self._begin_visual(now)
 
     def _begin_visual(self, now: float) -> list[PolicyAction]:
         if not self.visual_enabled or self.visual_available is False:
@@ -138,7 +162,7 @@ class InitializationPolicy:
         return [PolicyAction("manual_required")]
 
     def localization_ready(self) -> list[PolicyAction]:
-        if self.stage == READY:
+        if self.stage in (READY, WAIT_REQUEST):
             return []
         self.stage = READY
         self.deadline = math.inf
@@ -170,6 +194,8 @@ class InitializationCoordinator(Node):
             rtk_wait_sec=rtk_wait_sec,
             visual_wait_sec=visual_wait_sec,
             now=time.monotonic(),
+            wait_for_request=bool(self.declare_parameter("wait_for_request", False).value),
+            rtk_only=str(self.declare_parameter("refinement_mode", "ndt_gicp").value) == "rtk_only",
         )
         self._visual_candidates = []
         self._last_detail = ""
@@ -178,6 +204,13 @@ class InitializationCoordinator(Node):
         self._prior_publisher = self.create_publisher(
             PoseWithCovarianceStamped, "/localization/initialpose_prior", 10
         )
+        self._direct_publisher = self.create_publisher(
+            PoseWithCovarianceStamped, "/localization_pose", 10
+        )
+        self._rtk_request_publisher = self.create_publisher(
+            Bool, "/localization/rtk_start_request", 10
+        )
+        self.create_service(Trigger, "/localization/start", self._start)
         self._visual_request_publisher = self.create_publisher(
             Bool, "/localization/visual_request", latched
         )
@@ -228,6 +261,9 @@ class InitializationCoordinator(Node):
             latched,
         )
         self.create_subscription(
+            Bool, "/fastlivo_rtk/ready", self._handle_fusion_ready, latched
+        )
+        self.create_subscription(
             String,
             "/localization/visual_status",
             self._handle_visual_status,
@@ -240,6 +276,23 @@ class InitializationCoordinator(Node):
 
     def _tick(self):
         self._run_actions(self._policy.tick(time.monotonic()))
+
+    def _start(self, request, response):
+        if self._policy.rtk_enabled and self._rtk_request_publisher.get_subscription_count() == 0:
+            response.success = False
+            response.message = "RTK初始化节点尚未连接，请稍后再试"
+            return response
+        actions = self._policy.request_start(time.monotonic())
+        response.success = bool(actions)
+        response.message = "初始化已请求" if actions else "初始化已开始或已完成，禁止重复初始化"
+        if actions:
+            self._last_detail = ""
+            self._run_actions(actions)
+        return response
+
+    def _handle_fusion_ready(self, message):
+        if message.data and self._policy.rtk_only and self._policy.stage == RTK_REFINING:
+            self._run_actions(self._policy.localization_ready())
 
     def _handle_rtk(self, message):
         self._run_actions(
@@ -274,6 +327,8 @@ class InitializationCoordinator(Node):
         )
 
     def _handle_visual_status(self, message):
+        if self._policy.rtk_only:
+            return
         try:
             document = json.loads(message.data)
             self._last_detail = str(document.get("message", message.data))
@@ -282,6 +337,8 @@ class InitializationCoordinator(Node):
         self._publish_state()
 
     def _handle_attempt_result(self, message):
+        if self._policy.rtk_only:
+            return
         try:
             result = json.loads(message.data)
             accepted = bool(result["accepted"])
@@ -294,7 +351,7 @@ class InitializationCoordinator(Node):
         )
 
     def _handle_localization_ready(self, message):
-        if message.data:
+        if message.data and not self._policy.rtk_only:
             self._run_actions(self._policy.localization_ready())
 
     def _publish_visual_request(self, enabled):
@@ -331,7 +388,24 @@ class InitializationCoordinator(Node):
             if action.kind == "request_visual":
                 self._publish_visual_request(bool(action.candidate_index))
             elif action.kind == "forward_rtk" and rtk_pose is not None:
-                self._publish_prior("RTK", rtk_pose)
+                if self._policy.rtk_only:
+                    age = (self.get_clock().now().nanoseconds / 1e9 -
+                           rtk_pose.header.stamp.sec - rtk_pose.header.stamp.nanosec / 1e9)
+                    p = rtk_pose.pose.pose
+                    values = [p.position.x, p.position.y, p.position.z,
+                              p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+                    quaternion_norm = sum(v*v for v in values[3:])
+                    if (rtk_pose.header.frame_id != "map" or not 0.0 <= age <= 1.5
+                            or not all(math.isfinite(v) for v in values)
+                            or abs(quaternion_norm - 1.0) > 0.01):
+                        self._policy.stage = MANUAL_REQUIRED
+                        self._last_detail = "拒绝过期或非map坐标的RTK位姿，请停止后重试"
+                    else:
+                        self._direct_publisher.publish(rtk_pose)
+                else:
+                    self._publish_prior("RTK", rtk_pose)
+            elif action.kind == "request_rtk":
+                self._rtk_request_publisher.publish(Bool(data=True))
             elif action.kind == "try_visual":
                 self._publish_visual_candidate(action.candidate_index)
             elif action.kind == "forward_manual" and manual_pose is not None:
@@ -341,6 +415,7 @@ class InitializationCoordinator(Node):
 
     def _status_text(self):
         labels = {
+            WAIT_REQUEST: "等待点击开始初始化",
             WAIT_RTK: "等待RTK固定解粗定位",
             RTK_REFINING: "正在用NDT/GICP精配准RTK粗位姿",
             WAIT_VISUAL: "RTK不可用，正在进行视觉位置识别",
@@ -349,6 +424,11 @@ class InitializationCoordinator(Node):
             MANUAL_REFINING: "正在用NDT/GICP精配准手动粗位姿",
             READY: "初始定位已通过NDT/GICP验收",
         }
+        if self._policy.rtk_only:
+            labels[WAIT_RTK] = "等待RTK位置及双天线航向固定解（直接初始化）"
+            labels[RTK_REFINING] = "RTK直接位姿已提交，等待融合定位就绪"
+            labels[READY] = "RTK直接初始化完成（未执行NDT/GICP）"
+            labels[MANUAL_REQUIRED] = "RTK初始位姿无效，请点击重新初始化"
         text = labels[self._policy.stage]
         if self._last_detail and self._policy.stage != READY:
             text += f"；{self._last_detail}"

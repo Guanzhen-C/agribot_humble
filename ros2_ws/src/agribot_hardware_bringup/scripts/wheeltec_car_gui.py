@@ -255,7 +255,11 @@ class CanLink:
             self.last_error = ""
             return True
         except (OSError, RuntimeError) as exc:
-            self.last_error = str(exc)
+            self.last_error = (
+                "USB-CAN已被占用，请先停止农机控制台运行栈或退出另一套桌面CAN GUI"
+                if isinstance(exc, OSError) and exc.errno == errno.EBUSY
+                else str(exc)
+            )
             if fd is not None:
                 try:
                     os.close(fd)

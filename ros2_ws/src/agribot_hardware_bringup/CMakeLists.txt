@@ -273,12 +273,13 @@ target_include_directories(rtk_eskf_localization PRIVATE
   localization/navsat/third_party/kf_gins
   ${EIGEN3_INCLUDE_DIRS}
 )
-target_link_libraries(rtk_eskf_localization Eigen3::Eigen)
+target_link_libraries(rtk_eskf_localization Eigen3::Eigen yaml-cpp)
 ament_target_dependencies(rtk_eskf_localization
   geometry_msgs
   nav_msgs
   rclcpp
   sensor_msgs
+  std_msgs
 )
 
 add_executable(
@@ -484,6 +485,11 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_horizontal_antenna_factor Eigen3::Eigen gtsam)
   ament_add_pytest_test(test_launch_validation test/test_launch_validation.py)
+  ament_add_pytest_test(
+    test_chassis_receive_only test/test_chassis_receive_only.py
+    ENV "CHASSIS_CAN_NODE=$<TARGET_FILE:differential_chassis_can_node>"
+    TIMEOUT 60
+  )
   ament_add_pytest_test(
     test_initialization_coordinator
     test/test_initialization_coordinator.py

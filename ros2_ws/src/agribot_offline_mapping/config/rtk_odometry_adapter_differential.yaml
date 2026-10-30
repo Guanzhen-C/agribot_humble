@@ -14,8 +14,8 @@ rtk_odometry_adapter:
     lidar_frame: lidar_link
 
     # Vehicle-FLU vector from the left master antenna measurement point to the
-    # C16 optical center: [0.47, 0, 0.91] - [-0.48, 0.35, 0.748].
-    antenna_to_lidar_flu_m: [0.95, -0.35, 0.162]
+    # C16 optical center: [0.47, 0, 0.91] - [0.44, 0.32, 0.84].
+    antenna_to_lidar_flu_m: [0.03, -0.32, 0.07]
     maximum_lever_heading_age_sec: 1.5
     required_fix_quality: 4
     fixed_heading_solutions: [L1_INT, NARROW_INT]

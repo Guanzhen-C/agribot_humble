@@ -8,9 +8,9 @@ async function responseJson(response) {
   return document;
 }
 
-export async function getJson(path) {
+export async function getJson(path, options = {}) {
   if (BUNDLED_OFFLINE_UI) throw new Error("当前未连接RDK");
-  return responseJson(await fetch(path, { cache: "no-store" }));
+  return responseJson(await fetch(path, { cache: "no-store", ...options }));
 }
 
 export async function postJson(path, body = {}) {

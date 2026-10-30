@@ -1,4 +1,5 @@
 import importlib.util
+import errno
 import sys
 from pathlib import Path
 
@@ -146,3 +147,17 @@ def test_complete_feedback_suppresses_startup_reopen(monkeypatch):
     )
 
     assert not link.recover_silent_startup(now=10.0, timeout=1.0)
+
+
+def test_busy_can_port_reports_mutual_exclusion_without_sending(monkeypatch):
+    gui = load_gui_module()
+    link = gui.CanLink("/dev/fake-zqwl")
+
+    def busy(*_args, **_kwargs):
+        raise OSError(errno.EBUSY, "Device or resource busy")
+
+    monkeypatch.setattr(gui.os, "open", busy)
+    assert not link.connect()
+    assert link.fd is None
+    assert link.tx_count == 0
+    assert "农机控制台" in link.last_error

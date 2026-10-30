@@ -51,6 +51,7 @@ install(PROGRAMS
   scripts/differential_sim_cmd_bridge.py
   scripts/differential_sim_sensor_bridge.py
   scripts/differential_sim_validator.py
+  scripts/test_saved_path_gazebo.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -58,6 +59,7 @@ install(DIRECTORY
   config
   launch
   urdf
+  scripts
   DESTINATION share/${PROJECT_NAME}
 )
 

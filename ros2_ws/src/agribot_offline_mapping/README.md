@@ -29,6 +29,72 @@ vcs import src < src/agribot_offline_mapping/third_party.repos
 
 ## Standard offline pipeline
 
+### Lixel LAS Navigation Maps
+
+`scripts/prepare_lixel_navigation_map.py` processes Lixel L2 Pro capture ZIPs or extracted directories
+without requiring a Gaussian reconstruction. It reads the original LAS, fixed
+GNSS records and capture poses without editing or fully extracting the archive.
+Install `laspy` and `pyproj` in a processing virtual environment in addition to
+the existing NumPy, SciPy, Pillow, Matplotlib and PyYAML dependencies.
+
+```bash
+python3 scripts/prepare_lixel_navigation_map.py \
+  /path/to/capture.zip /path/to/maps/MAP_NAME --source-crs EPSG:32650
+
+# An extracted directory must contain map.las and project_data/{gnss,poses}.csv.
+python3 scripts/prepare_lixel_navigation_map.py \
+  /path/to/capture_directory /path/to/maps/NEW_MAP_NAME --source-crs EPSG:32650
+```
+
+The source CRS is explicit: do not assume that every scanner export uses UTM
+50N. The tool rejects a LAS origin more than 0.5 m from the first fixed GNSS
+position in that CRS, and rejects same-timestamp trajectory/GNSS frame-fit
+RMSE above 0.20 m. These are consistency checks, not independent survey
+accuracy. No scanner or vehicle antenna lever arm is recalibrated by this tool.
+
+Outputs are `.pcd`, `.pgm`, `.yaml`, `_georeference.yaml`, `_trajectory.pcd`,
+`_preview.png` and `_preparation.json`. Coordinates are converted in double
+precision from the projected LAS frame to local ENU before storing local PCD
+floats. Original terrain variation is preserved; there is no forced leveling.
+The localization cloud uses 0.10 m voxels, is limited to 40 m around the capture
+path, and rejects unsupported isolated points. The grid uses 0.05 m cells,
+local ground-relative 0.15--2.0 m obstacles, and only marks observed ground near
+the capture path as free. All remaining cells are unknown. A human walking a
+capture path is not evidence of vehicle clearance; the path is never cleared
+as a drivable corridor.
+
+The georeference has the runtime schema and exact PCD fingerprint. Its
+horizontal metric records pose/GNSS consistency, and its yaw/course metric does
+not certify the vehicle's dual-antenna heading sensor. The report explicitly
+records that no real C16 initial localization or motion validation has occurred.
+The full LAS ZIP-member CRC is checked during streaming, not the raw XBIN CRC.
+For extracted directories, LAS size and point count are verified and its SHA-256
+is recorded instead of claiming an archive CRC. Source file metadata is checked
+for changes during the read, and the GNSS/pose CSV hashes are recorded. Raw XBIN
+is not reconstructed or modified. Automatic road-region cleaning is a separate,
+explicit operation and is not applied by this preparation command.
+No placeholder visual index is generated. The current differential outdoor
+profile accepts a map without a visual database and can skip visual lookup;
+profiles requiring a visual index need a real index or their existing manual
+initialization entry. Before motion, verify NDT/GICP registration and planning
+with chassis output disabled. Do not bypass existing runtime gates.
+
+For a reviewed road or bare-soil working area, `clean_navigation_grid_regions.py`
+can remove false grid obstacles inside explicit map-coordinate polygons and
+width-bounded road corridors. It fits the observed local ground separately for
+each region, requires nearby ground support, and protects supported raised
+structures and lower drainage layers. Inconsistent surface levels fail closed.
+This is a reviewed annotation operation, not automatic road-semantic detection.
+It edits only the PGM; the PCD, YAML origin/resolution and georeference remain
+byte-identical. The original grid and preview are backed up, and the cleanup
+report chains the original and current PGM hashes. Reprocessing from that backup
+is explicit and refuses to overwrite later manual edits.
+
+```bash
+python3 scripts/clean_navigation_grid_regions.py \
+  /path/to/maps/MAP_NAME /path/to/reviewed_regions.json
+```
+
 After sourcing ROS 2 and this workspace, one command performs playback, strong
 robust horizontal RTK and gravity-factor insertion, optimized PCD saving, Nav2 projection,
 georeferencing and result-trajectory recording:

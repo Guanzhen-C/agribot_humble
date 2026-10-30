@@ -13,6 +13,7 @@ from initialization_coordinator import (  # noqa: E402
     RTK_REFINING,
     VISUAL_REFINING,
     WAIT_RTK,
+    WAIT_REQUEST,
     WAIT_VISUAL,
 )
 
@@ -97,3 +98,37 @@ def test_active_registration_never_times_out_into_an_overlapping_attempt():
     assert state.stage == VISUAL_REFINING
     assert state.tick(20_000.0) == []
     assert state.stage == VISUAL_REFINING
+
+
+def test_button_mode_never_starts_until_requested_and_cannot_restart_ready():
+    state = InitializationPolicy(
+        rtk_enabled=True, visual_enabled=True, rtk_wait_sec=10,
+        visual_wait_sec=5, now=0, wait_for_request=True,
+    )
+    assert state.stage == WAIT_REQUEST
+    assert state.tick(1000) == []
+    assert state.receive_rtk(1000) == []
+    assert state.receive_manual(1000) == []
+    assert state.localization_ready() == []
+    assert action_kinds(state.request_start(1000)) == ["request_rtk"]
+    assert state.stage == WAIT_RTK
+    assert state.request_start(1001) == []
+    state.receive_rtk(1002)
+    assert state.request_start(1003) == []
+    state.localization_ready()
+    assert state.request_start(1004) == []
+
+
+def test_rtk_only_waits_for_valid_rtk_without_visual_or_manual_bypass():
+    state = InitializationPolicy(
+        rtk_enabled=True, visual_enabled=True, rtk_wait_sec=10,
+        visual_wait_sec=5, now=0, wait_for_request=True, rtk_only=True,
+    )
+    state.request_start(1)
+    assert state.tick(100000) == []
+    assert state.stage == WAIT_RTK
+    assert state.receive_manual(100001) == []
+    assert action_kinds(state.receive_rtk(100002)) == ["forward_rtk"]
+    assert state.stage == RTK_REFINING
+    assert state.tick(200_000.0) == []
+    assert state.stage == RTK_REFINING

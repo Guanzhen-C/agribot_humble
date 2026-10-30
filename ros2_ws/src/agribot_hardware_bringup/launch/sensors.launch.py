@@ -1,7 +1,10 @@
 import os
+import math
+import subprocess
+import sys
 
 import yaml
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -23,10 +26,42 @@ def _static_transform(parent, child, xyz, rpy):
     )
 
 
+def _ensure_lidar_phase(context, mounts):
+    target = mounts["lidar"].get("pps_target_angle_deg")
+    if target is None or LaunchConfiguration("start_lidar").perform(context).lower() != "true":
+        return
+    if context.launch_configurations.get("use_sim_time", "false").lower() == "true":
+        return
+    with open(LaunchConfiguration("lidar_config").perform(context), encoding="utf-8") as stream:
+        parameters = yaml.safe_load(stream)["lslidar_driver_node"]["ros__parameters"]
+    if parameters.get("pcap"):
+        return
+    target = float(target)
+    if not math.isfinite(target) or not 0 <= target < 360:
+        raise RuntimeError("lidar.pps_target_angle_deg必须在[0, 360)度范围内")
+    tool = os.path.join(get_package_prefix("agribot_hardware_bringup"),
+                        "lib", "agribot_hardware_bringup", "c16_pps_phase_tool.py")
+    # Configure before the driver binds DIFOP; never share/steal its UDP socket.
+    try:
+        result = subprocess.run(
+            [sys.executable, tool, "--target-angle-deg", str(target),
+             "--apply", "--ensure", "--require-clock-source", "1",
+             "--device-ip", str(parameters["device_ip"]),
+             "--listen-port", str(parameters.get("difop_port", 2369)),
+             "--samples", "1"],
+            capture_output=True, text=True, timeout=12, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        details = getattr(error, "stderr", "") or str(error)
+        raise RuntimeError(f"C16 PPS目标角启动检查失败：{details}") from error
+    print(result.stdout, flush=True)
+
+
 def _launch_setup(context):
     mount_file = LaunchConfiguration("mount_config").perform(context)
     with open(mount_file, "r", encoding="utf-8") as stream:
         mounts = yaml.safe_load(stream)
+    _ensure_lidar_phase(context, mounts)
 
     actions = []
     for sensor_name in ("imu", "lidar", "camera", "rtk"):

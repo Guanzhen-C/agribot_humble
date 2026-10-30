@@ -110,9 +110,13 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "map_base", description="不带扩展名的室外地图绝对路径"
             ),
+            DeclareLaunchArgument("localization_launch_file", default_value=os.path.join(
+                hardware_share, "launch", "differential_fastlivo_rtk_localization.launch.py")),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
             DeclareLaunchArgument("autostart", default_value="true"),
             DeclareLaunchArgument("initialization_source", default_value="auto"),
+            DeclareLaunchArgument("initialization_refinement", default_value="ndt_gicp"),
+            DeclareLaunchArgument("initialization_wait_for_request", default_value="false"),
             DeclareLaunchArgument(
                 "enable_rtk_initialization", default_value="true"
             ),
@@ -162,7 +166,7 @@ def generate_launch_description():
                 msg=[
                     "差速室外全流程启动；底盘输出=",
                     LaunchConfiguration("enable_chassis_output"),
-                    "。车辆保持静止，按RTK、视觉、手动顺序完成NDT/GICP精配准。",
+                    "。首次定位期间保持静止，按所选定位流程完成初始化，确认定位就绪后再下发路线。",
                 ]
             ),
             GroupAction(
@@ -172,6 +176,7 @@ def generate_launch_description():
                         PythonLaunchDescriptionSource(full_launch),
                         launch_arguments={
                             "map_base": LaunchConfiguration("map_base"),
+                            "localization_launch_file": LaunchConfiguration("localization_launch_file"),
                             "use_sim_time": LaunchConfiguration("use_sim_time"),
                             "autostart": LaunchConfiguration("autostart"),
                             "start_sensors": "true",
@@ -187,6 +192,8 @@ def generate_launch_description():
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
                             ),
+                            "initialization_refinement": LaunchConfiguration("initialization_refinement"),
+                            "initialization_wait_for_request": LaunchConfiguration("initialization_wait_for_request"),
                             "enable_rtk_initialization": LaunchConfiguration(
                                 "enable_rtk_initialization"
                             ),

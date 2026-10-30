@@ -31,6 +31,7 @@ setup(
         *installed_tree("launch", f"share/{PACKAGE_NAME}/launch"),
         *installed_tree("config", f"share/{PACKAGE_NAME}/config"),
         *installed_tree("systemd", f"share/{PACKAGE_NAME}/systemd"),
+        *installed_tree("tools", f"share/{PACKAGE_NAME}/tools"),
         *installed_tree("web/dist", f"share/{PACKAGE_NAME}/web"),
     ],
     install_requires=["setuptools"],

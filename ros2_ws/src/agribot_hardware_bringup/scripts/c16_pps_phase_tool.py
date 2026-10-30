@@ -4,6 +4,7 @@ import argparse
 import datetime
 import hashlib
 import socket
+import time
 from pathlib import Path
 
 
@@ -68,8 +69,12 @@ def build_config_packet(device_packet, target_angle_deg):
 
 
 def receive_device_packet(udp_socket, device_ip, timeout_sec):
-    udp_socket.settimeout(timeout_sec)
+    deadline = time.monotonic() + timeout_sec
     while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("等待C16设备包超时")
+        udp_socket.settimeout(remaining)
         packet, address = udp_socket.recvfrom(2048)
         if address[0] != device_ip or packet[:8] != DEVICE_HEADER:
             continue
@@ -111,6 +116,8 @@ def main():
     parser.add_argument("--samples", type=int, default=5)
     parser.add_argument("--target-angle-deg", type=float)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--ensure", action="store_true", help="目标角已正确时不重复写入")
+    parser.add_argument("--require-clock-source", type=int, choices=(0, 1))
     parser.add_argument(
         "--backup-directory",
         type=Path,
@@ -121,6 +128,8 @@ def main():
         parser.error("--samples必须大于0")
     if arguments.apply and arguments.target_angle_deg is None:
         parser.error("--apply必须同时提供--target-angle-deg")
+    if arguments.ensure and not arguments.apply:
+        parser.error("--ensure必须同时提供--apply")
 
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.bind((arguments.local_ip, arguments.listen_port))
@@ -129,11 +138,20 @@ def main():
             udp_socket, arguments.device_ip, arguments.timeout_sec
         )
         print("当前C16状态：")
-        print_status(parse_device_packet(original))
+        status = parse_device_packet(original)
+        print_status(status)
+        if (arguments.require_clock_source is not None
+                and status["clock_source"] != arguments.require_clock_source):
+            raise RuntimeError("C16时钟源与要求不符；未修改授时方式或角度")
 
         if arguments.target_angle_deg is not None:
             configured = build_config_packet(original, arguments.target_angle_deg)
             print(f"请求目标角：{arguments.target_angle_deg:.2f} deg")
+            if arguments.ensure and abs(
+                status["target_angle_deg"] - arguments.target_angle_deg
+            ) < 0.005:
+                print("PPS目标角已正确，未发送配置。")
+                return
             if not arguments.apply:
                 print("只读预览，未发送配置；增加--apply才会修改雷达。")
                 return

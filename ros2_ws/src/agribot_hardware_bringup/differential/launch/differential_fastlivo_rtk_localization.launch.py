@@ -49,6 +49,8 @@ def generate_launch_description():
                 "fastlivo_map_sliding_en", default_value="true"
             ),
             DeclareLaunchArgument("start_initial_localizer", default_value="true"),
+            DeclareLaunchArgument("initialization_refinement", default_value="ndt_gicp"),
+            DeclareLaunchArgument("initialization_wait_for_request", default_value="false"),
             DeclareLaunchArgument("rviz", default_value="true"),
             DeclareLaunchArgument("enable_ntrip", default_value="false"),
             DeclareLaunchArgument(
@@ -124,6 +126,8 @@ def generate_launch_description():
                             "initialization_source": LaunchConfiguration(
                                 "initialization_source"
                             ),
+                            "initialization_refinement": LaunchConfiguration("initialization_refinement"),
+                            "initialization_wait_for_request": LaunchConfiguration("initialization_wait_for_request"),
                             "enable_rtk_initialization": LaunchConfiguration(
                                 "enable_rtk_initialization"
                             ),

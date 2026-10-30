@@ -14,11 +14,11 @@ lslidar_lio_sam_adapter:
     rear_exclusion_max_x: -0.60
     rear_exclusion_half_width: 0.60
 
-    # Remove both rear-mounted RTK antennas and their vertical supports before
+    # Remove both RTK antennas at their current base_link positions before
     # scan matching and map accumulation.
     antenna_exclusion_enabled: true
-    left_antenna_center_xyz: [-0.48, 0.35, 0.748]
-    right_antenna_center_xyz: [-0.48, -0.35, 0.748]
+    left_antenna_center_xyz: [0.44, 0.32, 0.84]
+    right_antenna_center_xyz: [0.44, -0.32, 0.84]
     antenna_exclusion_half_extent_xyz: [0.08, 0.08, 0.60]
 
     base_to_lidar_xyz: [0.47, 0.0, 0.91]

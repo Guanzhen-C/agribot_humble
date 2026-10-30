@@ -104,9 +104,9 @@ profiles:
   differential_outdoor:
     label: 室外地图
     vehicle_type: differential
-    description: RTK、视觉、手动依次初始化，NDT/GICP验收并运行差速Nav2
-    launch_package: agribot_hardware_bringup
-    launch_file: differential_outdoor_experiment.launch.py
+    description: KF-GINS/NavSat行驶，第100点预热并连续切换FAST-LIVO2＋RTK
+    launch_package: agribot_localization_switch
+    launch_file: outdoor_waypoint.launch.py
     map_argument: map_base
     required_suffixes: [.yaml, .pgm, .pcd]
     requires_georeference: true

@@ -7,7 +7,8 @@ import time
 import pytest
 
 from agribot_mobile_app.processes import ManagedProcess, ProcessError, ProcessSlots
-from agribot_mobile_app.gateway_node import MobileGateway
+from agribot_mobile_app.gateway_node import ApiError, MobileGateway
+from agribot_mobile_app.chassis_feedback import ChassisFeedback
 
 
 def fake_ros2(tmp_path: Path):
@@ -89,6 +90,7 @@ def test_slots_stop_motion_before_other_jobs():
 
 def test_stopping_runtime_clears_stale_navigation_state():
     gateway = object.__new__(MobileGateway)
+    gateway._chassis_feedback = ChassisFeedback()
     gateway._task_transition_lock = threading.RLock()
     gateway._lock = threading.RLock()
     gateway._goal_handle = object()
@@ -155,3 +157,34 @@ def test_cancel_response_releases_goal_and_reports_canceled():
 
     assert gateway._goal_handle is None
     assert gateway._state["navigation"]["status"] == "canceled"
+
+
+def test_initialization_button_requires_waiting_runtime_and_idle_navigation():
+    gateway = object.__new__(MobileGateway)
+    gateway._task_transition_lock = threading.RLock()
+    gateway._lock = threading.RLock()
+    gateway._state = {
+        "active_runtime": {"initialization_wait_for_request": True},
+        "localization": {"fusion_ready": False, "initialization_stage": "wait_request"},
+        "navigation": {"status": "idle"},
+    }
+    calls = []
+    class Future:
+        def add_done_callback(self, callback):
+            callback(self)
+        def result(self):
+            return SimpleNamespace(success=True, message="requested")
+    gateway._initialization_start_client = SimpleNamespace(
+        wait_for_service=lambda **kw: True,
+        call_async=lambda request: calls.append(request) or Future(),
+    )
+    assert gateway.start_initialization({})["status"] == "requested"
+    assert len(calls) == 1
+    gateway._state["navigation"]["status"] = "executing"
+    with pytest.raises(ApiError, match="导航正在运行"):
+        gateway.start_initialization({})
+    gateway._state["navigation"]["status"] = "idle"
+    gateway._state["localization"]["fusion_ready"] = True
+    with pytest.raises(ApiError, match="定位已就绪"):
+        gateway.start_initialization({})
+    assert len(calls) == 1

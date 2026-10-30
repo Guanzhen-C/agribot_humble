@@ -264,6 +264,26 @@ def test_lio_sam_adapter_uses_measured_mount_and_mapping_rear_mask():
     )
 
 
+def test_differential_rtk_adapters_match_current_mounts():
+    mounts = yaml.safe_load(
+        (HARDWARE_ROOT / "differential/config/sensor_mounts.yaml").read_text(encoding="utf-8")
+    )
+    rtk = parameters(
+        PACKAGE_ROOT / "config/rtk_odometry_adapter_differential.yaml",
+        "rtk_odometry_adapter",
+    )
+    cloud = parameters(
+        PACKAGE_ROOT / "config/lslidar_lio_sam_adapter_differential.yaml",
+        "lslidar_lio_sam_adapter",
+    )
+    assert rtk["antenna_to_lidar_flu_m"] == pytest.approx([
+        lidar - antenna for lidar, antenna in zip(mounts["lidar"]["xyz"], mounts["rtk"]["xyz"])
+    ])
+    assert cloud["left_antenna_center_xyz"] == pytest.approx(mounts["rtk"]["xyz"])
+    assert cloud["right_antenna_center_xyz"] == pytest.approx(mounts["rtk"]["secondary_xyz"])
+    assert cloud["base_to_lidar_xyz"] == pytest.approx(mounts["lidar"]["xyz"])
+
+
 def test_georeference_uses_final_optimized_key_pose_path():
     exporter = parameters(
         PACKAGE_ROOT / "config" / "map_georeference_exporter.yaml",

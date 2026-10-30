@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import json
 
 import pytest
 import yaml
@@ -67,6 +69,19 @@ def test_map_catalog_only_lists_complete_nav2_maps(tmp_path):
     assert catalog.map_base("site") == tmp_path / "site"
 
 
+@pytest.mark.parametrize("negate", [0, 1])
+def test_map_lookup_matches_original_formula_for_every_gray_value(tmp_path, negate):
+    pixels = bytes(range(256)) * 2
+    write_p5(tmp_path / "levels.pgm", 256, 2, pixels)
+    path = tmp_path / "levels.yaml"
+    path.write_text(yaml.safe_dump({"image": "levels.pgm", "resolution": 0.05, "origin": [0, 0, 0], "negate": negate, "occupied_thresh": 0.65, "free_thresh": 0.196}))
+    expected = []
+    for pixel in pixels:
+        probability = pixel / 255.0 if negate else (255 - pixel) / 255.0
+        expected.append(100 if probability > 0.65 else 0 if probability < 0.196 else -1)
+    assert signed(grid_from_nav2_yaml(path).data) == expected
+
+
 def test_bag_catalog_requires_metadata_and_rejects_traversal(tmp_path):
     complete = tmp_path / "map_test_20260101_120000"
     complete.mkdir()
@@ -85,3 +100,66 @@ def test_bag_catalog_requires_metadata_and_rejects_traversal(tmp_path):
 def test_identifier_validation(value):
     with pytest.raises(CatalogError):
         validated_identifier(value)
+
+
+def preset_fixture(root):
+    (root / "field.yaml").write_text("image: field.pgm\nresolution: 0.05\norigin: [-1, -2, 0]\n")
+    (root / "field_georeference.yaml").write_text("map: {id: field}\n")
+    (root / "field.pgm").write_bytes(b"not read for route lookup")
+    document = {
+        "schema_version": 1, "map_id": "field", "frame_id": "map",
+        "map_binding": {"georeference_sha256": hashlib.sha256((root / "field_georeference.yaml").read_bytes()).hexdigest(), "resolution": 0.05, "origin": [-1, -2, 0]},
+        "routes": [{"id": "scan", "label": "扫描路线", "vehicle_type": "differential", "poses": [{"x": 0, "y": 0, "yaw": 0}, {"x": 1, "y": 2, "yaw": 1}]}],
+    }
+    path = root / "field_routes.json"
+    path.write_text(json.dumps(document))
+    return document, path
+
+
+def test_route_presets_are_map_bound_but_allow_pgm_cleanup(tmp_path):
+    preset_fixture(tmp_path)
+    catalog = MapCatalog(tmp_path)
+    assert catalog.route_presets("field")["routes"][0]["poses"][1]["x"] == 1
+    (tmp_path / "field.pgm").write_bytes(b"manually changed image")
+    assert len(catalog.route_presets("field")["routes"]) == 1
+    assert catalog.list()[0]["has_route_presets"] is True
+    (tmp_path / "field_georeference.yaml").write_text("map: {id: changed}\n")
+    with pytest.raises(CatalogError, match="地理配准已改变"):
+        catalog.route_presets("field")
+
+
+@pytest.mark.parametrize("change", ["map", "geometry", "frame", "duplicate", "nan", "bool", "too_many", "vehicle", "malformed"])
+def test_invalid_route_presets_fail_closed(tmp_path, change):
+    doc, path = preset_fixture(tmp_path)
+    if change == "map":
+        doc["map_id"] = "other"
+    elif change == "geometry":
+        doc["map_binding"]["origin"][0] = 3
+    elif change == "frame":
+        doc["frame_id"] = "enu"
+    elif change == "duplicate":
+        doc["routes"].append(doc["routes"][0])
+    elif change == "nan":
+        doc["routes"][0]["poses"][0]["yaw"] = float("nan")
+    elif change == "bool":
+        doc["routes"][0]["poses"][0]["x"] = True
+    elif change == "too_many":
+        doc["routes"][0]["poses"] *= 56
+    elif change == "vehicle":
+        doc["routes"][0]["vehicle_type"] = "unknown"
+    elif change == "malformed":
+        doc["routes"] = [None]
+    path.write_text(json.dumps(doc))
+    with pytest.raises(CatalogError):
+        MapCatalog(tmp_path).route_presets("field")
+
+
+def test_preset_missing_and_symlink_handling(tmp_path):
+    _, path = preset_fixture(tmp_path)
+    path.unlink()
+    assert MapCatalog(tmp_path).route_presets("field")["routes"] == []
+    outside = tmp_path.parent / "external_route.json"
+    outside.write_text("{}")
+    path.symlink_to(outside)
+    with pytest.raises(CatalogError):
+        MapCatalog(tmp_path).route_presets("field")

@@ -33,4 +33,4 @@ rtk_map_initializer:
     # inhibited until the lidar NDT/GICP localizer accepts the refined pose.
     allow_unvalidated_georeference_yaw: true
     # Left master antenna lever arm; must match sensor_mounts.yaml rtk.xyz.
-    base_to_master_antenna_m: [-0.48, 0.35, 0.748]
+    base_to_master_antenna_m: [0.44, 0.32, 0.84]

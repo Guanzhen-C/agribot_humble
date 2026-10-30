@@ -1,5 +1,6 @@
-# Dual-antenna layout measured on 2026-08-26: left master at
-# (-0.48, +0.35, 0.748) m and right secondary at (-0.48, -0.35, 0.748) m.
+# Dual-antenna layout updated on 2026-10-28: left master at
+# (0.44, +0.32, 0.84) m and right secondary at (0.44, -0.32, 0.84) m in
+# base_link. Their IMU-relative heights are both +0.20 m.
 rtk_nmea:
   ros__parameters:
     serial_port: /dev/serial/by-id/usb-AirM2M_AirM2M_Compo_000000000001-if06

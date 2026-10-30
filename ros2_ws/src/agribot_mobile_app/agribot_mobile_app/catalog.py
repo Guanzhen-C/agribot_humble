@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 from datetime import datetime
+import hashlib
+import json
 import math
 from pathlib import Path
 import re
@@ -36,6 +38,18 @@ def _load_yaml(path: Path) -> dict:
     if not isinstance(document, dict):
         raise CatalogError(f"YAML文件不是映射: {path}")
     return document
+
+
+def _route_pose(value: object) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError("固定路线位姿必须为对象")
+    pose = {}
+    for axis in ("x", "y", "yaw"):
+        number = value.get(axis)
+        if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number):
+            raise ValueError(f"固定路线{axis}坐标必须为有限数字")
+        pose[axis] = float(number)
+    return pose
 
 
 def _next_pgm_token(data: bytes, offset: int) -> tuple[bytes, int]:
@@ -159,17 +173,12 @@ def grid_from_nav2_yaml(yaml_path: Path) -> GridData:
     if not 0.0 <= free_threshold < occupied_threshold <= 1.0:
         raise CatalogError(f"Nav2地图阈值无效: {yaml_path}")
 
-    occupancy = []
-    for source_row in range(height - 1, -1, -1):
-        row_start = source_row * width
-        for pixel in pixels[row_start : row_start + width]:
-            probability = pixel / 255.0 if negate else (255 - pixel) / 255.0
-            if probability > occupied_threshold:
-                occupancy.append(100)
-            elif probability < free_threshold:
-                occupancy.append(0)
-            else:
-                occupancy.append(-1)
+    # Only 256 possible input values; translate the full map in C, not Python.
+    lookup = bytearray(256)
+    for pixel in range(256):
+        probability = pixel / 255.0 if negate else (255 - pixel) / 255.0
+        lookup[pixel] = 100 if probability > occupied_threshold else 0 if probability < free_threshold else 255
+    flipped = b"".join(pixels[row * width:(row + 1) * width] for row in range(height - 1, -1, -1))
     return GridData(
         width=width,
         height=height,
@@ -177,7 +186,7 @@ def grid_from_nav2_yaml(yaml_path: Path) -> GridData:
         origin_x=float(origin[0]),
         origin_y=float(origin[1]),
         origin_yaw=float(origin[2]),
-        data=_signed_grid_bytes(occupancy),
+        data=flipped.translate(bytes(lookup)),
     )
 
 
@@ -222,11 +231,54 @@ class MapCatalog:
                             f"{base}_visual_index.npz"
                         ).is_file(),
                         "has_manifest": Path(f"{base}_manifest.yaml").is_file(),
+                        "has_route_presets": Path(f"{base}_routes.json").is_file(),
                     }
                 )
             except (CatalogError, OSError, TypeError, ValueError):
                 continue
         return maps
+
+    def route_presets(self, map_id: str) -> dict:
+        base = self.map_base(map_id)
+        path = Path(f"{base}_routes.json")
+        if not path.is_file():
+            return {"map_id": map_id, "routes": []}
+        if not path.resolve().is_relative_to(self.root) or path.stat().st_size > 256_000:
+            raise CatalogError("固定路线文件路径或大小无效")
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(document, dict) or document.get("schema_version") != 1:
+                raise ValueError("路线格式版本无效")
+            if document.get("map_id") != map_id or document.get("frame_id") != "map":
+                raise ValueError("路线与当前地图坐标系不一致")
+            binding = document["map_binding"]
+            georeference = Path(f"{base}_georeference.yaml")
+            if hashlib.sha256(georeference.read_bytes()).hexdigest() != binding["georeference_sha256"]:
+                raise ValueError("地图地理配准已改变，请重新转换扫描路线")
+            geometry = _load_yaml(base.with_suffix(".yaml"))
+            if (geometry["resolution"] != binding["resolution"]
+                    or geometry["origin"] != binding["origin"]):
+                raise ValueError("地图原点或分辨率已改变，请重新转换扫描路线")
+            routes = document["routes"]
+            if not isinstance(routes, list) or not 1 <= len(routes) <= 20:
+                raise ValueError("固定路线数量无效")
+            ids = set()
+            for route in routes:
+                identifier = validated_identifier(route["id"], "路线编号")
+                if identifier in ids:
+                    raise ValueError("固定路线编号重复")
+                ids.add(identifier)
+                if not isinstance(route["label"], str) or not 1 <= len(route["label"]) <= 100:
+                    raise ValueError("固定路线名称无效")
+                if route["vehicle_type"] not in ("differential", "ackermann"):
+                    raise ValueError("固定路线车型无效")
+                poses = route["poses"]
+                if not isinstance(poses, list) or not 2 <= len(poses) <= 110:
+                    raise ValueError("固定路线必须包含2至110个位姿")
+                route["poses"] = [_route_pose(pose) for pose in poses]
+            return document
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
+            raise CatalogError(f"无法读取固定路线: {error}") from error
 
     def grid(self, map_id: str) -> GridData:
         yaml_path = self._yaml_path(map_id)

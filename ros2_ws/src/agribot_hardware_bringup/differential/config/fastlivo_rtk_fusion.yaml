@@ -29,9 +29,9 @@ fastlivo_rtk_fusion:
     required_consecutive_fixed: 3
     quality_timeout_sec: 0.30
     fixed_recent_timeout_sec: 0.50
-    # The full RDK stack showed occasional 1.37 s odometry gaps while the
-    # estimator remained healthy. Revoke motion only after a sustained stall.
-    odom_ready_timeout_sec: 1.50
+    # Tolerate short estimator gaps. Longer stalls revoke motion readiness;
+    # saved-path tasks then wait for stable recovery without losing progress.
+    odom_ready_timeout_sec: 4.00
     rtk_sync_tolerance_sec: 0.15
     imu_sync_tolerance_sec: 0.08
     seed_sync_tolerance_sec: 0.30
@@ -48,7 +48,7 @@ fastlivo_rtk_fusion:
     rtk_max_innovation_m: 1.50
     rtk_horizontal_sigma_floor_m: 0.10
     rtk_huber_delta: 1.345
-    base_to_antenna_xyz: [-0.48, 0.35, 0.748]
+    base_to_antenna_xyz: [0.44, 0.32, 0.84]
 
     # The IMU housing axes are aligned with base_link FLU. The factor constrains
     # roll and pitch only; yaw remains determined by FAST-LIVO2 and RTK motion.

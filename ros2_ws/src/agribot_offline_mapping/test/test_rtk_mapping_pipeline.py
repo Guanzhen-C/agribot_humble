@@ -124,11 +124,11 @@ def test_differential_profile_records_measured_mounts_and_filters(tmp_path):
     assert document["input_stamp_is_scan_end"] is False
     assert document["sensor_mounts"]["imu"]["xyz"] == [0.0, 0.0, 0.64]
     assert document["sensor_mounts"]["lidar"]["xyz"] == [0.47, 0.0, 0.91]
-    assert document["sensor_mounts"]["rtk"]["xyz"] == [-0.48, 0.35, 0.748]
+    assert document["sensor_mounts"]["rtk"]["xyz"] == [0.44, 0.32, 0.84]
     assert document["rtk_factor"]["antenna_to_lidar_flu_m"] == [
-        0.95,
-        -0.35,
-        0.162,
+        0.03,
+        -0.32,
+        0.07,
     ]
     assert document["point_exclusion"]["rear_person_region_base_link"][
         "maximum_x_m"
