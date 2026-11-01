@@ -10,6 +10,29 @@ from agribot_mobile_app.catalog import GridData
 from agribot_mobile_app.gateway_node import GatewayHttpServer
 
 
+@pytest.mark.parametrize("path", ["/assets/missing.js", "/assets/missing.css", "/downloads/missing.apk"])
+def test_missing_static_asset_is_not_cached_as_html(tmp_path, path):
+    (tmp_path / "index.html").write_text("<html>console</html>")
+    logger = SimpleNamespace(debug=lambda *_: None, error=lambda *_: None)
+    gateway = SimpleNamespace(semantic_service_url="", get_logger=lambda: logger)
+    server = GatewayHttpServer(("127.0.0.1", 0), gateway, tmp_path)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+    try:
+        connection.request("GET", path)
+        response = connection.getresponse()
+        assert response.status == 404
+        assert response.getheader("Cache-Control") == "no-store"
+        assert "application/json" in response.getheader("Content-Type")
+        assert b"<html>" not in response.read()
+    finally:
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 @pytest.mark.parametrize("encoding,compressed", [("gzip, deflate", True), ("GZIP; q=1", True), ("gzip;q=0", False), ("gzip;q=bad", False), ("identity", False)])
 def test_large_map_http_compression_preserves_every_grid_byte(tmp_path, encoding, compressed):
     grid = GridData(300, 300, 0.05, -3, 4, 0, bytes([0, 100, 255]) * 30000)

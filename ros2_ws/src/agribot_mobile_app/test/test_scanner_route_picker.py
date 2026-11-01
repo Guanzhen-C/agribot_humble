@@ -58,7 +58,7 @@ def test_changed_reference_does_not_silently_reuse_picks(tmp_path):
         module.SelectionStore(store.base, store.reference_csv, store.output)
 
 
-def test_extend_to_110_preserves_existing_100_points(tmp_path):
+def test_extend_beyond_110_preserves_existing_100_points(tmp_path):
     store = make_store(tmp_path)
     for index in range(100):
         store.append(index % 2, 0, 0.1)
@@ -68,7 +68,7 @@ def test_extend_to_110_preserves_existing_100_points(tmp_path):
         store.append(index % 2, 0, 0.2)
     assert store.poses[:100] == before
     assert len(store.poses) == 110
-    with pytest.raises(ValueError, match="110"):
-        store.append(0, 0, 0)
+    store.append(0, 0, 0)
+    assert len(store.poses) == 111
     reloaded = module.SelectionStore(store.base, store.reference_csv, store.output)
     assert reloaded.poses == store.poses

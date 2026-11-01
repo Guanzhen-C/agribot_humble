@@ -11,7 +11,23 @@ from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
 from std_msgs.msg import UInt8
 
 
-EARTH_RADIUS_M = 6378137.0
+class Wgs84Enu:
+    """Invert the same local WGS84 tangent frame used by GNSS localization."""
+
+    def __init__(self, latitude, longitude, altitude):
+        from pyproj import Transformer
+        self.to_ecef = Transformer.from_crs(4979, 4978, always_xy=True)
+        self.to_geodetic = Transformer.from_crs(4978, 4979, always_xy=True)
+        self.origin = self.to_ecef.transform(longitude, latitude, altitude)
+        lon, lat = math.radians(longitude), math.radians(latitude)
+        self.east = (-math.sin(lon), math.cos(lon), 0.)
+        self.north = (-math.sin(lat)*math.cos(lon), -math.sin(lat)*math.sin(lon), math.cos(lat))
+        self.up = (math.cos(lat)*math.cos(lon), math.cos(lat)*math.sin(lon), math.sin(lat))
+
+    def geodetic(self, east, north, up):
+        ecef = [self.origin[i]+east*self.east[i]+north*self.north[i]+up*self.up[i] for i in range(3)]
+        longitude, latitude, altitude = self.to_geodetic.transform(*ecef)
+        return latitude, longitude, altitude
 
 
 def yaw_to_quaternion(yaw: float):
@@ -126,7 +142,7 @@ class SimNavSatBridge(Node):
             self.origin_y + origin_offset[1],
             self.origin_z + origin_offset[2],
         )
-        self.cos_reference_lat = math.cos(math.radians(self.reference_lat))
+        self.geodetic_frame = Wgs84Enu(self.reference_lat, self.reference_lon, self.reference_alt)
         self.last_fix_stamp = None
         self.last_heading_stamp = None
 
@@ -185,11 +201,7 @@ class SimNavSatBridge(Node):
         fix.header.frame_id = "rtk_link"
         fix.status.status = NavSatStatus.STATUS_FIX
         fix.status.service = NavSatStatus.SERVICE_GPS
-        fix.latitude = self.reference_lat + math.degrees(north / EARTH_RADIUS_M)
-        fix.longitude = self.reference_lon + math.degrees(
-            east / (EARTH_RADIUS_M * max(self.cos_reference_lat, 1.0e-6))
-        )
-        fix.altitude = self.reference_alt + up
+        fix.latitude, fix.longitude, fix.altitude = self.geodetic_frame.geodetic(east, north, up)
         fix.position_covariance = [
             self.fix_covariance_xy,
             0.0,

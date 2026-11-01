@@ -32,6 +32,43 @@ def finite_pose(pose):
             and np.linalg.det(pose[:3, :3]) > 0.999)
 
 
+def sample_health_reason(sample, now, ros_time, maximum, xy_variance_limit=None):
+    if sample is None:
+        return "No localization sample"
+    if not 0 <= now-sample.received <= maximum:
+        return "Localization receipt is stale"
+    if not -.05 <= ros_time-sample.stamp <= maximum:
+        return "Localization measurement timestamp is stale or in the future"
+    covariance = sample.covariance
+    if (covariance.shape != (6, 6) or not np.isfinite(covariance).all()
+            or not np.allclose(covariance, covariance.T, rtol=1e-6, atol=1e-9)
+            or np.min(np.diag(covariance)) < 0):
+        return "Invalid localization covariance"
+    eigenvalues = np.linalg.eigvalsh(covariance)
+    if not np.isfinite(eigenvalues).all() or eigenvalues.min() < -1e-9:
+        return "Localization covariance is not positive semidefinite"
+    if xy_variance_limit is not None and np.max(np.diag(covariance)[:2]) > xy_variance_limit:
+        return "XY covariance exceeds initialization/INS limit"
+    return ""
+
+
+def motion_discontinuity(previous, current, maximum_interval=4.0):
+    """Reject discontinuities, not growing global uncertainty during GNSS loss."""
+    dt = current.stamp-previous.stamp
+    if dt <= 0:
+        return "Localization measurement timestamp did not advance"
+    # Allow physical track speed (0.78 m/s), global correction (0.25 m/s),
+    # and estimator jitter. A long outage must not silently re-anchor the pose.
+    horizon = min(dt, maximum_interval, 4.0)
+    distance = np.linalg.norm(current.pose[:3, 3]-previous.pose[:3, 3])
+    angle = Rotation.from_matrix(previous.pose[:3, :3].T @ current.pose[:3, :3]).magnitude()
+    if distance > .20 + 1.5*horizon:
+        return "Localization position discontinuity"
+    if angle > math.radians(10) + 2.0*horizon:
+        return "Localization orientation discontinuity"
+    return ""
+
+
 class Handover:
     """Stay on NavSat until independent fused poses pass a stable overlap test."""
 

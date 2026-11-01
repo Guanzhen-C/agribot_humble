@@ -54,6 +54,7 @@
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>nav2_behavior_tree</test_depend>
   <test_depend>ament_index_cpp</test_depend>
+  <test_depend>python3-pyproj</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

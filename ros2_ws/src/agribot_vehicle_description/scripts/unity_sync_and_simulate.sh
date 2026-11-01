@@ -2,10 +2,12 @@
 
 set -Eeuo pipefail
 
-WORKSPACE="${AGRIBOT_ROS_WORKSPACE:-$HOME/agribot_ws/ros2_ws}"
+SCRIPT_WORKSPACE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+WORKSPACE="${AGRIBOT_ROS_WORKSPACE:-$SCRIPT_WORKSPACE}"
 EXPORT_DIR=""
 SCENARIO="${AGRIBOT_SIM_SCENARIO:-orchard}"
 SCENE_MANIFEST=""
+SIMULATION_PROFILE=""
 GUI="${AGRIBOT_SIM_GUI:-true}"
 RVIZ="${AGRIBOT_SIM_RVIZ:-true}"
 RUN_WAYPOINTS="${AGRIBOT_SIM_RUN_WAYPOINTS:-false}"
@@ -13,7 +15,7 @@ ALGORITHM="${AGRIBOT_SIM_ALGORITHM:-fastlivo_rtk_mppi}"
 PERCEPTION="${AGRIBOT_SIM_PERCEPTION:-stvl}"
 VISION="${AGRIBOT_SIM_VISION:-off}"
 VISION_PYTHON="${AGRIBOT_VISION_PYTHON:-}"
-VISION_MODEL_DIR="${AGRIBOT_VISION_MODEL_DIR:-$HOME/.local/share/agribot/vision_models}"
+VISION_MODEL_DIR="${AGRIBOT_VISION_MODEL_DIR:-$WORKSPACE/../resources/vision_models}"
 VISION_DEVICE="${AGRIBOT_VISION_DEVICE:-}"
 LOCALIZATION="${AGRIBOT_SIM_LOCALIZATION:-fastlivo_rtk}"
 PLANNER="${AGRIBOT_SIM_PLANNER:-smac_hybrid}"
@@ -257,6 +259,7 @@ Options:
   --run-waypoints BOOL   Run a preset validation route (default: false; select poses in RViz)
   --scenario ID          orchard, arable_field, greenhouse, farmyard, tomato_greenhouse, strawberry_field, vineyard, vegetable_field or wide_headland
   --scene-manifest PATH  Use an imported local LCC2 scene with the selected vehicle and algorithms
+  --simulation-profile PATH  Run an accepted fixed-route scene/vehicle profile
   --perception ID        Select perception plugin: stvl or voxel
   --vision ID            Select independent visual perception algorithm
   --localization ID      Select localization adapter
@@ -294,6 +297,11 @@ while (($#)); do
       SCENE_MANIFEST="${2:?missing value for --scene-manifest}"
       [[ -f "$SCENE_MANIFEST" ]] || { echo "ERROR: Imported scene manifest missing" >&2; exit 2; }
       SCENE_MANIFEST="$(realpath -- "$SCENE_MANIFEST")"
+      shift 2
+      ;;
+    --simulation-profile)
+      SIMULATION_PROFILE="${2:?missing value for --simulation-profile}"
+      [[ -f "$SIMULATION_PROFILE" ]] || { echo "ERROR: Fixed simulation profile missing" >&2; exit 2; }
       shift 2
       ;;
     --workspace)
@@ -426,7 +434,7 @@ if [[ "$RESOLVE_ONLY" == "true" ]]; then
   exit 0
 fi
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/agribot-unity-sim"
+STATE_DIR="${XDG_STATE_HOME:-$WORKSPACE/../.local/state}/agribot-unity-sim"
 PID_FILE="$STATE_DIR/simulation.pid"
 SID_FILE="$STATE_DIR/simulation.sid"
 BOOT_ID_FILE="$STATE_DIR/simulation.boot_id"
@@ -556,7 +564,7 @@ if [[ -n "$PHYSICAL_OUTPUT" ]]; then
   PYTHONPATH="$WORKSPACE/src/agribot_vehicle_config_tools${PYTHONPATH:+:$PYTHONPATH}" \
     /usr/bin/python3 -m agribot_vehicle_config_tools.cli export-physical \
       --workspace-src "$WORKSPACE/src" --output "$PHYSICAL_OUTPUT" \
-      --firmware-root "${AGRIBOT_HPM_FIRMWARE_ROOT:-$WORKSPACE/hpm6750evk2/build/releases/ackermann}"
+      --firmware-root "${AGRIBOT_HPM_FIRMWARE_ROOT:-$WORKSPACE/../resources/deployment/ackermann}"
   exit $?
 fi
 
@@ -621,22 +629,37 @@ set -u
 cd "$WORKSPACE"
 
 log "校验 Unity 配置并生成 ROS 文件..."
+FIXED_ROUTE_BUNDLE=""
+if [[ -n "$SIMULATION_PROFILE" ]]; then
+  FIXED_ROUTE_BUNDLE="$(python3 "$WORKSPACE/src/agribot_differential_fastlivo_mppi/scripts/fuxi_farm_profile.py" \
+    prepare-run "$SIMULATION_PROFILE" --export-config "$CONFIG_JSON" --workspace "$WORKSPACE" \
+    --runs-directory "$STATE_DIR/fuxi_farm_runs" --algorithm "$ALGORITHM")"
+  SCENE_MANIFEST="$FIXED_ROUTE_BUNDLE/scene.json"
+  RUN_WAYPOINTS=true
+  log "伏羲农场：Car3已验证配置，Smac按原104个经停点规划，无需手工选点。"
+  log "本次独立结果：$FIXED_ROUTE_BUNDLE"
+  printf '%s\n' "$FIXED_ROUTE_BUNDLE" >"$STATE_DIR/latest_fixed_route_bundle"
+else
 PYTHONPATH="$TOOLS_SOURCE${PYTHONPATH:+:$PYTHONPATH}" \
   python3 -m agribot_vehicle_config_tools.cli import-unity \
     "$EXPORT_DIR" \
     --canonical "$CANONICAL_CONFIG" \
     --workspace-src "$WORKSPACE/src" \
     --output "$GENERATED_OUTPUT"
+fi
 
 log "增量编译车辆配置工具和描述包..."
 export PATH="/usr/bin:/bin:$PATH"
 hash -r
 log "编译使用 CMake：$(command -v cmake)"
+build_packages=(agribot_vehicle_config_tools agribot_farm_sim agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description agribot_k2_sim)
+[[ -n "$SIMULATION_PROFILE" ]] && build_packages+=(agribot_differential_fastlivo_mppi)
 set +e
 colcon build \
   --symlink-install \
   --parallel-workers "${AGRIBOT_BUILD_WORKERS:-4}" \
-  --packages-select agribot_vehicle_config_tools agribot_farm_sim agribot_manipulator_sim agribot_visual_perception agribot_vehicle_description agribot_k2_sim
+  --packages-ignore hikrobot_mvs_ros2 \
+  --packages-select "${build_packages[@]}"
 BUILD_RESULT=$?
 set -e
 if ((BUILD_RESULT != 0)); then
@@ -648,8 +671,8 @@ fi
 set +u
 source "$WORKSPACE/install/setup.bash"
 set -u
-if [[ -z "$VISION_PYTHON" && -x "$HOME/.local/share/agribot/vision_venv/bin/python3" ]]; then
-  VISION_PYTHON="$HOME/.local/share/agribot/vision_venv/bin/python3"
+if [[ -z "$VISION_PYTHON" && -x "$WORKSPACE/../.local/vision/vision_venv/bin/python3" ]]; then
+  VISION_PYTHON="$WORKSPACE/../.local/vision/vision_venv/bin/python3"
 fi
 ros2 pkg prefix agribot_vehicle_description >/dev/null
 ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
@@ -673,6 +696,13 @@ export ROS_DOMAIN_ID="${AGRIBOT_SIM_ROS_DOMAIN_ID:-37}"
 export ROS_LOCALHOST_ONLY="${AGRIBOT_SIM_ROS_LOCALHOST_ONLY:-1}"
 export DISPLAY="${DISPLAY:-:0}"
 export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+if [[ -n "$SIMULATION_PROFILE" ]]; then
+  export ROS_DOMAIN_ID=93 ROS_LOCALHOST_ONLY=1
+  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  export CYCLONEDDS_URI="file://$DESCRIPTION_SOURCE/config/cyclonedds_simulation.xml"
+  export GAZEBO_MASTER_URI=http://127.0.0.1:11393
+  export GAZEBO_IP=127.0.0.1
+fi
 
 set_status "starting"
 log "启动 Gazebo 和 RViz（ROS_DOMAIN_ID=$ROS_DOMAIN_ID）..."
@@ -693,8 +723,18 @@ launch_arguments=(
 [[ -n "$VISION_PYTHON" ]] && launch_arguments+=("vision_python:=$VISION_PYTHON")
 [[ -n "$VISION_DEVICE" ]] && launch_arguments+=("vision_device:=$VISION_DEVICE")
 [[ -n "$SCENE_MANIFEST" ]] && launch_arguments+=("scene_manifest:=$SCENE_MANIFEST")
+if [[ -n "$SIMULATION_PROFILE" && "$ALGORITHM" != "stvl_off_navsat_smac_hybrid_rpp" ]]; then
+  launch_arguments+=("track_drive_plugin:=$(ros2 pkg prefix agribot_differential_fastlivo_mppi)/lib/libagribot_scanned_track_drive.so")
+fi
 
-setsid ros2 launch agribot_vehicle_description configured_ackermann_sim.launch.py \
+launch_package=agribot_vehicle_description
+launch_file=configured_ackermann_sim.launch.py
+if [[ -n "$SIMULATION_PROFILE" && "$ALGORITHM" == "stvl_off_navsat_smac_hybrid_rpp" ]]; then
+  launch_package=agribot_differential_fastlivo_mppi
+  launch_file=scanned_saved_route_validation.launch.py
+  launch_arguments=("bundle:=$FIXED_ROUTE_BUNDLE" "gui:=$GUI" "rviz:=$RVIZ" "keep_result:=true" "plan_manual_points:=true")
+fi
+setsid ros2 launch "$launch_package" "$launch_file" \
   "${launch_arguments[@]}" 9>&- &
 SIM_PID=$!
 SIM_SID=""

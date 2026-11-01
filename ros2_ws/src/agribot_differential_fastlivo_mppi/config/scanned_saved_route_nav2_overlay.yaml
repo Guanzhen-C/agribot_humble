@@ -1,0 +1,12 @@
+# Only for the forward-only saved route on the configured small tracked model.
+# Physical chassis and the original hardware navigation configuration are unchanged.
+FollowPath:
+  wz_std: 0.24
+  PathAlignCritic:
+    cost_weight: 12.0
+    trajectory_point_step: 2
+    offset_from_furthest: 4
+  PathAngleCritic:
+    forward_preference: true
+    max_angle_to_furthest: 0.35
+    cost_weight: 4.0

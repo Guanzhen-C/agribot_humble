@@ -39,6 +39,7 @@ public:
   virtual uint32_t commandId() const = 0;
   virtual std::vector<uint32_t> feedbackIds() const = 0;
   virtual bool usesPerFrameIntegrity() const = 0;
+  virtual bool supportsHeadlight() const {return false;}
   virtual chassis_can::Frame commandFromTwist(
     const geometry_msgs::msg::Twist & command,
     bool brake,

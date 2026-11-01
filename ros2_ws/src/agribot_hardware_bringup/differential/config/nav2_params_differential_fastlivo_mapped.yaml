@@ -93,17 +93,17 @@ controller_server:
       # Keep angular exploration conservative on the tracked chassis. Its
       # steering response is slower than the controller update rate.
       wz_std: 0.08
-      # 800 command level measured with the desktop GUI corresponds to 0.42 m/s.
-      # The CAN adapter also caps each track at level 800 during combined motion.
-      vx_max: 0.42
+      # At v=0.50 and w=0.90, the outer track needs 0.77 m/s. The measured
+      # level-1600 limit allows 0.78 m/s without clipping combined motion.
+      vx_max: 0.50
       vx_min: -0.15
       vy_max: 0.0
-      wz_max: 0.80
+      wz_max: 0.90
       ax_max: 0.5
       ax_min: -0.5
       ay_min: 0.0
       ay_max: 0.0
-      az_max: 0.3
+      az_max: 0.5
       iteration_count: 1
       temperature: 0.3
       gamma: 0.015

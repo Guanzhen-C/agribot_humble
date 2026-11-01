@@ -18,6 +18,7 @@ from geometry_msgs.msg import Twist
 from rclpy.context import Context
 from rclpy.executors import SingleThreadedExecutor
 from scout_msgs.msg import ScoutStatus
+from std_srvs.srv import SetBool
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
@@ -37,7 +38,7 @@ def packet(can_id, payload, counter):
     return struct.pack(">BBBI", 0x5A, 8, 0, can_id) + payload + b"\xa5"
 
 
-def run_case(monkeypatch, read_only, initially_busy=False):
+def run_case(monkeypatch, read_only, initially_busy=False, exercise_headlight=False):
     binary = Path(os.environ.get("CHASSIS_CAN_NODE", DEFAULT_BINARY))
     if not binary.is_file():
         pytest.skip("build differential_chassis_can_node first")
@@ -59,6 +60,10 @@ def run_case(monkeypatch, read_only, initially_busy=False):
     publisher = node.create_publisher(Twist, command_topic, 10)
     command_message = Twist()
     command_message.linear.x = 0.2
+    if exercise_headlight:
+        command_message.linear.x = 0.0
+    light_client = node.create_client(SetBool, "/hardware/set_headlight")
+    light_futures = []
     master, slave = pty.openpty()
     tty.setraw(slave)
     os.set_blocking(master, False)
@@ -120,9 +125,18 @@ def run_case(monkeypatch, read_only, initially_busy=False):
                 counter += 1
                 next_frame = time.monotonic() + 0.10
             publisher.publish(command_message)
+            if exercise_headlight and light_client.service_is_ready():
+                if not light_futures and elapsed >= 2.0:
+                    light_futures.append(light_client.call_async(SetBool.Request(data=True)))
+                elif len(light_futures) == 1 and elapsed >= 3.5:
+                    light_futures.append(light_client.call_async(SetBool.Request(data=False)))
             executor.spin_once(timeout_sec=0.02)
             drain()
         subscription_count = publisher.get_subscription_count()
+        if exercise_headlight:
+            assert len(light_futures) == 2
+            assert all(future.done() and future.result().success == (not read_only)
+                       for future in light_futures)
     finally:
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)
@@ -170,3 +184,23 @@ def test_legacy_control_mode_still_sends_commands_on_simulated_transport(monkeyp
     wire, subscriptions, _, _ = run_case(monkeypatch, False)
     assert subscriptions == 1
     assert b"\x5a\x08\x00\x00\x00\x05\x14" in wire
+
+
+def test_headlight_service_cannot_transmit_in_receive_only_mode(monkeypatch):
+    wire, subscriptions, _, _ = run_case(monkeypatch, True, exercise_headlight=True)
+    assert subscriptions == 0
+    assert b"\x5a\x08\x00" not in wire
+
+
+def test_headlight_service_switches_real_encoded_can_bit_without_motion(monkeypatch):
+    wire, _, _, _ = run_case(monkeypatch, False, exercise_headlight=True)
+    marker = b"\x5a\x08\x00\x00\x00\x05\x14"
+    payloads = []
+    offset = 0
+    while (offset := wire.find(marker, offset)) >= 0:
+        payloads.append(wire[offset + 7:offset + 15])
+        offset += 16
+    assert any(payload[3] == 1 for payload in payloads)
+    first_on = next(i for i, payload in enumerate(payloads) if payload[3] == 1)
+    assert any(payload[3] == 0 for payload in payloads[first_on + 1:])
+    assert all(payload[:3] == b"\x00\x00\x00" for payload in payloads)

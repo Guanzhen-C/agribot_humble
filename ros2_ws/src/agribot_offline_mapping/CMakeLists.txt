@@ -86,6 +86,7 @@ install(PROGRAMS
   scripts/finalize_lio_sam_map.py
   scripts/clean_navigation_grid_regions.py
   scripts/prepare_lixel_navigation_map.py
+  scripts/export_lixel_capture_trajectory.py
   scripts/create_capture_route_preset.py
   scripts/import_semantic_graph_neo4j.py
   scripts/manual_landmark_editor.py
@@ -127,6 +128,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_rtk_lever_arm Eigen3::Eigen)
   ament_add_pytest_test(test_finalize_lio_sam_map test/test_finalize_lio_sam_map.py)
   ament_add_pytest_test(test_prepare_lixel_navigation_map test/test_prepare_lixel_navigation_map.py)
+  ament_add_pytest_test(test_export_lixel_capture_trajectory test/test_export_lixel_capture_trajectory.py)
   ament_add_pytest_test(test_create_capture_route_preset test/test_create_capture_route_preset.py)
   ament_add_pytest_test(test_clean_navigation_grid_regions test/test_clean_navigation_grid_regions.py)
   ament_add_pytest_test(

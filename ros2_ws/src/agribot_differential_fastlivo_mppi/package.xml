@@ -6,14 +6,18 @@
 
   <maintainer email="cgz@example.com">cgz</maintainer>
   <license>MIT</license>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <depend>gazebo_dev</depend>
+  <build_depend>gazebo_ros</build_depend>
+  <build_depend>geometry_msgs</build_depend>
 
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>agribot_hardware_bringup</exec_depend>
-  <exec_depend>agribot_mobile_app</exec_depend>
+  <exec_depend>agribot_vehicle_description</exec_depend>
   <exec_depend>gazebo_msgs</exec_depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>fast_livo</exec_depend>
@@ -28,6 +32,12 @@
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-pyproj</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>scout_gazebo</exec_depend>
@@ -35,7 +45,9 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>xacro</exec_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

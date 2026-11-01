@@ -34,6 +34,52 @@ def tool_call(name='list_scenes', arguments='{}'):
         dict(id='call_scene_1', type='function', function=dict(name=name, arguments=arguments))])}
 
 
+def add_fuxi_profile(root):
+    import hashlib
+    folder = add_scene(root, '伏羲农场') / 'fixed_104'
+    template = folder / 'template'
+    template.mkdir(parents=True)
+    route = json.dumps(dict(manual_poses=[dict(x=i, y=0, yaw=0) for i in range(104)]))
+    (template / 'saved_route.json').write_text(route)
+    (folder / 'baseline_result.json').write_text(json.dumps(dict(passed=True, diagnostic_only=False,
+        anchor_count=104, controller_plugin='agribot_vehicle_description::PositionOnlyRegulatedPurePursuitController')))
+    (folder / 'profile.json').write_text(json.dumps(dict(id='fuxi_farm_104', route_mode='smac_preset_waypoints',
+        vehicle_id='unity_car3', algorithm_id='stvl_off_navsat_smac_hybrid_rpp', template='template',
+        route_sha256=hashlib.sha256(route.encode()).hexdigest())))
+    catalog = json.loads((root / 'catalog.json').read_text())
+    catalog['scenarios'][0]['simulationProfile'] = str(folder / 'profile.json')
+    (root / 'catalog.json').write_text(json.dumps(catalog))
+    return template
+
+
+def test_fuxi_uses_existing_smac_recipe_and_only_its_verified_car3_mounting(library):
+    add_fuxi_profile(library)
+    rows, knowledge = assistant.assistant_catalog(SRC)
+    selected = [row for row in rows if row['scene'] == 'scan_fixture']
+    assert len(selected) == 1
+    row = selected[0]
+    assert (row['car'], row['implement']) == ('Car3', 'none')
+    assert row['algorithm'] == 'stvl_off_navsat_smac_hybrid_rpp'
+    assert row['allowedComponents']['planner'] == ['smac_hybrid']
+    assert row['allowedComponents']['controller'] == ['rpp']
+    summary = list_scenes(knowledge)['imported_scenes'][0]['simulationProfile']
+    assert summary['waypointCount'] == 104 and summary['routeMode'] == 'smac_preset_waypoints'
+    assert str(library) not in json.dumps(list_scenes(knowledge), ensure_ascii=False)
+    choice = next(c for c in knowledge['choices'] if c['id'] == row['id'])
+    assert choice['familiar'] is True
+    result = assistant.validate_reply(dict(recommendations=[dict(candidate_id=row['id'], reason='采用已验证的KF-GINS、Smac与RPP方案，自动使用原104个点。')]), rows)
+    assert result['recommendations'][0]['algorithm'] == row['algorithm']
+
+
+def test_fuxi_does_not_inherit_success_from_name_or_stale_route(library):
+    folder = add_scene(library, '伏羲农场')
+    rows, _ = assistant.assistant_catalog(SRC)
+    assert next(row for row in rows if row['id'] == 'Car3|scan_fixture|none')['algorithm'].endswith('_mppi')
+    template = add_fuxi_profile(library)
+    (template / 'saved_route.json').write_text('{}')
+    assert imported_scenes() == []
+
+
 def test_scene_groups_counts_and_imported_choices_are_not_default_scene_proof(library):
     add_scene(library, '苹果园')
     rows, knowledge = assistant.assistant_catalog(SRC)
@@ -284,5 +330,25 @@ def test_http_function_call_is_not_misparsed_as_final_json(monkeypatch):
         payload = json.loads(request.data)
         assert payload['tools'][0]['function']['name'] == 'list_scenes'
         return Response()
-    monkeypatch.setattr(assistant.urllib.request, 'urlopen', open_request)
+    monkeypatch.setattr(assistant, 'model_urlopen', open_request)
     assert assistant.request_model_reply(dict(tools=[assistant.SCENE_TOOL])) == {'_tool_message': message}
+
+
+def test_named_import_in_garage_must_load_real_catalog_before_recommendation(library):
+    add_scene(library, '伏羲农场')
+    rows, knowledge = assistant.assistant_catalog(SRC)
+    calls = []
+    def model(payload):
+        calls.append(1)
+        if len(calls) == 1:
+            assert payload['tool_choice'] == dict(type='function', function=dict(name='list_scenes'))
+            return tool_call()
+        imported = json.loads(payload['messages'][-1]['content'])['imported_scenes']
+        assert imported[0]['name'] == '伏羲农场'
+        return dict(answer='选择实际导入的场景。', recommendations=[dict(
+            candidate_id='Car3|scan_fixture|none', action='configuration', reason='使用实际导入场景，不替换成内置宽地头。')])
+    result = assistant.recommend('在伏羲农场使用Car3，请给我方案。', rows, model, knowledge=knowledge,
+                                 context=dict(page='garage', car='', scene=''))
+    assert result['sceneToolUsed'] is True and len(calls) == 2
+    assert result['recommendations'][0]['scene'] == 'scan_fixture'
+    assert result['recommendations'][0]['sceneName'] == '伏羲农场'

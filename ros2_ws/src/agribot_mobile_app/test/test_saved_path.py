@@ -34,6 +34,20 @@ def fixture_store(tmp_path):
     return store,files,doc,output
 
 
+@pytest.mark.parametrize("count,trigger", [(132,126),(233,None)])
+def test_large_saved_route_retains_every_start_marker_and_localization_policy(tmp_path,count,trigger):
+    store,_,doc,output=fixture_store(tmp_path)
+    route=doc["routes"][0]
+    route.update(path=[{"x":i*.1,"y":0.,"yaw":0.} for i in range(count*2)],
+                 anchor_path_indices=[i*2 for i in range(count)],localization_handover_waypoint=trigger)
+    output.write_text(json.dumps(doc))
+    actual=store.load("map")["routes"][0]
+    assert len(actual["anchor_path_indices"])==count
+    assert store.public("map")["routes"][0]["localization_handover_waypoint"]==trigger
+    assert len(numbered_markers(actual,1))==count
+    assert len(store.select("map","test",count-1)[1])==4
+
+
 def test_select_suffix_preserves_dense_path_and_hides_prefix(tmp_path):
     store,files,doc,output=fixture_store(tmp_path)
     route,path=store.select("map","test",2)

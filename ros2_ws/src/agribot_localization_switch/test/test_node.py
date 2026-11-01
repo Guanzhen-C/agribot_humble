@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+import copy
+import threading
 import numpy as np
 import pytest
 import rclpy
@@ -37,7 +39,7 @@ def manager(monkeypatch, tmp_path):
     finally:node.close();node.destroy_node();rclpy.shutdown()
 
 
-def feed(node, clock, fused=False, bias=.1, gnss=True):
+def feed(node, clock, fused=False, bias=.1, gnss=True, fused_variances=None):
     now = clock[0]
     if gnss:
         node.quality = 4
@@ -57,6 +59,8 @@ def feed(node, clock, fused=False, bias=.1, gnss=True):
         msg.pose.pose.position.x = .2*(now-1000.)+bias
         msg.twist.twist.linear.x = .2
         msg.pose.covariance = list((np.eye(6)*.01).reshape(-1))
+        if fused_variances is not None:
+            msg.pose.covariance[0], msg.pose.covariance[7] = fused_variances
         node.fused_callback(msg)
         node.fused_ready, node.fused_ready_at = True, now
 
@@ -86,6 +90,66 @@ def test_continues_navsat_through_warmup_then_continuously_hands_over(manager):
     assert all([t.child_frame_id for t in group] == ["odom", "base_link"] for group in transforms)
 
 
+def test_slow_backend_start_never_blocks_public_localization_or_revokes_ready(manager, monkeypatch):
+    node, clock, messages, _ = manager
+    entered, release = threading.Event(), threading.Event()
+    start = node.fastlivo.start
+
+    def slow_start():
+        entered.set()
+        assert release.wait(5.)
+        start()
+
+    monkeypatch.setattr(node.fastlivo, "start", slow_start)
+    node.worker = LocalizationSwitch.worker.__get__(node)
+    flags = []
+    node.ready_pub = SimpleNamespace(publish=flags.append)
+    try:
+        feed(node, clock); node.tick(); node.flags()
+        response = node.switch_callback(Trigger.Request(), Trigger.Response())
+        assert response.success and entered.wait(1.)
+        assert node.launching and not node.fastlivo.running
+        for _ in range(30):
+            clock[0] += .1
+            feed(node, clock); node.tick(); node.flags()
+        assert len(messages) == 31
+        assert all(flag.data is True for flag in flags)
+        assert node.navsat.running and node.navsat.stops == 0
+        stamps = [m.header.stamp.sec + m.header.stamp.nanosec*1e-9 for m in messages]
+        assert max(np.diff(stamps)) <= .101
+    finally:
+        release.set()
+        for thread in node.workers:
+            thread.join(timeout=2.)
+    assert node.fastlivo.running
+
+
+def test_ready_and_velocity_remain_continuous_through_handover_and_rtk_loss(manager):
+    node, clock, messages, _ = manager
+    flags = []
+    node.ready_pub = SimpleNamespace(publish=flags.append)
+    feed(node, clock); node.tick(); node.flags()
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    for _ in range(70):
+        clock[0] += .1
+        last_x = messages[-1].pose.pose.position.x
+        feed(node, clock, fused=True)
+        node.tick(); node.flags()
+        assert len(messages) >= 2
+        assert flags[-1].data is True
+        assert abs(messages[-1].pose.pose.position.x-last_x) < .03
+        assert messages[-1].twist.twist.linear.x == .2
+    assert node.core.mode == "fastlivo_rtk"
+    assert node.navsat.stops == 1
+    node.quality = 0
+    for _ in range(60):
+        clock[0] += .1
+        feed(node, clock, fused=True, gnss=False)
+        node.tick(); node.flags()
+        assert flags[-1].data is True
+    assert len(messages) == 131
+
+
 def test_bad_new_pose_keeps_navsat_and_does_not_stop_it(manager):
     node, clock, messages, _ = manager
     node.switch_callback(Trigger.Request(), Trigger.Response())
@@ -110,14 +174,15 @@ def test_low_rate_valid_fused_frames_keep_overlap_between_updates(manager):
     assert node.core.mode == "fastlivo_rtk"
     assert index <= 48
     assert not node.navsat.running and node.fastlivo.running
-    assert len(messages) >= 40
+    assert len(messages) >= 20
+    assert clock[0]-start >= node.core.stable_sec
 
 
 def test_long_fused_gap_restarts_overlap_validation(manager):
     node, clock, _, _ = manager
     node.switch_callback(Trigger.Request(), Trigger.Response())
     feed(node, clock, fused=True); node.tick()
-    clock[0] += .9
+    clock[0] += 1.1
     feed(node, clock, fused=True); node.tick()
     assert node.core.stable_since == clock[0]
     assert node.core.mode == "navsat"
@@ -289,6 +354,167 @@ def test_completed_handover_rejects_stale_fused_source_even_with_old_ready_flag(
     node.tick()
     assert not node.fused_healthy(clock[0])
     assert len(messages) == before
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_fused_covariance_readiness_is_native_bool_and_publishable(manager, invalid):
+    node, clock, _, _ = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    node.core.stable_sec = 0.
+    feed(node, clock, fused=True); node.tick()
+    assert node.core.mode == "fastlivo_rtk"
+    flags = []
+    node.ready_pub = SimpleNamespace(publish=flags.append)
+    if invalid:
+        node.samples["fastlivo_rtk"].covariance[0, 0] = -.01
+    expected = not invalid
+    assert node.sample_healthy("fastlivo_rtk", clock[0], 4.) is expected
+    assert node.fused_healthy(clock[0]) is expected
+    node.flags()
+    assert flags[-1].data is expected
+    if invalid:
+        clock[0] += .1
+        feed(node, clock, fused=True)
+        node.tick(); node.flags()
+        assert flags[-1].data is True
+
+
+def test_high_global_covariance_still_blocks_initial_takeover(manager):
+    node, clock, messages, _ = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    for _ in range(30):
+        feed(node, clock, fused=True, fused_variances=(6.04, 2.33))
+        node.tick(); node.flags()
+        clock[0] += .1
+    assert node.core.mode == "navsat"
+    assert node.navsat.running and len(messages) == 30
+    assert "covariance" in node.fused_health_reason(clock[0])
+
+
+def test_ten_minutes_without_gnss_preserves_output_and_real_growing_covariance(manager):
+    node, clock, messages, transforms = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    node.core.stable_sec = 0.
+    feed(node, clock, fused=True); node.tick()
+    assert node.core.mode == "fastlivo_rtk"
+    flags, stages, statuses = [], [], []
+    node.ready_pub = SimpleNamespace(publish=flags.append)
+    node.stage_pub = SimpleNamespace(publish=stages.append)
+    node.status_pub = SimpleNamespace(publish=statuses.append)
+    node.quality = 0
+    for index in range(1, 1801):
+        clock[0] = 1000. + index/3.
+        variances = (6.04*index/1800., 2.33*index/1800.)
+        feed(node, clock, fused=True, gnss=False, fused_variances=variances)
+        # NavSat is no longer available indoors, even as a stale fallback.
+        node.samples.pop("navsat", None)
+        node.tick(); node.flags()
+        assert flags[-1].data is True
+    assert len(messages) == 1801 and len(transforms) == 1801
+    assert node.core.mode == "fastlivo_rtk" and not node.navsat.running
+    assert messages[-1].pose.covariance[0] == pytest.approx(6.04)
+    assert messages[-1].pose.covariance[7] == pytest.approx(2.33)
+    assert stages[-1].data == "ready"
+    assert "no fixed RTK" in statuses[-1].data
+
+
+@pytest.mark.parametrize("failure", ["backend_false", "heartbeat", "receipt", "source", "process"])
+def test_runtime_health_still_stops_on_real_failure_with_high_covariance(manager, failure):
+    node, clock, messages, _ = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    node.core.stable_sec = 0.
+    feed(node, clock, fused=True); node.tick()
+    clock[0] += .1
+    feed(node, clock, fused=True, gnss=False, fused_variances=(6.04, 2.33))
+    node.tick()
+    before = len(messages)
+    if failure == "backend_false": node.fused_ready = False
+    elif failure == "heartbeat": node.fused_ready_at = clock[0]-2.01
+    elif failure == "receipt": node.samples["fastlivo_rtk"].received = clock[0]-4.01
+    elif failure == "source": node.samples["fastlivo_rtk"].stamp = clock[0]-4.01
+    else: node.fastlivo.running = False
+    flags, stages, statuses = [], [], []
+    node.ready_pub = SimpleNamespace(publish=flags.append)
+    node.stage_pub = SimpleNamespace(publish=stages.append)
+    node.status_pub = SimpleNamespace(publish=statuses.append)
+    node.tick(); node.flags()
+    assert flags[-1].data is False and len(messages) == before
+    assert stages[-1].data == "wait_localization"
+    assert statuses[-1].data != "FAST-LIVO2/RTK active"
+
+
+def test_relaxed_handover_accepts_bounded_ins_overlap_after_fixed_gnss_loss(manager):
+    node, clock, messages, _ = manager
+    feed(node, clock); node.tick()
+    assert node.navsat_initialized
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    clock[0] += 4.2
+    for _ in range(15):
+        feed(node, clock, fused=True, gnss=False, bias=.8, fused_variances=(.7, .7))
+        assert not node.navsat_healthy(clock[0])
+        node.tick()
+        if node.core.mode == "fastlivo_rtk":
+            break
+        clock[0] += .1
+    assert node.core.mode == "fastlivo_rtk"
+    assert messages and node.fastlivo.running and not node.navsat.running
+
+
+@pytest.mark.parametrize("failure", ["stale_ins", "uncertain_ins", "dead_ins"])
+def test_gnss_loss_does_not_bypass_independent_ins_overlap_protections(manager, failure):
+    node, clock, _, _ = manager
+    feed(node, clock); node.tick()
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    clock[0] += 4.2
+    feed(node, clock, fused=True, gnss=False)
+    if failure == "stale_ins": node.samples["navsat"].received = clock[0]-1.0
+    elif failure == "uncertain_ins": node.samples["navsat"].covariance[0,0] = 1.01
+    else: node.navsat.running = False
+    assert not node.check_handover(clock[0], clock[0], False)
+    assert node.core.stable_since is None and node.core.mode == "navsat"
+
+
+@pytest.mark.parametrize("invalid", ["negative_covariance", "indefinite_covariance", "position_jump", "rotation_jump", "nan_twist"])
+def test_invalid_runtime_frame_stops_output_without_reanchoring_and_can_recover(manager, invalid):
+    node, clock, messages, _ = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    node.core.stable_sec = 0.
+    feed(node, clock, fused=True); node.tick()
+    previous = node.samples["fastlivo_rtk"]
+    bad = copy.deepcopy(node.messages["fastlivo_rtk"])
+    clock[0] += .1
+    bad.header.stamp.nanosec = 100000000
+    if invalid == "negative_covariance": bad.pose.covariance[0] = -.01
+    elif invalid == "indefinite_covariance":
+        bad.pose.covariance[1] = bad.pose.covariance[6] = 1.
+    elif invalid == "position_jump": bad.pose.pose.position.x += 5.
+    elif invalid == "rotation_jump":
+        bad.pose.pose.orientation.z, bad.pose.pose.orientation.w = 1., 0.
+    else: bad.twist.twist.linear.x = float("nan")
+    node.fused_callback(bad)
+    node.fused_ready_at = clock[0]
+    node.tick(); node.flags()
+    assert node.samples["fastlivo_rtk"] is previous and len(messages) == 1
+    assert not node.fused_healthy(clock[0])
+    clock[0] += .1
+    feed(node, clock, fused=True, gnss=False, fused_variances=(6.04, 2.33))
+    node.tick(); node.flags()
+    assert node.fused_healthy(clock[0]) and len(messages) == 2
+
+
+def test_repeated_jump_cannot_become_valid_by_waiting(manager):
+    node, clock, messages, _ = manager
+    node.switch_callback(Trigger.Request(), Trigger.Response())
+    node.core.stable_sec = 0.
+    feed(node, clock, fused=True); node.tick()
+    previous = node.samples["fastlivo_rtk"]
+    for index in range(1, 61):
+        clock[0] = 1000.+index*.1
+        feed(node, clock, fused=True, bias=5., gnss=False, fused_variances=(6.04, 2.33))
+        node.tick(); node.flags()
+        assert not node.fused_healthy(clock[0])
+        assert node.samples["fastlivo_rtk"] is previous
+    assert len(messages) == 1
 
 
 @pytest.mark.parametrize("invalid", ["frame", "quaternion", "covariance"])

@@ -37,6 +37,35 @@ def test_hundredth_anchor_not_hundredth_dense_point_and_suffix_numbering():
     assert handover_path_index(route(99), 1) is None
 
 
+def test_second_route_uses_original_126th_anchor_and_preserves_first_route():
+    second = {**route(132), "localization_handover_waypoint": 126}
+    assert handover_path_index(second, 1) == 1250
+    assert handover_path_index(second, 51) == 750
+    assert handover_path_index(second, 126) == 0
+    assert handover_path_index(second, 127) == 0
+    assert handover_path_index(route(), 1) == 990
+    node, requests, updates, _ = gateway()
+    progress = node._handover_progress_callback(second, 1)
+    progress(990)
+    progress(1249)
+    assert not requests
+    progress(1250)
+    assert len(requests) == 1
+    requests[0].set_result(SimpleNamespace(success=True))
+    assert "第126点" in updates[0][1]
+
+
+def test_third_route_never_requests_fastlivo_for_any_start_or_progress():
+    third = {**route(233), "localization_handover_waypoint": None}
+    for start in (1, 100, 126, 200, 232):
+        assert handover_path_index(third, start) is None
+        node, requests, updates, _ = gateway()
+        progress = node._handover_progress_callback(third, start)
+        for index in range(0, 2500, 10):
+            progress(index)
+        assert not requests and not updates
+
+
 def test_ordered_progress_sends_only_one_async_request():
     node, requests, updates, _ = gateway()
     progress = node._handover_progress_callback(route(), 51)

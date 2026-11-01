@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import MapView from "./MapView";
 import ConsolePanels from "./ConsolePanels";
+import HeadlightControl from "./HeadlightControl";
 import { VCU_PROFILES, VCU_SWITCH_STAGES, useBrowserVcu, useVcuConfig } from "./vcuSerial";
 import { GlassNavigation, GlassSwitch } from "./GlassNavigation";
 import {
@@ -210,6 +211,9 @@ function SavedPathPicker({ mapId, vehicleType, disabled, execute }) {
   if (!selected) return error ? <div role="alert" className="status-message">保存路径不可用：{error}</div> : <Empty>当前地图没有预先设定路径</Empty>;
   const body = { map_id: mapId, route_id: selected.id, start_point: start };
   return <div className="route-preset-controls">
+    <div className="status-message">{selected.anchor_count} 个经停点 · {selected.localization_handover_waypoint === null
+      ? "全程 KF-GINS"
+      : `第 ${selected.localization_handover_waypoint ?? 100} 点预热 FAST-LIVO2＋RTK，就绪后接管`}</div>
     <label className="field-label">已保存路径
       <select aria-label="已保存路径" value={selected.id} disabled={disabled} onChange={(event) => { setRouteId(event.target.value); setStart(1); }}>
         {routes.map((route) => <option key={route.id} value={route.id}>{route.label}</option>)}
@@ -838,7 +842,7 @@ export default function App() {
         setState((current) => ({ ...current, saved_path_preview: result }));
       }
       const replaced = Array.isArray(result.stopped) && result.stopped.length > 0;
-      setToast({ tone: "success", text: replaced ? "旧任务已退出，新任务已启动" : "命令已执行" });
+      setToast({ tone: "success", text: replaced ? "旧任务已退出，新任务已启动" : result.message || "命令已执行" });
       return result;
     } catch (error) {
       setToast({ tone: "error", text: error.message });
@@ -939,6 +943,7 @@ export default function App() {
           <Pill tone={connected ? "green" : "red"}>{connected ? <Wifi size={14} /> : <WifiOff size={14} />}{connected ? "在线" : "离线"}</Pill>
           <Pill tone={localizationReady ? "green" : "amber"}><Crosshair size={14} />{localizationReady ? "定位就绪" : "定位未就绪"}</Pill>
           <Pill tone={connected && state?.localization?.fix_quality === 4 ? "green" : "neutral"}><Satellite size={14} />RTK {connected ? state?.localization?.fix_quality ?? "--" : "--"}</Pill>
+          <HeadlightControl state={state} connected={connected} vehicleType={vehicleType} execute={execute} />
           {navActive && (
             <button type="button" className="top-stop" title="停止导航" aria-label="停止导航" onClick={() => execute("/api/v1/navigation/cancel", {})}>
               <CircleStop size={20} />

@@ -45,9 +45,13 @@ class SavedPathStore:
         for route in document["routes"]:
             identifier = validated_identifier(route["id"], "路径编号")
             poses, anchors = route["path"], route["anchor_path_indices"]
-            if identifier in ids or not 2 <= len(poses) <= 50000 or not 2 <= len(anchors) <= 110:
+            if identifier in ids or not 2 <= len(poses) <= 50000 or not 2 <= len(anchors) <= len(poses):
                 raise CatalogError("保存路径数量或编号无效")
             ids.add(identifier)
+            handover = route.get("localization_handover_waypoint", 100)
+            if handover is not None and (type(handover) is not int or handover < 1
+                    or ("localization_handover_waypoint" in route and handover > len(anchors))):
+                raise CatalogError("定位切换经停点编号无效")
             if (anchors != sorted(set(anchors)) or anchors[0] < 0 or anchors[-1] >= len(poses)
                     or any(type(index) is not int for index in anchors)):
                 raise CatalogError("路径点索引无效")
@@ -59,7 +63,9 @@ class SavedPathStore:
     def public(self, map_id):
         return {"map_id": map_id, "routes": [
             {"id": r["id"], "label": r["label"], "vehicle_type": r["vehicle_type"],
-             "anchor_count": len(r["anchor_path_indices"])} for r in self.load(map_id)["routes"]]}
+             "anchor_count": len(r["anchor_path_indices"]),
+             "localization_handover_waypoint": r.get("localization_handover_waypoint", 100)}
+            for r in self.load(map_id)["routes"]]}
 
     def select(self, map_id, route_id, start):
         route = next((r for r in self.load(map_id)["routes"] if r["id"] == route_id), None)
@@ -84,6 +90,11 @@ def numbered_markers(route, start):
 def handover_path_index(route, start, waypoint=100):
     """Index in the selected suffix, never a dense-point or proximity trigger."""
     anchors = route["anchor_path_indices"]
+    waypoint = route.get("localization_handover_waypoint", waypoint)
+    if waypoint is None:
+        return None
+    if type(waypoint) is not int or waypoint < 1:
+        raise CatalogError("定位切换经停点编号无效")
     if len(anchors) < waypoint:
         return None
     return max(0, anchors[waypoint-1] - anchors[start-1])

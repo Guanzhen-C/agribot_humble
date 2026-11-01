@@ -10,6 +10,7 @@ import urllib.request
 
 from .compatibility import GROUP_ORDER, component_cases, read_catalog, select_algorithm
 from .assistant_scenes import SCENE_TOOL, imported_scenes, list_scenes
+from .assistant_transport import model_urlopen
 
 
 EXCLUSIONS = {('Car7', 'farmyard'), ('Car9', 'farmyard'), ('Car2', 'strawberry_field')}
@@ -116,6 +117,9 @@ def assistant_catalog(workspace_src):
         extents = config['geometry']['bodyExtents']
         for scene in scenes:
             imported = scene['imported']
+            fixed_profile = scene.get('simulationProfile')
+            if fixed_profile and (car['car'] != fixed_profile['car'] or binding['implement'] != fixed_profile['implement']):
+                continue
             if not imported and scene['id'] not in catalog['sceneGroups'][binding.get('sceneGroup', car['sceneGroup'])]:
                 continue
             if not imported and ((car['car'], scene['id']) in EXCLUSIONS or
@@ -127,6 +131,13 @@ def assistant_catalog(workspace_src):
                 'GNSS为仿真生成，不代表原扫描地点的真实RTK质量；定位退化时可建议NavSat作仿真对照。'])
                 if imported else select_algorithm(catalog, binding, scene['id']))
             options = {key: list(values) for key, values in catalog['components'].items()}
+            if fixed_profile:
+                fixed = fixed_profile['components']
+                recipe = dict(algorithm='_'.join(fixed[key] for key in GROUP_ORDER), conditions=[
+                    '伏羲农场与Car3差速履带车的既有完整104点路线仿真方案：STVL、KF-GINS、Smac、RPP。',
+                    '自动使用原104个经停点；以真机相同二维底图、全局膨胀参数及运动基元重新运行Smac，轨迹逐点相同后才启动跟踪。',
+                    '其他场景仍由用户手工选点；本记录不外推到其他车型、机具或任意真实地形。'])
+                options = {key: [fixed[key]] for key in GROUP_ORDER}
             if recipe.get('allowedLocalizationModes') is not None:
                 options['localization'] = recipe['allowedLocalizationModes']
             identifier = '|'.join((car['car'], scene['id'], binding['implement']))
@@ -135,7 +146,7 @@ def assistant_catalog(workspace_src):
                 scene=scene['id'], sceneName=scene['name'], algorithm=recipe['algorithm'],
                 sceneImported=imported, sceneConfigSha256=scene.get('sceneConfigSha256', ''),
                 vehicleConfigSha256=sha(path), allowedComponents=options, conditions=recipe['conditions'],
-                guidance=('用户导入场景的待验证配置建议' if imported else
+                guidance=('沿用Car3与伏羲农场的已验证Smac方案' if fixed_profile else '用户导入场景的待验证配置建议' if imported else
                           '沿用既有运行方案' if identifier in confirmed else '按适配关系与算法条件提供建议'),
                 geometry=dict(lengthM=extents['frontM'] + extents['rearM'],
                     widthM=extents['leftM'] + extents['rightM'],
@@ -152,7 +163,7 @@ def assistant_catalog(workspace_src):
             policy_ids[signature] = str(len(policy_ids))
             policies[policy_ids[signature]] = policy
         compact_choices.append(dict(id=row['id'], policy=policy_ids[signature],
-                                   familiar=row['id'] in confirmed))
+                                   familiar=row['id'] in confirmed or row['guidance'] == '沿用Car3与伏羲农场的已验证Smac方案'))
     knowledge = dict(inventory=dict(vehicles=inventory, vehicleCount=len(inventory), countsByType=counts),
         components=catalog['components'],
         sceneCatalogVersion=hashlib.sha256(json.dumps(scenes, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
@@ -186,7 +197,7 @@ def request_model_reply(payload):
         json.dumps(payload, ensure_ascii=False).encode(),
         headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
     try:
-        with urllib.request.urlopen(request, timeout=25) as response:
+        with model_urlopen(request, timeout=25) as response:
             raw = response.read(512_001)
         if len(raw) > 512_000:
             raise InvalidModelReply('模型返回内容过大。')
@@ -310,8 +321,11 @@ def recommend(text, rows, call=None, mode='assistant', context=None, history=Non
             for k in ('counts', 'builtin_scenes', 'imported_scenes')}
     initial_knowledge['sceneCatalogStatus'] = 'unchanged' if cached else 'not_loaded'
     initial_knowledge['sceneCatalogTool'] = 'list_scenes'
+    named_import = any(scene.get('imported') and any(
+        isinstance(value, str) and value and value.casefold() in text.casefold()
+        for value in (scene.get('name'), scene.get('id'))) for scene in knowledge.get('scenes', []))
     tool_choice = ('none' if cached else dict(type='function', function=dict(name='list_scenes'))
-                   if context.get('scene') or context.get('latestImportedSceneId') else 'auto')
+                   if context.get('scene') or context.get('latestImportedSceneId') or named_import else 'auto')
     turns = [dict(role=t['role'], content=t['content'][:4000]) for t in (history or [])[-40:]
              if isinstance(t, dict) and t.get('role') in ('user', 'assistant') and isinstance(t.get('content'), str)]
     payload = dict(model='deepseek-flash', messages=[dict(role='system', content=prompt),

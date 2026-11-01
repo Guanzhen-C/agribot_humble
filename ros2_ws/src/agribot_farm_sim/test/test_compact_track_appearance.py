@@ -18,9 +18,10 @@ def configuration():
 
 def test_car3_contact_dimensions_sensors_and_appearance_scope():
     config = configuration()
-    assert config["geometry"]["wheelbaseM"] == pytest.approx(.402)
-    assert config["geometry"]["frontTrackM"] == pytest.approx(.589)
-    assert config["geometry"]["wheelRadiusM"] == pytest.approx(.22491844)
+    assert config["metadata"]["simulationTrackContactGeometry"]["revision"] == "car3_visible_idler_centers_v1"
+    assert config["geometry"]["wheelbaseM"] == pytest.approx(.8370031098)
+    assert config["geometry"]["frontTrackM"] == pytest.approx(.6011831611)
+    assert config["geometry"]["wheelRadiusM"] == pytest.approx(.1181481486)
     assert config["dynamics"]["massKg"] == 50
     assert config["sensors"][1]["pose"]["xyz"][2] == pytest.approx(.6974544525)
     assert len(config["metadata"]["simulationVisualRotors"]) == 14

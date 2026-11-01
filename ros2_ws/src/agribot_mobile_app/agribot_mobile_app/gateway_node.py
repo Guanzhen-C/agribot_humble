@@ -50,7 +50,7 @@ from rclpy.qos import (
 )
 from scout_msgs.msg import ScoutStatus
 from std_msgs.msg import Bool, String, UInt8
-from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool, Trigger
 
 from .catalog import (
     BagCatalog,
@@ -380,6 +380,9 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
         root = self.server.static_root
         candidate = root / relative_path
         if not candidate.is_file():
+            # Never cache the SPA HTML under a missing script or stylesheet URL.
+            if relative_path.suffix or relative_path.parts[0] in ("assets", "icons", "downloads", "fieldgate"):
+                raise ApiError(HTTPStatus.NOT_FOUND, "文件不存在")
             candidate = root / "index.html"
         if not candidate.is_file():
             raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "手机端静态文件尚未构建")
@@ -518,6 +521,7 @@ class MobileGateway(Node):
         self._lock = threading.RLock()
         self._condition = threading.Condition(self._lock)
         self._task_transition_lock = threading.RLock()
+        self._headlight_lock = threading.Lock()
         self._revision = 0
         self._stopping = False
         self._http_server = None
@@ -699,6 +703,8 @@ class MobileGateway(Node):
         self._navigate_to_pose = ActionClient(self, NavigateToPose, "navigate_to_pose",
                                              callback_group=self._navigation_callbacks)
         self._initialization_start_client = self.create_client(Trigger, "/localization/start")
+        self._headlight_client = self.create_client(SetBool, "/hardware/set_headlight",
+                                                   callback_group=self._chassis_callbacks)
         self._handover_client = self.create_client(Trigger, "/localization/switch_to_fastlivo",
                                                    callback_group=self._navigation_callbacks)
         self.create_subscription(String, "/localization/active_method",
@@ -1221,6 +1227,7 @@ class MobileGateway(Node):
 
     def handle_command(self, path: str, body: dict) -> dict | None:
         handlers = {
+            "/api/v1/chassis/headlight": self.set_headlight,
             "/api/v1/localization/initial-pose": self.publish_initial_pose,
             "/api/v1/localization/start": self.start_initialization,
             "/api/v1/navigation/goal": self.send_navigation_goal,
@@ -1246,6 +1253,42 @@ class MobileGateway(Node):
         except KeyError as error:
             raise ApiError(HTTPStatus.NOT_FOUND, "未知控制接口") from error
         return handler(body)
+
+    def set_headlight(self, body: dict) -> dict:
+        enabled = body.get("enabled")
+        if type(enabled) is not bool:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "enabled必须为布尔值")
+        with self._headlight_lock:
+            with self._lock:
+                vehicle = self._state["vehicle"]["id"]
+            if body.get("vehicle_type") != vehicle:
+                raise ApiError(HTTPStatus.CONFLICT, "灯光请求车型与当前底盘不一致")
+            snapshot = self._chassis_feedback.snapshot(vehicle)
+            feedback = snapshot["chassis_feedback"]
+            if not feedback["fresh"]:
+                raise ApiError(HTTPStatus.CONFLICT, "未收到有效底盘反馈，不能控制灯光")
+            if not feedback["headlight_supported"]:
+                raise ApiError(HTTPStatus.CONFLICT, "当前底盘协议不支持灯光控制")
+            if feedback["read_only"]:
+                raise ApiError(HTTPStatus.CONFLICT, "观察阶段CAN只读，请先启用底盘运行模式")
+            client = self._headlight_client
+            if not client.wait_for_service(timeout_sec=0.3):
+                raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "底盘灯光服务未就绪，请更新底盘程序")
+            request = SetBool.Request()
+            request.data = enabled
+            sent_at = time.monotonic()
+            future = client.call_async(request)
+            finished = threading.Event()
+            future.add_done_callback(lambda _: finished.set())
+            if not finished.wait(2.0):
+                raise ApiError(HTTPStatus.GATEWAY_TIMEOUT, "灯光应答超时，请检查实际灯光状态")
+            result = future.result()
+            if not result or not result.success:
+                raise ApiError(HTTPStatus.CONFLICT, result.message if result else "灯光请求失败")
+            confirmed = self._chassis_feedback.wait_for_headlight(vehicle, enabled, sent_at, timeout=0.3)
+            self._touch()
+            return {"headlight": enabled, "confirmed": confirmed,
+                    "message": "开灯指令已发送" if enabled else "关灯指令已发送"}
 
     @staticmethod
     def _stamped_pose(node: Node, pose: dict) -> PoseStamped:
@@ -1410,6 +1453,7 @@ class MobileGateway(Node):
 
     def _handover_progress_callback(self, route, start):
         threshold = handover_path_index(route, start)
+        waypoint = route.get("localization_handover_waypoint", 100)
         task = self._state["navigation"]
         lock = threading.RLock()
         request = {"future": None, "done": False, "last_try": -math.inf}
@@ -1429,7 +1473,7 @@ class MobileGateway(Node):
                     request["done"] = False
                 with self._lock:
                     if current() and request["done"]:
-                        self._saved_update("executing", "已通过第100点，KF-GINS继续定位，FAST-LIVO2＋RTK预热中")
+                        self._saved_update("executing", f"已通过第{waypoint}点，KF-GINS继续定位，FAST-LIVO2＋RTK预热中")
 
         def progress(index):
             if threshold is None or index < threshold:
@@ -1448,7 +1492,7 @@ class MobileGateway(Node):
                     return
                 request["last_try"] = now
                 if not self._handover_client.service_is_ready():
-                    self.get_logger().warning("第100点定位切换服务未就绪，保持当前定位并等待服务")
+                    self.get_logger().warning(f"第{waypoint}点定位切换服务未就绪，保持当前定位并等待服务")
                     return
                 request["future"] = self._handover_client.call_async(Trigger.Request())
                 request["future"].add_done_callback(completed)

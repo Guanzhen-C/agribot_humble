@@ -119,6 +119,10 @@ if(BUILD_TESTING)
     test/test_simulation_implement_policy.py TIMEOUT 90)
   ament_add_pytest_test(test_simulation_tracked_contact
     test/test_simulation_tracked_contact.py TIMEOUT 60)
+  ament_add_pytest_test(test_simulation_navsat_wgs84
+    test/test_simulation_navsat_wgs84.py TIMEOUT 60)
+  ament_add_pytest_test(test_simulation_continuous_tracks
+    test/test_simulation_continuous_tracks.py TIMEOUT 60)
   ament_add_pytest_test(test_simulation_terminal_stop
     test/test_simulation_terminal_stop.py TIMEOUT 180)
 endif()

@@ -367,6 +367,7 @@ async function mockApi(page, { state = mockState, onPost = () => {}, live = fals
     window.EventSource = class extends EventTarget {
       constructor() {
         super();
+        window.consoleStateEvents = this;
         this.timer = setTimeout(() => {
           this.dispatchEvent(new Event("open"));
           this.dispatchEvent(new MessageEvent("state", { data: JSON.stringify(initialState) }));
@@ -445,6 +446,102 @@ async function mockApi(page, { state = mockState, onPost = () => {}, live = fals
     await route.continue();
   });
 }
+
+for (const width of [390, 1280]) {
+  test(`accepted headlight request toggles even without light feedback, width ${width}`, async ({ page }) => {
+    const posts = [];
+    const state = { ...mockState,
+      vehicle: { ...mockState.vehicle, id: "differential" },
+      active_runtime: { ...mockState.active_runtime, vehicle_type: "differential" },
+      chassis: { ...mockState.chassis, headlight: false },
+      chassis_feedback: { fresh: true, vehicle_type: "differential", read_only: false, headlight_supported: true },
+    };
+    await mockApi(page, { state, live: true, onPost: request => posts.push(request) });
+    await page.route("**/api/v1/chassis/headlight", async route => {
+      const body = route.request().postDataJSON();
+      posts.push({ path: "/api/v1/chassis/headlight", body });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, headlight: body.enabled, confirmed: false }) });
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const on = page.getByRole("button", { name: "开灯", exact: true });
+    await expect(on).toBeEnabled();
+    await expect(on).toHaveAttribute("aria-pressed", "false");
+    await on.click();
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0]).toEqual({ path: "/api/v1/chassis/headlight", body: { vehicle_type: "differential", enabled: true } });
+    await expect(page.getByRole("button", { name: "关灯", exact: true })).toBeVisible();
+    const confirmed = { ...state, chassis: { ...state.chassis, headlight: false } };
+    await page.evaluate(data => window.consoleStateEvents.dispatchEvent(new MessageEvent("state", { data: JSON.stringify(data) })), confirmed);
+    const off = page.getByRole("button", { name: "关灯", exact: true });
+    await expect(off).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `/tmp/agribot-headlight-${width}.png`, fullPage: true });
+    await off.click();
+    await expect.poll(() => posts.length).toBe(2);
+    expect(posts[1]).toEqual({ path: "/api/v1/chassis/headlight", body: { vehicle_type: "differential", enabled: false } });
+    await expect(page.getByRole("button", { name: "开灯", exact: true })).toHaveAttribute("aria-pressed", "false");
+  });
+}
+
+for (const [reason, fields] of [
+  ["观察阶段CAN只读", { read_only: true }],
+  ["当前底盘协议不支持灯光控制", { headlight_supported: false }],
+  ["等待有效底盘反馈", { fresh: false }],
+]) {
+  test(`headlight is disabled: ${reason}`, async ({ page }) => {
+    const posts = [];
+    await mockApi(page, { live: true, onPost: request => posts.push(request), state: { ...mockState,
+      chassis: { ...mockState.chassis, headlight: false },
+      chassis_feedback: { fresh: true, vehicle_type: "ackermann", read_only: false, headlight_supported: true, ...fields },
+    } });
+    await page.goto("/");
+    const button = page.getByRole("button", { name: "开灯", exact: true });
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAttribute("title", reason);
+    expect(posts).toEqual([]);
+  });
+}
+
+test("headlight rejection keeps actual CAN state and displays the error", async ({ page }) => {
+  await mockApi(page, { live: true, state: { ...mockState,
+    chassis: { ...mockState.chassis, headlight: false },
+    chassis_feedback: { fresh: true, vehicle_type: "ackermann", read_only: false, headlight_supported: true },
+  } });
+  await page.route("**/api/v1/chassis/headlight", route => route.fulfill({ status: 504,
+    contentType: "application/json", body: JSON.stringify({ error: "灯光反馈未确认" }) }));
+  await page.goto("/");
+  const button = page.getByRole("button", { name: "开灯", exact: true });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.getByRole("status")).toContainText("灯光反馈未确认");
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+});
+
+test("three saved routes expose distinct localization policies without executing", async ({ page }) => {
+  const posts=[];
+  await mockApi(page,{live:true,onPost:r=>posts.push(r),state:{...mockState,
+    active_runtime:{...mockState.active_runtime,vehicle_type:"differential"},navigation:{status:"idle"}}});
+  await page.route("**/api/v1/maps/*/saved-paths",route=>route.fulfill({contentType:"application/json",body:JSON.stringify({routes:[
+    {id:"manual104_saved",label:"第一条路线",anchor_count:104,localization_handover_waypoint:100},
+    {id:"manual_route2_132_saved",label:"第二条路线",anchor_count:132,localization_handover_waypoint:126},
+    {id:"manual_route3_233_saved",label:"第三条路线",anchor_count:233,localization_handover_waypoint:null},
+  ]})}));
+  await page.goto("/");
+  await page.getByRole("button",{name:"经停点",exact:true}).click();
+  await page.getByRole("button",{name:"预先设定路径",exact:true}).click();
+  const picker=page.getByLabel("已保存路径",{exact:true});
+  await expect(picker.locator("option")).toHaveCount(3);
+  await picker.selectOption("manual_route2_132_saved");
+  await expect(page.getByText(/132 个经停点.*第 126 点预热/)).toBeVisible();
+  await picker.selectOption("manual_route3_233_saved");
+  await expect(page.getByText("233 个经停点 · 全程 KF-GINS",{exact:true})).toBeVisible();
+  await page.getByLabel("保存路径起点").selectOption("232");
+  await page.getByRole("button",{name:"预览后续路径",exact:true}).click();
+  await expect.poll(()=>posts.length).toBe(1);
+  expect(posts[0]).toEqual({path:"/api/v1/navigation/saved-path/preview",body:{map_id:"map_lio_sam_0811",route_id:"manual_route3_233_saved",start_point:232}});
+  await page.screenshot({path:"/tmp/agribot-three-saved-routes.png",fullPage:true});
+});
 
 test("physical configuration import is optional and does not start a vehicle", async ({ page }) => {
   const requests = [];

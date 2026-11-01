@@ -35,6 +35,12 @@ def main():
                             "anchor_path_indices": indices,
                             "manual_poses": anchors, "source_manual_sha256": sha256(args.manual),
                             "source_path_sha256": sha256(args.path_csv)}]}
+    source_route = manual["routes"][0]
+    if "localization_handover_waypoint" in source_route:
+        saved = document["routes"][0]
+        saved["id"] = source_route["id"] + "_saved"
+        saved["label"] = source_route["label"] + "规划路径"
+        saved["localization_handover_waypoint"] = source_route["localization_handover_waypoint"]
     with args.output.open("x") as stream:
         json.dump(document, stream, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     print(f"Saved {len(path)} path poses, {len(indices)} start markers: {args.output}")

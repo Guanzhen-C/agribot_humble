@@ -255,7 +255,7 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert follow_path["model_dt"] == pytest.approx(1.0 / chassis["send_rate_hz"])
     assert follow_path["time_steps"] * follow_path["model_dt"] == pytest.approx(4.0)
     assert follow_path["wz_std"] == pytest.approx(0.08)
-    assert follow_path["az_max"] == pytest.approx(0.30)
+    assert follow_path["az_max"] == pytest.approx(0.50)
     assert follow_path["enforce_path_inversion"] is True
     assert follow_path["PathAlignCritic"]["cost_weight"] == pytest.approx(2.5)
     assert follow_path["PathAngleCritic"]["cost_weight"] == pytest.approx(2.0)
@@ -277,10 +277,21 @@ def test_differential_config_uses_state_lattice_and_mppi_diff_drive():
     assert chassis["command_full_scale_level"] == drivetrain[
         "command_full_scale_level"
     ]
-    assert chassis["max_command_level"] == drivetrain["max_command_level"] == 800.0
+    assert chassis["max_command_level"] == drivetrain["max_command_level"] == 1600.0
     assert chassis["max_linear_velocity"] == calibration["motion"][
         "commissioning_linear_velocity_mps"
-    ] == 0.42
+    ] == 0.50
+    assert chassis["max_angular_velocity"] == calibration["motion"][
+        "commissioning_angular_velocity_radps"
+    ] == 0.90
+    assert follow_path["ax_max"] == pytest.approx(0.5)
+    assert follow_path["ax_min"] == pytest.approx(-0.5)
+    assert follow_path["vx_std"] == pytest.approx(0.12)
+    maximum_track_speed = (
+        follow_path["vx_max"] + follow_path["wz_max"] * chassis["track_width_m"] / 2
+    )
+    assert maximum_track_speed == pytest.approx(0.77)
+    assert maximum_track_speed <= drivetrain["command_calibration_wheel_speeds_mps"][-1]
     assert chassis["command_calibration_levels"] == drivetrain[
         "command_calibration_levels"
     ]

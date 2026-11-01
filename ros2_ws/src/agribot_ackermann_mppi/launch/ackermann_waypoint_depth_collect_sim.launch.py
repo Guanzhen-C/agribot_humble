@@ -615,6 +615,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("use_static_map", default_value="true"),
             DeclareLaunchArgument("localization_mode", default_value="navsat"),
+            DeclareLaunchArgument("sim_navsat_odom_topic", default_value="/odom"),
             DeclareLaunchArgument("enable_slam_map", default_value="false"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
             DeclareLaunchArgument("autostart", default_value="true"),
@@ -833,7 +834,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "use_sim_time": True,
-                        "odom_topic": "/odom",
+                        "odom_topic": LaunchConfiguration("sim_navsat_odom_topic"),
                         "ground_truth_topic": "/base_pose_ground_truth",
                         "fix_topic": "/navsat/fix",
                         "quality_topic": "/rtk/fix_quality",

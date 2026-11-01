@@ -11,6 +11,7 @@ class ChassisFeedback:
     def __init__(self, clock=time.monotonic):
         self._clock = clock
         self._lock = threading.RLock()
+        self._condition = threading.Condition(self._lock)
         self.reset()
 
     def reset(self):
@@ -20,6 +21,7 @@ class ChassisFeedback:
             self._diagnostic = None
             self._diagnostic_received = None
             self._vehicle = None
+            self._condition.notify_all()
 
     def update_status(self, message):
         data = {
@@ -38,9 +40,14 @@ class ChassisFeedback:
                 data[f"{side}_rpm"] = float(message.motor_states[index].rpm)
         if not all(math.isfinite(value) for value in data.values()):
             return
+        data["headlight"] = (
+            bool(message.front_light_state.mode)
+            if getattr(message, "light_control_enabled", False) else None
+        )
         with self._lock:
             self._data = data
             self._received = self._clock()
+            self._condition.notify_all()
 
     def update_diagnostic(self, status):
         vehicle = status.name.rsplit("/", 1)[-1]
@@ -53,6 +60,21 @@ class ChassisFeedback:
                 "values": {value.key: value.value for value in status.values},
             }
             self._diagnostic_received = self._clock()
+            self._condition.notify_all()
+
+    def wait_for_headlight(self, vehicle, enabled, since, timeout=2.0):
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while True:
+                state = self.snapshot(vehicle)
+                chassis = state["chassis"]
+                if (chassis is not None and self._received >= since
+                        and chassis.get("headlight") is enabled):
+                    return True
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._condition.wait(remaining)
 
     def snapshot(self, vehicle):
         with self._lock:
@@ -87,6 +109,7 @@ class ChassisFeedback:
                 "vehicle_type": self._vehicle,
                 "age_sec": age,
                 "read_only": values.get("read_only") == "true",
+                "headlight_supported": values.get("headlight_supported") == "true",
                 "message": message,
                 "error": error,
             }

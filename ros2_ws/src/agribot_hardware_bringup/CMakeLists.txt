@@ -60,6 +60,7 @@ ament_target_dependencies(chassis_can_common
   rclcpp
   scout_msgs
   std_msgs
+  std_srvs
 )
 
 add_library(differential_chassis_can

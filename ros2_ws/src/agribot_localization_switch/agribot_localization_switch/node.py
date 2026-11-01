@@ -20,7 +20,7 @@ from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 
 from .children import EstimatorProcess
-from .core import Handover, Sample, finite_pose
+from .core import Handover, Sample, finite_pose, motion_discontinuity, sample_health_reason
 
 
 def stamp_seconds(stamp):
@@ -58,8 +58,23 @@ class LocalizationSwitch(Node):
             raise ValueError("navsat_gnss_holdover_sec must be in [0.5, 4.0]")
         self.navsat_initialized = False
         self.last_fix_stamp = -math.inf
-        self.core = Handover()
+        self.handover_xy_variance = float(self.declare_parameter("handover_xy_variance_limit", 1.0).value)
+        self.handover_prediction_sec = float(self.declare_parameter("handover_prediction_sec", .5).value)
+        stable = float(self.declare_parameter("handover_stable_sec", 1.0).value)
+        distance = float(self.declare_parameter("handover_max_distance_m", 1.0).value)
+        angle = float(self.declare_parameter("handover_max_angle_deg", 20.0).value)
+        for name, value, lower, upper in (
+                ("handover_xy_variance_limit", self.handover_xy_variance, .25, 1.0),
+                ("handover_prediction_sec", self.handover_prediction_sec, .2, .5),
+                ("handover_stable_sec", stable, .5, 5.),
+                ("handover_max_distance_m", distance, .1, 1.),
+                ("handover_max_angle_deg", angle, 5., 20.)):
+            if not math.isfinite(value) or not lower <= value <= upper:
+                raise ValueError(f"{name} must be in [{lower}, {upper}]")
+        self.core = Handover(stable_sec=stable, max_distance=distance, max_angle_deg=angle)
         self.samples, self.messages = {}, {}
+        self.sample_errors = {}
+        self.motion_horizon = 4.0
         self.navsat_history = deque(maxlen=500)
         self.raw_history = deque(maxlen=100)
         self.quality, self.quality_at = None, -math.inf
@@ -70,6 +85,7 @@ class LocalizationSwitch(Node):
         self.last_source_stamp = None
         self.last_overlap_stamp = None
         self.last_overlap_log = -math.inf
+        self.last_health_status = None
         self.last_tick = time.monotonic()
         self.launching = False
         self.launch_error = ""
@@ -132,6 +148,7 @@ class LocalizationSwitch(Node):
 
     def receive(self, name, message):
         if message.header.frame_id.lstrip("/") != "map" or message.child_frame_id != "base_link":
+            self.sample_errors[name] = "Localization frame is not map/base_link"
             return
         try:
             twist = message.twist.twist
@@ -139,15 +156,32 @@ class LocalizationSwitch(Node):
             velocity = np.array([twist.linear.x, twist.linear.y, twist.linear.z])
             angular = np.array([twist.angular.x, twist.angular.y, twist.angular.z])
             if not np.isfinite(covariance).all() or not np.isfinite(velocity).all() or not np.isfinite(angular).all():
+                self.sample_errors[name] = "Non-finite localization covariance or twist"
                 return
             sample = Sample(stamp_seconds(message.header.stamp), time.monotonic(),
                             matrix(message.pose.pose), velocity, angular, covariance)
             if sample.stamp <= self.samples.get(name, sample).stamp and name in self.samples:
                 return
+            reason = sample_health_reason(sample, sample.received,
+                                          self.get_clock().now().nanoseconds*1e-9, 4.0)
+            if not reason and name == "fastlivo_rtk" and self.core.mode == "fastlivo_rtk":
+                previous = self.samples[name]
+                reason = motion_discontinuity(previous, sample, self.motion_horizon)
+                if reason:
+                    # Repeating an outlier must not enlarge its acceptance
+                    # envelope simply because the valid output is now older.
+                    self.motion_horizon = min(self.motion_horizon, sample.stamp-previous.stamp)
+                else:
+                    self.motion_horizon = 4.0
+            if reason:
+                self.sample_errors[name] = reason
+                return
             self.samples[name], self.messages[name] = sample, message
+            self.sample_errors.pop(name, None)
             if name == "navsat":
                 self.navsat_history.append(sample)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, np.linalg.LinAlgError):
+            self.sample_errors[name] = "Invalid localization pose or covariance"
             return
 
     def navsat_callback(self, message):
@@ -198,20 +232,32 @@ class LocalizationSwitch(Node):
         # A single bad/missing observation must not cancel an otherwise healthy INS.
         return 0 <= now-self.fix_at <= self.gnss_holdover_sec
 
-    def sample_healthy(self, name, now, maximum):
-        sample = self.samples.get(name)
-        if sample is None or now-sample.received > maximum:
-            return False
-        age = self.get_clock().now().nanoseconds*1e-9 - sample.stamp
-        variances = np.diag(sample.covariance)[:2]
-        return -.05 <= age <= maximum and np.all((variances >= 0) & (variances <= .25))
+    def sample_healthy(self, name, now, maximum, xy_variance_limit=.25):
+        return not (self.sample_errors.get(name) or sample_health_reason(
+            self.samples.get(name), now, self.get_clock().now().nanoseconds*1e-9,
+            maximum, xy_variance_limit))
+
+    def fused_health_reason(self, now, maximum=4.0):
+        if not self.fastlivo.alive():
+            return "FAST-LIVO2/RTK process is not running"
+        if not self.fused_ready or not 0 <= now-self.fused_ready_at <= 2.0:
+            return "FAST-LIVO2/RTK backend is not ready or its heartbeat is stale"
+        # Absolute map covariance grows without GNSS. It is an initialization
+        # gate, not evidence of a stalled/broken local odometry after takeover.
+        limit = self.handover_xy_variance if self.core.mode != "fastlivo_rtk" else None
+        return self.sample_errors.get("fastlivo_rtk") or sample_health_reason(
+            self.samples.get("fastlivo_rtk"), now,
+            self.get_clock().now().nanoseconds*1e-9, maximum, limit)
 
     def fused_healthy(self, now, maximum=4.0):
-        return (self.fused_ready and now-self.fused_ready_at <= 1.0
-                and self.sample_healthy("fastlivo_rtk", now, maximum) and self.fastlivo.alive())
+        return not self.fused_health_reason(now, maximum)
 
     def check_handover(self, now, ros_time, navsat_ok):
-        if not (navsat_ok and self.fused_healthy(now, .75)):
+        # Losing GNSS must not veto a switch while the independent INS still
+        # supplies fresh, bounded-uncertainty poses for the overlap comparison.
+        overlap_ok = navsat_ok or (self.navsat_initialized and self.navsat.alive()
+            and self.sample_healthy("navsat", now, .75, self.handover_xy_variance))
+        if not (overlap_ok and self.fused_healthy(now, 1.0)):
             if now-self.last_overlap_log >= 5.0:
                 self.last_overlap_log = now
                 sample = self.samples.get("fastlivo_rtk")
@@ -225,13 +271,13 @@ class LocalizationSwitch(Node):
         # evidence that the preceding valid overlap was lost.
         if sample.stamp == self.last_overlap_stamp:
             return False
-        if self.last_overlap_stamp is not None and sample.stamp-self.last_overlap_stamp > .75:
+        if self.last_overlap_stamp is not None and sample.stamp-self.last_overlap_stamp > 1.0:
             self.core.consider(None, None, False, now)
         self.last_overlap_stamp = sample.stamp
         try:
             navsat_pose = self.navsat_at(sample.stamp)
-            fresh = self.fused_healthy(now, .35)
-            output_pose = sample.at(ros_time) if fresh else sample.pose
+            fresh = self.fused_healthy(now, self.handover_prediction_sec)
+            output_pose = sample.at(ros_time, maximum=self.handover_prediction_sec) if fresh else sample.pose
         except ValueError:
             return self.core.consider(None, None, False, now)
         switched = self.core.consider(
@@ -277,7 +323,7 @@ class LocalizationSwitch(Node):
 
     def flags(self):
         now = time.monotonic()
-        ready = self.navsat_healthy(now) if self.core.mode == "navsat" else self.fused_healthy(now)
+        ready = bool(self.navsat_healthy(now) if self.core.mode == "navsat" else self.fused_healthy(now))
         status = self.launch_error or self.core.reason
         if self.core.mode == "navsat" and not self.launch_error:
             if not self.enabled:
@@ -286,6 +332,20 @@ class LocalizationSwitch(Node):
                 status = "Waiting for healthy NavSat INS and valid fixed RTK"
             elif now-self.fix_at > .5:
                 status = "NavSat active: short RTK gap, IMU propagation"
+        elif self.core.mode == "fastlivo_rtk":
+            if not ready:
+                status = self.fused_health_reason(now)
+            elif not (self.quality == 4 and now-self.quality_at <= .5):
+                variance = np.diag(self.samples["fastlivo_rtk"].covariance)[:2]
+                status = ("FAST-LIVO2/RTK active: local odometry, no fixed RTK; "
+                          f"global XY variance={variance[0]:.3f},{variance[1]:.3f} m^2")
+        health_status = (ready, status if not ready else self.core.mode)
+        if health_status != self.last_health_status:
+            self.last_health_status = health_status
+            if ready:
+                self.get_logger().info(status)
+            else:
+                self.get_logger().warning(status)
         self.ready_pub.publish(Bool(data=ready))
         self.localization_ready_pub.publish(Bool(data=ready))
         self.localization_status_pub.publish(String(data=status))
@@ -293,7 +353,9 @@ class LocalizationSwitch(Node):
         mode = self.core.mode + ("_warming_fastlivo" if self.core.requested and self.core.mode == "navsat" else "")
         self.mode_pub.publish(String(data=mode))
         self.source_pub.publish(String(data="rtk" if self.core.mode == "navsat" else "navsat_handover"))
-        self.stage_pub.publish(String(data="ready" if ready else ("wait_rtk" if self.enabled else "wait_request")))
+        stage = ("ready" if ready else "wait_localization") if self.core.mode == "fastlivo_rtk" else (
+            "ready" if ready else ("wait_rtk" if self.enabled else "wait_request"))
+        self.stage_pub.publish(String(data=stage))
         self.status_pub.publish(String(data=status))
 
     def tick(self):

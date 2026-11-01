@@ -224,6 +224,48 @@ TEST(DifferentialCanKinematics, CapsEachTrackAtConfiguredCommandLevel)
     std::abs(turning.right_percent), 800.0 / 3000.0 * 100.0, 1e-12);
 }
 
+TEST(DifferentialCanKinematics, NavigationEnvelopeDoesNotScaleCombinedMotion)
+{
+  differential::Kinematics config;
+  config.max_linear_velocity = 0.50;
+  config.max_angular_velocity = 0.90;
+  config.max_command_level = 1600.0;
+
+  const auto turning = differential::fromTwist(0.50, 0.90, config);
+  const double expected_left_level = 0.23 / 0.42 * 800.0;
+  const double expected_right_level = 800.0 + (0.77 - 0.42) / (0.78 - 0.42) * 800.0;
+  EXPECT_NEAR(turning.left_percent, expected_left_level / 3000.0 * 100.0, 1e-12);
+  EXPECT_NEAR(turning.right_percent, expected_right_level / 3000.0 * 100.0, 1e-12);
+  EXPECT_LT(turning.right_percent, 1600.0 / 3000.0 * 100.0);
+
+  const auto opposite = differential::fromTwist(0.50, -0.90, config);
+  EXPECT_NEAR(opposite.left_percent, turning.right_percent, 1e-12);
+  EXPECT_NEAR(opposite.right_percent, turning.left_percent, 1e-12);
+
+  const auto limited = differential::fromTwist(1.0, 2.0, config);
+  EXPECT_NEAR(limited.left_percent, turning.left_percent, 1e-12);
+  EXPECT_NEAR(limited.right_percent, turning.right_percent, 1e-12);
+}
+
+TEST(DifferentialCanKinematics, NavigationStraightAndInPlaceTurnRemainSymmetric)
+{
+  differential::Kinematics config;
+  config.max_linear_velocity = 0.50;
+  config.max_angular_velocity = 0.90;
+  config.max_command_level = 1600.0;
+
+  const auto straight = differential::fromTwist(0.50, 0.0, config);
+  const double expected_level = 800.0 + (0.50 - 0.42) / (0.78 - 0.42) * 800.0;
+  EXPECT_NEAR(straight.left_percent, expected_level / 3000.0 * 100.0, 1e-12);
+  EXPECT_NEAR(straight.right_percent, straight.left_percent, 1e-12);
+  const auto rotating = differential::fromTwist(0.0, 0.90, config);
+  EXPECT_NEAR(rotating.left_percent, -rotating.right_percent, 1e-12);
+  EXPECT_NEAR(rotating.right_percent, (0.27 / 0.42 * 800.0) / 3000.0 * 100.0, 1e-12);
+  const auto stopped = differential::fromTwist(0.50, 0.90, config, true);
+  EXPECT_DOUBLE_EQ(stopped.left_percent, 0.0);
+  EXPECT_DOUBLE_EQ(stopped.right_percent, 0.0);
+}
+
 TEST(DifferentialCanKinematics, RejectsInvalidConfiguration)
 {
   differential::Kinematics config;

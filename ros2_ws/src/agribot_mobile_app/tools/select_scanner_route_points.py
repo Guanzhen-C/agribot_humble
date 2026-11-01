@@ -38,12 +38,10 @@ class SelectionStore:
                 raise ValueError("Saved picks belong to another map/reference; choose another output")
             self.poses = document["routes"][0]["poses"]
             self.indices = document["routes"][0]["source_sample_indices"]
-            if len(self.poses) != len(self.indices) or len(self.poses) > 110:
+            if len(self.poses) != len(self.indices):
                 raise ValueError("Invalid saved picks")
 
     def append(self, x, y, yaw):
-        if len(self.poses) >= 110:
-            raise ValueError("The selector allows at most 110 waypoints")
         if not all(math.isfinite(value) for value in (x, y, yaw)):
             raise ValueError("Non-finite picked pose")
         distances = np.linalg.norm(self.reference[:, :2] - [x, y], axis=1)
@@ -86,6 +84,9 @@ def main():
     parser.add_argument("reference_csv", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--snap-distance", type=float, default=0.75)
+    parser.add_argument("--overlay-reference", type=Path)
+    parser.add_argument("--display-reference", type=Path)
+    parser.add_argument("--read-only", action="store_true")
     args = parser.parse_args()
     store = SelectionStore(args.map_base, args.reference_csv, args.output, args.snap_distance)
     import rclpy
@@ -121,13 +122,33 @@ def main():
     map_publisher.publish(message)
     reference = NavPath()
     reference.header = message.header
-    for position in store.reference:
+    display_reference = store.reference
+    if args.display_reference:
+        with args.display_reference.open(newline="") as stream:
+            display_reference = [[float(row[key]) for key in ("map_x_m", "map_y_m", "map_z_m")]
+                                 for row in csv.DictReader(stream)]
+    for position in display_reference:
         pose = PoseStamped()
         pose.header = message.header
         pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = float(position[0]), float(position[1]), 0.04
         pose.pose.orientation.w = 1.0
         reference.poses.append(pose)
     path_publisher.publish(reference)
+    if args.overlay_reference:
+        with args.overlay_reference.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        overlay = NavPath()
+        overlay.header = message.header
+        for row in rows:
+            pose = PoseStamped()
+            pose.header = message.header
+            pose.pose.position.x = float(row["map_x_m"])
+            pose.pose.position.y = float(row["map_y_m"])
+            pose.pose.position.z = 0.05
+            pose.pose.orientation.w = 1.0
+            overlay.poses.append(pose)
+        overlay_publisher = node.create_publisher(NavPath, "/scanner_selection/previous_reference", qos)
+        overlay_publisher.publish(overlay)
 
     def publish_selected():
         markers = MarkerArray()
@@ -172,9 +193,10 @@ def main():
             return response
         return callback
 
-    node.create_subscription(PoseStamped, "/scanner_selection/pick", picked, 10)
-    node.create_service(Trigger, "/scanner_selection/undo", service(store.undo))
-    node.create_service(Trigger, "/scanner_selection/clear", service(store.clear))
+    if not args.read_only:
+        node.create_subscription(PoseStamped, "/scanner_selection/pick", picked, 10)
+        node.create_service(Trigger, "/scanner_selection/undo", service(store.undo))
+        node.create_service(Trigger, "/scanner_selection/clear", service(store.clear))
     publish_selected()
     node.get_logger().info(f"Full reference: {len(store.reference)} samples; restored {len(store.poses)} manual points; output={store.output}")
     try:

@@ -52,6 +52,8 @@ strong { font-weight: 600; }
 .pill.red { color: var(--red); background: var(--red-soft); }
 .top-status .pill { background: rgba(255,255,255,.68); min-height: 36px; padding-inline: 12px; }
 .top-stop { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: var(--red); }
+.headlight-control { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 100px; height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; color: #304760; background: #fff; font-size: 13px; }
+.headlight-control.active { color: #805009; background: #fff4dc; border-color: #e6bd78; }
 
 .workspace { min-height: 0; min-width: 0; flex: 1; margin: 0 24px; padding: 32px; overflow-y: auto; overscroll-behavior: contain; border-radius: 28px; background: var(--surface); box-shadow: var(--shadow); scrollbar-width: thin; scrollbar-color: #7c8ca1 transparent; scroll-padding-block: 24px; }
 .workspace:focus { outline: none; }

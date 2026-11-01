@@ -57,6 +57,15 @@ def _write_simulation_rviz_config(source_file, vision_mode="off", visual_belts=F
     image_topic = "/camera/rgb/image_raw" if vision_mode == "off" else "/vision/annotated_image"
     rgb["Topic"].update({"Value": image_topic, "Depth": 1,
                          "Reliability Policy": "Best Effort"})
+    displays = config["Visualization Manager"]["Displays"]
+    if not any(display.get("Class") == "rviz_default_plugins/MarkerArray" and
+               display.get("Topic", {}).get("Value") == "/waypoints" for display in displays):
+        displays.append({
+            "Class": "rviz_default_plugins/MarkerArray", "Name": "Ordered Waypoints",
+            "Enabled": True, "Value": True,
+            "Topic": {"Value": "/waypoints", "Depth": 10,
+                      "Reliability Policy": "Reliable", "Durability Policy": "Transient Local"},
+        })
     if visual_belts:
         config["Visualization Manager"]["Displays"].append({
             "Class": "rviz_default_plugins/MarkerArray", "Name": "Track Animation",
@@ -203,8 +212,135 @@ def _configure_tracked_contact(model, vehicle, config_file):
                 ET.SubElement(wheel_node, key).text = str(value)
 
 
+def _fit_tracked_underbody_collision(model, vehicle):
+    import numpy as np
+    from agribot_farm_sim.mesh_surface import load_surfaces
+    base = model.find("link[@name='base_link']")
+    uri = next((item.text for item in base.findall("visual/geometry/mesh/uri")
+                if (item.text or "").endswith("/vehicle_visual.obj")), None)
+    if not uri:
+        raise ValueError("Continuous tracked contact requires the original body CAD mesh")
+    if uri.startswith("package://"):
+        package, relative = uri[len("package://"):].split("/", 1)
+        path = Path(get_package_share_directory(package))/relative
+    else:
+        path = Path(uri.removeprefix("file://"))
+    with path.open() as stream:
+        names = [line[2:].strip() for line in stream if line.startswith("o ")]
+    surfaces = load_surfaces(path, names or [None])
+    triangles = np.concatenate([surface.triangles for surface in surfaces.values()])
+    width = float(vehicle["geometry"]["frontTrackM"])
+    gap = (width-float(vehicle["geometry"]["wheelWidthM"]))/2
+    center_y = float(vehicle["collision"]["center"][1])
+    candidates = [triangles[abs(triangles[:, :, 1]-center_y) < gap]]
+    # Clip triangle edges at the central strip, so cross-members without any
+    # central vertices still constrain the retained underside clearance.
+    for boundary in (center_y-gap, center_y+gap):
+        for i, j in ((0, 1), (1, 2), (2, 0)):
+            a, b = triangles[:, i], triangles[:, j]
+            delta = b[:, 1]-a[:, 1]
+            valid = abs(delta) > 1e-10
+            a, b, delta = a[valid], b[valid], delta[valid]
+            ratio = (boundary-a[:, 1])/delta
+            valid = (ratio >= 0) & (ratio <= 1)
+            candidates.append(a[valid]+ratio[valid, None]*(b[valid]-a[valid]))
+    lower = float(np.concatenate(candidates)[:, 2].min())-.005
+    body = base.find("collision[@name='vehicle_body_collision']")
+    if body is None:
+        raise ValueError("Expected the exported tracked body collision box")
+    pose = list(map(float, body.findtext("pose").split()))
+    size = list(map(float, body.findtext("geometry/box/size").split()))
+    if lower <= pose[2]-size[2]/2+.01:
+        return
+    top = pose[2]+size[2]/2
+    template = copy.deepcopy(body)
+    pose[2], size[2] = (top+lower)/2, top-lower
+    body.find("pose").text = " ".join(map(str, pose))
+    body.find("geometry/box/size").text = " ".join(map(str, size))
+    vertices = triangles.reshape(-1, 3)
+    for side, sign in (("left", 1), ("right", -1)):
+        rail = vertices[(vertices[:, 2] < lower) & ((vertices[:, 1]-center_y)*sign > 0)]
+        if not len(rail):
+            continue
+        minimum, maximum = rail.min(0)-.005, rail.max(0)+.005
+        collision = copy.deepcopy(template)
+        collision.set("name", f"vehicle_lower_{side}_rail_collision")
+        collision.find("pose").text = " ".join(map(str, [*((minimum+maximum)/2), 0, 0, 0]))
+        collision.find("geometry/box/size").text = " ".join(map(str, maximum-minimum))
+        base.append(collision)
+
+
+def _configure_continuous_tracks(model, vehicle, plugin_file):
+    if vehicle is None or vehicle.get("vehicleType") != "tracked":
+        raise ValueError("Continuous track contact requires a tracked vehicle")
+    if not os.path.isfile(plugin_file):
+        raise ValueError("Continuous track ROS adapter has not been built")
+    _fit_tracked_underbody_collision(model, vehicle)
+    for plugin in list(model.findall("plugin[@name='configured_tracked_wheel_slip']")):
+        model.remove(plugin)
+    centers = vehicle["geometry"]["wheelCenters"]
+    for wheel in centers:
+        link = model.find(f"link[@name='{wheel['id']}_wheel_link']")
+        for collision in list(link.findall("collision")):
+            link.remove(collision)
+    tracks = {}
+    for side in ("left", "right"):
+        wheels = [wheel for wheel in centers if "_" + side in wheel["id"]]
+        if len(wheels) != 2:
+            raise ValueError("Continuous track contact requires two measured idlers per side")
+        front, rear = sorted(wheels, key=lambda w: w["position"][0], reverse=True)
+        radius = min(float(wheel["radiusM"]) for wheel in wheels)
+        width = float(vehicle["geometry"]["wheelWidthM"])
+        x = (front["position"][0]+rear["position"][0])/2
+        y = (front["position"][1]+rear["position"][1])/2
+        z = (front["position"][2]+rear["position"][2])/2
+        length = front["position"][0]-rear["position"][0]
+        name = side + "_continuous_track"
+        tracks[side] = name
+        link = ET.SubElement(model, "link", name=name)
+        ET.SubElement(link, "pose").text = f"{x} {y} {z} 0 0 0"
+        ET.SubElement(link, "self_collide").text = "false"
+        inertial = ET.SubElement(link, "inertial")
+        ET.SubElement(inertial, "mass").text = "0.5"
+        inertia = ET.SubElement(inertial, "inertia")
+        for key, value in {"ixx": .5*(width**2+4*radius**2)/12,
+                           "iyy": .5*(length**2+4*radius**2)/12,
+                           "izz": .5*(length**2+width**2)/12,
+                           "ixy": 0, "ixz": 0, "iyz": 0}.items():
+            ET.SubElement(inertia, key).text = str(value)
+        for part, position in (("belt", 0.), ("front_round", length/2), ("rear_round", -length/2)):
+            collision = ET.SubElement(link, "collision", name=part)
+            ET.SubElement(collision, "pose").text = f"{position} 0 0 {math.pi/2 if part != 'belt' else 0} 0 0"
+            geometry = ET.SubElement(collision, "geometry")
+            if part == "belt":
+                ET.SubElement(ET.SubElement(geometry, "box"), "size").text = f"{length} {width} {2*radius}"
+            else:
+                cylinder = ET.SubElement(geometry, "cylinder")
+                ET.SubElement(cylinder, "radius").text = str(radius)
+                ET.SubElement(cylinder, "length").text = str(width)
+            surface = ET.SubElement(collision, "surface")
+            friction = ET.SubElement(ET.SubElement(surface, "friction"), "ode")
+            ET.SubElement(friction, "mu").text = "1.8"
+            ET.SubElement(friction, "mu2").text = "0.8"
+            contact = ET.SubElement(ET.SubElement(surface, "contact"), "ode")
+            for key, value in {"kp": "100000", "kd": "1000", "min_depth": ".0005", "max_vel": ".1"}.items():
+                ET.SubElement(contact, key).text = value
+        joint = ET.SubElement(model, "joint", name=name + "_fixed", type="fixed")
+        ET.SubElement(joint, "parent").text = "base_link"
+        ET.SubElement(joint, "child").text = name
+    drive = ET.SubElement(model, "plugin", name="continuous_track_drive", filename=os.path.abspath(plugin_file))
+    ET.SubElement(ET.SubElement(drive, "ros"), "namespace").text = "/"
+    values = {"body": "base_link", "left_track": tracks["left"], "right_track": tracks["right"],
+              "tracks_separation": float(vehicle["geometry"]["frontTrackM"]),
+              "max_linear_speed": .78, "max_angular_speed": .9, "steering_efficiency": .36,
+              "max_linear_acceleration": .5, "max_angular_acceleration": .8,
+              "track_mu": 1.8, "track_mu2": .8}
+    for key, value in values.items():
+        ET.SubElement(drive, key).text = str(value)
+
+
 def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=None,
-                                contact_config=None):
+                                contact_config=None, ground_truth_topic=None, track_drive_plugin=None):
     """Prepare the generated vehicle for real-time Gazebo Classic sensing.
 
     The canonical Unity export keeps the physical C16 and camera resolution.
@@ -218,11 +354,21 @@ def _write_gazebo_vehicle_model(source_file, lidar_input_topic=None, vehicle=Non
         tempfile.gettempdir(), "configured_ackermann_vehicle.generated.sdf"
     )
     model_tree = ET.parse(source_file)
+    if ground_truth_topic:
+        truth_ros = model_tree.find("model/plugin[@name='configured_ground_truth']/ros")
+        if truth_ros is None or not ground_truth_topic.startswith("/"):
+            raise ValueError("A dedicated physical truth topic requires a configured P3D plugin and absolute topic")
+        for remapping in list(truth_ros.findall("remapping")):
+            if (remapping.text or "").startswith("odom:="):
+                truth_ros.remove(remapping)
+        ET.SubElement(truth_ros, "remapping").text = "odom:=" + ground_truth_topic
     if vehicle is not None:
         _replace_manipulator(model_tree.getroot().find("model"), vehicle, True)
         _remove_implement_collisions(model_tree.getroot().find("model"), vehicle, True)
         if contact_config is not None:
             _configure_tracked_contact(model_tree.getroot().find("model"), vehicle, contact_config)
+    if track_drive_plugin:
+        _configure_continuous_tracks(model_tree.getroot().find("model"), vehicle, track_drive_plugin)
     for uri in model_tree.getroot().iter("uri"):
         value = (uri.text or "").strip()
         for prefix in ("package://", "model://"):
@@ -792,6 +938,11 @@ def _external_scene_bundle(manifest_file):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("vehicle_id", default_value="ackermann_current"),
+        DeclareLaunchArgument("nav2_params_override", default_value="",
+                              description="Optional validated Nav2 YAML for an isolated deployment-parameter simulation"),
+        DeclareLaunchArgument("physical_truth_topic", default_value=""),
+        DeclareLaunchArgument("track_drive_plugin", default_value=""),
+        DeclareLaunchArgument("sim_navsat_odom_topic", default_value="/odom"),
         DeclareLaunchArgument("scene_manifest", default_value="",
                               description="Optional local scanned-scene bundle; default farm scenes unchanged"),
         DeclareLaunchArgument("scenario", default_value="orchard",
@@ -834,6 +985,8 @@ def _launch_vehicle(context):
         "/configured/unfiltered_lidar_points" if self_filter_enabled else None,
         vehicle,
         os.path.join(description_share, "config", "tracked_contact_simulation.yaml"),
+        LaunchConfiguration("physical_truth_topic").perform(context),
+        LaunchConfiguration("track_drive_plugin").perform(context),
     )
     robot_description_file = os.path.join(generated, "urdf", vehicle_id + ".urdf.xacro")
     if had_manipulator or arm_installed or vehicle.get("implements"):
@@ -904,6 +1057,14 @@ def _launch_vehicle(context):
         fastlio_mppi_config, config_dir, "fastlio", nominal_vehicle, guard_route_progress,
         _body_navigation_footprint(vehicle), _final_position_tolerance(vehicle)
     )
+    nav2_override = LaunchConfiguration("nav2_params_override").perform(context)
+    if nav2_override:
+        nav2_override = os.path.abspath(os.path.expanduser(nav2_override))
+        with open(nav2_override, encoding="utf-8") as stream:
+            override_parameters = yaml.safe_load(stream)
+        for name in ("controller_server", "planner_server", "global_costmap", "local_costmap"):
+            if not isinstance(override_parameters, dict) or name not in override_parameters:
+                raise ValueError(f"Nav2 override is missing {name}")
     is_jetson = platform.machine() in ("aarch64", "arm64")
     world_file = os.path.join(gazebo_share, "worlds", "orchard_barriers.world")
     map_directory = os.path.join(navigation_share, "maps")
@@ -1138,6 +1299,7 @@ def _launch_vehicle(context):
                     "waypoint_file": waypoint_file,
                     "navigation_delay": LaunchConfiguration("navigation_delay"),
                     "localization_mode": LaunchConfiguration("localization_mode"),
+                    "sim_navsat_odom_topic": LaunchConfiguration("sim_navsat_odom_topic"),
                     "use_static_map": LaunchConfiguration("use_static_map"),
                     "enable_slam_map": LaunchConfiguration("enable_slam_map"),
                     "map_file_location": LaunchConfiguration("map_file_location"),
@@ -1145,10 +1307,10 @@ def _launch_vehicle(context):
                     "world": world_file,
                     "gazebo_spawn_file": vehicle_model,
                     "robot_description_file": robot_description_file,
-                    "navsat_static_nav2_params_file": _nav2_profile_config(
+                    "navsat_static_nav2_params_file": nav2_override or _nav2_profile_config(
                         navsat_nav2_profiles
                     ),
-                    "fastlio_static_nav2_params_file": _nav2_profile_config(
+                    "fastlio_static_nav2_params_file": nav2_override or _nav2_profile_config(
                         fastlio_nav2_profiles
                     ),
                     "fastlivo_lidar_config_file": fastlivo_sim_config,

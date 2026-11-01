@@ -17,6 +17,39 @@ SCENE_TOOL = {
 }
 
 
+def fixed_profile_summary(item, root, digest):
+    if not item.get('simulationProfile'):
+        return None
+    path = Path(item['simulationProfile']).resolve()
+    if root not in path.parents:
+        raise ValueError('Fixed profile is outside the imported-scene library')
+    data = path.read_bytes()
+    profile = json.loads(data)
+    if (profile.get('id') != 'fuxi_farm_104' or profile.get('route_mode') != 'smac_preset_waypoints'
+            or profile.get('vehicle_id') != 'unity_car3'
+            or profile.get('algorithm_id') != 'stvl_off_navsat_smac_hybrid_rpp'):
+        raise ValueError('Unknown fixed scene recipe')
+    baseline = (path.parent / 'baseline_result.json').read_bytes()
+    proof = json.loads(baseline)
+    route_path = (path.parent / profile['template'] / 'saved_route.json').resolve()
+    if path.parent not in route_path.parents:
+        raise ValueError('Fixed route is outside the profile')
+    route_bytes = route_path.read_bytes()
+    route = json.loads(route_bytes)
+    if (not proof.get('passed') or proof.get('diagnostic_only') or proof.get('anchor_count') != 104
+            or proof.get('controller_plugin') != 'agribot_vehicle_description::PositionOnlyRegulatedPurePursuitController'
+            or hashlib.sha256(route_bytes).hexdigest() != profile.get('route_sha256')
+            or len(route.get('manual_poses', [])) != 104):
+        raise ValueError('Fixed scene evidence is incomplete')
+    digest.update(data)
+    digest.update(baseline)
+    digest.update(route_bytes)
+    return dict(id='fuxi_farm_104', car='Car3', implement='none',
+        components=dict(perception='stvl', vision='off', localization='navsat', planner='smac_hybrid', controller='rpp'),
+        routeMode='smac_preset_waypoints', waypointCount=104, verification='原104点路线完整物理仿真通过',
+        mapPolicy='与真机二维底图及原Smac参数一致，启动时重新规划并逐点校验轨迹')
+
+
 def imported_scenes():
     root = Path(os.environ.get('AGRIBOT_SCANNED_SCENE_ROOT',
                 str(Path.home() / '.local/share/agribot/scanned_scenes'))).expanduser().resolve()
@@ -51,10 +84,15 @@ def imported_scenes():
                     raise ValueError('Scene bundle is incomplete')
                 digest.update(asset.read_bytes())
             digest.update(json.dumps([identifier, name.strip()], ensure_ascii=False).encode())
-            result.append(dict(id=identifier, name=name.strip(), tasks=['扫描场景'],
+            profile = fixed_profile_summary(item, root, digest)
+            entry = dict(id=identifier, name=name.strip(), tasks=['扫描场景'],
                 imported=True, source='LCC2', sceneConfigSha256=digest.hexdigest(),
                 usageDescription='', environmentUnderstanding='未进行场景语义分析',
-                gnss='仿真生成的GNSS，不代表扫描地点真实卫星信号可用'))
+                gnss='仿真生成的GNSS，不代表扫描地点真实卫星信号可用')
+            if profile:
+                entry.update(simulationProfile=profile, tasks=['104个预设经停点', '差速履带仿真'],
+                    usageDescription='使用真机同二维底图和104个原始经停点，由现有Smac生成轨迹，KF-GINS定位、RPP跟踪。')
+            result.append(entry)
             known.add(identifier)
         except (OSError, ValueError, TypeError, KeyError):
             continue

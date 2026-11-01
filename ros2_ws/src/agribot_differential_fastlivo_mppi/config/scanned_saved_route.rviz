@@ -1,0 +1,76 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Fixed Frame: map
+    Background Color: 44; 47; 49
+    Frame Rate: 15
+  Displays:
+    - Class: rviz_default_plugins/Map
+      Name: Real manually cleaned map
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+      Alpha: 0.9
+    - Class: rviz_default_plugins/RobotModel
+      Name: Actual Car3
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+    - Class: rviz_default_plugins/Path
+      Name: Original full saved route
+      Enabled: true
+      Topic:
+        Value: /validation/full_saved_path
+        Durability Policy: Transient Local
+      Color: 40; 215; 95
+      Line Style: Lines
+      Line Width: 0.08
+    - Class: rviz_default_plugins/Path
+      Name: Measured physical trajectory
+      Enabled: true
+      Topic:
+        Value: /validation/actual_path
+        Durability Policy: Transient Local
+      Color: 245; 55; 45
+      Line Style: Lines
+      Line Width: 0.06
+    - Class: rviz_default_plugins/MarkerArray
+      Name: All 104 original anchors
+      Enabled: true
+      Topic:
+        Value: /validation/anchors
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/Map
+      Name: Live local obstacles and inflation
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Durability Policy: Transient Local
+      Color Scheme: costmap
+      Alpha: 0.5
+    - Class: rviz_default_plugins/Image
+      Name: Full 3DGS Scene Camera
+      Enabled: true
+      Topic:
+        Value: /camera/rgb/image_raw
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Transport Hint: raw
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Farmland
+      Scale: 4.5
+      Target Frame: map
+      X: -15
+      Y: -21
+Window Geometry:
+  Width: 1440
+  Height: 960

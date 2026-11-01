@@ -22,6 +22,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "scout_msgs/msg/scout_status.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "std_srvs/srv/set_bool.hpp"
 
 namespace agribot_hardware_bringup
 {
@@ -75,6 +76,23 @@ public:
 
     adapter_ = adapter_factory(*this);
     validateParameters();
+    headlight_service_ = create_service<std_srvs::srv::SetBool>(
+      "/hardware/set_headlight",
+      [this](const std_srvs::srv::SetBool::Request::SharedPtr request,
+        std_srvs::srv::SetBool::Response::SharedPtr response) {
+        std::lock_guard<std::mutex> guard(state_mutex_);
+        if (!adapter_->supportsHeadlight()) {
+          response->message = "This chassis protocol does not support headlight control";
+        } else if (read_only_) {
+          response->message = "Receive-only mode cannot transmit headlight commands";
+        } else if (!transport_ || !feedbackFresh(now())) {
+          response->message = "Fresh chassis CAN feedback is required";
+        } else {
+          headlight_ = request->data;
+          response->success = true;
+          response->message = "Headlight request accepted; waiting for CAN feedback";
+        }
+      });
     if (read_only_) {
       tryOpenReadOnlyTransport();
     } else {
@@ -485,6 +503,9 @@ private:
     status.values.push_back(keyValue("chassis_type", adapter_->type()));
     status.values.push_back(keyValue("can_transport", can_transport_));
     status.values.push_back(keyValue("read_only", read_only_ ? "true" : "false"));
+    status.values.push_back(
+      keyValue("headlight_supported", adapter_->supportsHeadlight() ? "true" : "false"));
+    status.values.push_back(keyValue("headlight_requested", headlight_ ? "true" : "false"));
     status.values.push_back(keyValue("transport_error", last_transport_error_));
     status.values.push_back(keyValue("feedback_fresh", fresh ? "true" : "false"));
     status.values.push_back(
@@ -558,6 +579,7 @@ private:
   std::string localization_ready_topic_{"/localization/ready"};
   double localization_ready_timeout_sec_{2.5};
   bool headlight_{false};
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr headlight_service_;
 
   uint8_t transmit_counter_{0};
   std::unordered_map<uint32_t, uint8_t> receive_counters_;

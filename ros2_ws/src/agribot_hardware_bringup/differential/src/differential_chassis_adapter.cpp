@@ -65,6 +65,11 @@ public:
     return true;
   }
 
+  bool supportsHeadlight() const override
+  {
+    return true;
+  }
+
   chassis_can::Frame commandFromTwist(
     const geometry_msgs::msg::Twist & message,
     bool brake,
