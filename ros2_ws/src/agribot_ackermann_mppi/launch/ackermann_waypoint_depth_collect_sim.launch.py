@@ -202,6 +202,7 @@ def generate_launch_description():
             os.path.expanduser("~/.gazebo/models"),
             os.path.dirname(scout_gazebo_share),
             os.path.dirname(ackermann_share),
+            os.path.join(ackermann_share, "models"),
             os.path.dirname(hardware_share),
         )
         if os.path.isdir(model_path)
@@ -592,7 +593,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "gazebo_ip",
-                default_value=os.environ.get("GAZEBO_IP", "172.17.0.1"),
+                default_value=os.environ.get("GAZEBO_IP", "127.0.0.1"),
             ),
             DeclareLaunchArgument("gui", default_value="true"),
             DeclareLaunchArgument("rviz", default_value="false"),
