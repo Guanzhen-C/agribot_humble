@@ -1,0 +1,155 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Map
+      Name: Orchard Map
+      Enabled: true
+      Alpha: 0.85
+      Color Scheme: map
+      Draw Behind: true
+      Topic:
+        Value: /hil/visualization/full_map
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/Map
+      Name: Obstacles and Inflation
+      Enabled: true
+      Alpha: 0.45
+      Color Scheme: costmap
+      Draw Behind: false
+      Topic:
+        Value: /global_costmap/costmap
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+      Update Topic:
+        Value: /global_costmap/costmap_updates
+        Depth: 10
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/RobotModel
+      Name: Car0 with Arm
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+      Visual Enabled: true
+      Collision Enabled: false
+      Alpha: 1
+    - Class: rviz_default_plugins/Path
+      Name: Smac Outbound
+      Enabled: true
+      Alpha: 1
+      Buffer Length: 1
+      Color: 40; 210; 70
+      Line Style: Billboards
+      Line Width: 0.07
+      Pose Style: None
+      Topic:
+        Value: /hil/visualization/outbound_path
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/Path
+      Name: Smac To Point 3
+      Enabled: true
+      Alpha: 1
+      Buffer Length: 1
+      Color: 255; 170; 40
+      Line Style: Billboards
+      Line Width: 0.07
+      Pose Style: None
+      Topic:
+        Value: /hil/visualization/completion_path
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/Path
+      Name: Recorded Fused Trajectory
+      Enabled: true
+      Alpha: 1
+      Buffer Length: 1
+      Color: 50; 170; 255
+      Line Style: Billboards
+      Line Width: 0.035
+      Pose Style: None
+      Topic:
+        Value: /hil/visualization/observed_path
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Waypoint Numbers
+      Enabled: true
+      Topic:
+        Value: /hil/visualization/waypoints
+        Depth: 1
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Live Lidar
+      Enabled: false
+      Alpha: 0.6
+      Color Transformer: AxisColor
+      Position Transformer: XYZ
+      Axis: Z
+      Autocompute Value Bounds: true
+      Style: Points
+      Size (Pixels): 2
+      Size (m): 0.03
+      Decay Time: 0
+      Topic:
+        Value: /configured/localization_points
+        Depth: 2
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        History Policy: Keep Last
+    - Class: rviz_default_plugins/Image
+      Name: Live Camera
+      Enabled: true
+      Normalize Range: true
+      Topic:
+        Value: /camera/rgb/image_raw
+        Depth: 1
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+        History Policy: Keep Last
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 35; 35; 38
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 75
+      Focal Point: {X: 24, Y: 19, Z: 0}
+      Pitch: 1.57
+      Yaw: 0
+      Target Frame: map
+      Name: Current View
+Window Geometry:
+  Width: 1600
+  Height: 950

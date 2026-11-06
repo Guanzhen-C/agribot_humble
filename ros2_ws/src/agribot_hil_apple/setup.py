@@ -1,0 +1,38 @@
+from glob import glob
+from setuptools import find_packages, setup
+
+name = 'agribot_hil_apple'
+setup(
+    name=name, version='0.1.0', packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages', ['resource/' + name]),
+        ('share/' + name, ['package.xml', 'README.md', 'RUN_STATE.md']),
+        ('share/' + name + '/config', glob('config/*')),
+        ('share/' + name + '/scripts', glob('scripts/*.sh') + glob('scripts/*.py')),
+        ('share/' + name + '/patches', glob('patches/*')),
+        ('share/' + name + '/plugins', glob('plugins/*')),
+        ('share/' + name + '/launch', glob('launch/*.launch.py')),
+        ('share/' + name + '/models/ycb_apple', glob('models/ycb_apple/*')),
+    ],
+    install_requires=['setuptools'], zip_safe=True,
+    maintainer='Agribot', maintainer_email='maintainer@example.com',
+    description='Wired ROS and native Ackermann CAN HIL bench', license='Apache-2.0',
+    entry_points={'console_scripts': [
+        'hardware_probe = agribot_hil_apple.hardware:main',
+        'wired_probe = agribot_hil_apple.wired_probe:main',
+        'can_probe = agribot_hil_apple.can_probe:main',
+        'prepare_scene = agribot_hil_apple.scene:main',
+        'gazebo_can_bridge = agribot_hil_apple.gazebo_can_bridge:main',
+        'runtime_probe = agribot_hil_apple.runtime_probe:main',
+        'navigate = agribot_hil_apple.navigation:main',
+        'arm_preflight = agribot_hil_apple.arm_preflight:main',
+        'scene_bootstrap = agribot_hil_apple.bootstrap:main',
+        'fruit_observer = agribot_hil_apple.fruit_observer:main',
+        'harvest = agribot_hil_apple.harvest:main',
+        'arm_servo = agribot_hil_apple.arm_servo:main',
+        'mission = agribot_hil_apple.mission:main',
+        'mission_record = agribot_hil_apple.mission_record:main',
+        'mission_view = agribot_hil_apple.mission_view:main',
+        'gravity_reference = agribot_hil_apple.gravity_reference:main',
+    ]},
+)

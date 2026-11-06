@@ -1,0 +1,31 @@
+cmake_minimum_required(VERSION 3.13)
+
+find_package(hpm-sdk REQUIRED HINTS $ENV{HPM_SDK_BASE})
+
+project(vcu_configurator)
+
+sdk_compile_definitions(-DBOARD_SHOW_CLOCK=0)
+sdk_compile_definitions(-DBOARD_SHOW_BANNER=0)
+if(VCU_CONFIG_SELF_TEST)
+    sdk_compile_definitions(-DVCU_CONFIG_SELF_TEST=1)
+endif()
+
+sdk_inc(src)
+sdk_app_src(src/main.c)
+sdk_app_src(src/vcfg_protocol.c)
+sdk_app_src(src/vcu_selection_store.c)
+sdk_app_src(src/vcu_flash_backend.c)
+sdk_app_src(src/vcu_board_io.c)
+sdk_app_src(src/vcu_machine_profile.c)
+sdk_app_src(src/hechuan_motion.c)
+sdk_app_src(src/fgcp_protocol.c)
+sdk_app_src(src/vcu_runtime.c)
+sdk_app_src(src/vcu_runtime_io.c)
+sdk_app_src(src/vcu_telemetry.c)
+sdk_app_src(src/vcu_bridge.c)
+sdk_app_src(src/fgmp_profile.c)
+if(VCU_RUNTIME_ENABLE)
+    sdk_compile_definitions(-DVCU_RUNTIME_ENABLE=1)
+endif()
+
+generate_ide_projects()

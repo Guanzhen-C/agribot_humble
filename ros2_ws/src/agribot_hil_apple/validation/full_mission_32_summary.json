@@ -1,0 +1,181 @@
+{
+  "validated_run": "full-mission-32",
+  "date": "2026-11-06",
+  "topology": "X5 USB-CAN -> HPM6750 CAN1 -> HPM6750 CAN0 -> PC USB-CAN -> Gazebo; feedback returns in reverse",
+  "route": [
+    1,
+    2,
+    3
+  ],
+  "picking": "Two actual simulated stem-contact picks; both fruit remain in physical tray at final point",
+  "scope": "Hardware-in-loop native CAN, known-object-pose simulated manipulation and kinematic arm actuation; not real-arm force control or visual fruit detection acceptance",
+  "regression_tests": {
+    "package": "agribot_hil_apple",
+    "passed": 128
+  },
+  "audits": {
+    "independent-audit.json": {
+      "status": "passed",
+      "checks": {
+        "independent_final_sample_is_timely": true,
+        "continuous_mission_succeeded": true,
+        "at_least_two_distinct_fruit": true,
+        "harvest_report_agrees": true,
+        "both_navigation_phases_succeeded": true,
+        "trace_covers_original_start_and_finish": true,
+        "continuous_observed_motion": true,
+        "outbound_completion_time_recorded": true,
+        "original_aisle_vias_observed_in_order": true,
+        "return_circuit_vias_observed_in_order": true,
+        "bilateral_stem_pick_and_deposit_harvest_apple_5": true,
+        "bilateral_stem_pick_and_deposit_harvest_apple_7": true,
+        "parking_constraint_released": true,
+        "all_picked_fruit_in_physical_tray": true,
+        "mission_and_independent_final_pose_agree": true,
+        "arm_stowed_in_both_records": true,
+        "native_can_motion_and_feedback_without_errors": true,
+        "live_fused_localization_and_can_velocity_recorded": true
+      },
+      "metrics": {
+        "independent_final_sample_sim_time": 721.481,
+        "mission_finish_sim_time": 721.4,
+        "independent_finish_error_m": 0.21391293113555934,
+        "maximum_observed_step_m": 0.07628997789633186,
+        "ordered_outbound_via_errors_m": [
+          0.40471110929988496,
+          0.5907383952615153,
+          0.03448418411425796
+        ],
+        "ordered_return_via_errors_m": [],
+        "contact_tcp_errors_m": [
+          8.372388809661232e-05,
+          0.000588446281032935
+        ],
+        "native_can_final": {
+          "sim_time": 765.4,
+          "authorized": true,
+          "rx_commands": 21143,
+          "nonzero_commands": 9158,
+          "tx_feedback": 57132,
+          "errors": 0,
+          "fault": "",
+          "command_fresh": true,
+          "truth_fresh": true
+        }
+      },
+      "scope": "One continuous HIL run; Gazebo object-pose manipulation baseline and kinematic arm actuator, not real-hardware picking acceptance",
+      "audit_source_sha256": "4432940dbed971c9b93fe9bd8cce12fac9f5aa30a4ef376701830b79ce1e4ad3",
+      "input_sha256": {
+        "mission.json": "0fca836895c9dc9034fa7245efbe8be66aa43dc9fd82c26248d08d6ed70ad4f3",
+        "harvest.json": "ea61f722b037fe6df18b01f0d67dea53b5e29119e6941f192baa37e43e999824",
+        "independent-pc.json": "61630c1702040e546381d4828e5b2ffb11e5b37f7c39882de76bcccc4de6a49b"
+      }
+    },
+    "navigation-fluency.json": {
+      "status": "passed",
+      "checks": {
+        "complete_hil_acceptance_passed": true,
+        "mission_succeeded": true,
+        "no_failed_navigation_attempts": true,
+        "one_continuous_follow_per_phase": true,
+        "navigation_windows_complete": true,
+        "velocity_telemetry_complete": true,
+        "no_unplanned_stops_over_limit": true,
+        "forward_only_planned_paths": true,
+        "no_reverse_can_velocity": true,
+        "acceptance_matches_actual_inputs": true
+      },
+      "failed_navigation_attempts": 0,
+      "long_navigation_stops": [],
+      "windows": [
+        {
+          "phase": "outbound",
+          "begin": 364.2,
+          "end": 549.5,
+          "samples": 908,
+          "telemetry_complete": true,
+          "maximum_sample_gap_sec": 0.20400000000006457
+        },
+        {
+          "phase": "completion",
+          "begin": 623.0,
+          "end": 717.6,
+          "samples": 463,
+          "telemetry_complete": true,
+          "maximum_sample_gap_sec": 0.20400000000006457
+        }
+      ],
+      "stationary_threshold_mps": 0.02,
+      "stationary_threshold_radps": 0.02,
+      "stop_limit_sim_sec": 2.0,
+      "endpoint_trim_sim_sec": 1.5,
+      "scope": "Actual physics velocity during FollowPath only; excludes picking and endpoint ramps. Does not replace the independent physical HIL acceptance audit.",
+      "input_sha256": {
+        "mission.json": "0fca836895c9dc9034fa7245efbe8be66aa43dc9fd82c26248d08d6ed70ad4f3",
+        "harvest.json": "ea61f722b037fe6df18b01f0d67dea53b5e29119e6941f192baa37e43e999824",
+        "independent-pc.json": "61630c1702040e546381d4828e5b2ffb11e5b37f7c39882de76bcccc4de6a49b"
+      },
+      "source_sha256": "f7274a317a5cdf0cdf292ce6d38af235afb471b1367f7eabbc95c9c4a6279ad1"
+    },
+    "transit-gripper-audit.json": {
+      "status": "passed",
+      "checks": {
+        "outbound_restraint_confirmed": true,
+        "outbound_feedback_complete": true,
+        "outbound_fingers_stable": true,
+        "completion_restraint_confirmed": true,
+        "completion_feedback_complete": true,
+        "completion_fingers_stable": true,
+        "restraint_released_for_actual_stem_contacts": true
+      },
+      "legs": [
+        {
+          "phase": "outbound",
+          "begin": 364.7,
+          "end": 549.0,
+          "complete": true,
+          "samples": 3686,
+          "maximum_opening_error_m": 4.481643943638619e-06,
+          "finger_ranges_m": [
+            3.2261181823391855e-06,
+            4.7159223228992325e-06
+          ]
+        },
+        {
+          "phase": "completion",
+          "begin": 623.5,
+          "end": 717.1,
+          "complete": true,
+          "samples": 1872,
+          "maximum_opening_error_m": 7.847607824823521e-07,
+          "finger_ranges_m": [
+            1.303184166811383e-06,
+            7.317378124017948e-07
+          ]
+        }
+      ],
+      "maximum_allowed_error_m": 0.00025,
+      "scope": "Observed Gazebo joint feedback, not just target commands; original contact picking must also pass independent-audit"
+    }
+  },
+  "inputs_verified_unchanged": 102,
+  "raw_report_sha256": {
+    "mission.json": "0fca836895c9dc9034fa7245efbe8be66aa43dc9fd82c26248d08d6ed70ad4f3",
+    "harvest.json": "ea61f722b037fe6df18b01f0d67dea53b5e29119e6941f192baa37e43e999824",
+    "independent-pc.json": "61630c1702040e546381d4828e5b2ffb11e5b37f7c39882de76bcccc4de6a49b"
+  },
+  "persistent_network_configuration": {
+    "installed_on": [
+      "PC",
+      "X5"
+    ],
+    "rmem_max": 16777216,
+    "wmem_max": 16777216,
+    "systemd_boot_loader_reapply_verified": true,
+    "physical_reboot_test_performed": false
+  },
+  "remaining_limitations": [
+    "FireDAP diagnostic UART query did not receive a response. Target flash image hash and firmware identity were not read back.",
+    "X5 core is stopped after finite acceptance; RViz RobotModel TF can become stale while saved map and paths remain visible."
+  ]
+}

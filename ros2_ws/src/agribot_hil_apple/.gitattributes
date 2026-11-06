@@ -1,0 +1,3 @@
+# Keep supplied firmware bytes and patch context intact on every platform.
+firmware/hpm6750_20261106/** -text whitespace=cr-at-eol
+patches/*.patch -text -whitespace

@@ -1,0 +1,143 @@
+diff --git a/ros2_LinkAttacher/src/gazebo_link_attacher.cpp b/ros2_LinkAttacher/src/gazebo_link_attacher.cpp
+index 24b86b8..e6e0d39 100644
+--- a/ros2_LinkAttacher/src/gazebo_link_attacher.cpp
++++ b/ros2_LinkAttacher/src/gazebo_link_attacher.cpp
+@@ -38,6 +38,7 @@
+ 
+ #include <gazebo_ros/node.hpp>
+ #include <memory>
++#include <algorithm>
+ 
+ #include "gazebo_ros/conversions/builtin_interfaces.hpp"
+ #include "gazebo_ros/conversions/geometry_msgs.hpp"
+@@ -50,17 +51,23 @@
+ std::vector<JointSTRUCT> GV_joints;
+ JointSTRUCT GV_jointSTR;
+ 
+-// IsAttached variable:
+-// Gazebo breaks if -> An attachment request is done between 2 links, and the joint attachment has already been created and not removed!
+-// Therefore, we have added this variable to make sure the attachment is only requested when the previous attachment has already been removed.
+-bool IsAttached = false;
+-
+-// JointName:
+-std::string JointName = "None";
+-
+ namespace gazebo_ros
+ {
+ 
++class ScopedPausedWorld
++{
++public:
++  explicit ScopedPausedWorld(const gazebo::physics::WorldPtr &world)
++  : world_(world), was_paused_(world->IsPaused())
++  {
++    world_->SetPaused(true);
++  }
++  ~ScopedPausedWorld() { world_->SetPaused(was_paused_); }
++private:
++  gazebo::physics::WorldPtr world_;
++  bool was_paused_;
++};
++
+ class GazeboLinkAttacherPrivate
+ {
+ public:
+@@ -77,6 +84,7 @@ public:
+ 
+   // World pointer from Gazebo.
+   gazebo::physics::WorldPtr world_;
++  bool enable_gravity_on_attach_{false};
+ 
+   /// ROS node for communication, managed by gazebo_ros.
+   gazebo_ros::Node::SharedPtr ros_node_;
+@@ -104,6 +112,7 @@ void GazeboLinkAttacher::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr
+   
+   // Gazebo WORLD:
+   impl_->world_ = _world;
++  impl_->enable_gravity_on_attach_ = _sdf->Get<bool>("enable_gravity_on_attach", false).first;
+ 
+   // ROS2 NODE:
+   impl_->ros_node_ = gazebo_ros::Node::Get(_sdf);
+@@ -126,6 +135,7 @@ void GazeboLinkAttacherPrivate::Attach(
+   linkattacher_msgs::srv::AttachLink::Request::SharedPtr _req,
+   linkattacher_msgs::srv::AttachLink::Response::SharedPtr _res)
+ {
++  boost::recursive_mutex::scoped_lock physics_lock(*(world_->Physics()->GetPhysicsUpdateMutex()));
+ 
+   // CHECK if -> Joint already exists in GV_joints:
+   /* THIS IS NO LONGER NEEDED, SINCE THE JOINT IS REMOVED AFTER DETACHING!
+@@ -166,7 +176,9 @@ void GazeboLinkAttacherPrivate::Attach(
+     return;
+   }
+ 
+-  if (IsAttached == true){
++  JointSTRUCT existing;
++  if (this->getJoint(_req->model1_name, _req->link1_name,
++                    _req->model2_name, _req->link2_name, existing)){
+ 
+     _res->success = false;
+     _res->message = "Both links have already been attached, aborting new attachment.";
+@@ -174,7 +186,7 @@ void GazeboLinkAttacherPrivate::Attach(
+   } else {
+ 
+     // Create a fixed joint between the two links:
+-    JointName = _req->model1_name + "_" + _req->link1_name + "_" + _req->model2_name + "_" + _req->link2_name + "_joint";
++    const std::string JointName = _req->model1_name + "_" + _req->link1_name + "_" + _req->model2_name + "_" + _req->link2_name + "_joint";
+     gazebo::physics::JointPtr joint = model1->CreateJoint(JointName, "revolute", link1, link2);
+     joint->Attach(link1, link2);
+     joint->Load(link1, link2, ignition::math::Pose3d());
+@@ -184,9 +196,10 @@ void GazeboLinkAttacherPrivate::Attach(
+     joint->SetUpperLimit(0, 0);
+     joint->SetLowerLimit(0, 0);
+     joint->SetEffortLimit(0, 0);
+-    joint->SetDamping(1, 1.0);
++    joint->SetDamping(0, 1.0);
+ 
+     joint->Init();
++    if (enable_gravity_on_attach_) link2->SetGravityMode(true);
+     model1->Update();
+ 
+     GV_jointSTR.model1 = _req->model1_name;
+@@ -205,8 +218,6 @@ void GazeboLinkAttacherPrivate::Attach(
+     _res->success = true;
+     _res->message = "ATTACHED: {MODEL , LINK} -> {" + _req->model1_name + " , " + _req->link1_name + "} -- {" + _req->model2_name + " , " + _req->link2_name + "}.";
+ 
+-    IsAttached = true;
+-
+   }
+ 
+ }
+@@ -215,6 +226,10 @@ void GazeboLinkAttacherPrivate::Detach(
+   linkattacher_msgs::srv::DetachLink::Request::SharedPtr _req,
+   linkattacher_msgs::srv::DetachLink::Response::SharedPtr _res)
+ {
++  // Model::RemoveJoint calls SetPaused internally. Pause before taking the
++  // physics mutex, otherwise it inverts World::Update's world/physics locks.
++  ScopedPausedWorld pause_before_physics(world_);
++  boost::recursive_mutex::scoped_lock physics_lock(*(world_->Physics()->GetPhysicsUpdateMutex()));
+ 
+   // CHECK if -> Joint already exists in GV_joints:
+   JointSTRUCT j;
+@@ -226,9 +241,12 @@ void GazeboLinkAttacherPrivate::Detach(
+     // (+) Remove joint --> This fixes the following problem: If the object to be attached is removed and spawned again, 
+     // gazebo breaks when attaching it again, since the joint already existed. Joint must be REMOVED when detaching.
+     gazebo::physics::ModelPtr model1 = world_->ModelByName(_req->model1_name);
+-    model1->RemoveJoint(JointName);
+-
+-    IsAttached = false;
++    // RemoveJoint acquires world-update locks itself. Do not hold the lower
++    // level physics mutex across that call, even while the world is paused.
++    physics_lock.unlock();
++    model1->RemoveJoint(j.joint->GetName());
++    GV_joints.erase(std::remove_if(GV_joints.begin(), GV_joints.end(),
++      [&j](const JointSTRUCT &entry) { return entry.joint == j.joint; }), GV_joints.end());
+     
+     return;
+   } else {
+@@ -253,4 +271,4 @@ bool GazeboLinkAttacherPrivate::getJoint(std::string M1, std::string L1, std::st
+ 
+ GZ_REGISTER_WORLD_PLUGIN(GazeboLinkAttacher)
+ 
+-}  // namespace gazebo_ros
+\ No newline at end of file
++}  // namespace gazebo_ros

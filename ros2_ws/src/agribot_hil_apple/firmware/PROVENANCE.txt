@@ -1,0 +1,21 @@
+HPM6750 firmware snapshot for the validated 2026-11-06 HIL setup
+
+Source: user-provided vcu_configurator_src_20261106.zip.
+The 37 original archive members are preserved byte-for-byte under hpm6750_20261106/.
+SDKs, toolchains, local build outputs and debug captures are not included.
+Original source notices and build instructions are retained; this file does not
+relicense the supplied firmware or any third-party dependency.
+
+Supplied demo.bin SHA-256:
+9d4428055cfb2b33d69053f4ee327216e1a7971c173f8fe4592f8338a435f17b
+Supplied demo.elf SHA-256:
+ab4f61ee8ff35657ced66ea75567d33804d53fb453890ac7d24a78852bc00191
+
+The user identified these files as the firmware flashed onto the connected VCU.
+The actual physical CAN path passed zero-command round-trip, directional filtering
+and the full mission32 HIL test. The target Flash image itself was NOT read back
+or compared byte-for-byte; diagnostic UART identity/status queries timed out.
+No firmware was flashed by this HIL validation workflow.
+
+See hpm6750_20261106/BUILD_AND_FLASH.md for the SDK/build dependencies and pinout.
+See ../validation/full_mission_32_summary.json for the accepted HIL test scope.

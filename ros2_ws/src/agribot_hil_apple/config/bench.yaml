@@ -1,0 +1,26 @@
+schema_version: 1
+ros_domain_id: 73
+pc:
+  address: 192.168.1.1
+  wired_interface: enx207bd2b013d1
+  can_transport: socketcan
+  can_driver: gs_usb
+  can_interface_observed: can0
+  usb_can_serial: 003000224856511520343739
+rdk:
+  address: 192.168.1.102
+  wired_interface: eth0
+  can_transport: zqwl_cdc
+  can_driver: cdc_acm
+  can_interface_observed: null
+  zqwl_port: /dev/serial/by-id/usb-ZQWL-CANFD_ZQWL-CANFD_966960660237-if00
+  usb_can_serial: '966960660237'
+can:
+  topology: hpm6750_native_bridge
+  hpm6750_enabled: true
+  bitrate: 1000000
+  extended: false
+  can_fd: false
+  command_id: 0x181
+  feedback_ids: [0x101, 0x102, 0x103]
+  motion_authorized: false
