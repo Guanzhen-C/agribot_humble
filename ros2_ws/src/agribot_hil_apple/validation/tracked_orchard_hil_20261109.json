@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-09",
+  "run": "orchard-06",
+  "scope": "Complete native navigation and spraying HIL run, not precise intermediate waypoint acceptance",
+  "result": "navigation_and_work_completed_with_intermediate_via_accuracy_limitation",
+  "vehicle": "Car3 tracked differential",
+  "implement": "Compact plant protection sprayer, actual integrated fan and pump shafts",
+  "algorithms": ["FAST-LIVO2 + RTK on X5", "Smac Hybrid-A* on X5", "MPPI DiffDrive on X5"],
+  "topology": "X5 native drive and AgIsoStack++ -> real ZQWL CAN0 -> HPM6750 CAN1 -> CAN0 -> real PC gs_usb CAN0 -> Gazebo physics; physical reverse feedback",
+  "bitrate": 250000,
+  "actuator_or_localization_bypass": false,
+  "native_follow_path_succeeded": true,
+  "planned_poses": 971,
+  "original_planning_goals": [[41.0, 36.0, 0.0], [41.0, 32.5, 3.14159], [3.0, 32.5, 3.14159]],
+  "replans_used": 0,
+  "mission_wall_seconds_approx": 406,
+  "observed_distance_m": 78.3838200394501,
+  "goal_tolerance_m": 0.4185015549046406,
+  "mission_endpoint_error_m": 0.405933207514564,
+  "settled_endpoint_error_m": 0.38563619619850187,
+  "independent_via_closest_distance_m": [0.9811280926696941, 0.9514920825469514, 0.38563619619850187],
+  "intermediate_vias_within_half_wheelbase": false,
+  "intermediate_via_note": "Original goals retained by the actual Smac plan. Continuous FollowPath cuts the two headland corners by about 1 m. Do not claim precise passage within the final-stop tolerance.",
+  "fan_peak_rad_per_sec": 94.17078817636852,
+  "pump_peak_rad_per_sec": 83.75090855367434,
+  "final_fan_rad_per_sec": 0.00027319351136198224,
+  "final_pump_rad_per_sec": 0.00027319351083429297,
+  "final_five_seconds_max_planar_speed_mps": 0.0014271994116835326,
+  "pc_bridge_rejected_commands": 0,
+  "pc_bridge_faults": [],
+  "independent_can_errors": [],
+  "cdc": {"sent": 17266, "received": 36255, "blocked": 0, "decoder_invalid": 0, "errors": []},
+  "regression_tests_passed": 162,
+  "firmware_elf_sha256": "932444008e70e4b4f306e0d37cd8d65c798814da2a06e5456e2d4d2177402c4c",
+  "evidence_directory": "~/.local/state/agribot-isobus-hil-20261109/",
+  "evidence": [
+    {"file": "orchard-mission-06.json", "sha256": "1e52a87dc7791cf2ca18c2dc0a0062e3e47160fe7a478637b64cec71b180b654"},
+    {"file": "orchard-independent-06.json", "sha256": "fd9e5b200041e1229c894a9b726e0b863436503bb9e095b574c135737e31d4a1"},
+    {"file": "can-mux-orchard-06.json", "sha256": "5a382f074e9fcf180ecb99948500064115b8128c659b35d9a1ac81247336b1ba"}
+  ],
+  "earlier_runs": {
+    "04": "Interrupted after a physical native command loss expired the receiver lease; not a pass",
+    "05": "Native MPPI abort on the initial path as live obstacle costs changed; not a pass"
+  },
+  "fixes": [
+    "Retain neutral arming and 0.5 s receive lease; X5 sends native zero until real PC receiver readiness returns",
+    "Smac replan only after ended/cancelled controller failure, maximum six retries, retaining remaining original vias",
+    "Persist operator interruption separately from execution success"
+  ],
+  "final_state": "Mission and recorder finished, X5 experimental core stopped, PC Gazebo left open with motion/work authorization false",
+  "limitations": [
+    "Independent recorder stores linear XYZ twist only; no yaw-rate statistic is available from those samples",
+    "One complete successful route run, not repeated long-duration or field reliability certification",
+    "No injected physical CAN loss or forced MPPI failure in successful run06; recovery policy has focused regression tests",
+    "Spray is sampled collision-clipped rendering, not measured flow or liquid physics",
+    "Private ISOBUS application PGNs, no UT/TC or AEF certification"
+  ]
+}

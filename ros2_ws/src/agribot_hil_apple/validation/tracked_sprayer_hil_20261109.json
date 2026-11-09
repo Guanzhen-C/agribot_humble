@@ -1,0 +1,75 @@
+{
+  "date": "2026-11-09",
+  "scope": "Short physical CAN HIL commissioning, not full navigation or long-duration stability",
+  "vehicle": "Car3 tracked differential",
+  "implemented_protocols": ["plant_protection_fan_pump", "shredder"],
+  "gazebo_demonstration": "plant_protection_only",
+  "topology": "X5 ZQWL -> HPM6750 CAN1 mixed native drive/ISOBUS -> CAN0 native -> PC gs_usb -> Gazebo",
+  "bitrate": 250000,
+  "physical_drive_bypass": false,
+  "stack_commit": "02f3fe910de5fdc73e2014394c2e80900490b9cc",
+  "protocol_scope": "Private application PGNs on AgIsoStack++ network management, no UT/TC or AEF certification",
+  "firmware": {
+    "full_original_backup_bytes": 16777216,
+    "full_original_backup_sha256": "37994f277fb0ef2cf2065dd810f21e2a7ca9aa6fd60114b17d55aa53996208ae",
+    "new_generated_bin_sha256": "77a1683b15cb84bd209c8cca83d02cb281f76929d57af3155565a0aa22ebe57d",
+    "programmed_format": "ELF",
+    "readback_flash_load_segments": 5,
+    "all_load_segments_equal": true,
+    "last_64k_configuration_unchanged": true,
+    "earlier_wrong_bin_origin_attempt": "Corrected; not accepted as successful evidence"
+  },
+  "regression_tests_passed": 147,
+  "sil": {
+    "actual_agisostack_endpoints": true,
+    "three_native_control_fields": true,
+    "independent_leases_and_neutral_stop": true,
+    "legacy_drive_forwarding_and_ack": true,
+    "native_feedback_source": "Explicit software fixture, not hardware proof"
+  },
+  "physical_runs": [
+    {
+      "file": "tracked-spray-hil-01.json",
+      "sha256": "c2a344765671d31ae9e6073bce16e07dfbe037698654ec3b6cd20f40622218a5",
+      "passed_checks": 8,
+      "total_checks": 8,
+      "forward_displacement_m": 1.697757865940222
+    },
+    {
+      "file": "tracked-spray-hil-02.json",
+      "sha256": "c935561e2a48777092f4a947e7fc4a72f9ab35b0f52f0a1c58424024c44c793c",
+      "passed_checks": 8,
+      "total_checks": 8,
+      "forward_displacement_m": 1.6961348024747327
+    },
+    {
+      "file": "tracked-spray-hil-03.json",
+      "sha256": "039d9e402ff2a10fd1ccfbe78cbc1d5c4baa5b7820cf93f8bfbe6b8e6813051e",
+      "passed_checks": 8,
+      "total_checks": 8,
+      "screenshot": "gazebo-physical-spray-03.png"
+    }
+  ],
+  "checked_behaviors": [
+    "actual_native_drive",
+    "isobus_converted_to_native_work",
+    "actual_integrated_motor_motion",
+    "independent_work_command_timeout",
+    "drive_continues_during_work_timeout",
+    "actual_motors_stop_on_timeout",
+    "actual_chassis_displacement",
+    "chassis_stopped_at_finish"
+  ],
+  "raw_evidence_directory": "~/.local/state/agribot-isobus-hil-20261109/",
+  "usb_disconnect_record": {
+    "description": "User confirmed a manual USB unplug after the successful short functional windows",
+    "user_confirmed_manual_unplug": true,
+    "kernel_messages": ["disabled by hub (EMI?)", "device descriptor read/64, error -71"],
+    "cdc_first_run": {"errors": [], "decoder_invalid": 0},
+    "cdc_second_session": {"disconnect_at_wall_s": 119.06280635099984, "decoder_invalid": 0},
+    "conclusion": "Earlier hardware-instability inference withdrawn. Retain raw logs as a manual-disconnect record, not evidence of a hardware fault. No additional long-duration stability test was run."
+  },
+  "final_critical_endpoint_exit_test": "Deliberate preflight failure stops other X5 processes before any physical USB open",
+  "final_state": "PC/X5 experimental processes stopped; no USB port owner; 6750 test firmware retained",
+  "model_limitations": "Original STEP metre scale retained; illustrative mount/inertia/motor curves, spray particles rather than fluid simulation. Final visual-only cradle addition has unit coverage."
+}

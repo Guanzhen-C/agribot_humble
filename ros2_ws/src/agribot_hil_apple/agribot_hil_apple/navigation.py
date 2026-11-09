@@ -23,6 +23,10 @@ from std_msgs.msg import Bool
 PARAMETER_UPDATE_TIMEOUT = 120.
 
 
+class ControllerPathError(RuntimeError):
+    """The native controller ended unsuccessfully; a fresh path may be tried."""
+
+
 def advance_via_index(points, index, x, y, radius=.6):
     # Only intermediate points may be retired by proximity. The final point
     # always requires the controller's configured goal-checker result.
@@ -233,13 +237,13 @@ class Navigator(Node):
                 self.active_goal = None
                 if result.status == GoalStatus.STATUS_SUCCEEDED:
                     return
-                raise RuntimeError('Path progress stalled; controller cancelled for a fresh Smac plan')
+                raise ControllerPathError('Path progress stalled; controller cancelled for a fresh Smac plan')
             if time.monotonic() > deadline:
                 raise TimeoutError('FollowPath result timed out')
         result = future.result()
         self.active_goal = None
         if result.status != GoalStatus.STATUS_SUCCEEDED:
-            raise RuntimeError(f'MPPI path execution failed, action status={result.status}')
+            raise ControllerPathError(f'MPPI path execution failed, action status={result.status}')
 
     def stop(self):
         if self.active_goal is not None:

@@ -1,4 +1,550 @@
-# HIL Resume State, 2026-11-06
+# HIL Resume State, 2026-11-09
+
+## Current: Run12 Finished; Saving Baseline Before Shredder HIL
+
+Run12 has finished with `status=succeeded`, one native971-pose Smac path and
+MPPI execution. Independent endpoint error0.391045m is below the configured
+0.418502m final tolerance. Actual chassis and fan/pump shafts stopped. The PC
+recorder was stopped cleanly; X5 core is inactive; PC motion/work authorizations
+were both revoked. Raw mission, independent and CDC records are retained locally.
+CDC trace has25906 sent/54600 received, no decoder-invalid frames or IO errors.
+Do not claim zero rejected native commands: the independent bridge log contains4.
+The run06 intermediate-corner limitation remains; this is not precision via-point
+acceptance or long-duration reliability certification.
+
+Latest user requested a Git/GitHub checkpoint, then a separate physical-CAN
+Gazebo test of the supplied shredder implement. Do not add that experiment to
+the formal test reports. The sprayer baseline/configuration must remain intact.
+
+## Historical: User-Requested Restart, Restored Run06 Parameters
+
+User then explicitly asked to restart. All13 restored scene/config hashes checked
+again, physical CAN250kERROR-ACTIVE, X5vcan/real USB present. Started PCorchard-pc
+and X5orchard-rdk with can-mux-orchard-12.json. Real gateway01/01/03, localization
+ready, no bridge fault. Live PathAlign3.5 and obstaclemax0.55 verified before motion.
+PC motion/work explicitly authorized after preflight. Mission12 and independent
+recorder12 started with fresh evidence files; original1->2->3. No tuning changes.
+This is a requested running test, NOT a new complete-route pass yet.
+Startup confirmed: missionwall9.72s, actual(3.521,35.669), actualfan/pump
+93.779/83.359rad/s, native Smac971poses. Gazebo screenshot viewed; vehicle/mist
+visible. Short startup observer exited cleanly; services intentionally keep running.
+
+Units: agribot-isobus-orchard-pc / agribot-orchard-record-12 onPC;
+agribot-isobus-orchard-rdk / agribot-orchard-mission-12 onX5.
+Reports under each host's private agribot-isobus-hil-20261109 state directory.
+Do not start duplicate CAN/mission owners. Keep camera under manual control.
+On user stop, stop mission/recorder gracefully, disable bothPC authorizations,
+and preserve raw reports. Run06's intermediate corner limitation remains expected.
+
+## Historical: User-Requested Run06 Parameter Restoration
+
+Latest user explicitly requested ALL parameters restored to the first complete
+successful orchard run06. Further tuning/testing goal is paused externally; do
+not resume experimental traction/height/corner changes or start motion unasked.
+All test missions/recorders/X5 core/PC were stopped before restoration.
+
+Active source preparation restored original imported Car3 physics, original
+PathAlign3.5/step4/offset6, PathFollow7/offset6, PathAngleoffset8, footprintpadding0,
+obstacleheightband[.08,.55], normal goal tolerance0.41850m. New strict intermediate
+via gate, strict retirement and extra planner retry were removed. Original
+controller-failure retry and physical CAN zero-handshake fixes from06 remain.
+Experimental physics module/tests moved OUT of the active package into private
+rollback-run06-20261109/experimental. Both build/install caches rebuilt fresh;
+experimental module absent from both source and installed package on both hosts.
+
+Regenerated vehicleSDF/URDF/world/vehicleconfig and nine RDK configs are byte-for-
+byte equal to the preserved pre-physics scene and actual nav2-orchard-run06.yaml.
+The regenerated mission object equals manifest embedded in orchard-mission-06.json.
+13 files checked. Appearance, calibrated sensor layout, mist/occlusion and6750
+FIFO fix retained.163 regression tests pass. This is a parameter restoration,
+NOT a new complete-route run;06's~1m intermediate-corner limitation returns too.
+
+Deployment complete: all13 local file hashes and all9 X5 configuration hashes
+verified against the restoration receipt. Both overlays built successfully.
+All experimental runtime units remain STOPPED; no new Gazebo launch or motion
+test was performed after restoration. Last motion/work authorizationFALSE.
+No live-parameter or new route-pass claim: source/config equality was verified.
+Raw06..11 reports and all experimental scene/source backups preserved.
+
+## Historical: Traction Fix, Test11
+
+Latest user: "又撞树上了，现在底盘的摩擦力不够容易被地形影响".
+Run10 failed after3 native controller attempts and4 failed planning requests,
+finalpose~(37.825,31.906). Its minvias0.03343/0.02660m, maxroll6.82/pitch8.77deg.
+User reported tree contact; a later stationary snapshot only had wheels/ground,
+which does NOT disprove an earlier contact. No combined complete-route pass yet.
+Mission10/recorder10/core/PC stopped safely, raw10 copied to PC; no Git push.
+
+Read native tracked_slip_policy.hpp: at full turning blend it deliberately gives
+ODE lateral slip0.003, allowing substantial downhill force-dependent drift. Old
+straight compliance0.1 also allows creep while rolling. Latest orchard-only
+traction profile: lateralmu0.36->0.6, longitudinalmu1.1->1.8, straightcompliance
+0.1->0.005, turningODEslip0.003->0.0001; finite skid is retained. Torque12->20Nm
+to preserve steering with higher lateral grip, still far below original200Nm.
+Wheel acceleration0.5, loweredCOM,72.1kg load distribution and soft/damped contacts
+unchanged. No wheel/scene/collision geometry or pose/velocity-state override.
+Source/cache/manifest regenerated and X5 synced. Old cache before-traction-20261109.
+Scene SDF byte-identical.170 tests pass, both overlays built.
+
+Full test11 is starting from original spawn1->2->3; PCorchard-pc and X5orchard-rdk
+are started with tracecan-mux-orchard-11.json. Preflight probe pending; then start
+recorder11/mission11 only after fresh real CAN/FASTLIVO ready. Do not reuse reports.
+Upperbranchband[.08,.85], padding.05, PathAlign18 and bounded planning retry retained.
+Do NOT claim traction/tree/corner success before physical run11 measurements.
+
+## Historical: Combined Full Test10
+
+Run09 stopped before physical tree contact, but ended after Smac reported start
+in lethal space during MPPI recovery (reportfailed). A later READ-ONLY plan from
+the exact same pose/parameters succeeded with424 poses. Current contact snapshot
+showed only wheels/ground, no tree; this is not a claim of zero contacts throughout09.
+Diagnosis: immediate recovery can see transient voxel/pose footprint occupancy.
+No obstacle clear, height rollback or physical bypass was used.
+
+`PlannerPathError` now distinguishes a native no-path result. Orchard recovery
+records failed planning requests, holds zero and workoff, waits1.25 wallseconds
+while processing fresh data, retries within the SAME total six-replan budget.
+Permanent no-path remains a hard failure; no motion on a rejected path. Unrelated
+exceptions are not hidden.170 regression tests passed; both overlays rebuilt.
+
+Full run10 active from ORIGINAL spawn and1->2->3, with all prior body, corner,
+upper-branch band[.08,.85] and padding.05 fixes. PCorchard-pc + recorder10,
+X5orchard-rdk + mission10, tracecan-mux-orchard-10.json. Read-only SSH monitor in
+current turn prints every15s. Do not start a second mission or alter live parameters.
+No full pass of the combined latest changes yet;06 remains the only full pass,
+with its documented ~1m via limitation.07 tipped,08 hit tree,09 failed recovery.
+
+## Historical: Upper-Branch Obstacle Test09
+
+Latest user reported tree collision/stop during08. Stopped mission08/recorder08,
+disabled both PC authorizations, preserved raw08, then stopped X5 core/PC to rebuild.
+Actual Gazebo contact snapshot:vehicle_body_collision vs orchard trunks_collision
+atworldz~0.88; basez~0.207. This is above the old base-level filter max0.55, so a
+real upper-body/branch interference was excluded from the obstacle band. Filter
+code was read to verify height is relative tohil_base_level, not globalground.
+Two optional raw-cloud diagnostic snippets failed due mixed datatype fields in
+read_points_numpy; no invented upper-point counts from these failed probes.
+
+Run08 body changes DID keep it upright: independent maxroll6.74deg/pitch8.76deg,
+but it still hit a tree, so NOT a full-route pass. Actual vias0.02247/0.06328m,
+CAN faultsnone/rejected4. Its recovery policy attempted a new plan after prolonged
+stall; original route was interrupted by operator action, not silently succeeded.
+
+New filter max is derived from actual chassis collision top plus0.15m tilt/grid
+margin, rounded up5cm: band[0.08,0.85]. Input remains real simulated LiDAR; no
+truth-to-planner obstacle injection. Ground rejection lower limit unchanged.
+Global/local footprint_padding0->0.05m; no tree collision removal, no scene flattening,
+no speed/collision-critic relaxation. Source helper and prepared manifest store the
+band; X5 launch reads it. Old scene archived before-obstacle-band-20261109.
+168 tests pass. Both overlays built and X5 configured band verified before motion.
+
+Full run09 is active: PCorchard-pc + recorder09, X5orchard-rdk + mission09, trace
+can-mux-orchard-09.json. Read-only monitor execsession from current turn prints
+every15s. Original spawn/1->2->3, PathAlign18 and loaded body fixes retained.
+Do not call it passed before both vias, prior tree region and final stop are checked.
+
+## Historical: Loaded-Chassis Stability Test08
+
+Run07 resolved both intermediate corners (actual nearest0.03607/0.02563 m), but
+then the vehicle physically tipped near(35.54,32.47) on the return. User explicitly
+requested body-parameter changes. Mission07 was stopped and correctly persisted
+interrupted; NOT a full-route pass. Recorder and CDC07 are preserved locally.
+Independent quaternion shows ~85 degree pitch. Do not describe this as a CAN
+failure or hide it by reporting only the two accurate vias.
+
+Found poor physical proxies:200 Nm per-wheel limit, wheel contactkp1e9/kd1,
+body mass at visual bbox centre, implement mass at the rotated CAD edge origin,
+and slip normal loads computed before adding the10.1 kg implement/rotors.
+These are risk factors; a single root-cause impulse has NOT been proven.
+
+New orchard-only `tracked_physics.py`: same total72.1 kg, base mass centre lowered
+toz0.04, loaded aggregate COMz0.09609 relativebase; implement bbox-centre proxy
+transformed correctly instead of using CAD origin. Positive box inertias written
+to SDF and matching URDF. Wheel torque12 Nm, acceleration0.5 m/s2, contactkp2e5/
+kd1500/maxcorrection0.05, longitudinalmu1.1, wheel damping0.05. Loaded normal
+forces front~169N and rear~184N, summingmass*g. No change to original wheel centres,
+diameters, chassis collision shapes, scene mesh, sensors, mounts, drive/CAN path
+or target cruising speed. No upright constraint/pose or velocity-state override.
+All values are labelled illustrative simulation proxies, NOT measured calibration.
+Old scene cache preserved as tracked_orchard-before-loaded-physics-20261109.
+Scene world.sdf is byte-identical to that archive.167 tests pass, both builds done.
+
+Full run08 active: PCorchard-pc and recorder08, X5orchard-rdk and mission08, trace
+can-mux-orchard-08.json. Read-only monitor execsession20022. Original spawn/1->2->3,
+PathAlign18 corner fix retained. Do not claim physical stability before the return
+problem region and endpoint have been tested. End safely and preserve all reports.
+
+## Historical: Intermediate Corner Accuracy Test07
+
+User asked to resolve the ~1 m intermediate corner cutting in completed06.
+Offline audit: actual Smac path approaches both original vias within0.03535 m,
+while fused AND true trajectories miss them by~1 m. This is MPPI tracking, not
+missing original planning goals or a ground-truth/localization offset explanation.
+
+Only orchard tracking profile changed: PathAlign weight3.5->18, sample step4->2,
+offset6->3; PathFollow weight7->5/offset6->3; PathAngle offset8->4. No speed,
+footprint, collision validator, obstacle layer or final tolerance relaxation.
+Previous nav2 YAML archived in private state as nav2-orchard-run06.yaml.
+
+Orchard route recovery now retires vias using ordered fused-pose proximity only
+(0.8*half-wheelbase), not Nav2 remaining-path feedback. Ground truth is used only
+to audit minimum actual via distances; it is never fed to localization/control.
+The mission fails if either actual intermediate via misses half-wheelbase.
+Shared Navigator retains its legacy default feedback policy for old Ackermann.
+Regression163 passed; both overlays built and X5 live PathAlign weight18 confirmed.
+
+Clean full run07, original spawn and1->2->3 points. PC unitorchard-pc and independent
+recorder07, X5 orchard-rdk and mission07, tracecan-mux-orchard-07.json. Read-only
+SSH monitor execsession70968 prints report every15 s; do not spawn another mission.
+No runtime changes while this run is moving. Keep camera manual. Finish by auditing
+all via distances and actual stop, preserving raw reports, stopping recorder/X5
+core and disabling PC motion/work. NOT yet a measured corner-accuracy pass.
+
+## Historical: Full Orchard Test06 Completed
+
+Native Smac/MPPI route06 completed in ~406 wall seconds, with ~78.38 m observed
+movement and actual fan/pump operation in both rows. Native action succeeded with
+one 971-pose plan, no replans. Independent PC record: no CAN errors, no bridge
+faults, rejected commands=0. CDC trace:17266 sent/36255 received, no decode errors.
+Final actual error: mission check0.40593 m, settled0.38564 m, inside the0.41850 m
+half-wheelbase tolerance. Last5 s max planar speed0.00143 m/s, yaw0.00468 rad/s;
+final fan/pump ~0.000273 rad/s. Real stop and work-off verified, not just command0.
+
+IMPORTANT LIMITATION: intermediate vias were retained in the actual Smac plan,
+but continuous MPPI tracking cut the two headland corners. Actual closest
+distances were0.98113/0.95149 m, NOT inside half-wheelbase tolerance. Thus complete
+navigation/work is demonstrated, not precise intermediate-via acceptance. No
+forced failure/CAN dropout was injected in successful06; recovery has unit coverage.
+
+Mission, recorder and X5 experimental core are stopped. PC Gazebo remains visible
+with motion/work authorization FALSE, no camera lock. Validation summary and raw
+hashes:validation/tracked_orchard_hil_20261109.json. Raw reports copied to PC private
+state.162 regression tests passed. Nothing committed/pushed for this request.
+
+## Historical: Full Orchard Test06 Startup
+
+User requested the complete moving HIL test after spray clipping. PC orchard
+physics and the full X5 algorithm core have been cleanly restarted. Mission06
+and independent recorder06 are running with fresh files. Do not call this a pass
+until all three original vias, native action success, actual endpoint/stop and
+actual implement work/stop have been audited. Camera remains manually controlled.
+
+Run04 diagnosis: recorder and mission have different start offsets. The native
+CAN recorder has a 0.600 s gap at recorder wall133 s, corresponding to mission
+wall~104 s, exactly when motion stopped. X5 CDC trace has no outbound drive gap;
+two native frames were lost farther along the physical path. PC CounterLease
+expired and correctly rejected nonzero commands until a zero command; previous
+wording about an earlier unexplained stop used mismatched time origins.
+
+The PC now reports drive/work lease freshness. X5 `tracked_drive_guard` forwards
+MPPI commands only with fresh command/status, motion authorization, fresh truth,
+fresh physical lease and no fault. Otherwise it sends zero THROUGH the unchanged
+native CAN driver and physical 6750 path; only real receiver readiness re-enables
+motion. The 0.5 s receiver lease, replay checks and restart-neutral requirement
+remain intact. This is no actuator bypass and does not disable localization guards.
+
+Run05 failed at x~8 m: MPPI action aborted as the live obstacle map changed from
+the initial path. CAN rejected=0, no bridge fault. Its reports are retained, NOT
+a pass. The orchard mission now retries native Smac ONLY after an ended or
+explicitly cancelled controller path, at most six replans. It retains all not-yet-
+passed original vias, suspends work while replanning, and does not periodically
+replace the path. Unrelated exceptions are not retried. Interrupted missions now
+persist `interrupted` instead of stale `executing`. Regression suite:162 passed.
+
+Run06 units: PC `agribot-isobus-orchard-pc`, recorder `agribot-orchard-record-06`;
+X5 core `agribot-isobus-orchard-rdk`, mission `agribot-orchard-mission-06`.
+Evidence: orchard-mission-06.json / orchard-independent-06.json /
+can-mux-orchard-06.json, each in the appropriate host's private state directory.
+
+## Previous: Spray Obstacle Clipping, Full Route Paused
+
+User redirected the moving test to fix mist passing through obstacles. Mission04,
+full X5 algorithm core and its independent PC recorder were stopped; no full-route
+pass. Raw mission04 says executing because SIGINT only ran the old finally block;
+this is stale persisted state, NOT evidence of a still-running mission or success.
+It advanced to x~22.48 at wall104 s, then stopped progressing and spraying before
+the user interruption at wall178 s. PC bridge later had 373 rejected commands,
+no latched fault. Preserve reports and investigate that separate issue before
+claiming a full navigation pass; do not explain the earlier stall as user action.
+Local read-only monitor85303 was explicitly terminated and drained.
+
+New `work_spray_obstacles.cpp` uses actual Gazebo physics ray intersections with
+wall/ground/tree collision meshes, 9x9 samples per real nozzle, 10 Hz, 4.5 m range.
+It ignores only this vehicle's coarse chassis proxy, not environment mesh bounds.
+World-space range grids are sent over local Gazebo transport to the visual plugin;
+surrounding samples' minimum depth conservatively clips particles with sprite-size
+and movement clearance. Expired geometry stops emission/clears particles, no
+unblocked fallback. This is sampled visual occlusion, NOT full liquid/impact physics;
+render-only geometry without collision shapes is not tested by physical rays.
+Water above a wall may pass OVER it; intersecting wall directions are clipped.
+No new implement collision body/footprint, mounting or nozzle-direction change.
+
+Both C++ plugins compiled; 157 tests passed, including native clipping geometry
+and shared source positions for visual/physics rays. Real static HIL observer
+`mist-obstruction-observer-12.json`: pump peak83.3605 rad/s, CAN errors0, motion
+authorization false, drift .00393 m. Physical blocked rays ~220..232/648, nearest
+~1.05 m; GUI log `~/.gazebo/client-11357/default.log` confirms depth_fresh=1 and
+active particle clipping. Actual screenshot `mist-obstacle-clipped-12.png` viewed,
+RTF .73 (previous .74); some spray can clear the low wall's top. GUI stdout is in
+Gazebo client log, not the service journal. Original geometry/maps unchanged.
+
+PC `agribot-isobus-orchard-pc` running, motion disabled. X5 basic mist-only unit
+`agribot-isobus-mist-rdk` is active with `can-mux-mist-obstruction-12.json`, work
+authorized there but no mission. Any preview is finite and disables PC work on exit.
+Firmware remains the verified FIFO-drain fix, no further flash for spray clipping.
+
+## Historical Full Orchard Test04 (Interrupted)
+
+After clean restart, gateway bytes 01/01/03, localization ready, PC physical
+bridge fault empty. PC motion/work enabled and X5 console entry point
+`ros2 run agribot_hil_apple tracked_orchard_mission` started as
+`agribot-orchard-mission-04`. Real Smac path has 971 poses. At wall40.12 s the
+independent truth is (9.908,35.902), fused (9.879,35.898); actual fan/pump
+93.777/83.357 rad/s. This is genuine motion and spraying over the physical CAN
+chain, not an intent-only preview. Full route is still IN PROGRESS.
+Same core unit `agribot-isobus-orchard-rdk`, trace `can-mux-orchard-04.json`;
+PC read-only `agribot-orchard-record-04` saves `orchard-independent-04.json` on
+SIGINT or at 1000 s. Mission report is X5 `orchard-mission-04.json`.
+Read-only local monitor exec session85303 polls that report every15 s and exits
+at succeeded/failed; do not start a second mission or touch ECU debug while moving.
+End by stopping recorder gracefully, copying mission/CAN trace, verifying endpoint
+and actual stop, then disabling PC motion/work. Do not label a partial run passed.
+
+## Full Orchard Startup Diagnosis Before Test04
+
+Test02 was blocked BEFORE motion: gateway never became ready. The first `python
+-m` invocation did not call the console entry point (no test/report); corrected
+`ros2 run` invocation produced a genuine failed-preflight report. Preserve it.
+Physical trace02: 1889 outbound frames, ZERO received, decoder errors zero.
+Read-only JTAG snapshot `orchard-02-can-state.log` found CAN1 CMD=0x00c38000:
+secondary TX FIFO full, TSONE/TSALL both clear, error counters zero. SDK's
+nonblocking helper only triggers TSONE; when STB is full it returns before any
+trigger and can leave queued frames permanently stranded after adapter restart.
+
+Firmware `send()` now also calls SDK `can_start_all_message_transmit()` after
+success OR FIFO-full, draining pending hardware frames on both buses. No new
+protocol or command added. Old ELF/BIN saved as demo-before-fifo-fix.*; original
+full-Flash backup remains. New ELF programmed and Verified OK; log
+`flash-isobus-03-fifo.log`. Real CAN1 gateway/feedback immediately returned in
+run03 (FF60/FF50/FF52/FF53, native 532/533/534), confirming recovery, but the PC
+bridge had latched ENOBUFS while the ECU was halted for programming. It correctly
+reported fault and prevented work; do not mask it. Stop/restart both ROS sides
+cleanly after flashing, then use fresh trace/mission/recorder filenames for run04.
+Runs02/03 are NOT route passes. PC motion/work disabled during diagnosis.
+
+## Previous Test02 Startup Details (Superseded Above)
+
+User explicitly requested the full moving work test after accepting appearance.
+PC `agribot-isobus-orchard-pc` is running; motion/work authorizations enabled only
+after real CAN feedback and FAST-LIVO2/RTK readiness were observed. X5 mist-only
+run06 has been stopped to keep one physical CDC owner. X5 full algorithm unit is
+`agribot-isobus-orchard-rdk`, with `can-mux-orchard-02.json` trace, localization
+guard enabled, native Smac + MPPI DiffDrive. The unmodified 1->2->3 route is
+(41,36,0), (41,32.5,pi), (3,32.5,pi), not a direct velocity command or ROS bypass.
+Mission unit `agribot-orchard-mission-02` writes X5 `orchard-mission-02.json`;
+independent read-only PC unit `agribot-orchard-record-02` writes
+`orchard-independent-02.json` when interrupted cleanly or after 1000 seconds.
+All reports are under each host's `~/.local/state/agribot-isobus-hil-20261109/`.
+The test is in progress, NOT a full-route pass. Monitor the same units/reports;
+do not start duplicate CAN or mission owners. End by recording endpoint/stopping
+status, stopping the recorder with SIGINT, copying X5 results/trace, and revoking
+PC motion/work authorization. Keep GUI visible, camera manually controlled.
+
+## Current Display: Grey Chassis, White Tank, Textured Sprayer
+
+Latest user instruction supersedes black chassis: use medium-grey shell, white
+HDPE tank, green painted steel frame, satin-metal fan/nozzles/fasteners and dark
+polymer caps/pipes. The atlas is stored in `models/tracked_sprayer/`, generated
+with the built-in image tool; exact prompt and rebuilding steps are in its README.
+`prepare_work_material_parts.py` separates the original 123 STEP solids by
+material role, then `blender_textured_work_model.py` makes a 150748-triangle mesh
+(old neutral mesh 150000), with four real UV/textured materials. Source STEP hash,
+normalization and 0.55 mounting scale remain unchanged; no new collision geometry.
+Prepared visual cache: `~/.cache/agribot/isobus/work_models/plant_protection/textured/`.
+
+`appearance.py` copies the chassis OBJ byte-for-byte into each scenario and only
+changes shell MTL colours. Grey diffuse RGB is (.32,.33,.34); lights, track rubber,
+wheel hubs and all separately mounted sensors keep original colours. SDF and URDF
+reference this same isolated body mesh. Original Unity/vehicle exports untouched.
+The black intermediate cache is archived as
+`tracked_orchard-black-chassis-textured-20261109`; do not restore black by mistake.
+PC overlay rebuilt and all 156 tests passed. Actual black intermediate screenshot
+`orchard-textured-white-tank-black-chassis-11.png` was viewed and showed the atlas
+loaded correctly; it is not the final grey-body screenshot.
+Final `orchard-textured-white-tank-grey-chassis-12.png` was also viewed: grey
+shell, white tank, green frame and metal fan render correctly, real-time factor .74.
+
+PC Gazebo is restarted for display, motion/work authorization remain false;
+X5 mist core run06 remains active and no second CDC/CAN owner has been started.
+The user briefly requested walking, then redirected the interrupted turn to
+materials/colours. No new autonomous orchard mission has been started yet.
+Blue-grey mist, original radial outlet coordinates and stronger range remain as
+accepted below. Latest colour-only run10 was 12 seconds, no CAN errors, actual
+pump/fan peaks 83.3605/93.7804 rad/s, maximum chassis drift .003944 m;
+`mist-blue-grey-10.png` was viewed and clearly shows the blue-grey spray.
+
+## Latest: factory nozzle mouths and stronger radial mist
+
+User confirmed the corrected nozzle positions on 2026-11-09, then requested
+greater spray range and a more forceful appearance. Keep the accepted implement,
+RTK and IMU mount unchanged. Use the eight actual 0.4 mm bore outer-end circles
+in STEP solids 66/68/70/72/74/76/78/80, plus 1 mm outward clearance. Emit radially
+away from the fan axis, not axially from fasteners 82/86/.../106. The earlier
+seven-point interpretation was incorrect; do not restore it or add nozzle meshes.
+
+The invisible anchor's measured Ogre scale is (2e-5,2e-5,2e-5). The independent
+particle child ignores this scale and measures (1,1,1), fixing collapsed origins.
+The physical-CAN run `mist-radial-bores-observer-08.json` recorded pump 83.36 rad/s,
+fan 93.78 rad/s, no CAN decode errors and motion authorization false. User accepted
+the resulting locations; `mist-radial-bores-close-08.png` instead shows a wall
+because of camera movement and must NOT be cited as visual acceptance evidence.
+
+The new appearance parameters are velocity 2.0..2.8 m/s (previously 1.1..1.6),
+lifetime 0.9..1.3 s (previously 0.65..0.95), cone half-angle 0.18 rad (previously
+0.10), maximum emission 2400/s (previously 1600/s), growth 0.10 (previously 0.06).
+Quota follows maximum emission and lifetime, with 20% headroom. Original bench
+defaults are retained. The user accepted the stronger range, then requested more
+visible colour: orchard RGBA is now (0.36,0.60,0.78,0.60), blue-grey instead of
+near-white (0.84,0.94,1,0.28). Positions, directions and range stay unchanged.
+The previous stronger-range run09 recorded pump peak 83.3602 rad/s, fan 93.7801,
+no CAN errors, motion authorization false and 0.00395 m maximum chassis drift.
+Its actual screenshot `mist-strong-radial-09.png` was viewed; mist was visible
+around the original fan-rim nozzles (not a full-route navigation test).
+These are visual parameters, not calibrated fluid dynamics
+or an increase of actual pump command. Visual plugin rebuilt; 153 tests passed,
+including direct checks of the eight original STEP bore edges and radial axes.
+
+PC orchard service is for stationary inspection only; motion remains disabled.
+X5 mist core `agribot-isobus-mist-rdk.service` run06 is active (not localization
+or navigation). Earlier USB retries below are historical: after the last replug,
+PC can0 was DOWN and X5 vcan73 was missing after reboot; both were restored using
+the existing targeted scripts. Run05 failed because vcan73 was missing; run06
+and the subsequent 18-second run08 observer successfully used the physical
+X5 -> 6750 -> PC CAN chain. No new firmware flash was needed. A finite preview
+automatically expires and turns work authorization off; do not bypass CAN to
+show the mist. No full orchard navigation acceptance is claimed.
+
+## Historical Mounting and USB Retry Timeline (Superseded Above)
+
+PC unit `agribot-isobus-orchard-pc.service` is running for inspection only;
+motion/work authorization are false. X5 orchard core/mission are stopped.
+Sprayer uses uniform 0.55 scale; latest user instruction is tank forward, fan
+rearward (-X), superseding the earlier sideways orientation. Full 3D mount aligns
+STEP tabs (solids 29/30/43/44):
+their common outer contact faces lie on the deck z=0.42665, hole axes vertical.
+Previous yaw-only installation left these tabs vertical and was rejected.
+No added green mounting plate, rear overhanging platform or rails.
+RTK housings with original 62 mm short stems/feet (same style as Ackermann),
+no tall posts/rails, at (0.44, +/-0.29, 0.52665) m (each moved outward 3 cm). Display, TF,
+sensor JSON, fusion lever arm and georeference agree; updated configs and
+package built on PC and X5. Original exports/CAD/bench remain unchanged.
+IMU is now at (0.31,0,0.436081) m on the exposed chassis deck ahead of the
+implement and behind the sensor pedestal (deck z=0.426081), not on the implement.
+It remains laterally centred, without a new bracket. SDF sensor+visual, URDF/TF and JSON agree;
+FAST-LIVO2 extrinsics and odom-bridge body lever arm regenerated from this config.
+The prior (0,0,0.46965) crossmember position was rejected by the user. Its TF
+check and orchard-centred-imu.png are historical, not the final mounting evidence.
+Latest live TF is (0.310,0,0.436), and /imu/data still publishes imu_link headers.
+Viewed orchard-imu-on-chassis.png: black IMU clearly rests on exposed white
+chassis deck between implement and front pedestal, separated from implement.
+Spray plugin nozzle positions now support scaled CAD-local placement.
+Latest mist revision uses ONLY the supplied CAD nozzle outlets, 7 end-face axes
+(solids 82/86/90/94/98/102/106), with no added yellow cylinders in SDF or URDF.
+The earlier 12 generated nozzles were rejected and removed. Soft alpha particles
+fade/grow/fall and are driven by integrated pump-shaft velocity; no fluid claim.
+Physical stationary observations mist-stationary-observer-02.json confirmed
+native (3,4,0), pump 83.3655 rad/s and fan 93.7854 rad/s; no CAN decode errors,
+chassis drift 0.00496 m. This was the TWO-emitter intermediate visual version,
+NOT final factory-outlet ring acceptance. New geometry/152 tests passed.
+X5 USB-CAN disconnected again during mist runs 01/02, and run03 startup failed;
+user has been asked whether these new events were manual, no answer yet. Do not
+reuse the earlier confirmed manual unplug explanation for these new events or
+claim a proven hardware fault. Preview sender and X5 mist core are stopped;
+no automatic reconnect/nonzero-command restart. Final ring still needs a stable
+physical-CAN visual run. Do not modify unrelated network interfaces (new third
+PC adapter belongs to another task), USB hub or power settings speculatively.
+Latest explicit user retry also failed: run04 identity check caught the USB
+device disappearing during startup. A subsequent read-only 12-second observation
+of the exact serial saw USB device numbers 93 -> 94 -> 95; missing at second 6
+and seconds 8..11. Run05 was NOT started after this failed stability preflight.
+PC can0 remains UP/ERROR-ACTIVE at 250 kbit/s, bridge has no CAN fault and both
+motion/work authorizations false. No nonzero work or drive intent was sent in
+this retry. Needs user inspection of the X5-side old USB-CAN USB connection.
+Next user-requested retry: 15-second USB inventory plus another 10-second
+identity/access check both failed even WITHOUT starting a CAN process. The
+adapter repeatedly disappeared/re-enumerated; kernel reported config error -71.
+When present it was accessible to sunrise, so this check did not show a tty
+permission blocker. Run05 remains NOT started, movement/spraying remain off.
+After user explicitly replugged: serial was recognized again, but the 8-second
+check lost the device at second 7; kernel then showed devices 12 -> 13 with
+another hub-disable/disconnect. Device power/control=on and runtime_status=active,
+so USB autosuspend was not enabled on this adapter. No settings changed and no
+CAN/spraying process started; suggest another USB data cable or X5 USB port.
+152 tests pass. No added mounting plate; this is not complete navigation acceptance.
+The previous foreground screenshot (without short stems) is historical:
+`~/.local/state/agribot-isobus-hil-20261109/orchard-compact-mount.png`.
+Latest actual Gazebo screenshot viewed with horizontal tabs and tank cap up:
+`~/.local/state/agribot-isobus-hil-20261109/orchard-mount-tabs-on-deck.png`.
+Camera remains manually controllable (no follow/lock).
+
+The first orchard run ended ABORTED (action status 6), not a full-route pass.
+Preserve `orchard-mission-01.json` and `orchard-independent-01.json`; do not
+overwrite them or conflate them with the successful short bench tests below.
+Old large mounting cache archived as `tracked_orchard-before-compact-20261109`.
+No additional firmware flash, Git commit or real implement motion for this edit.
+
+## Current: tracked ISOBUS spraying HIL
+
+User scope: implement BOTH native agricultural protocols (plant protection and
+shredder), but demonstrate ONLY spraying on Car3 now. Driving and ISOBUS share
+one upstream physical CAN, both segments classic 250 kbit/s. No ROS drive bypass.
+
+Three finite physical HIL tests PASSED all 8 checks through actual X5 ZQWL ->
+6750 CAN1 -> 6750 CAN0 -> PC gs_usb -> Gazebo physics. Forward displacement was
+about 1.70 m each run, actual shaft velocities rose, independent work-input loss
+stopped shafts while drive continued, final chassis stopped. Actual active-spray
+GUI screenshot viewed: gazebo-physical-spray-03.png. Software stack SIL covers
+all three fields including shredder; no shredder animation or real implement
+calibration was claimed. 147 package regression tests pass.
+
+Evidence: PC ~/.local/state/agribot-isobus-hil-20261109/ contains
+tracked-spray-hil-01/02/03.json, work-motors-01.json, isobus-sil-03.json,
+CDC can-mux-02/03.json and original firmware backup/readbacks/logs. Source and
+new launch scripts are in this package; main real-robot/Unity sources unchanged.
+X5 isolated workspace ~/agribot_isobus_hil_ws; compiled ARM endpoint in its
+~/.local/state/agribot-isobus-hil-20261109/build-host/. Old apple HIL preserved.
+Local baseline Git tag pre-isobus-hil-20261109 exists; changes not committed yet.
+
+6750 original full 16 MiB Flash backup SHA256:
+37994f277fb0ef2cf2065dd810f21e2a7ca9aa6fd60114b17d55aa53996208ae.
+New dedicated test firmware built from firmware/isobus_tracked and pinned MIT
+AgIsoStack++ 02f3fe910de5fdc73e2014394c2e80900490b9cc. ELF programming Verified OK,
+all 5 Flash load segments match independent readback, last 64 KiB unchanged.
+First raw BIN programming used the wrong origin, was corrected using ELF, and
+is explicitly NOT successful evidence. SDK BIN starts at 0x80000400, not base0.
+Latest correct flash log flash-isobus-02-elf.log; no need to reflash again.
+New test image does not implement the old VCFG diagnostic UI; rollback backup
+and original firmware are retained. Private application PGNs only, not UT/TC or
+AEF-certified/registered-manufacturer interoperability.
+
+USER CORRECTION: the USB disconnect after the successful short tests was a
+manual unplug by the user, not evidence of an adapter/hub/power fault. The prior
+hardware-instability inference from kernel "disabled by hub (EMI?)" is withdrawn.
+can-mux-02 is clean; can-mux-03 retains the manual disconnect at wall119 s, outside
+completed functional test windows. No additional long-duration test was run.
+Adapter is enumerated again,
+but all experimental PC/X5 processes have been stopped. HPM sends only leased
+zero work frames without a client. Keep raw disconnect evidence and its corrected
+manual-operation explanation; do not diagnose a hardware defect from this event.
+Critical endpoint exit handlers now stop the whole isolated X5 experiment;
+reconnect must not automatically restart nonzero commands. PC bridge exit also
+terminates its simulation, avoiding a held Gazebo velocity after process death.
+
+Detailed reproduction/limits/rollback are in README.md first section. The old
+Ackermann 1 Mbps experiment below is HISTORICAL and needs its old firmware/bitrate
+restored before reuse. Do not run old/new CAN owners together.
+
+## Historical Ackermann state
 
 Run18 has met the continuous original-start/two-fruit-pick/return HIL acceptance.
 All16 independent cross-checks passed. This is a known-object-pose simulation
