@@ -16,7 +16,8 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, String
 
 from .isobus_can_mux import CAN_FRAME
-from .tracked_work_wire import CounterLease, body_velocity, decode_drive, decode_work, drive_feedback, plant_feedback
+from .tracked_work_wire import (CounterLease, body_velocity, decode_drive, decode_work,
+                               drive_feedback, mounted_work, plant_feedback, shredder_feedback, work_targets)
 
 
 def open_physical(interface, serial):
@@ -40,6 +41,8 @@ class TrackedGazeboCanBridge(Node):
         super().__init__('hil_tracked_gazebo_can_bridge')
         self.motion = self.declare_parameter('motion_authorized', False).value
         self.work = self.declare_parameter('work_authorized', False).value
+        self.implement = self.declare_parameter('implement_kind', 'sprayer').value
+        mounted_work((0, 0, 0), self.implement)
         interface = self.declare_parameter('can_interface', 'can0').value
         serial = self.declare_parameter('usb_serial', '003000224856511520343739').value
         self.bus = open_physical(interface, serial)
@@ -47,7 +50,7 @@ class TrackedGazeboCanBridge(Node):
         self.target = (0., 0., False)
         self.gears = (0, 0, 0)
         self.speed = self.yaw = 0.
-        self.rpm = [0., 0.]
+        self.rpm = [0.] if self.implement == 'shredder' else [0., 0.]
         self.truth_at = self.motors_at = -float('inf')
         self.counter = 0
         self.rx = self.tx = self.rejected = 0
@@ -63,7 +66,7 @@ class TrackedGazeboCanBridge(Node):
 
     def configure(self, parameters):
         for parameter in parameters:
-            if parameter.name in ('can_interface', 'usb_serial') and parameter.value != self.get_parameter(parameter.name).value:
+            if parameter.name in ('can_interface', 'usb_serial', 'implement_kind') and parameter.value != self.get_parameter(parameter.name).value:
                 return SetParametersResult(successful=False, reason='Restart required for physical bus changes')
         for parameter in parameters:
             if parameter.name == 'motion_authorized':
@@ -84,7 +87,7 @@ class TrackedGazeboCanBridge(Node):
     def motors(self, msg):
         import math
         mapping = dict(zip(msg.name, msg.velocity))
-        names = ('work_fan_joint', 'work_pump_joint')
+        names = ('work_shredder_joint',) if self.implement == 'shredder' else ('work_fan_joint', 'work_pump_joint')
         if all(name in mapping and math.isfinite(mapping[name]) for name in names):
             self.rpm = [mapping[name] * 30 / math.pi for name in names]
             self.motors_at = time.monotonic()
@@ -112,9 +115,7 @@ class TrackedGazeboCanBridge(Node):
                             self.target = target
                     elif identifier == 0x580:
                         gears = decode_work(data)
-                        # Shredder is codec-tested, deliberately absent from this spraying scene.
-                        if gears[2]:
-                            raise ValueError('Shredder is not mounted in the spraying HIL scene')
+                        mounted_work(gears, self.implement)
                         accepted = self.work_lease.accept(data, now, not any(gears))
                         if accepted:
                             self.gears = gears
@@ -131,22 +132,25 @@ class TrackedGazeboCanBridge(Node):
             if self.motion and truth_fresh and self.drive_lease.fresh(now) and not self.fault:
                 command.linear.x, command.angular.z = self.target[:2]
             self.drive_pub.publish(command)
-            output_gears = self.gears[:2] if self.work and motors_fresh and self.work_lease.fresh(now) and not self.fault else (0, 0)
+            output_gears = self.gears if self.work and motors_fresh and self.work_lease.fresh(now) and not self.fault else (0, 0, 0)
             # Illustrative motor curves, NOT measured implement calibration.
-            self.work_pub.publish(Float64MultiArray(data=[output_gears[0] * 300., output_gears[1] * 200.]))
+            self.work_pub.publish(Float64MultiArray(data=work_targets(output_gears, self.implement)))
             if truth_fresh and now - self.last_feedback >= .1:
                 for identifier, data in drive_feedback(self.speed, self.yaw, self.target[2], self.counter):
                     self.send(identifier, data)
                 self.counter = (self.counter + 1) & 15
                 self.last_feedback = now
             if motors_fresh and now - self.last_work_feedback >= .5:
-                for identifier, data in plant_feedback(*self.rpm, output_gears, self.counter, bool(self.fault)):
+                frames = (shredder_feedback(self.rpm[0], self.counter, bool(self.fault))
+                          if self.implement == 'shredder' else
+                          plant_feedback(*self.rpm, output_gears[:2], self.counter, bool(self.fault)))
+                for identifier, data in frames:
                     self.send(identifier, data)
                 self.last_work_feedback = now
         except (OSError, ValueError) as error:
             self.fault = str(error)
             self.drive_pub.publish(Twist())
-            self.work_pub.publish(Float64MultiArray(data=[0., 0.]))
+            self.work_pub.publish(Float64MultiArray(data=work_targets((0, 0, 0), self.implement)))
             self.get_logger().error(self.fault, throttle_duration_sec=2.)
         if now - self.last_status >= 1:
             self.status.publish(String(data=json.dumps(dict(
@@ -154,14 +158,17 @@ class TrackedGazeboCanBridge(Node):
                 rx=self.rx, tx=self.tx, rejected=self.rejected, fault=self.fault,
                 drive_lease_fresh=self.drive_lease.fresh(now),
                 work_lease_fresh=self.work_lease.fresh(now),
-                actual_fan_rpm=self.rpm[0], actual_pump_rpm=self.rpm[1],
+                implement_kind=self.implement,
+                actual_fan_rpm=self.rpm[0] if self.implement == 'sprayer' else 0.,
+                actual_pump_rpm=self.rpm[1] if self.implement == 'sprayer' else 0.,
+                actual_shredder_rpm=self.rpm[0] if self.implement == 'shredder' else 0.,
                 truth_fresh=now-self.truth_at < .5, motors_fresh=now-self.motors_at < .5))))
             self.last_status = now
 
     def destroy_node(self):
         if rclpy.ok():
             self.drive_pub.publish(Twist())
-            self.work_pub.publish(Float64MultiArray(data=[0., 0.]))
+            self.work_pub.publish(Float64MultiArray(data=work_targets((0, 0, 0), self.implement)))
         self.bus.close()
         super().destroy_node()
 

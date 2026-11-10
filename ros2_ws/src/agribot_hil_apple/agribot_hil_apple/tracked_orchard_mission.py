@@ -27,6 +27,10 @@ class OrchardMission(Navigator):
     def __init__(self, manifest, output):
         super().__init__()
         self.manifest, self.output = manifest, output
+        self.implement = manifest.get('implement_kind', 'sprayer')
+        self.work_config = manifest.get('shredding') or manifest['spraying']
+        self.work_joints = (['work_shredder_joint'] if self.implement == 'shredder' else
+                            ['work_fan_joint', 'work_pump_joint'])
         self.work_pub = self.create_publisher(String, '/hil/work/command', 1)
         self.bridge = {}
         self.gateway_ready_at = self.bridge_at = self.wheel_at = -math.inf
@@ -34,10 +38,11 @@ class OrchardMission(Navigator):
         self.executing = False
         self.started = time.monotonic()
         self.last_report = 0.
-        self.actual_work = [0., 0.]
+        self.actual_work = [0.] * len(self.work_joints)
         self.truth = None
         self.report = dict(manifest=manifest, status='waiting_for_localization', navigation=[],
-                           work_events=[], actual_work=[], truth=[], fused=[], actual_native_can_required=True)
+                           work_events=[], actual_work=[], truth=[], fused=[], actual_native_can_required=True,
+                           actual_work_joint_names=self.work_joints)
         self.last_work = None
         self.create_subscription(String, '/hil/tracked_can/status', self.bridge_status, 10)
         self.create_subscription(String, '/hil/isobus/events', self.isobus_status, 100)
@@ -54,7 +59,8 @@ class OrchardMission(Navigator):
         data = json.loads(msg.data)
         if data.get('kind') == 'gateway':
             value = bytes.fromhex(data['data'])
-            if value[0] == 1 and value[1] and value[2] & 3 == 3:
+            mask = 4 if self.implement == 'shredder' else 3
+            if value[0] == 1 and value[1] and value[2] & mask == mask:
                 self.gateway_ready_at = time.monotonic()
 
     def wheel(self, msg):
@@ -66,7 +72,7 @@ class OrchardMission(Navigator):
 
     def work_state(self, msg):
         values = dict(zip(msg.name, msg.velocity))
-        self.actual_work = [values.get('work_fan_joint', 0.), values.get('work_pump_joint', 0.)]
+        self.actual_work = [values.get(name, 0.) for name in self.work_joints]
 
     def tick_work(self):
         now = time.monotonic()
@@ -77,10 +83,11 @@ class OrchardMission(Navigator):
         if self.pose is not None:
             p, q = self.pose.pose.pose.position, self.pose.pose.pose.orientation
             yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
-            active = spray_allowed(self.manifest['spraying'], p.x, p.y, yaw, self.wheel_speed, ready)
-        config = self.manifest['spraying']
-        command = dict(fan_gear=config['fan_gear'] if active else 0,
-                       pump_gear=config['pump_gear'] if active else 0, shredder_level=0)
+            active = spray_allowed(self.work_config, p.x, p.y, yaw, self.wheel_speed, ready)
+        config = self.work_config
+        command = dict(fan_gear=config.get('fan_gear', 0) if active else 0,
+                       pump_gear=config.get('pump_gear', 0) if active else 0,
+                       shredder_level=config.get('shredder_level', 0) if active else 0)
         self.work_pub.publish(String(data=json.dumps(command)))
         if active != self.last_work:
             self.report['work_events'].append(dict(wall=now-self.started, active=active,
@@ -121,8 +128,8 @@ class OrchardMission(Navigator):
                            route_passage_events=self.route_passage_events)
         if error > self.manifest['goal_tolerance_m']+.10:
             raise RuntimeError('Actual endpoint outside configured tolerance plus 10 cm localization margin')
-        if not any(sample[1] > 50 and sample[2] > 50 for sample in self.report['actual_work']):
-            raise RuntimeError('No actual simultaneous fan/pump rotation recorded')
+        if not any(all(speed > 50 for speed in sample[1:]) for sample in self.report['actual_work']):
+            raise RuntimeError('No actual mounted-implement shaft rotation recorded')
         self.report['status'] = 'succeeded'
         self.persist()
 

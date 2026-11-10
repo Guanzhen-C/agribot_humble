@@ -116,3 +116,31 @@ def plant_feedback(fan_rpm, pump_rpm, gears, counter, fault=False):
     return [(0x5b0, checked(common, counter)),
             (0x5b2, motor_feedback(fan_rpm, counter, gears[0])),
             (0x5b3, motor_feedback(pump_rpm, counter, gears[1]))]
+
+
+def mounted_work(values, kind):
+    if kind not in ('sprayer', 'shredder'):
+        raise ValueError('Unknown mounted implement')
+    if (kind == 'sprayer' and values[2]) or (kind == 'shredder' and any(values[:2])):
+        raise ValueError('Command addresses an unmounted implement')
+    return tuple(values)
+
+
+def work_targets(values, kind):
+    values = mounted_work(values, kind)
+    # The spreadsheet defines shredder input as 0..10000 = 0..100.00 percent.
+    # 3600 rpm is the simulation curve limit, not a measured calibration.
+    return [values[2] * .36] if kind == 'shredder' else [values[0] * 300., values[1] * 200.]
+
+
+def shredder_feedback(rpm, counter, fault=False):
+    if not math.isfinite(rpm):
+        raise ValueError('Non-finite actual shredder speed')
+    common = bytearray(8)
+    common[0] = 1
+    common[2] = int(fault) | (8 if abs(rpm) > 1 else 0)
+    motor = bytearray(8)
+    motor[0] = int(fault)
+    struct.pack_into('<h', motor, 1, max(-32768, min(32767, round(rpm))))
+    motor[5] = 65  # Explicit simulated 25 C, not a physical temperature reading.
+    return [(0x5b0, checked(common, counter)), (0x5b4, checked(motor, counter))]

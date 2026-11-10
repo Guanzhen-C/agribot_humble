@@ -1,23 +1,24 @@
 """X5 real localization/navigation algorithms plus native drive/ISOBUS owner."""
+import json
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory as share
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def generate_launch_description():
-    root = Path.home()/'agribot_isobus_hil_ws/scenario_orchard'
+def scenario_nodes(context):
+    root = Path(LaunchConfiguration('scene_root').perform(context))
+    mission = json.loads((root/'mission.json').read_text())
     sim = {'use_sim_time': True}
     base = Path(share('agribot_hil_apple'))/'launch/tracked_work_rdk.launch.py'
     nodes = [
-        DeclareLaunchArgument('work_authorized', default_value='false'),
-        DeclareLaunchArgument('trace', default_value=str(Path.home()/'.local/state/agribot-isobus-hil-20261109/orchard-can.json')),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(base)), launch_arguments={
             'work_authorized': LaunchConfiguration('work_authorized'),
+            'implement_kind': mission.get('implement_kind', 'sprayer'),
             'trace': LaunchConfiguration('trace'), 'use_sim_time': 'true', 'localization_guard': 'true'}.items()),
         Node(package='agribot_hil_apple', executable='tracked_drive_guard', output='screen'),
         Node(package='image_transport', executable='republish', name='hil_camera_decoder',
@@ -45,4 +46,13 @@ def generate_launch_description():
     nodes.append(Node(package='nav2_lifecycle_manager', executable='lifecycle_manager',
         name='hil_lifecycle_manager', parameters=[sim, {'autostart': True, 'bond_timeout': 60.,
             'node_names': ['map_server', 'planner_server', 'controller_server']}]))
-    return LaunchDescription(nodes)
+    return nodes
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument('scene_root', default_value=str(Path.home()/'agribot_isobus_hil_ws/scenario_orchard')),
+        DeclareLaunchArgument('work_authorized', default_value='false'),
+        DeclareLaunchArgument('trace', default_value=str(Path.home()/'.local/state/agribot-isobus-hil-20261109/orchard-can.json')),
+        OpaqueFunction(function=scenario_nodes),
+    ])

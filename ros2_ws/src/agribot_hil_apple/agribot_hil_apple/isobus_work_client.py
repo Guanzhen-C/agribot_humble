@@ -14,6 +14,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 
 from .isobus_can_mux import open_virtual
+from .tracked_work_wire import mounted_work
 
 
 def parse_target(text, allow_shredder=False):
@@ -36,8 +37,12 @@ class IsobusWorkClient(Node):
         default = Path.home()/'.local/state/agribot-isobus-hil-20261109/build-host/hil_isobus_endpoint'
         executable = self.declare_parameter('endpoint_executable', str(default)).value
         interface = self.declare_parameter('virtual_interface', 'vcan73').value
+        self.implement = self.declare_parameter('implement_kind', 'sprayer').value
+        mounted_work([0, 0, 0], self.implement)
         self.authorized = self.declare_parameter('work_authorized', False).value
-        self.allow_shredder = self.declare_parameter('allow_shredder', False).value
+        self.allow_shredder = self.declare_parameter('allow_shredder', self.implement == 'shredder').value
+        if self.allow_shredder != (self.implement == 'shredder'):
+            raise ValueError('Implement kind and shredder permission disagree')
         self.values = [0, 0, 0]
         self.command_at = -math.inf
         self.ready = False
@@ -66,7 +71,7 @@ class IsobusWorkClient(Node):
     def configure(self, parameters):
         for parameter in parameters:
             if parameter.name != 'work_authorized' and parameter.name in (
-                    'endpoint_executable', 'virtual_interface', 'allow_shredder'):
+                    'endpoint_executable', 'virtual_interface', 'allow_shredder', 'implement_kind'):
                 if parameter.value != self.get_parameter(parameter.name).value:
                     return SetParametersResult(successful=False, reason='Restart required')
         for parameter in parameters:
@@ -86,6 +91,7 @@ class IsobusWorkClient(Node):
     def command(self, msg):
         try:
             values = parse_target(msg.data, self.allow_shredder)
+            mounted_work(values, self.implement)
             if any(values) and (not self.authorized or not self.ready):
                 raise ValueError('Implement authorization/address claim not ready')
             self.values = values

@@ -29,9 +29,10 @@ def generate_launch_description():
     client = Node(package='agribot_hil_apple', executable='isobus_work_client', parameters=[{
             'endpoint_executable': LaunchConfiguration('endpoint'),
             'work_authorized': ParameterValue(LaunchConfiguration('work_authorized'), value_type=bool),
-            'allow_shredder': False}], output='screen')
+            'implement_kind': LaunchConfiguration('implement_kind')}], output='screen')
     return LaunchDescription([
         DeclareLaunchArgument('work_authorized', default_value='false'),
+        DeclareLaunchArgument('implement_kind', default_value='sprayer'),
         DeclareLaunchArgument('localization_guard', default_value='false'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('trace', default_value=str(state/'can-mux.json')),

@@ -25,12 +25,15 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('native_bridge')), parameters=[{
             'use_sim_time': True,
             'motion_authorized': ParameterValue(LaunchConfiguration('motion_authorized'), value_type=bool),
+            'implement_kind': LaunchConfiguration('implement_kind'),
             'work_authorized': ParameterValue(LaunchConfiguration('work_authorized'), value_type=bool)}])
     return LaunchDescription([
         DeclareLaunchArgument('gui', default_value='true'),
         DeclareLaunchArgument('native_bridge', default_value='true'),
         DeclareLaunchArgument('motion_authorized', default_value='false'),
         DeclareLaunchArgument('work_authorized', default_value='false'),
+        DeclareLaunchArgument('implement_kind', default_value='sprayer'),
+        DeclareLaunchArgument('entity_name', default_value='hil_tracked_sprayer'),
         DeclareLaunchArgument('scene_root', default_value=str(root)),
         DeclareLaunchArgument('spawn_x', default_value='0'),
         DeclareLaunchArgument('spawn_y', default_value='0'),
@@ -45,7 +48,7 @@ def generate_launch_description():
                             '-s', 'libgazebo_ros_init.so', '-s', 'libgazebo_ros_factory.so'], output='screen'),
         ExecuteProcess(cmd=['gzclient'], output='screen', condition=IfCondition(LaunchConfiguration('gui'))),
         Node(package='gazebo_ros', executable='spawn_entity.py', output='screen', arguments=[
-            '-entity', 'hil_tracked_sprayer', '-file', PathJoinSubstitution([LaunchConfiguration('scene_root'), 'vehicle.sdf']),
+            '-entity', LaunchConfiguration('entity_name'), '-file', PathJoinSubstitution([LaunchConfiguration('scene_root'), 'vehicle.sdf']),
             '-x', LaunchConfiguration('spawn_x'), '-y', LaunchConfiguration('spawn_y'),
             '-z', LaunchConfiguration('spawn_z'), '-Y', LaunchConfiguration('spawn_yaw')]),
         bridge,

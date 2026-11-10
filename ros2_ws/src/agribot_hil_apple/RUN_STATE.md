@@ -1,6 +1,89 @@
-# HIL Resume State, 2026-11-09
+# HIL Resume State, 2026-11-10
 
-## Current: Run12 Finished; Saving Baseline Before Shredder HIL
+## Current: Direction-Corrected Shredder Run02 Finished
+
+Direction-corrected run02 completed with `status=succeeded`, one970-pose Smac
+path retaining original1/2/3 goals and one successful MPPI FollowPath execution.
+Independent finalXY=(3.257450835,32.382912515), error0.282825762m below0.418501555m.
+Last5s actualXYspeed<=0.001677159m/s and cutter speed<=0.007990533rad/s;
+native CAN decoder errors0, bridge rejected0 and fault empty. All173 frozen
+inputs and all13 accepted sprayer baseline files rechecked unchanged.
+
+Important residual: X5 USB-CAN disconnected AFTER navigation completed.
+Journal says goal reached at0946768530.7585, disconnect shutdown at0946768557.08,
+about26.3s later. CDC log contains `USB-CAN disconnected` and an EIO during
+channel disable; do not claim lifetime zero IO errors or omit this observation.
+Independent record confirms the chassis and cutter were already stopped before
+disconnect. Client/core terminated fail-closed, and PC motion/work authorizations
+were explicitly setfalse. Device later re-enumerated; physical cause unconfirmed,
+asked user whether they unplugged it. No automatic restart was attempted.
+Image decoder also exited-11 while the resulting SIGINT shutdown was in progress;
+this is not evidence of a camera failure during navigation.
+
+PC `agribot-shredder-pc` remains as an unarmed display; recorder02 and X5 core/
+mission02 are inactive. Raw records were copied to private PC state. Newest source
+and configuration changes are limited to this HIL package. No formal report edits.
+
+## Previous: Direction-Corrected Run02 Startup
+
+6750 target responded again today; real bidirectional CAN250k recovered without
+flashing. A pre-existing gs_usb error-passive state was cleared with empty RTR
+diagnostics before any experiment, not fabricated feedback or motion commands.
+`shredder-bench-20261110-01.json` passes all10 real-chain checks, including actual
+cutter rotation, native0x5B4 reverse ISOBUS feedback and work-timeout isolation.
+Full orchard run01 completed1->2->3 on one970-pose native Smac path with MPPI.
+Independent final error0.301573m, speed<=0.001624m/s and cutter<=0.007944rad/s in
+the last5s; native decode errors0, bridge rejected2, CDC IO errors0.
+
+User then found the implement facing backward. Entire CAD and actual cutter mount
+were rotated180deg aboutZ, feed hopper now toward vehicle+X. Chassis/sensors and
+algorithm YAMLs remain unchanged. Added orientation/rotor-axis assertions;166
+tests pass. Old scene and run01 evidence preserved, not relabelled as run02.
+New frozen173 inputs: `orchard-input-sha256-20261110-02.json` in private state
+`.local/state/agribot-shredder-hil-20261109`. Current PCunits: `agribot-shredder-pc`
+and `agribot-shredder-record-02`; X5 `agribot-shredder-rdk` and
+`agribot-shredder-mission-02`. Mission file onX5 is
+`.local/state/agribot-isobus-hil-20261109/shredder-orchard-mission-20261110-02.json`;
+CDC trace has matching `shredder-orchard-can-20261110-02.json` name.
+Read-only monitor exec84698 reached succeeded and exited; it is no longer live.
+Startup notes below are historical. No JTAG was used while motion was active.
+Do not edit formal reports or mix run01 and direction-corrected run02 evidence.
+
+## Previous: Shredder HIL Pending Physical ECU Recovery
+
+Stable sprayer checkpoint `748e58427d39d4e1d338edf6767e6f8a21e9d528` was pushed
+and confirmed on GitHub main. New shredder changes are not yet a hardware pass.
+166 regression tests and the separate Gazebo torque/actual-angle/stop fixture
+passed. Original STEP source hash is f9fcd09fdc541ea46150eec0054bc2730cb15e111e0f4d44587a33a2e0001df6.
+The correctly upright rigged CAD is in `.cache/agribot/isobus/work_models/shredder/rigged`;
+the separate scene is `.cache/agribot/isobus/tracked_shredder_orchard`.
+Chassis/contact/sensors and all algorithm YAMLs remain the accepted baseline.
+X5 isolated package was rebuilt; configs copied to `scenario_shredder`.
+
+First physical preflight: PC native bridge latched ENOBUFS, X5 trace
+`shredder-bench-can-01.json` has no received frames. Both physical test units
+`agribot-shredder-pc` and `agribot-shredder-rdk` were stopped before JTAG inspection.
+FireDAP is enumerated but privileged OpenOCD target scan returns all ones, with
+target unexamined. No reset/flash or nonzero hardware test was performed.
+Asked user to check 6750 main-board power/debug cable and power-cycle.
+Continuation recheck at100kHz also returns all-ones JTAG/unknown target, despite
+OpenOCD exiting0 (`preflight-6750-03.log`); exit status alone is not readiness.
+PC can0 is now DOWN to flush stranded transmit queues until hardware recovers.
+All13 accepted sprayer file hashes rechecked unchanged; targeted tests4/4 pass.
+Third consecutive goal-turn hardware audit still fails target examination
+(`preflight-6750-04.log`, all-ones JTAG). Goal is blocked on physical ECU recovery,
+not complete. PC simulation units and X5 CAN owners are confirmed inactive.
+Evidence is `.local/state/agribot-shredder-hil-20261109/`, including JTAG logs and
+software-only `model-physics-01.json` / actual Gazebo `model-preview-01.png`.
+No formal report has been edited for the shredder.
+
+Next: once physical ECU is reachable, stop software-only visual unit if running,
+reinitialize serial-guarded PC CAN250k, start both real endpoints with fresh trace
+names, run `verify_shredder_hil.py`, then full original orchard1->2->3 using new
+shredder launch modes and independent PC recorder. Preserve failed evidence;
+do not relabel the software fixture as hardware evidence or overwrite sprayer cache.
+
+## Previous: Run12 Finished; Baseline Saved Before Shredder HIL
 
 Run12 has finished with `status=succeeded`, one native971-pose Smac path and
 MPPI execution. Independent endpoint error0.391045m is below the configured
